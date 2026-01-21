@@ -1,0 +1,392 @@
+<!doctype html>
+<html lang="pt-br" data-theme="light">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>FlowProject</title>
+  <link rel="stylesheet" href="./styles.css" />
+</head>
+<body>
+
+  <div class="app">
+    <header class="topbar">
+      <div class="brand">
+        <div class="logo">FP</div>
+        <div>
+          <div class="brand-name">FlowProject</div>
+          <div class="brand-sub">Gerenciamento de projetos • multi-tenant</div>
+        </div>
+      </div>
+
+      <div class="topbar-right">
+        <div class="pill" id="userPill" hidden>
+          <div class="avatar" id="userAvatar">U</div>
+          <div class="pill-text">
+            <div class="pill-name" id="userName">Usuário</div>
+            <div class="pill-role" id="userRole">—</div>
+          </div>
+        </div>
+        <button class="btn ghost" id="btnLogout" hidden>Sair</button>
+      </div>
+    </header>
+
+    <main class="main">
+      <!-- LOGIN -->
+      <section class="view" id="viewLogin">
+        <div class="container narrow">
+          <div class="hero">
+            <h1>Bem-vindo(a) ao FlowProject</h1>
+            <p class="muted">Entre com seu e-mail e senha.</p>
+          </div>
+
+          <div class="panel">
+            <form id="loginForm" class="form">
+              <label class="field">
+                <span>E-mail</span>
+                <input id="email" type="email" placeholder="seuemail@empresa.com" autocomplete="username"/>
+              </label>
+
+              <label class="field">
+                <span>Senha</span>
+                <input id="password" type="password" placeholder="••••••••" autocomplete="current-password"/>
+              </label>
+
+              <div class="row" style="display:flex; gap:10px; align-items:center; justify-content:space-between;">
+                <button class="btn primary" type="submit">Entrar</button>
+                <button class="btn ghost" type="button" id="btnForgot">Esqueci a senha</button>
+              </div>
+
+              <div class="alert" id="loginAlert" hidden></div>
+            </form>
+          </div>
+
+          <div class="muted" style="font-size:12px; margin-top:10px;">
+            Dica: perfis ficam em <b>companies/&lt;companyId&gt;/users/&lt;uid&gt;</b> e vínculo em <b>userCompanies/&lt;uid&gt;</b>.
+          </div>
+        </div>
+      </section>
+
+      <!-- DASHBOARD -->
+      <section class="view" id="viewDashboard" hidden>
+        <div class="container">
+          <div class="page-header">
+            <div>
+              <h1 id="dashTitle">Painel</h1>
+              <p class="muted" id="dashSubtitle">—</p>
+            </div>
+            <div class="chips">
+              <span class="chip" id="chipEmail">Email: —</span>
+              <span class="chip" id="chipTeam">Equipe: —</span>
+            </div>
+          </div>
+
+          <div class="grid" id="dashCards"></div>
+        </div>
+      </section>
+
+      <!-- ADMIN (empresa) -->
+      <section class="view" id="viewAdmin" hidden>
+        <div class="container">
+          <div class="page-header">
+            <div>
+              <h1>Administração</h1>
+              <p class="muted">Equipes e usuários da sua empresa.</p>
+            </div>
+            <div class="chips">
+              <button class="btn ghost" id="btnBackFromAdmin">Voltar</button>
+            </div>
+          </div>
+
+          <!-- EQUIPES -->
+          <div class="panel" style="margin-bottom:12px;">
+            <div class="row" style="display:flex; gap:10px; align-items:flex-end; flex-wrap:wrap;">
+              <div style="flex:1; min-width:220px;">
+                <h3 style="margin:0;">Equipes</h3>
+                <p class="muted" style="margin:4px 0 0 0;">Crie e gerencie as equipes da empresa.</p>
+              </div>
+              <label class="field" style="min-width:240px;">
+                <span>Buscar equipe</span>
+                <input id="teamSearch" placeholder="Ex.: Time Comercial"/>
+              </label>
+              <button class="btn" id="btnReloadTeams">Atualizar</button>
+              <button class="btn primary" id="btnOpenCreateTeam">+ Criar Equipe</button>
+            </div>
+
+            <div class="grid" id="teamsGrid" style="margin-top:12px;"></div>
+            <div class="panel subtle" id="teamsEmpty" hidden style="margin-top:12px;">
+              <h3>Nenhuma equipe criada</h3>
+              <p class="muted">Crie a primeira equipe para começar a cadastrar usuários.</p>
+            </div>
+          </div>
+
+          <!-- USUÁRIOS -->
+          <div class="panel">
+            <div class="row" style="display:flex; gap:10px; align-items:flex-end; flex-wrap:wrap;">
+              <div style="flex:1; min-width:220px;">
+                <h3 style="margin:0;">Usuários</h3>
+                <p class="muted" style="margin:4px 0 0 0;">Cadastre usuários e vincule equipes via chips.</p>
+              </div>
+
+              <label class="field" style="min-width:240px;">
+                <span>Buscar usuário</span>
+                <input id="userSearch" placeholder="Nome, e-mail, telefone ou UID"/>
+              </label>
+
+              <label class="field" style="min-width:200px;">
+                <span>Filtrar função</span>
+                <select id="userRoleFilter">
+                  <option value="">Todas</option>
+                  <option value="admin">Admin</option>
+                  <option value="gestor">Gestor</option>
+                  <option value="coordenador">Coordenador</option>
+                  <option value="tecnico">Técnico</option>
+                </select>
+              </label>
+
+              <button class="btn" id="btnReloadUsers">Atualizar</button>
+              <button class="btn primary" id="btnOpenCreateUser">+ Novo Usuário</button>
+            </div>
+
+            <div class="table" style="margin-top:12px; overflow:auto;">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Nome</th>
+                    <th>Função</th>
+                    <th>E-mail</th>
+                    <th>Telefone</th>
+                    <th>Equipes</th>
+                    <th>Status</th>
+                    <th style="width:110px;">Ações</th>
+                  </tr>
+                </thead>
+                <tbody id="usersTbody"></tbody>
+              </table>
+            </div>
+
+            <div class="panel subtle" id="usersEmpty" hidden style="margin-top:12px;">
+              <h3>Nenhum usuário cadastrado</h3>
+              <p class="muted">Clique em “Novo Usuário” para cadastrar o primeiro.</p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- COMPANIES VIEW (Master) -->
+      <section class="view" id="viewCompanies" hidden>
+        <div class="container">
+          <div class="page-header">
+            <div>
+              <h1>Empresas</h1>
+              <p class="muted">Gerencie as empresas cadastradas no FlowProject.</p>
+            </div>
+            <div class="chips">
+              <button class="btn primary" id="btnOpenCreateCompany">+ Criar Empresa</button>
+              <button class="btn ghost" id="btnBackToDashboard">Voltar</button>
+            </div>
+          </div>
+
+          <div class="panel" style="margin-bottom:12px;">
+            <label class="field">
+              <span>Buscar (nome / CNPJ / ID)</span>
+              <input id="companySearch" placeholder="Ex.: Empresa X ou 12345678000190"/>
+            </label>
+            <div style="margin-top:10px;">
+              <button class="btn" id="btnReloadCompanies">Atualizar</button>
+            </div>
+          </div>
+
+          <div class="grid" id="companiesGrid"></div>
+          <div class="panel subtle" id="companiesEmpty" hidden style="margin-top:12px;">
+            <h3>Nenhuma empresa cadastrada</h3>
+            <p class="muted">Clique em “Criar Empresa” para começar.</p>
+          </div>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <!-- MODAL CRIAR EMPRESA (Master) -->
+  <div class="modal" id="modalCreateCompany" hidden>
+    <div class="modal-backdrop" data-close="true"></div>
+    <div class="modal-card">
+      <div class="modal-header">
+        <div>
+          <h2>Criar Empresa</h2>
+          <p class="muted">Crie a empresa e vincule o Admin (sem equipe obrigatória nesta etapa).</p>
+        </div>
+        <button class="btn ghost" id="btnCloseCreateCompany">✕</button>
+      </div>
+
+      <div class="modal-body">
+        <div class="grid" style="grid-template-columns: repeat(12, 1fr); gap:12px;">
+          <label class="field" style="grid-column: span 12;">
+            <span>Nome da empresa</span>
+            <input id="companyName" placeholder="Ex.: Empresa X Tecnologia LTDA" />
+          </label>
+
+          <label class="field" style="grid-column: span 6;">
+            <span>CNPJ</span>
+            <input id="companyCnpj" placeholder="Ex.: 12.345.678/0001-90" />
+          </label>
+
+          <label class="field" style="grid-column: span 6;">
+            <span>ID da empresa (slug)</span>
+            <input id="companyId" placeholder="Ex.: empresa-x" />
+          </label>
+
+          <div class="panel subtle" style="grid-column: span 12; padding:12px;">
+            <h3 style="margin:0 0 10px 0;">Admin da empresa</h3>
+
+            <label class="field">
+              <span>UID do Admin (do Authentication)</span>
+              <input id="adminUid" placeholder="Cole aqui o UID do usuário admin" />
+            </label>
+
+            <div class="grid" style="grid-template-columns: repeat(12, 1fr); gap:12px; margin-top:12px;">
+              <label class="field" style="grid-column: span 6;">
+                <span>Nome do Admin</span>
+                <input id="adminName" placeholder="Ex.: Maria Silva" />
+              </label>
+              <label class="field" style="grid-column: span 6;">
+                <span>E-mail do Admin</span>
+                <input id="adminEmail" type="email" placeholder="admin@empresa.com" />
+              </label>
+
+              <label class="field" style="grid-column: span 6;">
+                <span>Telefone do Admin</span>
+                <input id="adminPhone" placeholder="11999999999" />
+              </label>
+
+              <label class="field" style="grid-column: span 6;">
+                <span>Status</span>
+                <select id="adminActive">
+                  <option value="true" selected>Ativo</option>
+                  <option value="false">Inativo</option>
+                </select>
+              </label>
+            </div>
+
+            <p class="muted" style="margin:10px 0 0 0; font-size:12px;">
+              Observação: equipes são criadas pelo <b>Admin da empresa</b> na tela Administração.
+            </p>
+          </div>
+        </div>
+
+        <div class="alert" id="createCompanyAlert" hidden></div>
+      </div>
+
+      <div class="modal-footer">
+        <button class="btn" id="btnCancelCreateCompany">Cancelar</button>
+        <button class="btn primary" id="btnCreateCompany">Salvar</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL CRIAR EQUIPE (Admin empresa) -->
+  <div class="modal" id="modalCreateTeam" hidden>
+    <div class="modal-backdrop" data-close="true"></div>
+    <div class="modal-card">
+      <div class="modal-header">
+        <div>
+          <h2>Criar Equipe</h2>
+          <p class="muted">Crie uma equipe para usar nos usuários e projetos.</p>
+        </div>
+        <button class="btn ghost" id="btnCloseCreateTeam">✕</button>
+      </div>
+
+      <div class="modal-body">
+        <label class="field">
+          <span>Nome da equipe</span>
+          <input id="teamName" placeholder="Ex.: Time Comercial"/>
+        </label>
+
+        <label class="field" style="margin-top:10px;">
+          <span>ID da equipe (slug)</span>
+          <input id="teamId" placeholder="Ex.: time-comercial"/>
+        </label>
+
+        <div class="alert" id="createTeamAlert" hidden></div>
+      </div>
+
+      <div class="modal-footer">
+        <button class="btn" id="btnCancelCreateTeam">Cancelar</button>
+        <button class="btn primary" id="btnCreateTeam">Salvar</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL CRIAR USUÁRIO (Admin empresa) -->
+  <div class="modal" id="modalCreateUser" hidden>
+    <div class="modal-backdrop" data-close="true"></div>
+    <div class="modal-card">
+      <div class="modal-header">
+        <div>
+          <h2>Novo Usuário</h2>
+          <p class="muted">Cadastre um usuário e selecione equipes via chips.</p>
+        </div>
+        <button class="btn ghost" id="btnCloseCreateUser">✕</button>
+      </div>
+
+      <div class="modal-body">
+        <div class="grid" style="grid-template-columns: repeat(12, 1fr); gap:12px;">
+          <label class="field" style="grid-column: span 12;">
+            <span>UID (do Authentication)</span>
+            <input id="newUserUid" placeholder="Cole o UID do usuário"/>
+          </label>
+
+          <label class="field" style="grid-column: span 6;">
+            <span>Nome</span>
+            <input id="newUserName" placeholder="Nome do usuário"/>
+          </label>
+
+          <label class="field" style="grid-column: span 6;">
+            <span>Função</span>
+            <select id="newUserRole">
+              <option value="tecnico" selected>Técnico</option>
+              <option value="coordenador">Coordenador</option>
+              <option value="gestor">Gestor</option>
+              <option value="admin">Admin</option>
+            </select>
+          </label>
+
+          <label class="field" style="grid-column: span 6;">
+            <span>E-mail</span>
+            <input id="newUserEmail" type="email" placeholder="usuario@empresa.com"/>
+          </label>
+
+          <label class="field" style="grid-column: span 6;">
+            <span>Telefone</span>
+            <input id="newUserPhone" placeholder="11999999999"/>
+          </label>
+
+          <label class="field" style="grid-column: span 6;">
+            <span>Status</span>
+            <select id="newUserActive">
+              <option value="true" selected>Ativo</option>
+              <option value="false">Inativo</option>
+            </select>
+          </label>
+
+          <div class="field" style="grid-column: span 12;">
+            <span>Equipes (chips)</span>
+            <div class="chips-select" id="teamChips"></div>
+            <div class="muted" id="teamChipsHint" style="font-size:12px; margin-top:6px;">
+              Técnicos também podem participar de mais de uma equipe.
+            </div>
+          </div>
+        </div>
+
+        <div class="alert" id="createUserAlert" hidden></div>
+      </div>
+
+      <div class="modal-footer">
+        <button class="btn" id="btnCancelCreateUser">Cancelar</button>
+        <button class="btn primary" id="btnCreateUser">Salvar</button>
+      </div>
+    </div>
+  </div>
+
+  <script type="module" src="./app.js"></script>
+</body>
+</html>
