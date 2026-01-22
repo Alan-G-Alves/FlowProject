@@ -33,38 +33,64 @@
     <main class="main">
       <!-- LOGIN -->
       <section class="view" id="viewLogin">
-        <div class="container narrow">
-          <div class="hero">
-            <h1>Bem-vindo(a) ao FlowProject</h1>
-            <p class="muted">Entre com seu e-mail e senha.</p>
-          </div>
-
-          <div class="panel">
-            <form id="loginForm" class="form">
-              <label class="field">
-                <span>E-mail</span>
-                <input id="email" type="email" placeholder="seuemail@empresa.com" autocomplete="username"/>
-              </label>
-
-              <label class="field">
-                <span>Senha</span>
-                <input id="password" type="password" placeholder="••••••••" autocomplete="current-password"/>
-              </label>
-
-              <div class="row" style="display:flex; gap:10px; align-items:center; justify-content:space-between;">
-                <button class="btn primary" type="submit">Entrar</button>
-                <button class="btn ghost" type="button" id="btnForgot">Esqueci a senha</button>
-              </div>
-
-              <div class="alert" id="loginAlert" hidden></div>
-            </form>
-          </div>
-
-          <div class="muted" style="font-size:12px; margin-top:10px;">
-            Dica: perfis ficam em <b>companies/&lt;companyId&gt;/users/&lt;uid&gt;</b> e vínculo em <b>userCompanies/&lt;uid&gt;</b>.
-          </div>
+  <div class="login-split">
+    <!-- Left -->
+    <div class="login-left">
+      <div class="login-brand">
+        <div class="logo-badge">
+          <span class="logo-dot"></span>
+          <span class="logo-text">FlowProject</span>
         </div>
-      </section>
+      </div>
+
+      <div class="login-head">
+        <h1>Faça seu login</h1>
+        <p class="muted">Acesse sua empresa com seu e-mail e senha.</p>
+      </div>
+
+      <div class="login-card">
+        <form id="loginForm" class="form">
+          <label class="field">
+            <span>E-mail</span>
+            <input id="email" type="email" placeholder="seuemail@empresa.com" autocomplete="username"/>
+          </label>
+
+          <label class="field">
+            <span>Senha</span>
+            <div class="pwd-wrap">
+              <input id="password" type="password" placeholder="sua senha" autocomplete="current-password"/>
+              <button class="pwd-toggle" type="button" id="btnTogglePwd" aria-label="Mostrar/ocultar senha">👁</button>
+            </div>
+          </label>
+
+          <div class="login-row">
+            <label class="check">
+              <input type="checkbox" id="rememberMe" />
+              <span>Lembrar de mim</span>
+            </label>
+
+            <button class="link-btn" type="button" id="btnForgot">Esqueci minha senha</button>
+          </div>
+
+          <button class="btn primary login-btn" type="submit">Entrar</button>
+
+          <div class="alert" id="loginAlert" hidden></div>
+</form>
+      </div>
+    </div>
+
+    <!-- Right -->
+    <div class="login-right" aria-hidden="true">
+      <div class="login-illustration">
+        <img src="kanbanlogin.jpg" alt="Ilustração FlowProject"/>
+      </div>
+      <div class="login-right-text">
+        <div class="login-right-title">Organize projetos com leveza.</div>
+        <div class="login-right-sub">Kanban, equipes e tarefas em um só lugar.</div>
+      </div>
+    </div>
+  </div>
+</section>
 
       <!-- DASHBOARD -->
       <section class="view" id="viewDashboard" hidden>
@@ -167,6 +193,62 @@
             <div class="panel subtle" id="usersEmpty" hidden style="margin-top:12px;">
               <h3>Nenhum usuário cadastrado</h3>
               <p class="muted">Clique em “Novo Usuário” para cadastrar o primeiro.</p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+
+      <!-- GESTOR: USUÁRIOS (TÉCNICOS) -->
+      <section class="view" id="viewManagerUsers" hidden>
+        <div class="container">
+          <div class="page-header">
+            <div>
+              <h1>Usuários (Técnicos)</h1>
+              <p class="muted">Cadastre técnicos e vincule às equipes que você administra.</p>
+            </div>
+            <div class="chips">
+              <button class="btn ghost" id="btnBackFromManagerUsers">Voltar</button>
+              <button class="btn primary" id="btnOpenCreateTech">+ Novo Técnico</button>
+            </div>
+          </div>
+
+          <div class="panel" style="margin-bottom:12px;">
+            <div class="row" style="display:flex; gap:10px; align-items:flex-end; flex-wrap:wrap;">
+              <label class="field" style="min-width:240px;">
+                <span>Buscar</span>
+                <input id="mgrUserSearch" placeholder="Nome, e-mail, telefone ou UID"/>
+              </label>
+
+              <label class="field" style="min-width:260px;">
+                <span>Filtrar por equipe (opcional)</span>
+                <select id="mgrTeamFilter">
+                  <option value="">Todas as minhas equipes</option>
+                </select>
+              </label>
+
+              <button class="btn" id="btnReloadMgrUsers">Atualizar</button>
+            </div>
+
+            <div class="table" style="margin-top:12px; overflow:auto;">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Nome</th>
+                    <th>E-mail</th>
+                    <th>Telefone</th>
+                    <th>Equipes</th>
+                    <th>Status</th>
+                    <th style="width:110px;">Ações</th>
+                  </tr>
+                </thead>
+                <tbody id="mgrUsersTbody"></tbody>
+              </table>
+            </div>
+
+            <div class="panel subtle" id="mgrUsersEmpty" hidden style="margin-top:12px;">
+              <h3>Nenhum técnico encontrado</h3>
+              <p class="muted">Cadastre o primeiro técnico clicando em “Novo Técnico”.</p>
             </div>
           </div>
         </div>
@@ -385,8 +467,127 @@
         <button class="btn primary" id="btnCreateUser">Salvar</button>
       </div>
     </div>
+  
+  <!-- MODAL CRIAR TÉCNICO (Gestor) -->
+  <div class="modal" id="modalCreateTech" hidden>
+    <div class="modal-backdrop" data-close="true"></div>
+    <div class="modal-card">
+      <div class="modal-header">
+        <div>
+          <h2>Novo Técnico</h2>
+          <p class="muted">Selecione equipes apenas dentro das equipes que você administra.</p>
+        </div>
+        <button class="btn ghost" id="btnCloseCreateTech">✕</button>
+      </div>
+
+      <div class="modal-body">
+        <div class="grid" style="grid-template-columns: repeat(12, 1fr); gap:12px;">
+          <label class="field" style="grid-column: span 12;">
+            <span>UID (do Authentication)</span>
+            <input id="techUid" placeholder="Cole o UID do usuário técnico"/>
+          </label>
+
+          <label class="field" style="grid-column: span 6;">
+            <span>Nome</span>
+            <input id="techName" placeholder="Nome do técnico"/>
+          </label>
+
+          <label class="field" style="grid-column: span 6;">
+            <span>Status</span>
+            <select id="techActive">
+              <option value="true" selected>Ativo</option>
+              <option value="false">Inativo</option>
+            </select>
+          </label>
+
+          <label class="field" style="grid-column: span 6;">
+            <span>E-mail</span>
+            <input id="techEmail" type="email" placeholder="tecnico@empresa.com"/>
+          </label>
+
+          <label class="field" style="grid-column: span 6;">
+            <span>Telefone</span>
+            <input id="techPhone" placeholder="11999999999"/>
+          </label>
+
+          <div class="field" style="grid-column: span 12;">
+            <span>Equipes (chips)</span>
+            <div class="chips-select" id="mgrTeamChips"></div>
+            <div class="muted" style="font-size:12px; margin-top:6px;">
+              Você só pode selecionar equipes que estão em <b>Equipes administradas</b> do seu perfil.
+            </div>
+          </div>
+        </div>
+
+        <div class="alert" id="createTechAlert" hidden></div>
+      </div>
+
+      <div class="modal-footer">
+        <button class="btn" id="btnCancelCreateTech">Cancelar</button>
+        <button class="btn primary" id="btnCreateTech">Salvar</button>
+      </div>
+    </div>
   </div>
 
+  <!-- MODAL DEFINIR EQUIPES ADMINISTRADAS (Admin da empresa) -->
+  <div class="modal" id="modalManagedTeams" hidden>
+    <div class="modal-backdrop" data-close="true"></div>
+    <div class="modal-card">
+      <div class="modal-header">
+        <div>
+          <h2>Equipes administradas</h2>
+          <p class="muted" id="managedTeamsSubtitle">Defina quais equipes este gestor administra.</p>
+        </div>
+        <button class="btn ghost" id="btnCloseManagedTeams">✕</button>
+      </div>
+
+      <div class="modal-body">
+        <div class="field">
+          <span>Selecione as equipes (chips)</span>
+          <div class="chips-select" id="managedTeamsChips"></div>
+          <div class="muted" style="font-size:12px; margin-top:6px;">
+            Isso controla quais equipes o Gestor pode usar ao cadastrar técnicos e (futuramente) projetos/tarefas.
+          </div>
+        </div>
+
+        <div class="alert" id="managedTeamsAlert" hidden></div>
+      </div>
+
+      <div class="modal-footer">
+        <button class="btn" id="btnCancelManagedTeams">Cancelar</button>
+        <button class="btn primary" id="btnSaveManagedTeams">Salvar</button>
+      </div>
+    </div>
+  </div>
+
+</div>
+
   <script type="module" src="./app.js"></script>
+<script>
+  // Toggle senha (somente UI)
+  document.addEventListener("click", function(e){
+    const btn = e.target && e.target.id === "btnTogglePwd" ? e.target : null;
+    if(!btn) return;
+    const input = document.getElementById("password");
+    if(!input) return;
+    input.type = (input.type === "password") ? "text" : "password";
+    btn.textContent = (input.type === "password") ? "👁" : "🙈";
+  });
+</script>
+<script>
+  // Esconde a topbar na tela de login (sem depender do app.js)
+  (function(){
+    function sync(){
+      const v = document.getElementById("viewLogin");
+      const isLogin = v && v.hidden === false;
+      document.body.classList.toggle("is-login", !!isLogin);
+    }
+    sync();
+    const obs = new MutationObserver(sync);
+    const v = document.getElementById("viewLogin");
+    if (v) obs.observe(v, { attributes:true, attributeFilter:["hidden"] });
+    setInterval(sync, 800);
+  })();
+</script>
 </body>
 </html>

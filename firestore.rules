@@ -1,0 +1,205 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function isSignedIn() { return request.auth != null; }
+    function myUid() { return request.auth.uid; }
+
+    function isSuperAdmin() {
+      return isSignedIn()
+        && exists(/databases/$(database)/documents/platformUsers/$(myUid()))
+        && get(/databases/$(database)/documents/platformUsers/$(myUid())).data.role == "superadmin"
+        && get(/databases/$(database)/documents/platformUsers/$(myUid())).data.active == true;
+    }
+
+    function myCompanyId() {
+      return get(/databases/$(database)/documents/userCompanies/$(myUid())).data.companyId;
+    }
+
+    function myCompanyUserDoc(companyId) {
+      return get(/databases/$(database)/documents/companies/$(companyId)/users/$(myUid()));
+    }
+
+    function isCompanyAdmin(companyId) {
+      return isSignedIn()
+        && exists(/databases/$(database)/documents/userCompanies/$(myUid()))
+        && companyId == myCompanyId()
+        && exists(/databases/$(database)/documents/companies/$(companyId)/users/$(myUid()))
+        && myCompanyUserDoc(companyId).data.role == "admin"
+        && myCompanyUserDoc(companyId).data.active == true;
+    }
+
+    function isManager(companyId) {
+      return isSignedIn()
+        && exists(/databases/$(database)/documents/userCompanies/$(myUid()))
+        && companyId == myCompanyId()
+        && exists(/databases/$(database)/documents/companies/$(companyId)/users/$(myUid()))
+        && myCompanyUserDoc(companyId).data.role == "gestor"
+        && myCompanyUserDoc(companyId).data.active == true;
+    }
+
+    function userFieldsAllowed() {
+      return request.resource.data.keys().hasOnly([
+        "name","role","teamId","teamIds","managedTeamIds","email","phone","active"
+      ]);
+    }
+
+    function roleValid() {
+      return request.resource.data.role in ["admin","gestor","coordenador","tecnico"];
+    }
+
+    function nameValid() {
+      return request.resource.data.name is string && request.resource.data.name.size() > 0;
+    }
+
+    function emailValid() {
+      return request.resource.data.email is string && request.resource.data.email.size() > 0;
+    }
+
+    function phoneValid() {
+      return request.resource.data.phone is string;
+    }
+
+    function activeValid() {
+      return request.resource.data.active is bool;
+    }
+
+    function teamIdOptionalValid() {
+      return !("teamId" in request.resource.data)
+        || (request.resource.data.teamId is string);
+    }
+
+    function teamIdsOptionalValid() {
+      return !("teamIds" in request.resource.data)
+        || (request.resource.data.teamIds is list);
+    }
+
+    function managedTeamIdsOptionalValid() {
+      return !("managedTeamIds" in request.resource.data)
+        || (request.resource.data.managedTeamIds is list);
+    }
+
+    function userTeamsRuleValid() {
+      // admin pode ter 0 equipes
+      // demais devem ter >=1 equipe (teamIds ou teamId)
+      return request.resource.data.role == "admin"
+        || (
+          (("teamIds" in request.resource.data) && request.resource.data.teamIds.size() >= 1)
+          || (("teamId" in request.resource.data) && request.resource.data.teamId.size() > 0)
+        );
+    }
+
+    // valida se o técnico está APENAS em equipes administradas pelo gestor logado
+    function teamsSubsetOfMyManaged(companyId) {
+      // teamIds obrigatório para técnico (no fluxo do gestor)
+      return ("teamIds" in request.resource.data)
+        && request.resource.data.teamIds is list
+        && request.resource.data.teamIds.size() >= 1
+        && request.resource.data.teamIds.hasOnly(myCompanyUserDoc(companyId).data.managedTeamIds);
+    }
+
+    // platformUsers
+    match /platformUsers/{uid} {
+      allow read: if isSuperAdmin() || (isSignedIn() && uid == myUid());
+      allow write: if false;
+    }
+
+    // userCompanies
+    match /userCompanies/{uid} {
+      allow read: if isSuperAdmin() || (isSignedIn() && uid == myUid());
+
+      // master
+      allow create, update: if isSuperAdmin()
+        && request.resource.data.keys().hasOnly(["companyId"])
+        && request.resource.data.companyId is string
+        && request.resource.data.companyId.size() > 0;
+
+      // admin da empresa
+      allow create, update: if !isSuperAdmin()
+        && isCompanyAdmin(request.resource.data.companyId)
+        && request.resource.data.keys().hasOnly(["companyId"])
+        && request.resource.data.companyId is string
+        && request.resource.data.companyId.size() > 0;
+
+      // gestor pode vincular SOMENTE usuários à própria empresa (para técnicos que ele cria)
+      allow create, update: if !isSuperAdmin()
+        && isManager(request.resource.data.companyId)
+        && request.resource.data.keys().hasOnly(["companyId"])
+        && request.resource.data.companyId is string
+        && request.resource.data.companyId == myCompanyId();
+
+      allow delete: if false;
+    }
+
+    // companies
+    match /companies/{companyId} {
+      allow read: if isSuperAdmin();
+
+      allow create, update: if isSuperAdmin()
+        && request.resource.data.keys().hasOnly(["name", "cnpj", "active", "createdAt", "createdBy"])
+        && request.resource.data.name is string
+        && request.resource.data.name.size() > 0
+        && request.resource.data.cnpj is string
+        && request.resource.data.cnpj.size() > 0
+        && request.resource.data.active is bool
+        && request.resource.data.createdBy == myUid();
+
+      allow delete: if false;
+
+      // teams
+      match /teams/{teamId} {
+        allow read: if isSuperAdmin() || isCompanyAdmin(companyId);
+
+        allow create, update: if isSuperAdmin()
+          && request.resource.data.keys().hasOnly(["name","active","createdAt","createdBy"])
+          && request.resource.data.name is string && request.resource.data.name.size() > 0
+          && request.resource.data.active is bool;
+
+        allow create, update: if !isSuperAdmin()
+          && isCompanyAdmin(companyId)
+          && request.resource.data.keys().hasOnly(["name","active","createdAt","createdBy"])
+          && request.resource.data.name is string && request.resource.data.name.size() > 0
+          && request.resource.data.active is bool;
+
+        allow delete: if false;
+      }
+
+      // users
+      match /users/{uid} {
+
+        allow read: if isSuperAdmin()
+          || isCompanyAdmin(companyId)
+          || (isSignedIn() && uid == myUid() && companyId == myCompanyId());
+
+        function userWriteValid() {
+          return userFieldsAllowed()
+            && nameValid()
+            && roleValid()
+            && emailValid()
+            && phoneValid()
+            && activeValid()
+            && teamIdOptionalValid()
+            && teamIdsOptionalValid()
+            && managedTeamIdsOptionalValid()
+            && userTeamsRuleValid();
+        }
+
+        // master / admin da empresa
+        allow create, update: if (isSuperAdmin() || isCompanyAdmin(companyId))
+          && userWriteValid();
+
+        // gestor: pode criar/atualizar SOMENTE técnico, e SOMENTE nas equipes que ele administra
+        allow create, update: if isManager(companyId)
+          && request.resource.data.role == "tecnico"
+          && userWriteValid()
+          && teamsSubsetOfMyManaged(companyId);
+
+        allow delete: if false;
+      }
+
+      match /{document=**} {
+        allow read, write: if false;
+      }
+    }
+  }
+}

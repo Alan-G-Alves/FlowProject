@@ -1,4 +1,6 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-app.js";
+import { getFunctions, httpsCallable } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-functions.js";
+
 import {
   getAuth,
   onAuthStateChanged,
@@ -31,9 +33,19 @@ const firebaseConfig = {
 };
 
 const app = initializeApp(firebaseConfig);
+
+const functions = getFunctions(app);
+const fnCreateUserInTenant = httpsCallable(functions, "createUserInTenant");
 const auth = getAuth(app);
 const db = getFirestore(app);
 
+
+
+async function createUserWithAuthAndResetLink(payload){
+  // payload: {companyId, name, email, phone, role, teamIds}
+  const res = await fnCreateUserInTenant(payload);
+  return res.data; // { uid, resetLink }
+}
 /** =========================
  *  2) ESTADO
  *  ========================= */
@@ -42,7 +54,11 @@ const state = {
   profile: null,
   isSuperAdmin: false,
   teams: [],          // cache de equipes
-  selectedTeamIds: [] // usado no modal usuário
+  selectedTeamIds: [], // usado no modal usuário
+  mgrSelectedTeamIds: [],
+  managedTeamsTargetUid: null,
+  managedTeamsSelected: [],
+  _usersCache: []
 };
 
 /** =========================
@@ -52,6 +68,7 @@ const viewLogin = document.getElementById("viewLogin");
 const viewDashboard = document.getElementById("viewDashboard");
 const viewAdmin = document.getElementById("viewAdmin");
 const viewCompanies = document.getElementById("viewCompanies");
+const viewManagerUsers = document.getElementById("viewManagerUsers");
 
 // Login
 const loginForm = document.getElementById("loginForm");
@@ -135,6 +152,38 @@ const newUserActiveEl = document.getElementById("newUserActive");
 const teamChipsEl = document.getElementById("teamChips");
 const createUserAlert = document.getElementById("createUserAlert");
 
+// Gestor - Usuários (Técnicos)
+const btnBackFromManagerUsers = document.getElementById("btnBackFromManagerUsers");
+const btnOpenCreateTech = document.getElementById("btnOpenCreateTech");
+const mgrUserSearch = document.getElementById("mgrUserSearch");
+const mgrTeamFilter = document.getElementById("mgrTeamFilter");
+const btnReloadMgrUsers = document.getElementById("btnReloadMgrUsers");
+const mgrUsersTbody = document.getElementById("mgrUsersTbody");
+const mgrUsersEmpty = document.getElementById("mgrUsersEmpty");
+
+// Modal criar técnico (Gestor)
+const modalCreateTech = document.getElementById("modalCreateTech");
+const btnCloseCreateTech = document.getElementById("btnCloseCreateTech");
+const btnCancelCreateTech = document.getElementById("btnCancelCreateTech");
+const btnCreateTech = document.getElementById("btnCreateTech");
+const techUidEl = document.getElementById("techUid");
+const techNameEl = document.getElementById("techName");
+const techEmailEl = document.getElementById("techEmail");
+const techPhoneEl = document.getElementById("techPhone");
+const techActiveEl = document.getElementById("techActive");
+const mgrTeamChipsEl = document.getElementById("mgrTeamChips");
+const createTechAlert = document.getElementById("createTechAlert");
+
+// Modal equipes administradas (Admin da empresa)
+const modalManagedTeams = document.getElementById("modalManagedTeams");
+const managedTeamsSubtitle = document.getElementById("managedTeamsSubtitle");
+const managedTeamsChips = document.getElementById("managedTeamsChips");
+const managedTeamsAlert = document.getElementById("managedTeamsAlert");
+const btnCloseManagedTeams = document.getElementById("btnCloseManagedTeams");
+const btnCancelManagedTeams = document.getElementById("btnCancelManagedTeams");
+const btnSaveManagedTeams = document.getElementById("btnSaveManagedTeams");
+
+
 /** =========================
  *  4) HELPERS
  *  ========================= */
@@ -146,11 +195,13 @@ function setView(name){
   hide(viewDashboard);
   hide(viewAdmin);
   hide(viewCompanies);
+  hide(viewManagerUsers);
 
   if (name === "login") show(viewLogin);
   if (name === "dashboard") show(viewDashboard);
   if (name === "admin") show(viewAdmin);
   if (name === "companies") show(viewCompanies);
+  if (name === "managerUsers") show(viewManagerUsers);
 }
 
 function clearAlert(el){ if (!el) return; el.textContent = ""; hide(el); }
@@ -167,6 +218,45 @@ function setAlert(el, msg, type="error") {
     el.style.color = "rgba(12,18,32,.85)";
   }
   show(el);
+}
+
+
+function setAlertWithResetLink(alertEl, msg, email, resetLink){
+  if (!alertEl) return;
+  alertEl.hidden = false;
+  alertEl.className = "alert success";
+  // link é grande: deixamos clicável + botão copiar
+  alertEl.innerHTML = `
+    <div style="display:flex; flex-direction:column; gap:8px;">
+      <div>${msg}</div>
+      <div style="display:flex; gap:8px; flex-wrap:wrap; align-items:center;">
+        <a href="${resetLink}" target="_blank" rel="noopener">Abrir link de definição de senha</a>
+        <button class="btn sm" id="btnCopyResetLink">Copiar link</button>
+      </div>
+      <div class="muted" style="font-size:12px;">Envie este link para <b>${email}</b>. Ele serve para definir a senha no primeiro acesso.</div>
+    </div>
+  `;
+  const btn = alertEl.querySelector("#btnCopyResetLink");
+  btn?.addEventListener("click", async () => {
+    try{
+      await navigator.clipboard.writeText(resetLink);
+      btn.textContent = "Copiado!";
+      setTimeout(()=> btn.textContent="Copiar link", 1200);
+    }catch(e){
+      alert("Não consegui copiar automaticamente. Copie manualmente pelo navegador.");
+    }
+  });
+}
+
+
+function intersects(a = [], b = []) {
+  const setB = new Set(b || []);
+  return (a || []).some(x => setB.has(x));
+}
+
+function getTeamNameById(teamId){
+  const t = (state.teams || []).find(x => x.id === teamId);
+  return t ? (t.name || t.id) : teamId;
 }
 
 function normalizeRole(role){
@@ -279,6 +369,16 @@ function renderDashboardCards(profile){
       badge: "Fase 2",
       action: () => alert("Fase 2: Kanban de Projetos")
     });
+
+    if (profile.role === "gestor") {
+      cards.push({
+        title: "Usuários (Técnicos)",
+        desc: "Cadastre técnicos e vincule às equipes que você administra.",
+        badge: "Gestor",
+        action: () => openManagerUsersView()
+      });
+    }
+
 
     if (profile.role === "admin"){
       cards.push({
@@ -525,6 +625,8 @@ async function loadUsers(){
   const q = (userSearch?.value || "").toLowerCase().trim();
   const roleFilter = (userRoleFilter?.value || "").trim();
 
+  state._usersCache = all;
+
   const filtered = all.filter(u => {
     const text = `${u.uid} ${u.name||""} ${u.email||""} ${u.phone||""}`.toLowerCase();
     const okQ = !q || text.includes(q);
@@ -558,7 +660,7 @@ async function loadUsers(){
       <td><span class="badge small">${statusLabel}</span></td>
       <td>
         <div class="action-row">
-          <button class="btn sm" data-act="toggle">${u.active === false ? "Ativar" : "Inativar"}</button>
+          <button class="btn sm" data-act="toggle">${u.active === false ? "Ativar" : "Inativar"}</button>${u.role === "gestor" ? `<button class="btn sm link" data-act="managed">Equipes</button>` : ""}
         </div>
       </td>
     `;
@@ -570,6 +672,15 @@ async function loadUsers(){
       await loadUsers();
     });
 
+
+    const btnManaged = tr.querySelector('[data-act="managed"]');
+    if (btnManaged){
+      btnManaged.addEventListener("click", async () => {
+        // garante equipes carregadas
+        await loadTeams();
+        openManagedTeamsModal(u.uid, u.name);
+      });
+    }
     usersTbody.appendChild(tr);
   }
 }
@@ -634,7 +745,8 @@ async function createUser(){
   const active = (newUserActiveEl.value || "true") === "true";
   const teamIds = Array.from(new Set(state.selectedTeamIds || []));
 
-  if (!uid) return setAlert(createUserAlert, "Informe o UID (Authentication).");
+  // UID agora é opcional (se vazio, criamos automaticamente no Auth via Cloud Function)
+  const wantsAutoAuth = !uid;
   if (!name) return setAlert(createUserAlert, "Informe o nome do usuário.");
   if (!role) return setAlert(createUserAlert, "Selecione a função.");
   if (!email || !isEmailValidBasic(email)) return setAlert(createUserAlert, "Informe um e-mail válido.");
@@ -646,6 +758,28 @@ async function createUser(){
 
   setAlert(createUserAlert, "Salvando...", "info");
 
+
+  // Auto-criação no Auth + link de definição de senha
+  if (wantsAutoAuth) {
+    const data = await createUserWithAuthAndResetLink({
+      companyId: state.companyId,
+      name,
+      email,
+      phone,
+      role,
+      teamIds: Array.isArray(teamIds) ? teamIds : []
+    });
+
+    uid = data.uid;
+
+    // Cria/garante vínculo multi-tenant
+    await setDoc(doc(db, "userCompanies", uid), { companyId: state.companyId });
+
+    closeCreateUserModal();
+    await loadUsers();
+    setAlertWithResetLink(usersAlert, "Usuário criado com sucesso!", email, data.resetLink);
+    return;
+  }
   // Perfil na empresa
   await setDoc(doc(db, "companies", state.companyId, "users", uid), {
     name,
@@ -666,6 +800,291 @@ async function createUser(){
   closeCreateUserModal();
   await loadUsers();
 }
+
+
+/** =========================
+ *  9.5) GESTOR: USUÁRIOS (TÉCNICOS)
+ *  ========================= */
+function openManagerUsersView(){
+  setView("managerUsers");
+  Promise.all([loadTeams(), loadManagerUsers()]).catch(err => {
+    console.error(err);
+    alert("Erro ao carregar usuários do gestor: " + (err?.message || err));
+  });
+}
+
+function getManagedTeamIds(){
+  const ids = state.profile?.managedTeamIds;
+  return Array.isArray(ids) ? ids : [];
+}
+
+function populateMgrTeamFilter(){
+  if (!mgrTeamFilter) return;
+  const managedIds = getManagedTeamIds();
+  mgrTeamFilter.innerHTML = '<option value="">Todas as minhas equipes</option>';
+
+  const activeManagedTeams = (state.teams || [])
+    .filter(t => t.active !== false && managedIds.includes(t.id))
+    .sort((a,b)=> (a.name||"").localeCompare(b.name||""));
+
+  for (const t of activeManagedTeams){
+    const opt = document.createElement("option");
+    opt.value = t.id;
+    opt.textContent = t.name || t.id;
+    mgrTeamFilter.appendChild(opt);
+  }
+}
+
+async function loadManagerUsers(){
+  if (!mgrUsersTbody) return;
+
+  mgrUsersTbody.innerHTML = "";
+  hide(mgrUsersEmpty);
+
+  const managedIds = getManagedTeamIds();
+  populateMgrTeamFilter();
+
+  const snap = await getDocs(collection(db, "companies", state.companyId, "users"));
+  const all = snap.docs.map(d => ({ uid: d.id, ...d.data() }));
+
+  const q = (mgrUserSearch?.value || "").toLowerCase().trim();
+  const teamFilter = (mgrTeamFilter?.value || "").trim();
+
+  const filtered = all.filter(u => {
+    if (u.role !== "tecnico") return false;
+
+    const teamIds = Array.isArray(u.teamIds) ? u.teamIds : (u.teamId ? [u.teamId] : []);
+    if (!intersects(teamIds, managedIds)) return false;
+    if (teamFilter && !teamIds.includes(teamFilter)) return false;
+
+    const text = `${u.uid} ${u.name||""} ${u.email||""} ${u.phone||""}`.toLowerCase();
+    if (q && !text.includes(q)) return false;
+
+    return true;
+  }).sort((a,b)=> (a.name||"").localeCompare(b.name||""));
+
+  if (filtered.length === 0){
+    show(mgrUsersEmpty);
+    return;
+  }
+
+  for (const u of filtered){
+    const tr = document.createElement("tr");
+    const teamIds = Array.isArray(u.teamIds) ? u.teamIds : (u.teamId ? [u.teamId] : []);
+    const teamsLabel = teamIds.length ? teamIds.map(getTeamNameById).join(", ") : "—";
+    const statusLabel = (u.active === false) ? "Inativo" : "Ativo";
+
+    tr.innerHTML = `
+      <td>
+        <div style="display:flex; flex-direction:column; gap:2px;">
+          <div><b>${escapeHtml(u.name || "—")}</b></div>
+          <div class="muted" style="font-size:12px;">UID: ${escapeHtml(u.uid)}</div>
+        </div>
+      </td>
+      <td>${escapeHtml(u.email || "—")}</td>
+      <td>${escapeHtml(u.phone || "—")}</td>
+      <td>${escapeHtml(teamsLabel)}</td>
+      <td><span class="badge small">${statusLabel}</span></td>
+      <td>
+        <div class="action-row">
+          <button class="btn sm" data-act="toggle">${u.active === false ? "Ativar" : "Inativar"}</button>
+        </div>
+      </td>
+    `;
+
+    tr.querySelector('[data-act="toggle"]').addEventListener("click", async () => {
+      const nextActive = (u.active === false);
+      if (!confirm(`Deseja ${nextActive ? "ativar" : "inativar"} "${u.name}"?`)) return;
+      await updateDoc(doc(db, "companies", state.companyId, "users", u.uid), { active: nextActive });
+      await loadManagerUsers();
+    });
+
+    mgrUsersTbody.appendChild(tr);
+  }
+}
+
+function openCreateTechModal(){
+  if (!modalCreateTech) return;
+  clearAlert(createTechAlert);
+  modalCreateTech.hidden = false;
+
+  techUidEl.value = "";
+  techNameEl.value = "";
+  techEmailEl.value = "";
+  techPhoneEl.value = "";
+  techActiveEl.value = "true";
+
+  state.mgrSelectedTeamIds = [];
+  renderMgrTeamChips();
+}
+
+function closeCreateTechModal(){ if (modalCreateTech) modalCreateTech.hidden = true; }
+
+function renderMgrTeamChips(){
+  if (!mgrTeamChipsEl) return;
+  mgrTeamChipsEl.innerHTML = "";
+
+  const managedIds = getManagedTeamIds();
+  const teams = (state.teams || [])
+    .filter(t => t.active !== false && managedIds.includes(t.id))
+    .sort((a,b)=> (a.name||"").localeCompare(b.name||""));
+
+  if (teams.length === 0){
+    const hint = document.createElement("div");
+    hint.className = "muted";
+    hint.style.fontSize = "13px";
+    hint.textContent = "Nenhuma equipe administrada encontrada. Peça ao Admin da empresa para definir suas equipes administradas.";
+    mgrTeamChipsEl.appendChild(hint);
+    return;
+  }
+
+  for (const t of teams){
+    const chip = document.createElement("div");
+    chip.className = "chip-option" + (state.mgrSelectedTeamIds.includes(t.id) ? " selected" : "");
+    chip.innerHTML = `<span class="dot"></span><span>${escapeHtml(t.name)}</span>`;
+
+    chip.addEventListener("click", () => {
+      const idx = state.mgrSelectedTeamIds.indexOf(t.id);
+      if (idx >= 0) state.mgrSelectedTeamIds.splice(idx, 1);
+      else state.mgrSelectedTeamIds.push(t.id);
+      renderMgrTeamChips();
+    });
+
+    mgrTeamChipsEl.appendChild(chip);
+  }
+}
+
+async function createTech(){
+  clearAlert(createTechAlert);
+
+  let uid = (techUidEl.value || "").trim();
+  const name = (techNameEl.value || "").trim();
+  const email = (techEmailEl.value || "").trim();
+  const phone = normalizePhone(techPhoneEl.value || "");
+  const active = (techActiveEl.value || "true") === "true";
+  const teamIds = Array.from(new Set(state.mgrSelectedTeamIds || []));
+
+  // UID agora é opcional (se vazio, criamos automaticamente no Auth via Cloud Function)
+  const wantsAutoAuth = !uid;
+  if (!name) return setAlert(createTechAlert, "Informe o nome do técnico.");
+  if (!email || !isEmailValidBasic(email)) return setAlert(createTechAlert, "Informe um e-mail válido.");
+  if (teamIds.length === 0) return setAlert(createTechAlert, "Selecione pelo menos 1 equipe.");
+
+  const managedIds = new Set(getManagedTeamIds());
+  if (teamIds.some(t => !managedIds.has(t))){
+    return setAlert(createTechAlert, "Você selecionou uma equipe fora do seu escopo de gestão.");
+  }
+
+  setAlert(createTechAlert, "Salvando...", "info");
+
+
+  if (wantsAutoAuth) {
+    const data = await createUserWithAuthAndResetLink({
+      companyId: state.companyId,
+      name,
+      email,
+      phone,
+      role: "tecnico",
+      teamIds
+    });
+
+    uid = data.uid;
+
+    await setDoc(doc(db, "userCompanies", uid), { companyId: state.companyId });
+
+    closeCreateTechModal();
+    await loadManagerUsers();
+    setAlertWithResetLink(createTechAlert, "Técnico criado com sucesso!", email, data.resetLink);
+    return;
+  }
+  await setDoc(doc(db, "companies", state.companyId, "users", uid), {
+    name,
+    role: "tecnico",
+    email,
+    phone,
+    active,
+    teamIds,
+    teamId: teamIds[0] || ""
+  });
+
+  await setDoc(doc(db, "userCompanies", uid), { companyId: state.companyId });
+
+  closeCreateTechModal();
+  await loadManagerUsers();
+}
+
+/** =========================
+ *  9.6) ADMIN: DEFINIR EQUIPES ADMINISTRADAS (GESTOR)
+ *  ========================= */
+function openManagedTeamsModal(targetUid, targetName){
+  if (!modalManagedTeams) return;
+  clearAlert(managedTeamsAlert);
+  modalManagedTeams.hidden = false;
+
+  state.managedTeamsTargetUid = targetUid;
+
+  const title = targetName ? `Gestor: ${targetName}` : "Gestor";
+  if (managedTeamsSubtitle) managedTeamsSubtitle.textContent = `${title} • selecione as equipes administradas`;
+
+  const row = (state._usersCache || []).find(u => u.uid === targetUid);
+  const current = Array.isArray(row?.managedTeamIds) ? row.managedTeamIds : [];
+  state.managedTeamsSelected = Array.from(new Set(current));
+
+  renderManagedTeamsChips();
+}
+
+function closeManagedTeamsModal(){ if (modalManagedTeams) modalManagedTeams.hidden = true; }
+
+function renderManagedTeamsChips(){
+  if (!managedTeamsChips) return;
+  managedTeamsChips.innerHTML = "";
+
+  const activeTeams = (state.teams || [])
+    .filter(t => t.active !== false)
+    .sort((a,b)=> (a.name||"").localeCompare(b.name||""));
+
+  if (activeTeams.length === 0){
+    const hint = document.createElement("div");
+    hint.className = "muted";
+    hint.style.fontSize = "13px";
+    hint.textContent = "Crie equipes antes de definir equipes administradas.";
+    managedTeamsChips.appendChild(hint);
+    return;
+  }
+
+  for (const t of activeTeams){
+    const chip = document.createElement("div");
+    chip.className = "chip-option" + (state.managedTeamsSelected.includes(t.id) ? " selected" : "");
+    chip.innerHTML = `<span class="dot"></span><span>${escapeHtml(t.name)}</span>`;
+
+    chip.addEventListener("click", () => {
+      const idx = state.managedTeamsSelected.indexOf(t.id);
+      if (idx >= 0) state.managedTeamsSelected.splice(idx, 1);
+      else state.managedTeamsSelected.push(t.id);
+      renderManagedTeamsChips();
+    });
+
+    managedTeamsChips.appendChild(chip);
+  }
+}
+
+async function saveManagedTeams(){
+  clearAlert(managedTeamsAlert);
+
+  const targetUid = state.managedTeamsTargetUid;
+  if (!targetUid) return setAlert(managedTeamsAlert, "UID alvo inválido.");
+
+  const managedTeamIds = Array.from(new Set(state.managedTeamsSelected || []));
+  setAlert(managedTeamsAlert, "Salvando...", "info");
+
+  await updateDoc(doc(db, "companies", state.companyId, "users", targetUid), {
+    managedTeamIds
+  });
+
+  closeManagedTeamsModal();
+  await loadUsers();
+}
+
 
 /** =========================
  *  10) AUTH FLOW
@@ -770,6 +1189,43 @@ btnLogout?.addEventListener("click", async () => {
 // Dashboard navigation
 btnBackToDashboard?.addEventListener("click", () => setView("dashboard"));
 btnBackFromAdmin?.addEventListener("click", () => setView("dashboard"));
+
+// Gestor Users view
+btnBackFromManagerUsers?.addEventListener("click", () => setView("dashboard"));
+btnReloadMgrUsers?.addEventListener("click", () => loadManagerUsers());
+mgrUserSearch?.addEventListener("input", () => loadManagerUsers());
+mgrTeamFilter?.addEventListener("change", () => loadManagerUsers());
+btnOpenCreateTech?.addEventListener("click", async () => {
+  await loadTeams();
+  openCreateTechModal();
+});
+
+// Modal técnico
+btnCloseCreateTech?.addEventListener("click", () => closeCreateTechModal());
+btnCancelCreateTech?.addEventListener("click", () => closeCreateTechModal());
+btnCreateTech?.addEventListener("click", () => {
+  createTech().catch(err => {
+    console.error(err);
+    setAlert(createTechAlert, "Erro ao salvar: " + (err?.message || err));
+  });
+});
+modalCreateTech?.addEventListener("click", (e) => {
+  if (e.target?.dataset?.close === "true") closeCreateTechModal();
+});
+
+// Modal equipes administradas
+btnCloseManagedTeams?.addEventListener("click", () => closeManagedTeamsModal());
+btnCancelManagedTeams?.addEventListener("click", () => closeManagedTeamsModal());
+btnSaveManagedTeams?.addEventListener("click", () => {
+  saveManagedTeams().catch(err => {
+    console.error(err);
+    setAlert(managedTeamsAlert, "Erro ao salvar: " + (err?.message || err));
+  });
+});
+modalManagedTeams?.addEventListener("click", (e) => {
+  if (e.target?.dataset?.close === "true") closeManagedTeamsModal();
+});
+
 
 // Companies events
 btnReloadCompanies?.addEventListener("click", () => loadCompanies());
