@@ -380,29 +380,36 @@ a{ color: inherit; }
 /* =========================
    LOGIN (split modern)
    ========================= */
-
- .login-split{
+.login-split{
   min-height: 100vh;
   display: grid;
   grid-template-columns: 30% 70%; /* login / roxo */
   background: #fff;
-  gap: 0; /* sem espaço entre colunas */
 }
 
+
 .login-left{
-  padding: 48px 16px 48px 56px; /* menos espaço à direita para encostar no roxo */
+  padding: 48px 12px 48px 32px; /* menos espaço à direita para encostar no roxo */
   display: flex;
   flex-direction: column;
   justify-content: center;
   gap: 18px;
-  align-items: flex-end; /* card e textos “colam” mais no painel roxo */
+  align-items: flex-start; /* card e textos “colam” mais no painel roxo */
 }
 
 .login-brand{
-  display:flex;
-  align-items:center;
-  justify-content:flex-start;
-  margin-bottom: 10px;
+  width: 100%;
+  display: flex;
+  justify-content: center; /* CENTRALIZA o logo */
+  margin-bottom: 24px;
+}
+
+/* Logo imagem (substitui o badge de texto) */
+.login-logo-img{
+  width: 300px;
+  max-width: 100%;
+  height: auto;
+  display: block;
 }
 
 .logo-badge{
@@ -429,7 +436,7 @@ a{ color: inherit; }
 
 .login-head h1{
   margin: 0;
-  font-size: 40px;
+  font-size: 25px;
   line-height: 1.1;
   letter-spacing: -0.5px;
 }
@@ -437,7 +444,7 @@ a{ color: inherit; }
 
 .login-card{
   width: 100%;
-  max-width: 560px;
+  max-width: 520px;
   padding: 26px;
   border-radius: 18px;
   border: 1px solid var(--border);
@@ -514,7 +521,7 @@ a{ color: inherit; }
 .login-right{
   background: radial-gradient(1200px 900px at 30% 20%, rgba(255,255,255,.18), transparent 50%),
               linear-gradient(135deg, #5b5bd6, #6a5cff 55%, #5b8cff);
-  padding: 48px 56px 48px 12px; /* menos espaço à esquerda */
+  padding: 0; /* menos espaço à esquerda */
   display:flex;
   flex-direction: column;
   justify-content: center;
@@ -523,7 +530,7 @@ a{ color: inherit; }
 }
 
 .login-illustration{
-  width: min(600px, 95%);
+  width: min(720px, 90%);
   border-radius: 20px;
   background: rgba(255,255,255,.10);
   border: 1px solid rgba(255,255,255,.18);
