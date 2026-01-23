@@ -1,3 +1,6 @@
+console.log("APP.JS CARREGADO: vHTTP-TESTE-02");
+
+
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-app.js";
 import { getFunctions, httpsCallable } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-functions.js";
 
@@ -36,7 +39,7 @@ const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const functions = getFunctions(app, "us-central1");
 const fnCreateUserInTenant = httpsCallable(functions, "createUserInTenant");
-const fnCreateCompanyWithAdmin = httpsCallable(functions, "createCompanyWithAdmin");
+const fnCreateCompanyWithAdmin = httpsCallable(functions, "createCompanyWithAdmin") /* (mantido, mas usamos HTTP no createCompany) */;
 const db = getFirestore(app);
 
 
@@ -111,6 +114,7 @@ const adminEmailEl = document.getElementById("adminEmail");
 const adminPhoneEl = document.getElementById("adminPhone");
 const adminActiveEl = document.getElementById("adminActive");
 const createCompanyAlert = document.getElementById("createCompanyAlert");
+const createCompanySuccess = document.getElementById("createCompanySuccess");
 
 // Admin (Empresa)
 const btnBackFromAdmin = document.getElementById("btnBackFromAdmin");
@@ -258,11 +262,40 @@ function escapeHtml(str){
     .replace(/'/g, "&#39;");
 }
 
+
+async function callAdminHttp(functionName, payload){
+  const user = auth.currentUser;
+  if (!user) throw new Error("Você precisa estar logado.");
+  const idToken = await user.getIdToken(true);
+  const url = `https://us-central1-${firebaseConfig.projectId}.cloudfunctions.net/${functionName}`;
+  const res = await fetch(url, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "Authorization": `Bearer ${idToken}`
+    },
+    body: JSON.stringify(payload || {})
+  });
+  const json = await res.json().catch(() => ({}));
+  if (!res.ok){
+    throw new Error(json?.message || json?.error || `HTTP ${res.status}`);
+  }
+  return json;
+}
+
+
 // Chamada HTTP (onRequest) com token do Firebase Auth (fallback quando a Function não é callable)
 async function callHttpFunctionWithAuth(functionName, payload){
-  const user = auth.currentUser;
+  // Espera o auth estabilizar (evita clicar antes de carregar a sessão)
+  const user = auth.currentUser || await new Promise((resolve) => {
+    const unsub = onAuthStateChanged(auth, (u) => { unsub(); resolve(u || null); });
+  });
+
   if (!user) throw new Error("Não autenticado.");
-  const idToken = await user.getIdToken(); // não força refresh por padrão
+
+  // Força refresh do token (reduz 401 por token velho)
+  const idToken = await user.getIdToken(true);
+
   const url = `https://us-central1-${firebaseConfig.projectId}.cloudfunctions.net/${functionName}`;
 
   const res = await fetch(url, {
@@ -274,15 +307,15 @@ async function callHttpFunctionWithAuth(functionName, payload){
     body: JSON.stringify(payload || {})
   });
 
+  // Tenta ler JSON; se vier vazio, cria objeto vazio
   const json = await res.json().catch(() => ({}));
+
   if (!res.ok){
     const msg = json?.error?.message || json?.message || json?.error || `HTTP ${res.status}`;
-    const err = new Error(msg);
-    err.status = res.status;
-    err.details = json;
-    throw err;
+    throw new Error(msg);
   }
-  return (json && typeof json === "object" && "data" in json) ? json.data : json;
+
+  return json;
 }
 
 function intersects(a = [], b = []) {
@@ -329,6 +362,67 @@ function normalizeCnpj(cnpj){ return (cnpj || "").replace(/\D/g, ""); }
 function isCnpjValidBasic(cnpj){ return normalizeCnpj(cnpj).length === 14; }
 
 function normalizePhone(phone){ return (phone || "").replace(/\D/g, ""); }
+
+function clearCompanyCreateSuccess(){
+  if (!createCompanySuccess) return;
+  createCompanySuccess.hidden = true;
+  createCompanySuccess.innerHTML = "";
+}
+
+function showCompanyCreateSuccess({ adminEmail, uid, resetLink }){
+  if (!createCompanySuccess) return;
+  createCompanySuccess.hidden = false;
+
+  const safe = (v) => (v ?? "").toString();
+
+  createCompanySuccess.innerHTML = `
+    <div style="display:flex;flex-direction:column;gap:10px;">
+      <strong>✅ Empresa criada com sucesso!</strong>
+
+      <div class="muted">
+        <div><b>Admin:</b> ${safe(adminEmail)}</div>
+        <div><b>UID:</b> ${safe(uid || "-")}</div>
+      </div>
+
+      ${resetLink ? `
+        <div style="margin-top:2px;">
+          <a href="${safe(resetLink)}" target="_blank" rel="noopener">
+            🔐 Definir senha (primeiro acesso)
+          </a>
+        </div>
+
+        <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:4px;">
+          <button class="btn sm" type="button" id="btnCopyCompanyReset">Copiar link</button>
+          <button class="btn sm secondary" type="button" id="btnHideCompanyResult">Fechar</button>
+        </div>
+
+        <div class="muted" style="font-size:12px;">
+          Envie este link para o admin acessar pela primeira vez.
+        </div>
+      ` : `
+        <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:4px;">
+          <button class="btn sm secondary" type="button" id="btnHideCompanyResult">Fechar</button>
+        </div>
+      `}
+    </div>
+  `;
+
+  const btnHide = document.getElementById("btnHideCompanyResult");
+  btnHide?.addEventListener("click", () => clearCompanyCreateSuccess());
+
+  const btnCopy = document.getElementById("btnCopyCompanyReset");
+  btnCopy?.addEventListener("click", async () => {
+    try{
+      await navigator.clipboard.writeText(resetLink);
+      btnCopy.textContent = "Copiado ✅";
+      setTimeout(() => { btnCopy.textContent = "Copiar link"; }, 1200);
+    }catch(e){
+      console.error(e);
+      alert("Não foi possível copiar automaticamente. Copie o link manualmente.");
+    }
+  });
+}
+
 function isEmailValidBasic(email){ return /^\S+@\S+\.\S+$/.test((email || "").trim()); }
 
 /** =========================
@@ -488,6 +582,7 @@ async function loadCompanies(){
 function openCreateCompanyModal(){
   if (!modalCreateCompany) return;
   clearAlert(createCompanyAlert);
+  clearCompanyCreateSuccess();
   modalCreateCompany.hidden = false;
 
   companyNameEl.value = "";
@@ -531,61 +626,33 @@ async function createCompany(){
 
     setAlert(createCompanyAlert, "Criando empresa e Admin...", "info");
 
-    // 1) tenta como callable (onCall)
-    let data = null;
-    try{
-      const res = await fnCreateCompanyWithAdmin({
-        companyId,
-        companyName,
-        cnpj: normalizeCnpj(cnpj),
-        adminName,
-        adminEmail,
-        adminPhone: normalizePhone(adminPhone),
-        adminActive
-      });
-      data = res?.data || null;
-    }catch(err){
-      // 2) fallback para HTTP (onRequest) com Bearer token
-      const code = err?.code || "";
-      const msg = (err?.message || "").toLowerCase();
-      const looksLikeUnauth = code.includes("unauthenticated") || msg.includes("não autentic") || msg.includes("unauth");
-      if (!looksLikeUnauth) throw err;
+// Payload no formato esperado pela Function (admin aninhado)
+const payload = {
+  companyId,
+  companyName,
+  cnpj: normalizeCnpj(cnpj),
+  admin: {
+    name: adminName,
+    email: adminEmail,
+    phone: normalizePhone(adminPhone),
+    active: adminActive
+  }
+};
 
-      data = await callHttpFunctionWithAuth("createCompanyWithAdmin", {
-        companyId,
-        companyName,
-        cnpj: normalizeCnpj(cnpj),
-        adminName,
-        adminEmail,
-        adminPhone: normalizePhone(adminPhone),
-        adminActive
-      });
-    }
+// Chama endpoint HTTP (robusto no localhost) - precisa estar deployado em functions/index.js
+const data = await callHttpFunctionWithAuth("createCompanyWithAdminHttp", payload);
 
     const uid = data?.uid;
     const resetLink = data?.resetLink;
-
-    closeCreateCompanyModal();
     await loadCompanies();
 
-    if (resetLink){
-      alert(
-        `Empresa criada com sucesso!
-
-` +
-        `Admin: ${adminEmail}
-UID: ${uid || "-"}
-
-` +
-        `Link para definir senha (primeiro acesso):
-${resetLink}`
-      );
-    } else {
-      alert(`Empresa criada com sucesso! Admin: ${adminEmail}`);
-    }
+    // Mostra retorno formatado logo abaixo do formulário (sem alert)
+    clearAlert(createCompanyAlert);
+    showCompanyCreateSuccess({ adminEmail, uid, resetLink });
 
   }catch(err){
     console.error("Erro ao criar empresa:", err);
+    clearCompanyCreateSuccess();
     setAlert(createCompanyAlert, err?.message || "Erro ao criar empresa");
   }
 }
@@ -1419,3 +1486,4 @@ function mapAuthError(err){
   if (code.includes("auth/too-many-requests")) return "Muitas tentativas. Tente novamente mais tarde.";
   return "Não foi possível entrar. Tente novamente.";
 }
+window.__fp = { auth, db, functions };

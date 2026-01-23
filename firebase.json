@@ -2,7 +2,7 @@
   "firestore": {
     "database": "(default)",
     "location": "southamerica-east1",
-    "rules": "30",
+    "rules": "firestore.rules",
     "indexes": "firestore.indexes.json"
   },
   "functions": [

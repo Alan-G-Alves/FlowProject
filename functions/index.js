@@ -226,3 +226,126 @@ exports.createCompanyWithAdmin = functions.https.onCall(async (data, context) =>
   return { companyId, uid, resetLink };
 });
 
+
+
+/**
+ * createCompanyWithAdminHttp (HTTP) - SUPERADMIN (robusto para localhost)
+ * Header: Authorization: Bearer <idToken>
+ * Body:
+ * {
+ *   companyId, companyName, cnpj,
+ *   admin: { name, email, phone, active }
+ * }
+ * Returns JSON: { companyId, uid, resetLink }
+ */
+exports.createCompanyWithAdminHttp = functions
+  .region("us-central1")
+  .https
+  .onRequest(async (req, res) => {
+    // CORS simples para browser
+    res.set("Access-Control-Allow-Origin", "*");
+    res.set("Access-Control-Allow-Methods", "POST, OPTIONS");
+    res.set("Access-Control-Allow-Headers", "Content-Type, Authorization");
+
+    if (req.method === "OPTIONS") {
+      return res.status(204).send("");
+    }
+
+    if (req.method !== "POST") {
+      return res.status(405).json({ error: "method-not-allowed" });
+    }
+
+    try {
+      const authHeader = req.get("Authorization") || "";
+      const match = authHeader.match(/^Bearer (.+)$/);
+      if (!match) {
+        return res.status(401).json({ error: { message: "Não autenticado." } });
+      }
+
+      const decoded = await admin.auth().verifyIdToken(match[1]);
+      const callerUid = decoded.uid;
+
+      // Verifica SUPERADMIN no Firestore (platformUsers)
+      const puRef = admin.firestore().doc(`platformUsers/${callerUid}`);
+      const puSnap = await puRef.get();
+      const pu = puSnap.exists ? puSnap.data() : null;
+
+      if (!pu || pu.role !== "superadmin" || pu.active !== true) {
+        return res.status(403).json({ error: { message: "Sem permissão." } });
+      }
+
+      const body = req.body || {};
+      const companyId = body.companyId;
+      const companyName = body.companyName;
+      const cnpj = body.cnpj;
+      const adminPayload = body.admin || {};
+
+      const adminName = String(adminPayload.name || "").trim();
+      const adminEmail = String(adminPayload.email || "").trim();
+      const adminPhone = String(adminPayload.phone || "").trim();
+      const adminActive = adminPayload.active !== false;
+
+      if (!companyId || typeof companyId !== "string") {
+        return res.status(400).json({ error: { message: "companyId inválido." } });
+      }
+      if (!companyName || typeof companyName !== "string") {
+        return res.status(400).json({ error: { message: "Nome da empresa inválido." } });
+      }
+      if (!cnpj || typeof cnpj !== "string") {
+        return res.status(400).json({ error: { message: "CNPJ inválido." } });
+      }
+      if (!adminName) {
+        return res.status(400).json({ error: { message: "Nome do admin inválido." } });
+      }
+      if (!adminEmail || typeof adminEmail !== "string") {
+        return res.status(400).json({ error: { message: "E-mail do admin inválido." } });
+      }
+
+      const db = admin.firestore();
+      const companyRef = db.doc(`companies/${companyId}`);
+      const existing = await companyRef.get();
+      if (existing.exists) {
+        return res.status(409).json({ error: { message: "Empresa já existe." } });
+      }
+
+      // 1) cria empresa
+      await companyRef.set({
+        name: companyName,
+        cnpj,
+        active: true,
+        createdAt: admin.firestore.FieldValue.serverTimestamp(),
+        createdBy: callerUid
+      });
+
+      // 2) cria usuário admin no Auth
+      const userRecord = await admin.auth().createUser({
+        email: adminEmail,
+        displayName: adminName,
+        disabled: !adminActive
+      });
+
+      const uid = userRecord.uid;
+
+      // 3) vincula userCompanies
+      await db.doc(`userCompanies/${uid}`).set({ companyId });
+
+      // 4) cria doc companies/{companyId}/users/{uid}
+      await db.doc(`companies/${companyId}/users/${uid}`).set({
+        name: adminName,
+        role: "admin",
+        email: adminEmail,
+        phone: adminPhone,
+        active: adminActive,
+        teamIds: []
+      });
+
+      // 5) gera link de redefinição de senha
+      const resetLink = await admin.auth().generatePasswordResetLink(adminEmail);
+
+      return res.status(200).json({ companyId, uid, resetLink });
+
+    } catch (e) {
+      console.error("createCompanyWithAdminHttp error:", e);
+      return res.status(500).json({ error: { message: "Erro interno ao criar empresa." } });
+    }
+  });
