@@ -33,10 +33,10 @@ const firebaseConfig = {
 };
 
 const app = initializeApp(firebaseConfig);
-
-const functions = getFunctions(app);
-const fnCreateUserInTenant = httpsCallable(functions, "createUserInTenant");
 const auth = getAuth(app);
+const functions = getFunctions(app, "us-central1");
+const fnCreateUserInTenant = httpsCallable(functions, "createUserInTenant");
+const fnCreateCompanyWithAdmin = httpsCallable(functions, "createCompanyWithAdmin");
 const db = getFirestore(app);
 
 
@@ -106,7 +106,6 @@ const btnCreateCompany = document.getElementById("btnCreateCompany");
 const companyNameEl = document.getElementById("companyName");
 const companyCnpjEl = document.getElementById("companyCnpj");
 const companyIdEl = document.getElementById("companyId");
-const adminUidEl = document.getElementById("adminUid");
 const adminNameEl = document.getElementById("adminName");
 const adminEmailEl = document.getElementById("adminEmail");
 const adminPhoneEl = document.getElementById("adminPhone");
@@ -248,6 +247,43 @@ function setAlertWithResetLink(alertEl, msg, email, resetLink){
   });
 }
 
+
+
+function escapeHtml(str){
+  return (str ?? "").toString()
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
+// Chamada HTTP (onRequest) com token do Firebase Auth (fallback quando a Function não é callable)
+async function callHttpFunctionWithAuth(functionName, payload){
+  const user = auth.currentUser;
+  if (!user) throw new Error("Não autenticado.");
+  const idToken = await user.getIdToken(); // não força refresh por padrão
+  const url = `https://us-central1-${firebaseConfig.projectId}.cloudfunctions.net/${functionName}`;
+
+  const res = await fetch(url, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "Authorization": `Bearer ${idToken}`
+    },
+    body: JSON.stringify(payload || {})
+  });
+
+  const json = await res.json().catch(() => ({}));
+  if (!res.ok){
+    const msg = json?.error?.message || json?.message || json?.error || `HTTP ${res.status}`;
+    const err = new Error(msg);
+    err.status = res.status;
+    err.details = json;
+    throw err;
+  }
+  return (json && typeof json === "object" && "data" in json) ? json.data : json;
+}
 
 function intersects(a = [], b = []) {
   const setB = new Set(b || []);
@@ -459,7 +495,6 @@ function openCreateCompanyModal(){
   companyIdEl.value = "";
   companyIdEl.dataset.auto = "true";
 
-  adminUidEl.value = "";
   adminNameEl.value = "";
   adminEmailEl.value = "";
   adminPhoneEl.value = "";
@@ -471,56 +506,90 @@ function closeCreateCompanyModal(){ if (modalCreateCompany) modalCreateCompany.h
 async function createCompany(){
   clearAlert(createCompanyAlert);
 
-  const name = (companyNameEl.value || "").trim();
-  const cnpjRaw = (companyCnpjEl.value || "").trim();
-  const cnpj = normalizeCnpj(cnpjRaw);
-  const companyId = (companyIdEl.value || "").trim();
+  try{
+    if (!auth.currentUser){
+      return setAlert(createCompanyAlert, "Você precisa estar logado como Admin Master.");
+    }
 
-  const adminUid = (adminUidEl.value || "").trim();
-  const adminName = (adminNameEl.value || "").trim();
-  const adminEmail = (adminEmailEl.value || "").trim();
-  const adminPhone = normalizePhone(adminPhoneEl.value || "");
-  const adminActive = (adminActiveEl.value || "true") === "true";
+    // força refresh do token para reduzir chance de 401 por token velho
+    await auth.currentUser.getIdToken(true);
 
-  if (!name) return setAlert(createCompanyAlert, "Informe o nome da empresa.");
-  if (!cnpjRaw) return setAlert(createCompanyAlert, "Informe o CNPJ.");
-  if (!isCnpjValidBasic(cnpjRaw)) return setAlert(createCompanyAlert, "CNPJ inválido (precisa ter 14 dígitos).");
-  if (!companyId) return setAlert(createCompanyAlert, "O ID da empresa (slug) está vazio.");
+    const companyId = (companyIdEl?.value || "").trim();
+    const companyName = (companyNameEl?.value || "").trim();
+    const cnpj = (companyCnpjEl?.value || "").trim();
 
-  if (!adminUid) return setAlert(createCompanyAlert, "Informe o UID do Admin (Authentication).");
-  if (!adminName) return setAlert(createCompanyAlert, "Informe o nome do Admin.");
-  if (!adminEmail || !isEmailValidBasic(adminEmail)) return setAlert(createCompanyAlert, "Informe um e-mail válido do Admin.");
+    const adminName = (adminNameEl?.value || "").trim();
+    const adminEmail = (adminEmailEl?.value || "").trim();
+    const adminPhone = (adminPhoneEl?.value || "").trim();
+    const adminActive = (adminActiveEl?.value || "true") === "true";
 
-  setAlert(createCompanyAlert, "Salvando...", "info");
+    if (!companyId) return setAlert(createCompanyAlert, "Informe o ID da empresa (slug).");
+    if (!companyName) return setAlert(createCompanyAlert, "Informe o nome da empresa.");
+    if (!cnpj || !isCnpjValidBasic(cnpj)) return setAlert(createCompanyAlert, "Informe um CNPJ válido (14 dígitos).");
+    if (!adminName) return setAlert(createCompanyAlert, "Informe o nome do Admin da empresa.");
+    if (!adminEmail || !isEmailValidBasic(adminEmail)) return setAlert(createCompanyAlert, "Informe um e-mail válido para o Admin.");
 
-  // empresa
-  await setDoc(doc(db, "companies", companyId), {
-    name,
-    cnpj,
-    active: true,
-    createdAt: serverTimestamp(),
-    createdBy: auth.currentUser.uid
-  });
+    setAlert(createCompanyAlert, "Criando empresa e Admin...", "info");
 
-  // admin da empresa: equipe NÃO é obrigatória aqui (teamIds vazio)
-  await setDoc(doc(db, "companies", companyId, "users", adminUid), {
-    name: adminName,
-    role: "admin",
-    email: adminEmail,
-    phone: adminPhone,
-    active: adminActive,
-    teamIds: []
-  });
+    // 1) tenta como callable (onCall)
+    let data = null;
+    try{
+      const res = await fnCreateCompanyWithAdmin({
+        companyId,
+        companyName,
+        cnpj: normalizeCnpj(cnpj),
+        adminName,
+        adminEmail,
+        adminPhone: normalizePhone(adminPhone),
+        adminActive
+      });
+      data = res?.data || null;
+    }catch(err){
+      // 2) fallback para HTTP (onRequest) com Bearer token
+      const code = err?.code || "";
+      const msg = (err?.message || "").toLowerCase();
+      const looksLikeUnauth = code.includes("unauthenticated") || msg.includes("não autentic") || msg.includes("unauth");
+      if (!looksLikeUnauth) throw err;
 
-  // vínculo
-  await setDoc(doc(db, "userCompanies", adminUid), {
-    companyId
-  });
+      data = await callHttpFunctionWithAuth("createCompanyWithAdmin", {
+        companyId,
+        companyName,
+        cnpj: normalizeCnpj(cnpj),
+        adminName,
+        adminEmail,
+        adminPhone: normalizePhone(adminPhone),
+        adminActive
+      });
+    }
 
-  closeCreateCompanyModal();
-  await loadCompanies();
-  alert("Empresa criada e Admin vinculado!\n\nAgora garanta que o usuário existe no Authentication com o mesmo UID.");
+    const uid = data?.uid;
+    const resetLink = data?.resetLink;
+
+    closeCreateCompanyModal();
+    await loadCompanies();
+
+    if (resetLink){
+      alert(
+        `Empresa criada com sucesso!
+
+` +
+        `Admin: ${adminEmail}
+UID: ${uid || "-"}
+
+` +
+        `Link para definir senha (primeiro acesso):
+${resetLink}`
+      );
+    } else {
+      alert(`Empresa criada com sucesso! Admin: ${adminEmail}`);
+    }
+
+  }catch(err){
+    console.error("Erro ao criar empresa:", err);
+    setAlert(createCompanyAlert, err?.message || "Erro ao criar empresa");
+  }
 }
+
 
 /** =========================
  *  8) ADMIN (EMPRESA): TEAMS
@@ -737,16 +806,17 @@ function renderTeamChips(){
 async function createUser(){
   clearAlert(createUserAlert);
 
-  const uid = (newUserUidEl.value || "").trim();
-  const name = (newUserNameEl.value || "").trim();
-  const role = (newUserRoleEl.value || "").trim();
-  const email = (newUserEmailEl.value || "").trim();
-  const phone = normalizePhone(newUserPhoneEl.value || "");
-  const active = (newUserActiveEl.value || "true") === "true";
+  let uid = (newUserUidEl?.value || "").trim();
+  const name = (newUserNameEl?.value || "").trim();
+  const role = (newUserRoleEl?.value || "").trim();
+  const email = (newUserEmailEl?.value || "").trim();
+  const phone = normalizePhone(newUserPhoneEl?.value || "");
+  const active = (newUserActiveEl?.value || "true") === "true";
   const teamIds = Array.from(new Set(state.selectedTeamIds || []));
 
   // UID agora é opcional (se vazio, criamos automaticamente no Auth via Cloud Function)
   const wantsAutoAuth = !uid;
+
   if (!name) return setAlert(createUserAlert, "Informe o nome do usuário.");
   if (!role) return setAlert(createUserAlert, "Selecione a função.");
   if (!email || !isEmailValidBasic(email)) return setAlert(createUserAlert, "Informe um e-mail válido.");
@@ -758,47 +828,74 @@ async function createUser(){
 
   setAlert(createUserAlert, "Salvando...", "info");
 
+  try{
+    if (wantsAutoAuth){
+      const data = await createUserWithAuthAndResetLink({
+        companyId: state.companyId,
+        name,
+        email,
+        phone,
+        role,
+        teamIds
+      });
 
-  // Auto-criação no Auth + link de definição de senha
-  if (wantsAutoAuth) {
-    const data = await createUserWithAuthAndResetLink({
-      companyId: state.companyId,
+      uid = data?.uid;
+
+      // Perfil na empresa
+      await setDoc(doc(db, "companies", state.companyId, "users", uid), {
+        name,
+        role,
+        email,
+        phone,
+        active,
+        teamIds,
+        teamId: teamIds[0] || "",
+        createdAt: serverTimestamp(),
+        createdBy: auth.currentUser.uid
+      });
+
+      // Vínculo do usuário com empresa (multi-tenant)
+      await setDoc(doc(db, "userCompanies", uid), { companyId: state.companyId });
+
+      closeCreateUserModal();
+      await loadUsers();
+
+      alert(
+        `Usuário criado com sucesso!
+
+` +
+        `E-mail: ${email}
+UID: ${uid}
+
+` +
+        (data?.resetLink ? `Link para definir senha (primeiro acesso):
+${data.resetLink}` : "")
+      );
+      return;
+    }
+
+    // Fluxo manual (UID já existe no Auth)
+    await setDoc(doc(db, "companies", state.companyId, "users", uid), {
       name,
+      role,
       email,
       phone,
-      role,
-      teamIds: Array.isArray(teamIds) ? teamIds : []
+      active,
+      teamIds,
+      teamId: teamIds[0] || "",
+      createdAt: serverTimestamp(),
+      createdBy: auth.currentUser.uid
     });
 
-    uid = data.uid;
-
-    // Cria/garante vínculo multi-tenant
     await setDoc(doc(db, "userCompanies", uid), { companyId: state.companyId });
 
     closeCreateUserModal();
     await loadUsers();
-    setAlertWithResetLink(usersAlert, "Usuário criado com sucesso!", email, data.resetLink);
-    return;
+
+  }catch(err){
+    console.error(err);
+    setAlert(createUserAlert, "Erro ao salvar: " + (err?.message || err));
   }
-  // Perfil na empresa
-  await setDoc(doc(db, "companies", state.companyId, "users", uid), {
-    name,
-    role,
-    email,
-    phone,
-    active,
-    teamIds,
-    // compatibilidade (opcional): mantém o primeiro como teamId
-    teamId: teamIds[0] || ""
-  });
-
-  // Vínculo do usuário com empresa (multi-tenant)
-  await setDoc(doc(db, "userCompanies", uid), {
-    companyId: state.companyId
-  });
-
-  closeCreateUserModal();
-  await loadUsers();
 }
 
 

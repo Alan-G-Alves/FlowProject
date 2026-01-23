@@ -122,3 +122,107 @@ exports.createUserInTenant = functions.https.onCall(async (data, context) => {
 
   return { uid, resetLink };
 });
+
+/**
+ * createCompanyWithAdmin (callable) - SUPERADMIN
+ * Payload:
+ * {
+ *   companyId, companyName, cnpj,
+ *   admin: { name, email, phone, active }
+ * }
+ * Returns: { companyId, uid, resetLink }
+ */
+exports.createCompanyWithAdmin = functions.https.onCall(async (data, context) => {
+  if (!context.auth) {
+    throw new functions.https.HttpsError("unauthenticated", "Não autenticado.");
+  }
+
+  const callerUid = context.auth.uid;
+  const { companyId, companyName, cnpj, admin: adminPayload } = data || {};
+  const adminName = (adminPayload?.name || "").trim();
+  const adminEmail = (adminPayload?.email || "").trim();
+  const adminPhone = (adminPayload?.phone || "").trim();
+  const adminActive = adminPayload?.active !== false;
+
+  if (!companyId || typeof companyId !== "string") {
+    throw new functions.https.HttpsError("invalid-argument", "companyId inválido.");
+  }
+  if (!companyName || typeof companyName !== "string") {
+    throw new functions.https.HttpsError("invalid-argument", "Nome da empresa inválido.");
+  }
+  if (!cnpj || typeof cnpj !== "string") {
+    throw new functions.https.HttpsError("invalid-argument", "CNPJ inválido.");
+  }
+  if (!adminName) {
+    throw new functions.https.HttpsError("invalid-argument", "Nome do admin inválido.");
+  }
+  if (!adminEmail || typeof adminEmail !== "string") {
+    throw new functions.https.HttpsError("invalid-argument", "E-mail do admin inválido.");
+  }
+
+  const db = admin.firestore();
+
+  // ===== Permissão: somente SUPERADMIN (platformUsers/{uid})
+  const platformSnap = await db.doc(`platformUsers/${callerUid}`).get();
+  const isSuper =
+    platformSnap.exists &&
+    platformSnap.data()?.role === "superadmin" &&
+    platformSnap.data()?.active === true;
+
+  if (!isSuper) {
+    throw new functions.https.HttpsError("permission-denied", "Apenas Super Admin pode criar empresas.");
+  }
+
+  // ===== Evita sobrescrever empresa existente
+  const companyRef = db.doc(`companies/${companyId}`);
+  const companySnap = await companyRef.get();
+  if (companySnap.exists) {
+    throw new functions.https.HttpsError("already-exists", "Já existe uma empresa com este ID.");
+  }
+
+  // ===== Cria usuário admin no Auth (senha temporária)
+  const tempPassword = Math.random().toString(36).slice(-10) + "A1!";
+  let userRecord;
+  try {
+    userRecord = await admin.auth().createUser({
+      email: adminEmail,
+      password: tempPassword,
+      displayName: adminName,
+    });
+  } catch (e) {
+    throw new functions.https.HttpsError("already-exists", "Já existe usuário com este e-mail no Authentication.");
+  }
+
+  const uid = userRecord.uid;
+
+  // ===== Escreve Firestore (transação simples)
+  const batch = db.batch();
+
+  batch.set(companyRef, {
+    name: companyName,
+    cnpj,
+    active: true,
+    createdAt: admin.firestore.FieldValue.serverTimestamp(),
+    createdBy: callerUid,
+  });
+
+  batch.set(db.doc(`userCompanies/${uid}`), { companyId });
+
+  batch.set(db.doc(`companies/${companyId}/users/${uid}`), {
+    name: adminName,
+    role: "admin",
+    email: adminEmail,
+    phone: adminPhone || "",
+    active: adminActive,
+    teamIds: [],
+    teamId: "",
+  });
+
+  await batch.commit();
+
+  // ===== Link de reset de senha (para enviar ao admin)
+  const resetLink = await admin.auth().generatePasswordResetLink(adminEmail);
+
+  return { companyId, uid, resetLink };
+});
+
