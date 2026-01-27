@@ -24,6 +24,13 @@ import {
   serverTimestamp
 } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore.js";
 
+import {
+  getStorage,
+  ref as storageRef,
+  uploadBytes,
+  getDownloadURL
+} from "https://www.gstatic.com/firebasejs/10.12.5/firebase-storage.js";
+
 /** =========================
  *  1) CONFIG FIREBASE
  *  ========================= */
@@ -42,6 +49,7 @@ const functions = getFunctions(app, "us-central1");
 const fnCreateUserInTenant = httpsCallable(functions, "createUserInTenant");
 const fnCreateCompanyWithAdmin = httpsCallable(functions, "createCompanyWithAdmin") /* (mantido, mas usamos HTTP no createCompany) */;
 const db = getFirestore(app);
+const storage = getStorage(app);
 
 
 
@@ -91,11 +99,34 @@ const btnForgot = document.getElementById("btnForgot");
 const loginAlert = document.getElementById("loginAlert");
 
 // Topbar
-const btnAvatar = document.getElementById("btnAvatar");
+// Compat: alguns arquivos antigos usavam id "btnAvatar".
+const btnAvatar = document.getElementById("btnAvatar") || document.getElementById("avatarBtn");
 const userAvatar = document.getElementById("userAvatar");
 const userAvatarImg = document.getElementById("userAvatarImg");
 const userAvatarFallback = document.getElementById("userAvatarFallback");
+const userMenu = document.getElementById("userMenu");
+const avatarDropdown = document.getElementById("avatarDropdown");
+const btnEditProfile = document.getElementById("btnEditProfile");
+const btnUserLogout = document.getElementById("btnUserLogout");
 const navLogout = document.getElementById("navLogout");
+
+// Perfil (modal)
+const profileModal = document.getElementById("profileModal");
+const btnCloseProfile = document.getElementById("btnCloseProfile");
+const btnCancelProfile = document.getElementById("btnCancelProfile");
+const btnSaveProfile = document.getElementById("btnSaveProfile");
+const profileAlert = document.getElementById("profileAlert");
+
+const profilePhotoPreview = document.getElementById("profilePhotoPreview");
+const profilePhotoImg = document.getElementById("profilePhotoImg");
+const profilePhotoFallback = document.getElementById("profilePhotoFallback");
+const profilePhotoFile = document.getElementById("profilePhotoFile");
+const profilePhotoUrl = document.getElementById("profilePhotoUrl");
+const btnProfileRemovePhoto = document.getElementById("btnProfileRemovePhoto");
+
+const profileName = document.getElementById("profileName");
+const profilePhone = document.getElementById("profilePhone");
+const profileEmail = document.getElementById("profileEmail");
 
 // Dashboard
 const dashTitle = document.getElementById("dashTitle");
@@ -587,6 +618,226 @@ function renderTopbar(profile, user){
     }
   }
 }
+
+/** =========================
+ *  TOPBAR: MENU DO USUÁRIO
+ *  ========================= */
+function initUserMenu(){
+  // Estrutura vem do index.html (userMenu/avatarBtn/avatarDropdown)
+  if (!btnAvatar || !avatarDropdown) return;
+
+  const closeDropdown = () => {
+    avatarDropdown.classList.remove("open");
+    btnAvatar.setAttribute("aria-expanded", "false");
+  };
+
+  const toggleDropdown = () => {
+    const isOpen = avatarDropdown.classList.contains("open");
+    if (isOpen) closeDropdown();
+    else {
+      avatarDropdown.classList.add("open");
+      btnAvatar.setAttribute("aria-expanded", "true");
+    }
+  };
+
+  // Toggle ao clicar no avatar
+  btnAvatar.addEventListener("click", (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    toggleDropdown();
+  });
+
+  // Fecha ao clicar fora
+  document.addEventListener("click", (e) => {
+    if (!avatarDropdown.classList.contains("open")) return;
+    const target = e.target;
+    if (userMenu && userMenu.contains(target)) return;
+    closeDropdown();
+  });
+
+  // Fecha no ESC
+  document.addEventListener("keydown", (e) => {
+    if (e.key === "Escape") closeDropdown();
+  });
+
+  // Ações do menu
+  btnEditProfile?.addEventListener("click", (e) => {
+    e.preventDefault();
+    closeDropdown();
+    openProfileModal();
+  });
+
+  btnUserLogout?.addEventListener("click", async (e) => {
+    e.preventDefault();
+    closeDropdown();
+    await signOut(auth);
+  });
+}
+
+/** =========================
+ *  PERFIL: MODAL (EDITAR PERFIL)
+ *  ========================= */
+function openProfileModal(){
+  if (!profileModal) return;
+  clearAlert(profileAlert);
+
+  const user = auth.currentUser;
+  const p = state.profile || {};
+
+  // Preenche campos
+  if (profileName) profileName.value = (p.name || user?.displayName || "").trim();
+  if (profilePhone) profilePhone.value = (p.phone || "").trim();
+  if (profileEmail) profileEmail.value = (user?.email || "").trim();
+
+  const url = (p.photoURL || user?.photoURL || "").trim();
+  if (profilePhotoUrl) profilePhotoUrl.value = url;
+  renderProfilePhotoPreview(url);
+
+  profileModal.hidden = false;
+  document.body.classList.add("modal-open");
+}
+
+function closeProfileModal(){
+  if (!profileModal) return;
+  profileModal.hidden = true;
+  document.body.classList.remove("modal-open");
+  if (profilePhotoFile) profilePhotoFile.value = "";
+}
+
+function renderProfilePhotoPreview(url){
+  const user = auth.currentUser;
+  const label = ((profileName?.value || state.profile?.name || user?.displayName || user?.email || "Usuário").trim());
+  const initials = label.split(/\s+/).slice(0,2).map(p => (p[0] || "").toUpperCase()).join("") || "U";
+
+  const finalUrl = (url || "").trim();
+  if (finalUrl){
+    if (profilePhotoImg){
+      profilePhotoImg.src = finalUrl;
+      profilePhotoImg.style.display = "block";
+    }
+    if (profilePhotoFallback){
+      profilePhotoFallback.textContent = initials;
+      profilePhotoFallback.style.display = "none";
+    }
+  } else {
+    if (profilePhotoImg) profilePhotoImg.style.display = "none";
+    if (profilePhotoFallback){
+      profilePhotoFallback.textContent = initials;
+      profilePhotoFallback.style.display = "block";
+    }
+  }
+}
+
+async function saveProfile(){
+  clearAlert(profileAlert);
+  const user = auth.currentUser;
+  if (!user) return;
+
+  const name = (profileName?.value || "").trim();
+  const phone = (profilePhone?.value || "").trim();
+  const photoURL = (profilePhotoUrl?.value || "").trim();
+
+  if (!name){
+    setAlert(profileAlert, "Informe seu nome.");
+    return;
+  }
+
+  setAlert(profileAlert, "Salvando...", "info");
+
+  try {
+    if (state.isSuperAdmin){
+      await updateDoc(doc(db, "platformUsers", user.uid), {
+        name,
+        phone,
+        photoURL
+      });
+    } else {
+      await updateDoc(doc(db, "companies", state.companyId, "users", user.uid), {
+        name,
+        phone,
+        photoURL
+      });
+    }
+
+    // Atualiza estado local e UI
+    state.profile = { ...(state.profile || {}), name, phone, photoURL };
+    renderTopbar(state.profile, user);
+
+    setAlert(profileAlert, "Perfil atualizado!", "success");
+    setTimeout(closeProfileModal, 400);
+  } catch (err){
+    console.error("saveProfile error", err);
+    setAlert(profileAlert, "Não foi possível salvar. Verifique permissões no Firestore rules.");
+  }
+}
+
+// Listeners do modal (se existir na página)
+btnCloseProfile?.addEventListener("click", closeProfileModal);
+btnCancelProfile?.addEventListener("click", closeProfileModal);
+
+profileModal?.addEventListener("click", (e) => {
+  const target = e.target;
+  if (target && target.getAttribute && target.getAttribute("data-close") === "profile"){
+    closeProfileModal();
+  }
+});
+
+document.addEventListener("keydown", (e) => {
+  if (e.key === "Escape" && profileModal && !profileModal.hidden) closeProfileModal();
+});
+
+btnSaveProfile?.addEventListener("click", saveProfile);
+
+profilePhotoUrl?.addEventListener("input", () => {
+  renderProfilePhotoPreview(profilePhotoUrl.value);
+});
+
+btnProfileRemovePhoto?.addEventListener("click", () => {
+  if (profilePhotoUrl) profilePhotoUrl.value = "";
+  renderProfilePhotoPreview("");
+});
+
+profilePhotoFile?.addEventListener("change", async (e) => {
+  const file = e.target.files && e.target.files[0];
+  if (!file) return;
+  // Regras básicas (evita upload gigante)
+  const maxMb = 2; // recomendado: 1–2MB
+  const allowed = ["image/png", "image/jpeg", "image/jpg", "image/webp"];
+  if (!allowed.includes((file.type || "").toLowerCase())){
+    setAlert(profileAlert, "Formato inválido. Use PNG ou JPG.");
+    e.target.value = "";
+    return;
+  }
+  if (file.size > maxMb * 1024 * 1024){
+    setAlert(profileAlert, `A imagem é muito grande (máx. ${maxMb}MB).`);
+    e.target.value = "";
+    return;
+  }
+
+  // Upload para Firebase Storage e grava a URL no input
+  try{
+    setAlert(profileAlert, "Enviando foto...", "info");
+    const user = auth.currentUser;
+    if (!user) throw new Error("not-auth");
+
+    const ext = (file.type || "").includes("png") ? "png" : "jpg";
+    const path = `avatars/${user.uid}.${ext}`;
+    const ref = storageRef(storage, path);
+
+    await uploadBytes(ref, file, { contentType: file.type || "image/jpeg" });
+    const url = await getDownloadURL(ref);
+
+    if (profilePhotoUrl) profilePhotoUrl.value = url;
+    renderProfilePhotoPreview(url);
+    clearAlert(profileAlert);
+  }catch(err){
+    console.error("upload avatar error", err);
+    setAlert(profileAlert, "Não foi possível enviar a foto. Verifique as regras do Storage.");
+  }finally{
+    // permite reenviar o mesmo arquivo se quiser
+    e.target.value = "";
+  }
+});
 
 
 function renderDashboardCards(profile){
@@ -1536,6 +1787,9 @@ async function saveManagedTeams(){
 /** =========================
  *  10) AUTH FLOW
  *  ========================= */
+// Inicializa o dropdown do avatar (não depende do login)
+initUserMenu();
+
 onAuthStateChanged(auth, async (user) => {
   clearAlert(loginAlert);
 

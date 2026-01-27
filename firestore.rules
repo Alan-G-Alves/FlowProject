@@ -40,7 +40,7 @@ service cloud.firestore {
 
     function userFieldsAllowed() {
       return request.resource.data.keys().hasOnly([
-        "name","role","teamId","teamIds","managedTeamIds","email","phone","active"
+        "name","role","teamId","teamIds","managedTeamIds","email","phone","photoURL","active"
       ]);
     }
 
@@ -57,7 +57,12 @@ service cloud.firestore {
     }
 
     function phoneValid() {
-      return request.resource.data.phone is string;
+      // telefone opcional
+      return !("phone" in request.resource.data) || (request.resource.data.phone is string);
+    }
+
+    function photoUrlOptionalValid() {
+      return !("photoURL" in request.resource.data) || (request.resource.data.photoURL is string);
     }
 
     function activeValid() {
@@ -80,8 +85,6 @@ service cloud.firestore {
     }
 
     function userTeamsRuleValid() {
-      // admin pode ter 0 equipes
-      // demais devem ter >=1 equipe (teamIds ou teamId)
       return request.resource.data.role == "admin"
         || (
           (("teamIds" in request.resource.data) && request.resource.data.teamIds.size() >= 1)
@@ -89,9 +92,7 @@ service cloud.firestore {
         );
     }
 
-    // valida se o técnico está APENAS em equipes administradas pelo gestor logado
     function teamsSubsetOfMyManaged(companyId) {
-      // teamIds obrigatório para técnico (no fluxo do gestor)
       return ("teamIds" in request.resource.data)
         && request.resource.data.teamIds is list
         && request.resource.data.teamIds.size() >= 1
@@ -108,20 +109,17 @@ service cloud.firestore {
     match /userCompanies/{uid} {
       allow read: if isSuperAdmin() || (isSignedIn() && uid == myUid());
 
-      // master
       allow create, update: if isSuperAdmin()
         && request.resource.data.keys().hasOnly(["companyId"])
         && request.resource.data.companyId is string
         && request.resource.data.companyId.size() > 0;
 
-      // admin da empresa
       allow create, update: if !isSuperAdmin()
         && isCompanyAdmin(request.resource.data.companyId)
         && request.resource.data.keys().hasOnly(["companyId"])
         && request.resource.data.companyId is string
         && request.resource.data.companyId.size() > 0;
 
-      // gestor pode vincular SOMENTE usuários à própria empresa (para técnicos que ele cria)
       allow create, update: if !isSuperAdmin()
         && isManager(request.resource.data.companyId)
         && request.resource.data.keys().hasOnly(["companyId"])
@@ -135,8 +133,6 @@ service cloud.firestore {
     match /companies/{companyId} {
       allow read: if isSuperAdmin() || (isSignedIn() && companyId == myCompanyId());
 
-
-      // Master pode criar e também (importante) bloquear/desbloquear qualquer empresa
       allow create: if isSuperAdmin()
         && request.resource.data.keys().hasOnly(["name", "cnpj", "active", "createdAt", "createdBy"])
         && request.resource.data.name is string
@@ -187,12 +183,26 @@ service cloud.firestore {
             && roleValid()
             && emailValid()
             && phoneValid()
+            && photoUrlOptionalValid()
             && activeValid()
             && teamIdOptionalValid()
             && teamIdsOptionalValid()
             && managedTeamIdsOptionalValid()
             && userTeamsRuleValid();
         }
+
+        // ✅ usuário logado pode atualizar SOMENTE o próprio perfil (nome/telefone/foto)
+        function selfProfileUpdateValid() {
+          return request.resource.data.diff(resource.data).changedKeys().hasOnly([
+              "name","phone","photoURL"
+            ])
+            && (request.resource.data.name is string && request.resource.data.name.size() > 0)
+            && (!("phone" in request.resource.data) || request.resource.data.phone is string)
+            && (!("photoURL" in request.resource.data) || request.resource.data.photoURL is string);
+        }
+
+        allow update: if (isSignedIn() && uid == myUid() && companyId == myCompanyId())
+          && selfProfileUpdateValid();
 
         // master / admin da empresa
         allow create, update: if (isSuperAdmin() || isCompanyAdmin(companyId))
