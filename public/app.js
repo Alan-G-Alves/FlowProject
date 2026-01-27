@@ -91,13 +91,11 @@ const btnForgot = document.getElementById("btnForgot");
 const loginAlert = document.getElementById("loginAlert");
 
 // Topbar
-const btnLogout = document.getElementById("btnLogout");
-const userPill = document.getElementById("userPill");
+const btnAvatar = document.getElementById("btnAvatar");
 const userAvatar = document.getElementById("userAvatar");
 const userAvatarImg = document.getElementById("userAvatarImg");
 const userAvatarFallback = document.getElementById("userAvatarFallback");
-const userName = document.getElementById("userName");
-const userRole = document.getElementById("userRole");
+const navLogout = document.getElementById("navLogout");
 
 // Dashboard
 const dashTitle = document.getElementById("dashTitle");
@@ -164,7 +162,6 @@ const createTeamAlert = document.getElementById("createTeamAlert");
 const usersTbody = document.getElementById("usersTbody");
 const usersEmpty = document.getElementById("usersEmpty");
 const userSearch = document.getElementById("userSearch");
-const userRoleFilter = document.getElementById("userRoleFilter");
 const btnReloadUsers = document.getElementById("btnReloadUsers");
 const btnOpenCreateUser = document.getElementById("btnOpenCreateUser");
 
@@ -395,13 +392,27 @@ function setActiveNav(activeId){
 function initSidebar(){
   if (!sidebar) return;
 
-  // estado persistido
+  // estado persistido (padrão: recolhido)
   const saved = localStorage.getItem("fp.sidebar.expanded");
   if (saved === "1") sidebar.classList.add("expanded");
 
-  btnToggleSidebar?.addEventListener("click", () => {
+  const toggle = () => {
     sidebar.classList.toggle("expanded");
     localStorage.setItem("fp.sidebar.expanded", sidebar.classList.contains("expanded") ? "1" : "0");
+  };
+
+  // Remove o hambúrguer: expansão por clique em qualquer área "vazia" da barra
+  sidebar.addEventListener("click", (e) => {
+    // se clicou em um item do menu, NÃO alterna (deixa só navegar)
+    if (e.target?.closest?.(".nav-item")) return;
+    toggle();
+  });
+
+  // (se existir por algum motivo no HTML antigo, ainda funciona)
+  btnToggleSidebar?.addEventListener("click", (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    toggle();
   });
 
   // Ações (por enquanto: navegação de views existentes)
@@ -557,11 +568,8 @@ async function fetchUserProfile(companyId, uid){
  *  6) DASHBOARD
  *  ========================= */
 function renderTopbar(profile, user){
-  show(btnLogout);
-  show(userPill);
-
-  if (userName) userName.textContent = profile.name || "Usuário";
-  if (userRole) userRole.textContent = normalizeRole(profile.role);
+  // Topbar minimal: apenas avatar no canto direito
+  show(btnAvatar);
 
   // Avatar: tenta foto (perfil -> auth), senão usa iniciais
   const photoUrl = profile?.photoURL || user?.photoURL || "";
@@ -569,27 +577,17 @@ function renderTopbar(profile, user){
     userAvatarImg.src = photoUrl;
     userAvatarImg.hidden = false;
     if (userAvatarFallback) userAvatarFallback.hidden = true;
-  } else {
+  }else{
     if (userAvatarImg) userAvatarImg.hidden = true;
+    const label = (profile?.name || user?.displayName || user?.email || "Usuário").trim();
+    const initials = label.split(/\s+/).slice(0,2).map(p => (p[0] || "").toUpperCase()).join("") || "U";
     if (userAvatarFallback){
+      userAvatarFallback.textContent = initials;
       userAvatarFallback.hidden = false;
-      userAvatarFallback.textContent = initialFromName(profile.name);
     }
   }
-
-  if (chipEmail) chipEmail.textContent = `Email: ${user.email || "—"}`;
-
-  if (state.isSuperAdmin){
-    if (chipTeam) chipTeam.textContent = "Equipe: —";
-    if (dashTitle) dashTitle.textContent = "Painel Master";
-    if (dashSubtitle) dashSubtitle.textContent = "Acesso total à plataforma (todas as empresas).";
-  } else {
-    const teamIds = Array.isArray(profile.teamIds) ? profile.teamIds : (profile.teamId ? [profile.teamId] : []);
-    if (chipTeam) chipTeam.textContent = `Equipes: ${teamIds.length ? teamIds.join(", ") : "—"}`;
-    if (dashTitle) dashTitle.textContent = "Painel";
-    if (dashSubtitle) dashSubtitle.textContent = `Empresa: ${state.companyId} • Perfil: ${normalizeRole(profile.role)}.`;
-  }
 }
+
 
 function renderDashboardCards(profile){
   if (!dashCards) return;
@@ -1045,7 +1043,6 @@ async function loadUsers(){
   const all = snap.docs.map(d => ({ uid: d.id, ...d.data() }));
 
   const q = (userSearch?.value || "").toLowerCase().trim();
-  const roleFilter = (userRoleFilter?.value || "").trim();
 
   state._usersCache = all;
 
@@ -1547,8 +1544,6 @@ onAuthStateChanged(auth, async (user) => {
   state.isSuperAdmin = false;
 
   if (!user){
-    hide(btnLogout);
-    hide(userPill);
     setView("login");
     return;
   }
@@ -1632,10 +1627,10 @@ btnForgot?.addEventListener("click", async () => {
   }
 });
 
-btnLogout?.addEventListener("click", async () => {
+navLogout?.addEventListener("click", async (e) => {
+  e?.preventDefault?.();
   await signOut(auth);
 });
-
 // Dashboard navigation
 btnBackToDashboard?.addEventListener("click", () => setView("dashboard"));
 btnBackFromAdmin?.addEventListener("click", () => setView("dashboard"));
@@ -1744,7 +1739,6 @@ modalCreateTeam?.addEventListener("click", (e) => {
 // Users events
 btnReloadUsers?.addEventListener("click", () => loadUsers());
 userSearch?.addEventListener("input", () => loadUsers());
-userRoleFilter?.addEventListener("change", () => loadUsers());
 btnOpenCreateUser?.addEventListener("click", async () => {
   // garante que as equipes estão carregadas antes de abrir
   await loadTeams();
