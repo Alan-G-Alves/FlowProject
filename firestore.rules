@@ -133,7 +133,8 @@ service cloud.firestore {
 
     // companies
     match /companies/{companyId} {
-      allow read: if isSuperAdmin();
+      allow read: if isSuperAdmin() || (isSignedIn() && companyId == myCompanyId());
+
 
       // Master pode criar e também (importante) bloquear/desbloquear qualquer empresa
       allow create: if isSuperAdmin()

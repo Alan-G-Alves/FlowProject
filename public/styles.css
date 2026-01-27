@@ -668,3 +668,188 @@ a{ color: inherit; }
 }
 
 .btn-mini:hover{ filter: brightness(1.03); }
+
+
+/* =========================
+   MODAL EMPRESA - POLIMENTO
+   ========================= */
+
+/* deixa o header mais alinhado e com “respiro” */
+.modal-header{
+  align-items: center;
+}
+
+.modal-header-actions{
+  display:flex;
+  align-items:center;
+  gap:10px;
+}
+
+/* botão X do modal (se estiver usando classe btn-ghost no X) */
+.btn.btn-ghost{
+  border: 1px solid rgba(12,18,32,.10);
+  background: rgba(255,255,255,.75);
+  width: 40px;
+  height: 40px;
+  padding: 0;
+  border-radius: 14px;
+  display:grid;
+  place-items:center;
+}
+.btn.btn-ghost:hover{
+  background: rgba(12,18,32,.04);
+  border-color: rgba(12,18,32,.14);
+}
+
+/* =========================
+   BOTÕES (compatibilidade com app.js)
+   ========================= */
+
+.btn.btn-secondary{
+  border: 1px solid rgba(12,18,32,.12);
+  background: rgba(255,255,255,.70);
+  color: rgba(12,18,32,.88);
+}
+.btn.btn-secondary:hover{
+  background: rgba(12,18,32,.03);
+}
+
+.btn.btn-danger{
+  border: 1px solid rgba(239,68,68,.25);
+  background: rgba(239,68,68,.10);
+  color: #b91c1c;
+}
+.btn.btn-danger:hover{
+  background: rgba(239,68,68,.14);
+}
+
+/* =========================
+   BADGES (status)
+   ========================= */
+
+.badge-success{
+  display:inline-flex;
+  align-items:center;
+  gap:6px;
+  font-size: 12px;
+  padding: 6px 10px;
+  border-radius: 999px;
+  border: 1px solid rgba(34,197,94,.25);
+  background: rgba(34,197,94,.10);
+  color: rgba(12,18,32,.88);
+}
+.badge-danger{
+  display:inline-flex;
+  align-items:center;
+  gap:6px;
+  font-size: 12px;
+  padding: 6px 10px;
+  border-radius: 999px;
+  border: 1px solid rgba(239,68,68,.25);
+  background: rgba(239,68,68,.10);
+  color: rgba(153,27,27,.95);
+}
+
+/* bolinha antes do texto do badge (opcional, fica lindo) */
+.badge-success::before,
+.badge-danger::before{
+  content:"";
+  width:8px;
+  height:8px;
+  border-radius:999px;
+  display:inline-block;
+  background: currentColor;
+  opacity:.7;
+}
+
+/* =========================
+   TABELA - mais bonita
+   ========================= */
+
+/* garante scroll horizontal no mobile */
+.table{
+  overflow: auto;
+  border-radius: 16px;
+  border: 1px solid rgba(12,18,32,.10);
+  background: rgba(255,255,255,.65);
+}
+
+/* tabela mais “clean” */
+.table table{
+  width:100%;
+  border-collapse: separate;
+  border-spacing: 0;
+  min-width: 720px; /* evita quebrar colunas no modal */
+}
+
+.table th{
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: rgba(246,248,252,.92);
+  backdrop-filter: blur(10px);
+  font-size: 12px;
+  color: rgba(12,18,32,.65);
+}
+
+.table th, .table td{
+  padding: 12px 12px;
+  border-bottom: 1px solid rgba(12,18,32,.06);
+}
+
+/* zebra + hover */
+.table tbody tr:nth-child(even){
+  background: rgba(12,18,32,.015);
+}
+.table tbody tr:hover{
+  background: rgba(37,99,235,.05);
+}
+
+/* =========================
+   CÉLULA COM TÍTULO + SUBTEXTO
+   (se o app.js renderizar <div class="cell-main"> e <div class="cell-sub">)
+   ========================= */
+
+.cell-main{
+  font-weight: 800;
+  color: rgba(12,18,32,.92);
+  line-height: 1.15;
+}
+.cell-sub{
+  margin-top: 2px;
+  font-size: 12px;
+  color: rgba(12,18,32,.60);
+  line-height: 1.2;
+}
+
+/* =========================
+   AÇÕES - ícones e botões pequenos
+   ========================= */
+
+.actions{
+  display:flex;
+  gap:8px;
+  justify-content:flex-start;
+  align-items:center;
+}
+
+.btn.sm{
+  height: 34px;
+  padding: 0 10px;
+  font-size: 12px;
+  border-radius: 12px;
+}
+
+/* input pequeno caso use class="input small" */
+.input.small{
+  height: 36px;
+  border-radius: 12px;
+  border: 1px solid rgba(12,18,32,.12);
+  padding: 0 10px;
+  background: rgba(255,255,255,.85);
+  outline: none;
+}
+.input.small:focus{
+  border-color: rgba(37,99,235,.45);
+  box-shadow: 0 0 0 4px rgba(37,99,235,.12);
+}

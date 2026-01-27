@@ -354,8 +354,6 @@
 
       </div>
 
-      
-
       <div class="modal-footer">
         <button class="btn" id="btnCancelCreateCompany">Cancelar</button>
         <button class="btn primary" id="btnCreateCompany">Salvar</button>
@@ -587,5 +585,49 @@
     setInterval(sync, 800);
   })();
 </script>
+
+  
+<!-- MODAL: Detalhe da Empresa (Master) -->
+  <div class="modal" id="modalCompanyDetail" hidden>
+    <div class="modal-backdrop" data-close="true"></div>
+    <div class="modal-card" style="max-width: 980px;">
+      <div class="modal-header">
+        <div>
+          <h2 id="companyDetailTitle">Empresa</h2>
+          <p class="muted" id="companyDetailMeta">—</p>
+          <div style="margin-top:6px;"><span id="companyDetailStatus" class="badge">—</span></div>
+        </div>
+        <div style="display:flex; gap:10px; align-items:center;">
+          <button class="btn danger" id="btnToggleCompanyBlock">Bloquear empresa</button>
+          <button class="btn ghost" id="btnCloseCompanyDetail">✕</button>
+        </div>
+      </div>
+
+      <div class="modal-body">
+        <div id="companyUsersAlert" class="alert" style="display:none; margin-bottom: 12px;"></div>
+
+        <div class="table" style="overflow:auto;">
+          <table>
+            <thead>
+              <tr>
+                <th>Usuário</th>
+                <th>E-mail</th>
+                <th>Telefone</th>
+                <th>Perfil</th>
+                <th>Status</th>
+                <th style="width:170px;">Ações</th>
+              </tr>
+            </thead>
+            <tbody id="companyUsersTbody"></tbody>
+          </table>
+        </div>
+
+        <div id="companyUsersEmpty" class="muted" style="display:none; margin-top: 12px;">
+          Nenhum usuário encontrado para esta empresa.
+        </div>
+      </div>
+    </div>
+  </div>
+
 </body>
 </html>

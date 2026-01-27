@@ -20,6 +20,7 @@ import {
   getDocs,
   setDoc,
   updateDoc,
+  writeBatch,
   serverTimestamp
 } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore.js";
 
@@ -101,6 +102,20 @@ const companySearch = document.getElementById("companySearch");
 const btnReloadCompanies = document.getElementById("btnReloadCompanies");
 const btnBackToDashboard = document.getElementById("btnBackToDashboard");
 const btnOpenCreateCompany = document.getElementById("btnOpenCreateCompany");
+
+// Company Detail (Master)
+const modalCompanyDetail = document.getElementById("modalCompanyDetail");
+const btnCloseCompanyDetail = document.getElementById("btnCloseCompanyDetail");
+const companyDetailTitle = document.getElementById("companyDetailTitle");
+const companyDetailMeta = document.getElementById("companyDetailMeta");
+const companyDetailStatus = document.getElementById("companyDetailStatus");
+const btnToggleCompanyBlock = document.getElementById("btnToggleCompanyBlock");
+const companyUsersTbody = document.getElementById("companyUsersTbody");
+const companyUsersEmpty = document.getElementById("companyUsersEmpty");
+const companyUsersAlert = document.getElementById("companyUsersAlert");
+
+let currentCompanyDetailId = null;
+
 
 const modalCreateCompany = document.getElementById("modalCreateCompany");
 const btnCloseCreateCompany = document.getElementById("btnCloseCreateCompany");
@@ -222,6 +237,30 @@ function setAlert(el, msg, type="error") {
   }
   show(el);
 }
+
+function clearInlineAlert(el){
+  if(!el) return;
+  el.style.display = "none";
+  el.textContent = "";
+}
+
+function showInlineAlert(el, msg, type="error"){
+  if(!el) return;
+  el.style.display = "block";
+  el.textContent = msg;
+
+  if(type === "success"){
+    el.style.borderColor = "rgba(46, 204, 113, .35)";
+    el.style.background = "rgba(46, 204, 113, .08)";
+    el.style.color = "rgba(12,18,32,.92)";
+  }else{
+    el.style.borderColor = "rgba(239,68,68,.22)";
+    el.style.background = "rgba(239,68,68,.08)";
+    el.style.color = "#991b1b";
+  }
+}
+
+
 
 
 function setAlertWithResetLink(alertEl, msg, email, resetLink){
@@ -486,13 +525,8 @@ function renderDashboardCards(profile){
       action: () => openCompaniesView()
     });
 
-    cards.push({
-      title: "Criar Empresa",
-      desc: "Cadastre uma nova empresa e vincule o Admin.",
-      badge: "Master",
-      action: () => openCreateCompanyModal()
-    });
-  } else {
+    
+} else {
     cards.push({
       title: "Meus Projetos",
       desc: "Em breve: Kanban de projetos e visão por equipe.",
@@ -575,7 +609,9 @@ async function loadCompanies(){
         <span class="badge">${c.active ? "Ativa" : "Inativa"}</span>
       </div>
     `;
-    companiesGrid.appendChild(el);
+        el.style.cursor = "pointer";
+    el.addEventListener("click", () => openCompanyDetailModal(c.id));
+companiesGrid.appendChild(el);
   }
 }
 
@@ -597,6 +633,175 @@ function openCreateCompanyModal(){
 }
 
 function closeCreateCompanyModal(){ if (modalCreateCompany) modalCreateCompany.hidden = true; }
+
+function openCompanyDetailModal(companyId){
+  currentCompanyDetailId = companyId;
+  if (!modalCompanyDetail) return;
+  modalCompanyDetail.hidden = false;
+  clearInlineAlert(companyUsersAlert);
+  loadCompanyDetail(companyId);
+}
+
+function closeCompanyDetailModal(){
+  if (!modalCompanyDetail) return;
+  modalCompanyDetail.hidden = true;
+  currentCompanyDetailId = null;
+  if (companyUsersTbody) companyUsersTbody.innerHTML = "";
+}
+
+async function loadCompanyDetail(companyId){
+  if (!state.isSuperAdmin) return;
+
+  try{
+    const cRef = doc(db, "companies", companyId);
+    const cSnap = await getDoc(cRef);
+    if (!cSnap.exists()){
+      showInlineAlert(companyUsersAlert, "Empresa não encontrada.", "error");
+      return;
+    }
+    const cData = cSnap.data();
+    const active = cData.active === true;
+
+    if (companyDetailTitle) companyDetailTitle.textContent = cData.name || companyId;
+    if (companyDetailMeta) companyDetailMeta.textContent = `CNPJ: ${cData.cnpj || "-"} • ID: ${companyId}`;
+    if (companyDetailStatus){
+      companyDetailStatus.textContent = active ? "ATIVA" : "BLOQUEADA";
+      companyDetailStatus.className = `badge ${active ? "badge-success" : "badge-danger"}`;
+    }
+    if (btnToggleCompanyBlock){
+      btnToggleCompanyBlock.textContent = active ? "Bloquear empresa" : "Desbloquear empresa";
+      btnToggleCompanyBlock.className = active ? "btn btn-danger" : "btn btn-secondary";
+      btnToggleCompanyBlock.onclick = () => toggleCompanyBlock(companyId, active);
+    }
+
+    const uCol = collection(db, "companies", companyId, "users");
+    const uSnap = await getDocs(uCol);
+    const users = [];
+    uSnap.forEach(d => users.push({ id: d.id, ...d.data() }));
+    users.sort((a,b) => (a.name||"").localeCompare(b.name||""));
+
+    renderCompanyUsersTable(companyId, users);
+  }catch(err){
+    console.error("Erro ao carregar detalhes da empresa:", err);
+    showInlineAlert(companyUsersAlert, "Erro ao carregar detalhes da empresa.", "error");
+  }
+}
+
+function renderCompanyUsersTable(companyId, users){
+  if (!companyUsersTbody) return;
+  companyUsersTbody.innerHTML = "";
+
+  if (!users || users.length === 0){
+    if (companyUsersEmpty) companyUsersEmpty.hidden = false;
+    return;
+  }
+  if (companyUsersEmpty) companyUsersEmpty.hidden = true;
+
+  for (const u of users){
+    const active = u.active === true;
+    const role = u.role || "tecnico";
+
+    const tr = document.createElement("tr");
+    tr.innerHTML = `
+      <td>
+        <div class="cell-main">${escapeHtml(u.name || "(sem nome)")}</div>
+        <div class="cell-sub">${escapeHtml(u.id)}</div>
+      </td>
+      <td>${escapeHtml(u.email || "-")}</td>
+      <td>${escapeHtml(u.phone || "-")}</td>
+      <td>
+        <select class="input small js-role">
+          ${["admin","gestor","coordenador","tecnico"].map(r => `<option value="${r}" ${r===role?"selected":""}>${r}</option>`).join("")}
+        </select>
+      </td>
+      <td>
+        <span class="badge ${active ? "badge-success" : "badge-danger"}">${active ? "ATIVO" : "BLOQUEADO"}</span>
+      </td>
+      <td class="actions">
+        <button class="btn btn-ghost js-toggle">${active ? "Bloquear" : "Desbloquear"}</button>
+        <button class="btn btn-ghost js-save">Salvar perfil</button>
+      </td>
+    `;
+
+    const btnToggle = tr.querySelector(".js-toggle");
+    const selRole = tr.querySelector(".js-role");
+    const btnSave = tr.querySelector(".js-save");
+
+    btnToggle.addEventListener("click", async (e) => {
+      e.preventDefault();
+      await setCompanyUserActive(companyId, u.id, !active);
+      await loadCompanyDetail(companyId);
+    });
+
+    btnSave.addEventListener("click", async (e) => {
+      e.preventDefault();
+      const newRole = selRole.value;
+      await setCompanyUserRole(companyId, u.id, newRole);
+      await loadCompanyDetail(companyId);
+    });
+
+    companyUsersTbody.appendChild(tr);
+  }
+
+  // Empty state
+  if (companyUsersEmpty){
+    companyUsersEmpty.style.display = users.length ? "none" : "block";
+  }
+}
+
+async function setCompanyUserActive(companyId, uid, active){
+  if (!state.isSuperAdmin) return;
+  try{
+    const uRef = doc(db, "companies", companyId, "users", uid);
+    await updateDoc(uRef, { active: !!active });
+  }catch(err){
+    console.error("Erro ao atualizar usuário:", err);
+    showInlineAlert(companyUsersAlert, "Não foi possível atualizar o usuário.", "error");
+  }
+}
+
+async function setCompanyUserRole(companyId, uid, role){
+  if (!state.isSuperAdmin) return;
+  try{
+    if (!["admin","gestor","coordenador","tecnico"].includes(role)) return;
+    const uRef = doc(db, "companies", companyId, "users", uid);
+    await updateDoc(uRef, { role });
+  }catch(err){
+    console.error("Erro ao trocar perfil:", err);
+    showInlineAlert(companyUsersAlert, "Não foi possível trocar o perfil.", "error");
+  }
+}
+
+async function toggleCompanyBlock(companyId, currentlyActive){
+  if (!state.isSuperAdmin) return;
+  try{
+    const cRef = doc(db, "companies", companyId);
+
+    if (currentlyActive){
+      const uCol = collection(db, "companies", companyId, "users");
+      const uSnap = await getDocs(query(uCol));
+      const batch = writeBatch(db);
+      batch.update(cRef, { active: false });
+
+      uSnap.forEach(d => {
+        batch.update(d.ref, { active: false });
+      });
+
+      await batch.commit();
+      showInlineAlert(companyUsersAlert, "Empresa bloqueada e usuários bloqueados.", "success");
+    }else{
+      await updateDoc(cRef, { active: true });
+      showInlineAlert(companyUsersAlert, "Empresa desbloqueada. (Usuários permanecem com o status atual.)", "success");
+    }
+
+    await loadCompanyDetail(companyId);
+    if (typeof loadCompanies === "function") loadCompanies();
+  }catch(err){
+    console.error("Erro ao bloquear/desbloquear empresa:", err);
+    showInlineAlert(companyUsersAlert, "Não foi possível alterar o status da empresa.", "error");
+  }
+}
+
 
 async function createCompany(){
   clearAlert(createCompanyAlert);
@@ -656,6 +861,7 @@ const data = await callHttpFunctionWithAuth("createCompanyWithAdminHttp", payloa
     setAlert(createCompanyAlert, err?.message || "Erro ao criar empresa");
   }
 }
+
 
 
 /** =========================
@@ -1420,6 +1626,10 @@ modalCreateCompany?.addEventListener("click", (e) => {
   if (e.target?.dataset?.close === "true") closeCreateCompanyModal();
 });
 
+modalCompanyDetail?.addEventListener("click", (e) => {
+  if (e.target?.dataset?.close === "true") closeCompanyDetailModal();
+});
+
 // Teams events
 btnReloadTeams?.addEventListener("click", () => loadTeams());
 teamSearch?.addEventListener("input", () => loadTeams());
@@ -1445,6 +1655,8 @@ btnCreateTeam?.addEventListener("click", () => {
   });
 });
 
+
+
 modalCreateTeam?.addEventListener("click", (e) => {
   if (e.target?.dataset?.close === "true") closeCreateTeamModal();
 });
@@ -1459,6 +1671,8 @@ btnOpenCreateUser?.addEventListener("click", async () => {
   openCreateUserModal();
 });
 
+
+
 btnCloseCreateUser?.addEventListener("click", () => closeCreateUserModal());
 btnCancelCreateUser?.addEventListener("click", () => closeCreateUserModal());
 btnCreateUser?.addEventListener("click", () => {
@@ -1471,6 +1685,9 @@ btnCreateUser?.addEventListener("click", () => {
 modalCreateUser?.addEventListener("click", (e) => {
   if (e.target?.dataset?.close === "true") closeCreateUserModal();
 });
+
+btnCloseCompanyDetail?.addEventListener("click", () => closeCompanyDetailModal());
+
 
 /** =========================
  *  12) ERROS FRIENDLY
