@@ -74,6 +74,15 @@ const viewAdmin = document.getElementById("viewAdmin");
 const viewCompanies = document.getElementById("viewCompanies");
 const viewManagerUsers = document.getElementById("viewManagerUsers");
 
+// Layout (sidebar)
+const sidebar = document.getElementById("sidebar");
+const btnToggleSidebar = document.getElementById("btnToggleSidebar");
+const navHome = document.getElementById("navHome");
+const navAddProject = document.getElementById("navAddProject");
+const navAddTech = document.getElementById("navAddTech");
+const navReports = document.getElementById("navReports");
+const navConfig = document.getElementById("navConfig");
+
 // Login
 const loginForm = document.getElementById("loginForm");
 const emailEl = document.getElementById("email");
@@ -85,6 +94,8 @@ const loginAlert = document.getElementById("loginAlert");
 const btnLogout = document.getElementById("btnLogout");
 const userPill = document.getElementById("userPill");
 const userAvatar = document.getElementById("userAvatar");
+const userAvatarImg = document.getElementById("userAvatarImg");
+const userAvatarFallback = document.getElementById("userAvatarFallback");
 const userName = document.getElementById("userName");
 const userRole = document.getElementById("userRole");
 
@@ -214,6 +225,17 @@ function setView(name){
   hide(viewAdmin);
   hide(viewCompanies);
   hide(viewManagerUsers);
+
+  // Toggle layout shell
+  // - Login: sem sidebar
+  // - Demais telas: com sidebar
+  if (name === "login"){
+    document.body.classList.add("is-login");
+    hide(sidebar);
+  } else {
+    document.body.classList.remove("is-login");
+    show(sidebar);
+  }
 
   if (name === "login") show(viewLogin);
   if (name === "dashboard") show(viewDashboard);
@@ -362,6 +384,51 @@ function intersects(a = [], b = []) {
   return (a || []).some(x => setB.has(x));
 }
 
+function setActiveNav(activeId){
+  const items = [navHome, navAddProject, navAddTech, navReports, navConfig].filter(Boolean);
+  for (const el of items){
+    const isActive = el.id === activeId;
+    el.classList.toggle("active", isActive);
+  }
+}
+
+function initSidebar(){
+  if (!sidebar) return;
+
+  // estado persistido
+  const saved = localStorage.getItem("fp.sidebar.expanded");
+  if (saved === "1") sidebar.classList.add("expanded");
+
+  btnToggleSidebar?.addEventListener("click", () => {
+    sidebar.classList.toggle("expanded");
+    localStorage.setItem("fp.sidebar.expanded", sidebar.classList.contains("expanded") ? "1" : "0");
+  });
+
+  // Ações (por enquanto: navegação de views existentes)
+  navHome?.addEventListener("click", () => {
+    setActiveNav("navHome");
+    setView("dashboard");
+  });
+  navReports?.addEventListener("click", () => {
+    setActiveNav("navReports");
+    alert("Em breve: Relatórios e indicadores");
+  });
+  navAddProject?.addEventListener("click", () => {
+    setActiveNav("navAddProject");
+    alert("Em breve: Adicionar projeto");
+  });
+  navAddTech?.addEventListener("click", () => {
+    setActiveNav("navAddTech");
+    // para gestor, já existe tela de técnicos
+    if (state.profile?.role === "gestor") setView("managerUsers");
+    else alert("Acesso restrito: somente Gestor");
+  });
+  navConfig?.addEventListener("click", () => {
+    setActiveNav("navConfig");
+    alert("Em breve: Configurações");
+  });
+}
+
 function getTeamNameById(teamId){
   const t = (state.teams || []).find(x => x.id === teamId);
   return t ? (t.name || t.id) : teamId;
@@ -495,7 +562,20 @@ function renderTopbar(profile, user){
 
   if (userName) userName.textContent = profile.name || "Usuário";
   if (userRole) userRole.textContent = normalizeRole(profile.role);
-  if (userAvatar) userAvatar.textContent = initialFromName(profile.name);
+
+  // Avatar: tenta foto (perfil -> auth), senão usa iniciais
+  const photoUrl = profile?.photoURL || user?.photoURL || "";
+  if (photoUrl && userAvatarImg){
+    userAvatarImg.src = photoUrl;
+    userAvatarImg.hidden = false;
+    if (userAvatarFallback) userAvatarFallback.hidden = true;
+  } else {
+    if (userAvatarImg) userAvatarImg.hidden = true;
+    if (userAvatarFallback){
+      userAvatarFallback.hidden = false;
+      userAvatarFallback.textContent = initialFromName(profile.name);
+    }
+  }
 
   if (chipEmail) chipEmail.textContent = `Email: ${user.email || "—"}`;
 
@@ -1704,3 +1784,6 @@ function mapAuthError(err){
   return "Não foi possível entrar. Tente novamente.";
 }
 window.__fp = { auth, db, functions };
+
+// Sidebar + tooltips
+try{ initSidebar(); }catch(e){ console.warn("initSidebar falhou", e); }
