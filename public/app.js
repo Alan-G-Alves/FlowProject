@@ -1,15 +1,18 @@
 console.log("APP.JS CARREGADO: vHTTP-TESTE-02");
 
 
-import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-app.js";
-import { getFunctions, httpsCallable } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-functions.js";
+import {
+  initializeApp } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-app.js";
+import { getFunctions,
+  httpsCallable } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-functions.js";
 
 import {
   getAuth,
   onAuthStateChanged,
   signInWithEmailAndPassword,
   sendPasswordResetEmail,
-  signOut
+  signOut,
+  createUserWithEmailAndPassword
 } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-auth.js";
 
 import {
@@ -45,6 +48,8 @@ const firebaseConfig = {
 
 const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
+const secondaryApp = initializeApp(firebaseConfig, "secondary");
+const secondaryAuth = getAuth(secondaryApp);
 const functions = getFunctions(app, "us-central1");
 const fnCreateUserInTenant = httpsCallable(functions, "createUserInTenant");
 const fnCreateCompanyWithAdmin = httpsCallable(functions, "createCompanyWithAdmin") /* (mantido, mas usamos HTTP no createCompany) */;
@@ -54,9 +59,27 @@ const storage = getStorage(app);
 
 
 async function createUserWithAuthAndResetLink(payload){
-  // payload: {companyId, name, email, phone, role, teamIds}
-  const res = await fnCreateUserInTenant(payload);
-  return res.data; // { uid, resetLink }
+  // Cria usuário no Firebase Authentication sem deslogar o Admin/Gestor
+  const email = (payload?.email || "").trim().toLowerCase();
+  if (!email) throw new Error("E-mail inválido.");
+
+  // senha temporária (usuário redefine via e-mail)
+  const tempPass =
+    "Fp@" +
+    Math.random().toString(36).slice(2, 8) +
+    Math.random().toString(36).slice(2, 6).toUpperCase() +
+    "9";
+
+  const cred = await createUserWithEmailAndPassword(secondaryAuth, email, tempPass);
+
+  // dispara e-mail de redefinição de senha (primeiro acesso)
+  try{
+    await sendPasswordResetEmail(secondaryAuth, email);
+  }catch(err){
+    console.warn("Não consegui disparar reset de senha automaticamente:", err);
+  }
+
+  return { uid: cred.user.uid };
 }
 /** =========================
  *  2) ESTADO
@@ -193,6 +216,7 @@ const createTeamAlert = document.getElementById("createTeamAlert");
 const usersTbody = document.getElementById("usersTbody");
 const usersEmpty = document.getElementById("usersEmpty");
 const userSearch = document.getElementById("userSearch");
+const userRoleFilter = document.getElementById("userRoleFilter");
 const btnReloadUsers = document.getElementById("btnReloadUsers");
 const btnOpenCreateUser = document.getElementById("btnOpenCreateUser");
 
@@ -604,17 +628,33 @@ function renderTopbar(profile, user){
 
   // Avatar: tenta foto (perfil -> auth), senão usa iniciais
   const photoUrl = profile?.photoURL || user?.photoURL || "";
+
+  // OBS: no CSS o .avatar-img começa com display:none; aqui controlamos via display
   if (photoUrl && userAvatarImg){
-    userAvatarImg.src = photoUrl;
+    // Cache-bust leve (evita manter imagem antiga após trocar foto)
+    const bust = photoUrl.includes("?") ? "&t=" : "?t=";
+    userAvatarImg.src = photoUrl + bust + Date.now();
+
     userAvatarImg.hidden = false;
-    if (userAvatarFallback) userAvatarFallback.hidden = true;
+    userAvatarImg.style.display = "block";
+
+    if (userAvatarFallback){
+      userAvatarFallback.hidden = true;
+      userAvatarFallback.style.display = "none";
+    }
   }else{
-    if (userAvatarImg) userAvatarImg.hidden = true;
+    if (userAvatarImg){
+      userAvatarImg.hidden = true;
+      userAvatarImg.style.display = "none";
+      userAvatarImg.removeAttribute("src");
+    }
+
     const label = (profile?.name || user?.displayName || user?.email || "Usuário").trim();
     const initials = label.split(/\s+/).slice(0,2).map(p => (p[0] || "").toUpperCase()).join("") || "U";
     if (userAvatarFallback){
       userAvatarFallback.textContent = initials;
       userAvatarFallback.hidden = false;
+      userAvatarFallback.style.display = "grid";
     }
   }
 }
@@ -1249,30 +1289,66 @@ async function loadTeams(){
   }
 }
 
+// Carrega TODAS as equipes (sem filtro de busca) para uso nos chips
+async function ensureTeamsForChips(){
+  if (!state.companyId) return;
+  const snap = await getDocs(collection(db, "companies", state.companyId, "teams"));
+  const all = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+  state.teams = all.sort((a,b) => (a.name||"").localeCompare(b.name||""));
+}
+
+// Gera próximo ID de equipe: #1, #2, #3...
+async function getNextTeamId(){
+  if (!state.companyId) throw new Error("companyId ausente.");
+  const snap = await getDocs(collection(db, "companies", state.companyId, "teams"));
+  let maxN = 0;
+  snap.forEach(d => {
+    const id = d.id || "";
+    const m = /^#(\d+)$/.exec(id);
+    if (m){
+      const n = parseInt(m[1], 10);
+      if (!Number.isNaN(n)) maxN = Math.max(maxN, n);
+    }
+  });
+  return `#${maxN + 1}`;
+}
+
+
 function openCreateTeamModal(){
   if (!modalCreateTeam) return;
   clearAlert(createTeamAlert);
   modalCreateTeam.hidden = false;
+
+  // Não pedir ID manual (gerar #1, #2, ...)
+  try{
+    const idLabel = teamIdEl?.closest("label");
+    if (idLabel) idLabel.style.display = "none";
+  }catch(_){}
+
   teamNameEl.value = "";
   teamIdEl.value = "";
-  teamIdEl.dataset.auto = "true";
+
+  getNextTeamId()
+    .then(id => { teamIdEl.value = id; })
+    .catch(() => { teamIdEl.value = ""; });
 }
+
 function closeCreateTeamModal(){ if (modalCreateTeam) modalCreateTeam.hidden = true; }
 
-async function createTeam(){
+ async function createTeam(){
   clearAlert(createTeamAlert);
 
   const name = (teamNameEl.value || "").trim();
-  const teamId = (teamIdEl.value || "").trim();
-
   if (!name) return setAlert(createTeamAlert, "Informe o nome da equipe.");
-  if (!teamId) return setAlert(createTeamAlert, "Informe o ID (slug) da equipe.");
 
   setAlert(createTeamAlert, "Salvando...", "info");
+
+  const teamId = await getNextTeamId();
 
   await setDoc(doc(db, "companies", state.companyId, "teams", teamId), {
     name,
     active: true,
+    number: parseInt(teamId.replace("#",""), 10) || null,
     createdAt: serverTimestamp(),
     createdBy: auth.currentUser.uid
   });
@@ -1281,10 +1357,11 @@ async function createTeam(){
   await loadTeams();
 }
 
+
 /** =========================
  *  9) ADMIN (EMPRESA): USERS
  *  ========================= */
-async function loadUsers(){
+ async function loadUsers(){
   if (!usersTbody) return;
 
   usersTbody.innerHTML = "";
@@ -1300,6 +1377,7 @@ async function loadUsers(){
   const filtered = all.filter(u => {
     const text = `${u.uid} ${u.name||""} ${u.email||""} ${u.phone||""}`.toLowerCase();
     const okQ = !q || text.includes(q);
+    const roleFilter = (userRoleFilter?.value || "").trim();
     const okRole = !roleFilter || (u.role === roleFilter);
     return okQ && okRole;
   }).sort((a,b) => (a.name||"").localeCompare(b.name||""));
@@ -1360,6 +1438,12 @@ function openCreateUserModal(){
   clearAlert(createUserAlert);
   modalCreateUser.hidden = false;
 
+  // Não pedir UID manualmente (vamos criar no Auth via secondaryAuth)
+  try{
+    const uidLabel = newUserUidEl?.closest("label");
+    if (uidLabel) uidLabel.style.display = "none";
+  }catch(_){}
+
   newUserUidEl.value = "";
   newUserNameEl.value = "";
   newUserRoleEl.value = "tecnico";
@@ -1368,8 +1452,13 @@ function openCreateUserModal(){
   newUserActiveEl.value = "true";
 
   state.selectedTeamIds = [];
-  renderTeamChips();
+
+  // garante que os chips tenham as equipes existentes
+  ensureTeamsForChips()
+    .then(() => renderTeamChips())
+    .catch(() => renderTeamChips());
 }
+
 
 function closeCreateUserModal(){ if (modalCreateUser) modalCreateUser.hidden = true; }
 
@@ -1469,10 +1558,9 @@ async function createUser(){
 UID: ${uid}
 
 ` +
-        (data?.resetLink ? `Link para definir senha (primeiro acesso):
-${data.resetLink}` : "")
+        `✅ Enviamos um e-mail para o usuário definir a senha no primeiro acesso.`
       );
-      return;
+return;
     }
 
     // Fluxo manual (UID já existe no Auth)
@@ -1606,6 +1694,12 @@ function openCreateTechModal(){
   clearAlert(createTechAlert);
   modalCreateTech.hidden = false;
 
+  // Não pedir UID manualmente (vamos criar no Auth via secondaryAuth)
+  try{
+    const uidLabel = techUidEl?.closest("label");
+    if (uidLabel) uidLabel.style.display = "none";
+  }catch(_){}
+
   techUidEl.value = "";
   techNameEl.value = "";
   techEmailEl.value = "";
@@ -1613,8 +1707,11 @@ function openCreateTechModal(){
   techActiveEl.value = "true";
 
   state.mgrSelectedTeamIds = [];
-  renderMgrTeamChips();
+  ensureManagedTeamsForChips()
+    .then(() => renderMgrTeamChips())
+    .catch(() => renderMgrTeamChips());
 }
+
 
 function closeCreateTechModal(){ if (modalCreateTech) modalCreateTech.hidden = true; }
 
@@ -1993,6 +2090,7 @@ modalCreateTeam?.addEventListener("click", (e) => {
 // Users events
 btnReloadUsers?.addEventListener("click", () => loadUsers());
 userSearch?.addEventListener("input", () => loadUsers());
+userRoleFilter?.addEventListener("change", () => { loadUsers(); });
 btnOpenCreateUser?.addEventListener("click", async () => {
   // garante que as equipes estão carregadas antes de abrir
   await loadTeams();
