@@ -36,7 +36,7 @@ import {
 
 import { normalizeRole, humanizeRole } from "./src/utils/roles.js";
 import { show, hide, escapeHtml } from "./src/utils/dom.js";
-import { setView } from "./src/ui/router.js";
+import { setView, initHashRouter, ROUTES, navigateTo } from "./src/ui/router.js";
 import { isEmailValidBasic, isCnpjValidBasic } from "./src/utils/validators.js";
 import { fetchPlatformUser, fetchCompanyIdForUser, fetchCompanyUserProfile } from "./src/services/firestore.service.js";
 import { auth, secondaryAuth, db, storage, functions, httpsCallable } from "./src/config/firebase.js";
@@ -400,11 +400,8 @@ function initSidebar(){
   });
 
   // Ações (por enquanto: navegação de views existentes)
-  navHome?.addEventListener("click", () => {
-    setActiveNav("navHome");
-    setView("dashboard");
-  });
-  navReports?.addEventListener("click", () => {
+  navHome?.addEventListener("click", () => navigateTo(ROUTES.dashboard));
+navReports?.addEventListener("click", () => {
     setActiveNav("navReports");
     alert("Em breve: Relatórios e indicadores");
   });
@@ -413,14 +410,15 @@ function initSidebar(){
     alert("Em breve: Adicionar projeto");
   });
   navAddTech?.addEventListener("click", () => {
-    setActiveNav("navAddTech");
-    // para gestor, já existe tela de técnicos
-    if (state.profile?.role === "gestor") setView("managerUsers");
-    else alert("Acesso restrito: somente Gestor");
+    const role = state.profile?.role || "";
+    if (["gestor","coordenador"].includes(role)) navigateTo(ROUTES.managerUsers);
+    else navigateTo(ROUTES.dashboard);
   });
-  navConfig?.addEventListener("click", () => {
-    setActiveNav("navConfig");
-    alert("Em breve: Configurações");
+navConfig?.addEventListener("click", () => {
+    if (state.isSuperAdmin) return navigateTo(ROUTES.companies);
+    const role = state.profile?.role || "";
+    if (role === "admin") return navigateTo(ROUTES.admin);
+    navigateTo(ROUTES.dashboard);
   });
 }
 
@@ -756,6 +754,7 @@ function renderDashboardCards(profile){
  *  7) COMPANIES (MASTER)
  *  ========================= */
 function openCompaniesView(){
+  if (window.location.hash !== ROUTES.companies){ navigateTo(ROUTES.companies); return; }
   setView("companies");
   loadCompanies().catch(err => {
     console.error(err);
@@ -1097,6 +1096,7 @@ const data = await callHttpFunctionWithAuth("createCompanyWithAdminHttp", payloa
  *  8) ADMIN (EMPRESA): TEAMS
  *  ========================= */
 function openAdminView(){
+  if (window.location.hash !== ROUTES.admin){ navigateTo(ROUTES.admin); return; }
   setView("admin");
   Promise.all([loadTeams(), loadUsers()]).catch(err => {
     console.error(err);
@@ -1573,6 +1573,7 @@ return;
  *  9.5) GESTOR: USUÁRIOS (TÉCNICOS)
  *  ========================= */
 function openManagerUsersView(){
+  if (window.location.hash !== ROUTES.managerUsers){ navigateTo(ROUTES.managerUsers); return; }
   setView("managerUsers");
   Promise.all([loadTeams(), loadManagerUsers()]).catch(err => {
     console.error(err);
@@ -1859,6 +1860,100 @@ async function saveManagedTeams(){
   await loadUsers();
 }
 
+
+/** =========================
+ *  9.9) HASH ROUTES (SPA)
+ *  ========================= */
+// Guard + resolução de rotas.
+// OBS: Coordenador se comporta como Gestor.
+function getRole(){
+  return state.profile?.role || "";
+}
+
+function setActiveNavByRoute(hash){
+  const all = [navHome, navAddProject, navAddTech, navReports, navConfig].filter(Boolean);
+  all.forEach(b => b.classList.remove("active"));
+
+  // mapeamento simples (pode evoluir depois)
+  if (hash === ROUTES.dashboard && navHome) navHome.classList.add("active");
+  if (hash === ROUTES.admin && navConfig) navConfig.classList.add("active");
+  if (hash === ROUTES.companies && navConfig) navConfig.classList.add("active");
+  if (hash === ROUTES.managerUsers && navAddTech) navAddTech.classList.add("active");
+}
+
+function resolveRoute(hash){
+  const user = auth.currentUser;
+
+  // Sem sessão → sempre login
+  if (!user){
+    if (hash !== ROUTES.login) navigateTo(ROUTES.login);
+    setView("login");
+    setActiveNavByRoute(ROUTES.login);
+    return;
+  }
+
+  // Sessão existe, mas ainda estamos carregando perfil (auth listener ainda não terminou)
+  if (!state.profile){
+    // deixa um fallback simples; quando o profile carregar, chamamos resolveRoute de novo
+    setView("dashboard");
+    return;
+  }
+
+  // Logado tentando acessar /login → manda pra dashboard
+  if (hash === ROUTES.login){
+    navigateTo(ROUTES.dashboard);
+    return;
+  }
+
+  // /companies (somente superadmin)
+  if (hash === ROUTES.companies){
+    if (!state.isSuperAdmin){
+      navigateTo(ROUTES.dashboard);
+      return;
+    }
+    setActiveNavByRoute(hash);
+    openCompaniesView(); // já faz load
+    return;
+  }
+
+  // /admin (somente admin empresa)
+  if (hash === ROUTES.admin){
+    const role = getRole();
+    if (state.isSuperAdmin || role !== "admin"){
+      navigateTo(ROUTES.dashboard);
+      return;
+    }
+    setActiveNavByRoute(hash);
+    openAdminView(); // já faz load
+    return;
+  }
+
+  // /manager-users (gestor/coordenador)
+  if (hash === ROUTES.managerUsers){
+    const role = getRole();
+    if (state.isSuperAdmin || !["gestor","coordenador"].includes(role)){
+      navigateTo(ROUTES.dashboard);
+      return;
+    }
+    setActiveNavByRoute(hash);
+    openManagerUsersView(); // já faz load
+    return;
+  }
+
+  // /dashboard (default)
+  if (hash === ROUTES.dashboard || !hash){
+    setActiveNavByRoute(ROUTES.dashboard);
+    setView("dashboard");
+    return;
+  }
+
+  // rota desconhecida
+  navigateTo(ROUTES.dashboard);
+}
+
+initHashRouter({ resolve: resolveRoute });
+
+
 /** =========================
  *  10) AUTH FLOW
  *  ========================= */
@@ -1873,7 +1968,7 @@ onAuthStateChanged(auth, async (user) => {
   state.isSuperAdmin = false;
 
   if (!user){
-    setView("login");
+    navigateTo(ROUTES.login);
     return;
   }
 
@@ -1885,14 +1980,15 @@ onAuthStateChanged(auth, async (user) => {
 
     renderTopbar(platformUser, user);
     renderDashboardCards(platformUser);
-    setView("dashboard");
+    if (!window.location.hash || window.location.hash === ROUTES.login) navigateTo(ROUTES.dashboard);
+    resolveRoute(window.location.hash);
     return;
   }
 
   // 2) Usuário comum (multi-tenant)
   const companyId = await fetchCompanyIdForUser(user.uid);
   if (!companyId){
-    setView("login");
+    navigateTo(ROUTES.login);
     setAlert(loginAlert, "Seu usuário não está vinculado a nenhuma empresa. Peça ao admin para configurar.");
     await signOut(auth);
     return;
@@ -1900,14 +1996,14 @@ onAuthStateChanged(auth, async (user) => {
 
   const profile = await fetchCompanyUserProfile(companyId, user.uid);
   if (!profile){
-    setView("login");
+    navigateTo(ROUTES.login);
     setAlert(loginAlert, "Seu perfil não foi encontrado dentro da empresa. Peça ao admin para criar.");
     await signOut(auth);
     return;
   }
 
   if (profile.active === false){
-    setView("login");
+    navigateTo(ROUTES.login);
     setAlert(loginAlert, "Usuário bloqueado. Fale com o administrador.");
     await signOut(auth);
     return;
@@ -1918,7 +2014,8 @@ onAuthStateChanged(auth, async (user) => {
 
   renderTopbar(profile, user);
   renderDashboardCards(profile);
-  setView("dashboard");
+  if (!window.location.hash || window.location.hash === ROUTES.login) navigateTo(ROUTES.dashboard);
+  resolveRoute(window.location.hash);
 });
 
 /** =========================
@@ -1961,11 +2058,11 @@ navLogout?.addEventListener("click", async (e) => {
   await signOut(auth);
 });
 // Dashboard navigation
-btnBackToDashboard?.addEventListener("click", () => setView("dashboard"));
-btnBackFromAdmin?.addEventListener("click", () => setView("dashboard"));
+btnBackToDashboard?.addEventListener("click", () => navigateTo(ROUTES.dashboard));
+btnBackFromAdmin?.addEventListener("click", () => navigateTo(ROUTES.dashboard));
 
 // Gestor Users view
-btnBackFromManagerUsers?.addEventListener("click", () => setView("dashboard"));
+btnBackFromManagerUsers?.addEventListener("click", () => navigateTo(ROUTES.dashboard));
 btnReloadMgrUsers?.addEventListener("click", () => loadManagerUsers());
 mgrUserSearch?.addEventListener("input", () => loadManagerUsers());
 mgrTeamFilter?.addEventListener("change", () => loadManagerUsers());

@@ -1,5 +1,6 @@
-// FlowProject - Router simples (SPA)
-// Mantém o app em 1 página (index.html), alternando views por id.
+// FlowProject - Router (Hash Routes) para SPA sem framework
+// Mantém o app em 1 página (index.html), alternando views por id via setView().
+// Rotas no formato: #/login, #/dashboard, #/admin, #/companies, #/manager-users
 
 import { show, hide } from "../utils/dom.js";
 
@@ -41,4 +42,46 @@ export function setView(name){
   if (name === "admin") show(viewAdmin);
   if (name === "companies") show(viewCompanies);
   if (name === "managerUsers") show(viewManagerUsers);
+}
+
+// =========================
+// Hash Router helpers
+// =========================
+export const ROUTES = Object.freeze({
+  login: "#/login",
+  dashboard: "#/dashboard",
+  admin: "#/admin",
+  companies: "#/companies",
+  managerUsers: "#/manager-users",
+});
+
+export function getHashPath(){
+  const h = (window.location.hash || "").trim();
+  if (!h) return ROUTES.login;
+  // normaliza: '#', '#/' => '#/login'
+  if (h === "#" || h === "#/") return ROUTES.login;
+  return h;
+}
+
+export function navigateTo(hash){
+  if (!hash) return;
+  if (window.location.hash === hash) return;
+  window.location.hash = hash;
+}
+
+// Inicializa o listener de hashchange.
+// Você injeta a regra de acesso e o render via callbacks para manter o router sem dependências do app.js.
+export function initHashRouter({ resolve, fallback } = {}){
+  const handle = () => {
+    const hash = getHashPath();
+    if (typeof resolve === "function") resolve(hash);
+    else if (typeof fallback === "function") fallback(hash);
+  };
+
+  window.addEventListener("hashchange", handle);
+  // roda 1x no load
+  handle();
+
+  // retorna função de cleanup se precisar
+  return () => window.removeEventListener("hashchange", handle);
 }
