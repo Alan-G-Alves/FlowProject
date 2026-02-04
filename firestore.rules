@@ -191,7 +191,7 @@ function userFieldsAllowed() {
           && request.resource.data.name is string && request.resource.data.name.size() > 0
           && request.resource.data.active is bool;
 
-        allow delete: if false;
+        allow delete: if isSuperAdmin() || isCompanyAdmin(companyId);
       }
 
       // users

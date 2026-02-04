@@ -1,10 +1,7 @@
 console.log("APP.JS CARREGADO: vHTTP-TESTE-02");
 
-
 import {
   initializeApp } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-app.js";
-import { getFunctions,
-  httpsCallable } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-functions.js";
 
 import {
   getAuth,
@@ -24,7 +21,10 @@ import {
   setDoc,
   updateDoc,
   writeBatch,
-  serverTimestamp
+  serverTimestamp,
+  query,
+  where,
+  deleteDoc
 } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore.js";
 
 import {
@@ -34,29 +34,21 @@ import {
   getDownloadURL
 } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-storage.js";
 
+import { normalizeRole, humanizeRole } from "./src/utils/roles.js";
+import { show, hide, escapeHtml } from "./src/utils/dom.js";
+import { setView } from "./src/ui/router.js";
+import { isEmailValidBasic, isCnpjValidBasic } from "./src/utils/validators.js";
+import { fetchPlatformUser, fetchCompanyIdForUser, fetchCompanyUserProfile } from "./src/services/firestore.service.js";
+import { auth, secondaryAuth, db, storage, functions, httpsCallable } from "./src/config/firebase.js";
+import { normalizePhone, normalizeCnpj, slugify } from "./src/utils/format.js";
+import { setAlert, clearAlert, clearInlineAlert, showInlineAlert } from "./src/ui/alerts.js";
+import { listCompaniesDocs } from "./src/services/companies.service.js";
 /** =========================
  *  1) CONFIG FIREBASE
  *  ========================= */
-const firebaseConfig = {
-  apiKey: "AIzaSyDDwKotSJLioYxaTdu0gf30U-haoT5wiyo",
-  authDomain: "flowproject-17930.firebaseapp.com",
-  projectId: "flowproject-17930",
-  storageBucket: "flowproject-17930.firebasestorage.app",
-  messagingSenderId: "254792794709",
-  appId: "1:254792794709:web:fae624d7c4227b0c398adc"
-};
 
-const app = initializeApp(firebaseConfig);
-const auth = getAuth(app);
-const secondaryApp = initializeApp(firebaseConfig, "secondary");
-const secondaryAuth = getAuth(secondaryApp);
-const functions = getFunctions(app, "us-central1");
 const fnCreateUserInTenant = httpsCallable(functions, "createUserInTenant");
 const fnCreateCompanyWithAdmin = httpsCallable(functions, "createCompanyWithAdmin") /* (mantido, mas usamos HTTP no createCompany) */;
-const db = getFirestore(app);
-const storage = getStorage(app);
-
-
 
 async function createUserWithAuthAndResetLink(payload){
   // Cria usuário no Firebase Authentication sem deslogar o Admin/Gestor
@@ -179,11 +171,12 @@ const companyUsersAlert = document.getElementById("companyUsersAlert");
 
 let currentCompanyDetailId = null;
 
-
 const modalCreateCompany = document.getElementById("modalCreateCompany");
 const btnCloseCreateCompany = document.getElementById("btnCloseCreateCompany");
 const btnCancelCreateCompany = document.getElementById("btnCancelCreateCompany");
 const btnCreateCompany = document.getElementById("btnCreateCompany");
+
+
 const companyNameEl = document.getElementById("companyName");
 const companyCnpjEl = document.getElementById("companyCnpj");
 const companyIdEl = document.getElementById("companyId");
@@ -211,6 +204,18 @@ const btnCreateTeam = document.getElementById("btnCreateTeam");
 const teamNameEl = document.getElementById("teamName");
 const teamIdEl = document.getElementById("teamId");
 const createTeamAlert = document.getElementById("createTeamAlert");
+// Team Details
+const modalTeamDetails = document.getElementById("modalTeamDetails");
+const btnCloseTeamDetails = document.getElementById("btnCloseTeamDetails");
+const btnCancelTeamDetails = document.getElementById("btnCancelTeamDetails");
+const teamDetailsNameEl = document.getElementById("teamDetailsName");
+const teamDetailsIdEl = document.getElementById("teamDetailsId");
+const teamDetailsStatusEl = document.getElementById("teamDetailsStatus");
+const teamDetailsUsersEl = document.getElementById("teamDetailsUsers");
+const teamDetailsEmptyEl = document.getElementById("teamDetailsEmpty");
+const teamDetailsAlert = document.getElementById("teamDetailsAlert");
+const btnTeamToggleActive = document.getElementById("btnTeamToggleActive");
+const btnTeamDelete = document.getElementById("btnTeamDelete");
 
 // Users
 const usersTbody = document.getElementById("usersTbody");
@@ -264,76 +269,9 @@ const btnCloseManagedTeams = document.getElementById("btnCloseManagedTeams");
 const btnCancelManagedTeams = document.getElementById("btnCancelManagedTeams");
 const btnSaveManagedTeams = document.getElementById("btnSaveManagedTeams");
 
-
 /** =========================
  *  4) HELPERS
  *  ========================= */
-function show(el){ if (el) el.hidden = false; }
-function hide(el){ if (el) el.hidden = true; }
-
-function setView(name){
-  hide(viewLogin);
-  hide(viewDashboard);
-  hide(viewAdmin);
-  hide(viewCompanies);
-  hide(viewManagerUsers);
-
-  // Toggle layout shell
-  // - Login: sem sidebar
-  // - Demais telas: com sidebar
-  if (name === "login"){
-    document.body.classList.add("is-login");
-    hide(sidebar);
-  } else {
-    document.body.classList.remove("is-login");
-    show(sidebar);
-  }
-
-  if (name === "login") show(viewLogin);
-  if (name === "dashboard") show(viewDashboard);
-  if (name === "admin") show(viewAdmin);
-  if (name === "companies") show(viewCompanies);
-  if (name === "managerUsers") show(viewManagerUsers);
-}
-
-function clearAlert(el){ if (!el) return; el.textContent = ""; hide(el); }
-function setAlert(el, msg, type="error") {
-  if (!el) return;
-  el.textContent = msg;
-  if (type === "error") {
-    el.style.borderColor = "rgba(239,68,68,.22)";
-    el.style.background = "rgba(239,68,68,.08)";
-    el.style.color = "#991b1b";
-  } else {
-    el.style.borderColor = "rgba(37,99,235,.25)";
-    el.style.background = "rgba(37,99,235,.08)";
-    el.style.color = "rgba(12,18,32,.85)";
-  }
-  show(el);
-}
-
-function clearInlineAlert(el){
-  if(!el) return;
-  el.style.display = "none";
-  el.textContent = "";
-}
-
-function showInlineAlert(el, msg, type="error"){
-  if(!el) return;
-  el.style.display = "block";
-  el.textContent = msg;
-
-  if(type === "success"){
-    el.style.borderColor = "rgba(46, 204, 113, .35)";
-    el.style.background = "rgba(46, 204, 113, .08)";
-    el.style.color = "rgba(12,18,32,.92)";
-  }else{
-    el.style.borderColor = "rgba(239,68,68,.22)";
-    el.style.background = "rgba(239,68,68,.08)";
-    el.style.color = "#991b1b";
-  }
-}
-
 
 
 
@@ -364,23 +302,13 @@ function setAlertWithResetLink(alertEl, msg, email, resetLink){
   });
 }
 
-
-
-function escapeHtml(str){
-  return (str ?? "").toString()
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;")
-    .replace(/'/g, "&#39;");
-}
-
-
 async function callAdminHttp(functionName, payload){
   const user = auth.currentUser;
   if (!user) throw new Error("Você precisa estar logado.");
   const idToken = await user.getIdToken(true);
-  const url = `https://us-central1-${firebaseConfig.projectId}.cloudfunctions.net/${functionName}`;
+  const projectId = auth?.app?.options?.projectId;
+  if (!projectId) throw new Error("Firebase projectId não encontrado. Verifique ./src/config/firebase.js");
+  const url = `https://us-central1-${projectId}.cloudfunctions.net/${functionName}`;
   const res = await fetch(url, {
     method: "POST",
     headers: {
@@ -396,7 +324,6 @@ async function callAdminHttp(functionName, payload){
   return json;
 }
 
-
 // Chamada HTTP (onRequest) com token do Firebase Auth (fallback quando a Function não é callable)
 async function callHttpFunctionWithAuth(functionName, payload){
   // Espera o auth estabilizar (evita clicar antes de carregar a sessão)
@@ -409,7 +336,9 @@ async function callHttpFunctionWithAuth(functionName, payload){
   // Força refresh do token (reduz 401 por token velho)
   const idToken = await user.getIdToken(true);
 
-  const url = `https://us-central1-${firebaseConfig.projectId}.cloudfunctions.net/${functionName}`;
+  const projectId = auth?.app?.options?.projectId;
+  if (!projectId) throw new Error("Firebase projectId não encontrado. Verifique ./src/config/firebase.js");
+  const url = `https://us-central1-${projectId}.cloudfunctions.net/${functionName}`;
 
   const res = await fetch(url, {
     method: "POST",
@@ -500,123 +429,12 @@ function getTeamNameById(teamId){
   return t ? (t.name || t.id) : teamId;
 }
 
-function normalizeRole(role){
-  const map = {
-    superadmin: "Master Admin",
-    admin: "Admin",
-    gestor: "Gestor",
-    coordenador: "Coordenador",
-    tecnico: "Técnico"
-  };
-  return map[role] || "Usuário";
-}
-
 function initialFromName(name){
   if (!name) return "U";
   const parts = name.trim().split(/\s+/);
   const a = parts[0]?.[0] || "U";
   const b = parts.length > 1 ? (parts[parts.length - 1]?.[0] || "") : "";
   return (a + b).toUpperCase();
-}
-
-function slugify(str){
-  return (str || "")
-    .toString()
-    .normalize("NFD").replace(/[\u0300-\u036f]/g, "")
-    .toLowerCase()
-    .trim()
-    .replace(/[^a-z0-9\s-]/g, "")
-    .replace(/\s+/g, "-")
-    .replace(/-+/g, "-");
-}
-
-function normalizeCnpj(cnpj){ return (cnpj || "").replace(/\D/g, ""); }
-function isCnpjValidBasic(cnpj){ return normalizeCnpj(cnpj).length === 14; }
-
-function normalizePhone(phone){ return (phone || "").replace(/\D/g, ""); }
-
-function clearCompanyCreateSuccess(){
-  if (!createCompanySuccess) return;
-  createCompanySuccess.hidden = true;
-  createCompanySuccess.innerHTML = "";
-}
-
-function showCompanyCreateSuccess({ adminEmail, uid, resetLink }){
-  if (!createCompanySuccess) return;
-  createCompanySuccess.hidden = false;
-
-  const safe = (v) => (v ?? "").toString();
-
-  createCompanySuccess.innerHTML = `
-    <div style="display:flex;flex-direction:column;gap:10px;">
-      <strong>✅ Empresa criada com sucesso!</strong>
-
-      <div class="muted">
-        <div><b>Admin:</b> ${safe(adminEmail)}</div>
-        <div><b>UID:</b> ${safe(uid || "-")}</div>
-      </div>
-
-      ${resetLink ? `
-        <div style="margin-top:2px;">
-          <a href="${safe(resetLink)}" target="_blank" rel="noopener">
-            🔐 Definir senha (primeiro acesso)
-          </a>
-        </div>
-
-        <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:4px;">
-          <button class="btn sm" type="button" id="btnCopyCompanyReset">Copiar link</button>
-          <button class="btn sm secondary" type="button" id="btnHideCompanyResult">Fechar</button>
-        </div>
-
-        <div class="muted" style="font-size:12px;">
-          Envie este link para o admin acessar pela primeira vez.
-        </div>
-      ` : `
-        <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:4px;">
-          <button class="btn sm secondary" type="button" id="btnHideCompanyResult">Fechar</button>
-        </div>
-      `}
-    </div>
-  `;
-
-  const btnHide = document.getElementById("btnHideCompanyResult");
-  btnHide?.addEventListener("click", () => clearCompanyCreateSuccess());
-
-  const btnCopy = document.getElementById("btnCopyCompanyReset");
-  btnCopy?.addEventListener("click", async () => {
-    try{
-      await navigator.clipboard.writeText(resetLink);
-      btnCopy.textContent = "Copiado ✅";
-      setTimeout(() => { btnCopy.textContent = "Copiar link"; }, 1200);
-    }catch(e){
-      console.error(e);
-      alert("Não foi possível copiar automaticamente. Copie o link manualmente.");
-    }
-  });
-}
-
-function isEmailValidBasic(email){ return /^\S+@\S+\.\S+$/.test((email || "").trim()); }
-
-/** =========================
- *  5) FIRESTORE READ HELPERS
- *  ========================= */
-async function fetchPlatformUser(uid){
-  const ref = doc(db, "platformUsers", uid);
-  const snap = await getDoc(ref);
-  return snap.exists() ? snap.data() : null;
-}
-
-async function fetchCompanyIdForUser(uid){
-  const ref = doc(db, "userCompanies", uid);
-  const snap = await getDoc(ref);
-  if (!snap.exists()) return null;
-  return snap.data()?.companyId || null;
-}
-
-async function fetchUserProfile(companyId, uid){
-  const ref = doc(db, "companies", companyId, "users", uid);
-  const snap = await getDoc(ref);
-  return snap.exists() ? snap.data() : null;
 }
 
 /** =========================
@@ -879,7 +697,6 @@ profilePhotoFile?.addEventListener("change", async (e) => {
   }
 });
 
-
 function renderDashboardCards(profile){
   if (!dashCards) return;
   dashCards.innerHTML = "";
@@ -911,7 +728,6 @@ function renderDashboardCards(profile){
         action: () => openManagerUsersView()
       });
     }
-
 
     if (profile.role === "admin"){
       cards.push({
@@ -952,14 +768,14 @@ async function loadCompanies(){
   companiesGrid.innerHTML = "";
   hide(companiesEmpty);
 
-  const snap = await getDocs(collection(db, "companies"));
-  const all = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+  // Agora usa o service modular
+  const all = await listCompaniesDocs();
 
-  const q = (companySearch?.value || "").toLowerCase().trim();
-  const filtered = !q ? all : all.filter(c =>
-    (c.name || "").toLowerCase().includes(q) ||
-    (c.cnpj || "").toLowerCase().includes(q) ||
-    (c.id || "").toLowerCase().includes(q)
+  const qtxt = (companySearch?.value || "").toLowerCase().trim();
+  const filtered = !qtxt ? all : all.filter(c =>
+    (c.name || "").toLowerCase().includes(qtxt) ||
+    (c.cnpj || "").toLowerCase().includes(qtxt) ||
+    (c.id || "").toLowerCase().includes(qtxt)
   );
 
   if (filtered.length === 0){
@@ -975,41 +791,52 @@ async function loadCompanies(){
       <p class="desc">CNPJ: <b>${c.cnpj || "-"}</b></p>
       <div class="meta">
         <span class="badge">ID: ${c.id}</span>
-        <span class="badge">${c.active ? "Ativa" : "Inativa"}</span>
+        <span class="badge">${c.active === false ? "Inativa" : "Ativa"}</span>
       </div>
     `;
-        el.style.cursor = "pointer";
+    el.style.cursor = "pointer";
     el.addEventListener("click", () => openCompanyDetailModal(c.id));
-companiesGrid.appendChild(el);
+    companiesGrid.appendChild(el);
   }
 }
 
-function openCreateCompanyModal(){
-  if (!modalCreateCompany) return;
-  clearAlert(createCompanyAlert);
-  clearCompanyCreateSuccess();
-  modalCreateCompany.hidden = false;
 
-  companyNameEl.value = "";
-  companyCnpjEl.value = "";
-  companyIdEl.value = "";
-  companyIdEl.dataset.auto = "true";
 
-  adminNameEl.value = "";
-  adminEmailEl.value = "";
-  adminPhoneEl.value = "";
-  adminActiveEl.value = "true";
+function clearCompanyCreateSuccess(){
+  const el = document.getElementById("createCompanySuccess");
+  if (!el) return;
+  el.hidden = true;
+  el.innerHTML = "";
 }
+
+
+function showCompanyCreateSuccess({ adminEmail, uid, resetLink } = {}){
+  const el = document.getElementById("createCompanySuccess");
+  if (!el) return;
+
+  const email = (adminEmail || "").trim();
+  const safeEmail = (typeof escapeHtml === "function") ? escapeHtml(email) : email;
+
+  let html = `<div><strong>Empresa criada com sucesso ✅</strong></div>`;
+  if (safeEmail) html += `<div style="margin-top:6px">Admin: <strong>${safeEmail}</strong></div>`;
+
+  // Se sua Cloud Function retornar um link de reset/senha, mostramos aqui
+  if (resetLink){
+    const safeLink = (typeof escapeHtml === "function") ? escapeHtml(resetLink) : resetLink;
+    html += `<div style="margin-top:6px"><a href="${safeLink}" target="_blank" rel="noopener">Definir senha do Admin</a></div>`;
+  } else if (uid){
+    const safeUid = (typeof escapeHtml === "function") ? escapeHtml(uid) : uid;
+    html += `<div style="margin-top:6px; opacity:.8">UID do Admin: ${safeUid}</div>`;
+  }
+
+  el.hidden = false;
+  el.innerHTML = html;
+}
+
+
 
 function closeCreateCompanyModal(){ if (modalCreateCompany) modalCreateCompany.hidden = true; }
 
-function openCompanyDetailModal(companyId){
-  currentCompanyDetailId = companyId;
-  if (!modalCompanyDetail) return;
-  modalCompanyDetail.hidden = false;
-  clearInlineAlert(companyUsersAlert);
-  loadCompanyDetail(companyId);
-}
 
 function closeCompanyDetailModal(){
   if (!modalCompanyDetail) return;
@@ -1017,6 +844,42 @@ function closeCompanyDetailModal(){
   currentCompanyDetailId = null;
   if (companyUsersTbody) companyUsersTbody.innerHTML = "";
 }
+
+
+
+function openCreateCompanyModal(){
+  if (!state.isSuperAdmin) return;
+  if (!modalCreateCompany) return;
+
+  clearAlert(createCompanyAlert);
+  clearCompanyCreateSuccess();
+
+  if (companyNameEl) companyNameEl.value = "";
+  if (companyCnpjEl) companyCnpjEl.value = "";
+  if (companyIdEl) companyIdEl.value = "";
+  if (adminNameEl) adminNameEl.value = "";
+  if (adminEmailEl) adminEmailEl.value = "";
+  if (adminPhoneEl) adminPhoneEl.value = "";
+  if (adminActiveEl) adminActiveEl.value = "true";
+
+  modalCreateCompany.hidden = false;
+}
+
+async function openCompanyDetailModal(companyId){
+  if (!state.isSuperAdmin) return;
+  if (!modalCompanyDetail) return;
+
+  clearInlineAlert(companyUsersAlert);
+  if (companyUsersTbody) companyUsersTbody.innerHTML = "";
+  if (companyUsersEmpty) companyUsersEmpty.hidden = true;
+
+  modalCompanyDetail.hidden = false;
+  currentCompanyDetailId = companyId;
+  await loadCompanyDetail(companyId);
+}
+
+
+
 
 async function loadCompanyDetail(companyId){
   if (!state.isSuperAdmin) return;
@@ -1171,7 +1034,6 @@ async function toggleCompanyBlock(companyId, currentlyActive){
   }
 }
 
-
 async function createCompany(){
   clearAlert(createCompanyAlert);
 
@@ -1231,8 +1093,6 @@ const data = await callHttpFunctionWithAuth("createCompanyWithAdminHttp", payloa
   }
 }
 
-
-
 /** =========================
  *  8) ADMIN (EMPRESA): TEAMS
  *  ========================= */
@@ -1277,16 +1137,142 @@ async function loadTeams(){
       </div>
     `;
     el.addEventListener("click", async () => {
-      // Toggle ativa/inativa
-      const next = !(t.active === false);
-      if (!confirm(`Deseja ${next ? "inativar" : "ativar"} a equipe "${t.name}"?`)) return;
-      await updateDoc(doc(db, "companies", state.companyId, "teams", t.id), { active: !next });
-      await loadTeams();
-      // Atualiza chips no modal usuário se estiver aberto
-      if (!modalCreateUser.hidden) renderTeamChips();
+      await openTeamDetailsModal(t.id);
     });
     teamsGrid.appendChild(el);
   }
+}
+
+function closeTeamDetailsModal(){
+  if (!modalTeamDetails) return;
+  modalTeamDetails.hidden = true;
+  clearAlert(teamDetailsAlert);
+  state.selectedTeamId = null;
+}
+
+async function loadTeamMembers(teamId){
+  if (!teamDetailsUsersEl) return [];
+  teamDetailsUsersEl.innerHTML = "";
+  hide(teamDetailsEmptyEl);
+
+  const q = query(
+    collection(db, "companies", state.companyId, "users"),
+    where("teamIds", "array-contains", teamId)
+  );
+
+  const snap = await getDocs(q);
+  const users = snap.docs.map(d => ({ uid: d.id, ...d.data() }))
+    .sort((a,b) => (a.name||"").localeCompare(b.name||""));
+
+  if (users.length === 0){
+    show(teamDetailsEmptyEl);
+    return [];
+  }
+
+  for (const u of users){
+    const row = document.createElement("div");
+    row.className = "list-item";
+    const roleLabel = humanizeRole(u.role);
+    row.innerHTML = `
+      <div style="display:flex; gap:10px; align-items:center; justify-content:space-between;">
+        <div style="min-width:0;">
+          <div style="font-weight:600; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${escapeHtml(u.name || "Sem nome")}</div>
+          <div class="muted" style="font-size:12px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">
+            ${roleLabel} • ${escapeHtml(u.email || "—")}
+          </div>
+        </div>
+        <div style="display:flex; gap:8px; align-items:center;">
+          <button class="btn sm danger" data-act="remove">Remover</button>
+        </div>
+      </div>
+    `;
+
+    row.querySelector('[data-act="remove"]').addEventListener("click", async () => {
+      if (!confirm(`Remover "${u.name}" desta equipe?`)) return;
+      try{
+        await removeUserFromTeam(u.uid, teamId);
+        await openTeamDetailsModal(teamId, { keepOpen: true });
+        if (typeof loadUsers === "function") loadUsers().catch(()=>{});
+        if (typeof loadManagerUsers === "function") loadManagerUsers().catch(()=>{});
+      }catch(err){
+        console.error(err);
+        setAlert(teamDetailsAlert, "Erro ao remover usuário: " + (err?.message || err));
+      }
+    });
+
+    teamDetailsUsersEl.appendChild(row);
+  }
+
+  return users;
+}
+
+async function removeUserFromTeam(uid, teamId){
+  const ref = doc(db, "companies", state.companyId, "users", uid);
+  const snap = await getDoc(ref);
+  if (!snap.exists()) throw new Error("Usuário não encontrado.");
+  const u = snap.data();
+
+  const teamIds = Array.isArray(u.teamIds) ? u.teamIds.slice() : [];
+  const nextTeamIds = teamIds.filter(t => t !== teamId);
+
+  const updates = { teamIds: nextTeamIds };
+
+  if ((u.teamId || "") === teamId){
+    updates.teamId = nextTeamIds[0] || "";
+  }
+
+  await updateDoc(ref, updates);
+}
+
+async function openTeamDetailsModal(teamId){
+  if (!modalTeamDetails) return;
+  clearAlert(teamDetailsAlert);
+  modalTeamDetails.hidden = false;
+  state.selectedTeamId = teamId;
+
+  const teamRef = doc(db, "companies", state.companyId, "teams", teamId);
+  const teamSnap = await getDoc(teamRef);
+  if (!teamSnap.exists()){
+    setAlert(teamDetailsAlert, "Equipe não encontrada.");
+    return;
+  }
+  const team = { id: teamSnap.id, ...teamSnap.data() };
+
+  teamDetailsNameEl.value = team.name || team.id;
+  teamDetailsIdEl.value = team.id;
+  teamDetailsStatusEl.value = (team.active === false) ? "Inativa" : "Ativa";
+
+  btnTeamToggleActive.textContent = (team.active === false) ? "Ativar" : "Desativar";
+  btnTeamToggleActive.onclick = async () => {
+    try{
+      const nextActive = !(team.active === false);
+      if (!confirm(`Deseja ${nextActive ? "ativar" : "inativar"} a equipe "${team.name}"?`)) return;
+      await updateDoc(teamRef, { active: !nextActive });
+      await loadTeams();
+      await openTeamDetailsModal(teamId);
+      if (!modalCreateUser.hidden) renderTeamChips();
+    }catch(err){
+      console.error(err);
+      setAlert(teamDetailsAlert, "Erro ao atualizar equipe: " + (err?.message || err));
+    }
+  };
+
+  const members = await loadTeamMembers(teamId);
+
+  btnTeamDelete.disabled = members.length > 0;
+  btnTeamDelete.onclick = async () => {
+    if (members.length > 0) return;
+    if (!confirm(`Excluir definitivamente a equipe "${team.name}"?`)) return;
+    try{
+      await deleteDoc(teamRef);
+      closeTeamDetailsModal();
+      await loadTeams();
+      if (!modalCreateUser.hidden) renderTeamChips();
+    }catch(err){
+      console.error(err);
+      setAlert(teamDetailsAlert, "Erro ao excluir equipe: " + (err?.message || err));
+    }
+  };
 }
 
 // Carrega TODAS as equipes (sem filtro de busca) para uso nos chips
@@ -1312,7 +1298,6 @@ async function getNextTeamId(){
   });
   return `#${maxN + 1}`;
 }
-
 
 function openCreateTeamModal(){
   if (!modalCreateTeam) return;
@@ -1357,11 +1342,10 @@ function closeCreateTeamModal(){ if (modalCreateTeam) modalCreateTeam.hidden = t
   await loadTeams();
 }
 
-
 /** =========================
  *  9) ADMIN (EMPRESA): USERS
  *  ========================= */
- async function loadUsers(){
+async function loadUsers(){
   if (!usersTbody) return;
 
   usersTbody.innerHTML = "";
@@ -1420,7 +1404,6 @@ function closeCreateTeamModal(){ if (modalCreateTeam) modalCreateTeam.hidden = t
       await loadUsers();
     });
 
-
     const btnManaged = tr.querySelector('[data-act="managed"]');
     if (btnManaged){
       btnManaged.addEventListener("click", async () => {
@@ -1458,7 +1441,6 @@ function openCreateUserModal(){
     .then(() => renderTeamChips())
     .catch(() => renderTeamChips());
 }
-
 
 function closeCreateUserModal(){ if (modalCreateUser) modalCreateUser.hidden = true; }
 
@@ -1587,7 +1569,6 @@ return;
   }
 }
 
-
 /** =========================
  *  9.5) GESTOR: USUÁRIOS (TÉCNICOS)
  *  ========================= */
@@ -1712,7 +1693,6 @@ function openCreateTechModal(){
     .catch(() => renderMgrTeamChips());
 }
 
-
 function closeCreateTechModal(){ if (modalCreateTech) modalCreateTech.hidden = true; }
 
 function renderMgrTeamChips(){
@@ -1771,7 +1751,6 @@ async function createTech(){
   }
 
   setAlert(createTechAlert, "Salvando...", "info");
-
 
   if (wantsAutoAuth) {
     const data = await createUserWithAuthAndResetLink({
@@ -1880,7 +1859,6 @@ async function saveManagedTeams(){
   await loadUsers();
 }
 
-
 /** =========================
  *  10) AUTH FLOW
  *  ========================= */
@@ -1920,7 +1898,7 @@ onAuthStateChanged(auth, async (user) => {
     return;
   }
 
-  const profile = await fetchUserProfile(companyId, user.uid);
+  const profile = await fetchCompanyUserProfile(companyId, user.uid);
   if (!profile){
     setView("login");
     setAlert(loginAlert, "Seu perfil não foi encontrado dentro da empresa. Peça ao admin para criar.");
@@ -2022,7 +2000,6 @@ modalManagedTeams?.addEventListener("click", (e) => {
   if (e.target?.dataset?.close === "true") closeManagedTeamsModal();
 });
 
-
 // Companies events
 btnReloadCompanies?.addEventListener("click", () => loadCompanies());
 companySearch?.addEventListener("input", () => loadCompanies());
@@ -2081,8 +2058,6 @@ btnCreateTeam?.addEventListener("click", () => {
   });
 });
 
-
-
 modalCreateTeam?.addEventListener("click", (e) => {
   if (e.target?.dataset?.close === "true") closeCreateTeamModal();
 });
@@ -2096,8 +2071,6 @@ btnOpenCreateUser?.addEventListener("click", async () => {
   await loadTeams();
   openCreateUserModal();
 });
-
-
 
 btnCloseCreateUser?.addEventListener("click", () => closeCreateUserModal());
 btnCancelCreateUser?.addEventListener("click", () => closeCreateUserModal());
@@ -2113,7 +2086,6 @@ modalCreateUser?.addEventListener("click", (e) => {
 });
 
 btnCloseCompanyDetail?.addEventListener("click", () => closeCompanyDetailModal());
-
 
 /** =========================
  *  12) ERROS FRIENDLY

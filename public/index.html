@@ -658,5 +658,64 @@
 </div>
 </div>
 </div>
+
+<!-- MODAL: DETALHES DA EQUIPE -->
+<div class="modal" hidden id="modalTeamDetails">
+  <div class="modal-card wide">
+    <div class="modal-head">
+      <div>
+        <h2 style="margin:0;">Equipe</h2>
+        <p class="muted" style="margin:4px 0 0 0;">Veja os usuários vinculados e gerencie a equipe.</p>
+      </div>
+      <button class="icon-btn" id="btnCloseTeamDetails" title="Fechar">×</button>
+    </div>
+
+    <div class="modal-body">
+      <div class="row" style="display:flex; gap:12px; flex-wrap:wrap;">
+        <div style="flex:1; min-width:220px;">
+          <label class="field">
+            <span>Nome</span>
+            <input id="teamDetailsName" type="text" disabled />
+          </label>
+        </div>
+        <div style="width:180px;">
+          <label class="field">
+            <span>ID</span>
+            <input id="teamDetailsId" type="text" disabled />
+          </label>
+        </div>
+        <div style="width:180px;">
+          <label class="field">
+            <span>Status</span>
+            <input id="teamDetailsStatus" type="text" disabled />
+          </label>
+        </div>
+      </div>
+
+      <div class="panel subtle" style="margin-top:12px;">
+        <h3 style="margin:0 0 8px 0;">Usuários vinculados</h3>
+        <div class="muted" id="teamDetailsHint" style="margin-bottom:8px;">Remova usuários desta equipe quando necessário.</div>
+
+        <div id="teamDetailsUsers" class="list"></div>
+
+        <div class="panel subtle" hidden id="teamDetailsEmpty" style="margin-top:10px;">
+          <p class="muted" style="margin:0;">Nenhum usuário vinculado a esta equipe.</p>
+        </div>
+      </div>
+
+      <div class="alert" hidden id="teamDetailsAlert" style="margin-top:12px;"></div>
+    </div>
+
+    <div class="modal-foot">
+      <div style="display:flex; gap:10px; flex-wrap:wrap;">
+        <button class="btn" id="btnTeamToggleActive">Desativar</button>
+        <button class="btn danger" id="btnTeamDelete" disabled>Excluir equipe</button>
+      </div>
+      <div style="display:flex; gap:10px;">
+        <button class="btn" id="btnCancelTeamDetails">Fechar</button>
+      </div>
+    </div>
+  </div>
+</div>
 </body>
 </html>

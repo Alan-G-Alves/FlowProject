@@ -1333,3 +1333,14 @@ a{ color: inherit; }
   gap: 10px;
   flex-wrap: wrap;
 }
+
+/* Lista simples (modal equipe) */
+.list{ display:flex; flex-direction:column; gap:10px; }
+.list-item{
+  border: 1px solid var(--border);
+  background: rgba(255,255,255,.75);
+  border-radius: 14px;
+  padding: 10px 12px;
+}
+
+.modal-card.wide{ max-width: 920px; }
