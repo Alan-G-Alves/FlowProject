@@ -43,16 +43,16 @@ import { auth, secondaryAuth, db, storage, functions, httpsCallable } from "./sr
 import { normalizePhone, normalizeCnpj, slugify } from "./src/utils/format.js";
 import { setAlert, clearAlert, clearInlineAlert, showInlineAlert } from "./src/ui/alerts.js";
 import { listCompaniesDocs } from "./src/services/companies.service.js";
-import * as refs from "./src/ui/refs.js";
-import * as companiesDomain from "./src/domain/companies.domain.js";
-import * as teamsDomain from "./src/domain/teams.domain.js";
-import * as usersDomain from "./src/domain/users.domain.js";
-import * as managerUsersDomain from "./src/domain/manager-users.domain.js";
-import * as profileModal from "./src/ui/modals/profile.modal.js";
-import * as topbar from "./src/ui/topbar.js";
-import * as sidebar from "./src/ui/sidebar.js";
-import * as dashboard from "./src/ui/dashboard.js";
-import { intersects, getTeamNameById, initialFromName } from "./src/utils/helpers.js";
+import * as refs from "./src/ui/refs.js?v=1770332251";
+import * as companiesDomain from "./src/domain/companies.domain.js?v=1770332251";
+import * as teamsDomain from "./src/domain/teams.domain.js?v=1770332251";
+import * as usersDomain from "./src/domain/users.domain.js?v=1770332251";
+import * as managerUsersDomain from "./src/domain/manager-users.domain.js?v=1770332251";
+import * as profileModal from "./src/ui/modals/profile.modal.js?v=1770332251";
+import * as topbar from "./src/ui/topbar.js?v=1770332251";
+import * as sidebar from "./src/ui/sidebar.js?v=1770332251";
+import * as dashboard from "./src/ui/dashboard.js?v=1770332251";
+import { intersects, getTeamNameById, initialFromName } from "./src/utils/helpers.js?v=1770332251";
 /** =========================
  *  1) CONFIG FIREBASE
  *  ========================= */
