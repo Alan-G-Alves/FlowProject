@@ -12,7 +12,8 @@
 import { collection, getDocs, doc, setDoc, updateDoc } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore.js";
 import { setAlert, clearAlert } from "../ui/alerts.js";
 import { show, hide, escapeHtml } from "../utils/dom.js";
-import { normalizePhone, isEmailValidBasic } from "../utils/validators.js";
+import { isEmailValidBasic } from "../utils/validators.js";
+import { normalizePhone } from "../utils/format.js";
 
 /** =========================
  *  GESTOR: USUÁRIOS (TÉCNICOS)
