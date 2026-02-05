@@ -1272,29 +1272,8 @@ function mapAuthError(err){
 window.__fp = { auth, db, functions };
 
 // Sidebar + tooltips
-try{ initSidebar(); }catch(e){ console.warn("initSidebar falhou", e); }WithEmailAndPassword(auth, email, password);
-  } catch (err) {
-    setAlert(refs.loginAlert, mapAuthError(err));
-  }
-});
+try{ initSidebar(); }catch(e){ console.warn("initSidebar falhou", e); }
 
-refs.btnForgot?.addEventListener("click", async () => {
-  clearAlert(refs.loginAlert);
-  const email = (refs.emailEl?.value || "").trim();
-  if (!email) return setAlert(refs.loginAlert, "Digite seu e-mail para redefinir a senha.");
-
-  try {
-    await sendPasswordResetEmail(auth, email);
-    setAlert(refs.loginAlert, "Link de redefinição enviado para seu e-mail.", "info");
-  } catch (err) {
-    setAlert(refs.loginAlert, mapAuthError(err));
-  }
-});
-
-refs.navLogout?.addEventListener("click", async (e) => {
-  e?.preventDefault?.();
-  await signOut(auth);
-});
 // Dashboard navigation
 refs.btnBackToDashboard?.addEventListener("click", () => setView("dashboard"));
 refs.btnBackFromAdmin?.addEventListener("click", () => setView("dashboard"));
