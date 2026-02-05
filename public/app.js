@@ -1152,21 +1152,6 @@ refs.modalCreateUser?.addEventListener("click", (e) => {
 
 refs.btnCloseCompanyDetail?.addEventListener("click", () => closeCompanyDetailModal());
 
-/** =========================
- *  12) ERROS FRIENDLY
- *  ========================= */
-function mapAuthError(err){
-  const code = err?.code || "";
-  if (code.includes("auth/invalid-email")) return "E-mail inválido.";
-  if (code.includes("auth/missing-password")) return "Informe a senha.";
-  if (code.includes("auth/invalid-credential")) return "E-mail ou senha incorretos.";
-  if (code.includes("auth/user-disabled")) return "Usuário desativado.";
-  if (code.includes("auth/user-not-found")) return "Usuário não encontrado.";
-  if (code.includes("auth/wrong-password")) return "Senha incorreta.";
-  if (code.includes("auth/too-many-requests")) return "Muitas tentativas. Tente novamente mais tarde.";
-  return "Não foi possível entrar. Tente novamente.";
-}
-window.__fp = { auth, db, functions };
 
 // Sidebar + tooltips
 try{ initSidebar(); }catch(e){ console.warn("initSidebar falhou", e); }
