@@ -47,6 +47,7 @@ import * as refs from "./src/ui/refs.js";
 import * as companiesDomain from "./src/domain/companies.domain.js";
 import * as teamsDomain from "./src/domain/teams.domain.js";
 import * as usersDomain from "./src/domain/users.domain.js";
+import * as managerUsersDomain from "./src/domain/manager-users.domain.js";
 /** =========================
  *  1) CONFIG FIREBASE
  *  ========================= */
@@ -738,293 +739,56 @@ async function createUser(){
 }
 
 /** =========================
- *  9.5) GESTOR: USUÁRIOS (TÉCNICOS)
+ *  9.5) GESTOR: USUÁRIOS (TÉCNICOS) - Delegado para manager-users.domain.js
  *  ========================= */
-function openManagerUsersView(){
-  setView("managerUsers");
-  Promise.all([loadTeams(), loadManagerUsers()]).catch(err => {
-    console.error(err);
-    alert("Erro ao carregar usuários do gestor: " + (err?.message || err));
-  });
+function getManagerUsersDeps() {
+  return {
+    refs,
+    state,
+    db,
+    setView,
+    loadTeams,
+    loadManagerUsers,
+    ensureTeamsForChips,
+    createUserWithAuthAndResetLink,
+    setAlertWithResetLink,
+    loadUsers
+  };
 }
 
-function getManagedTeamIds(){
-  const ids = state.profile?.managedTeamIds;
-  return Array.isArray(ids) ? ids : [];
+function openManagerUsersView() {
+  managerUsersDomain.openManagerUsersView(getManagerUsersDeps());
 }
 
-function populateMgrTeamFilter(){
-  if (!refs.mgrTeamFilter) return;
-  const managedIds = getManagedTeamIds();
-  refs.mgrTeamFilter.innerHTML = '<option value="">Todas as minhas equipes</option>';
-
-  const activeManagedTeams = (state.teams || [])
-    .filter(t => t.active !== false && managedIds.includes(t.id))
-    .sort((a,b)=> (a.name||"").localeCompare(b.name||""));
-
-  for (const t of activeManagedTeams){
-    const opt = document.createElement("option");
-    opt.value = t.id;
-    opt.textContent = t.name || t.id;
-    refs.mgrTeamFilter.appendChild(opt);
-  }
+async function loadManagerUsers() {
+  await managerUsersDomain.loadManagerUsers(getManagerUsersDeps());
 }
 
-async function loadManagerUsers(){
-  if (!refs.mgrUsersTbody) return;
-
-  refs.mgrUsersTbody.innerHTML = "";
-  hide(refs.mgrUsersEmpty);
-
-  const managedIds = getManagedTeamIds();
-  populateMgrTeamFilter();
-
-  const snap = await getDocs(collection(db, "companies", state.companyId, "users"));
-  const all = snap.docs.map(d => ({ uid: d.id, ...d.data() }));
-
-  const q = (refs.mgrUserSearch?.value || "").toLowerCase().trim();
-  const teamFilter = (refs.mgrTeamFilter?.value || "").trim();
-
-  const filtered = all.filter(u => {
-    if (u.role !== "tecnico") return false;
-
-    const teamIds = Array.isArray(u.teamIds) ? u.teamIds : (u.teamId ? [u.teamId] : []);
-    if (!intersects(teamIds, managedIds)) return false;
-    if (teamFilter && !teamIds.includes(teamFilter)) return false;
-
-    const text = `${u.uid} ${u.name||""} ${u.email||""} ${u.phone||""}`.toLowerCase();
-    if (q && !text.includes(q)) return false;
-
-    return true;
-  }).sort((a,b)=> (a.name||"").localeCompare(b.name||""));
-
-  if (filtered.length === 0){
-    show(refs.mgrUsersEmpty);
-    return;
-  }
-
-  for (const u of filtered){
-    const tr = document.createElement("tr");
-    const teamIds = Array.isArray(u.teamIds) ? u.teamIds : (u.teamId ? [u.teamId] : []);
-    const teamsLabel = teamIds.length ? teamIds.map(getTeamNameById).join(", ") : "—";
-    const statusLabel = (u.active === false) ? "Inativo" : "Ativo";
-
-    tr.innerHTML = `
-      <td>
-        <div style="display:flex; flex-direction:column; gap:2px;">
-          <div><b>${escapeHtml(u.name || "—")}</b></div>
-          <div class="muted" style="font-size:12px;">UID: ${escapeHtml(u.uid)}</div>
-        </div>
-      </td>
-      <td>${escapeHtml(u.email || "—")}</td>
-      <td>${escapeHtml(u.phone || "—")}</td>
-      <td>${escapeHtml(teamsLabel)}</td>
-      <td><span class="badge small">${statusLabel}</span></td>
-      <td>
-        <div class="action-row">
-          <button class="btn sm" data-act="toggle">${u.active === false ? "Ativar" : "Inativar"}</button>
-        </div>
-      </td>
-    `;
-
-    tr.querySelector('[data-act="toggle"]').addEventListener("click", async () => {
-      const nextActive = (u.active === false);
-      if (!confirm(`Deseja ${nextActive ? "ativar" : "inativar"} "${u.name}"?`)) return;
-      await updateDoc(doc(db, "companies", state.companyId, "users", u.uid), { active: nextActive });
-      await loadManagerUsers();
-    });
-
-    refs.mgrUsersTbody.appendChild(tr);
-  }
+function openCreateTechModal() {
+  managerUsersDomain.openCreateTechModal(getManagerUsersDeps());
 }
 
-function openCreateTechModal(){
-  if (!refs.modalCreateTech) return;
-  clearAlert(refs.createTechAlert);
-  refs.modalCreateTech.hidden = false;
-
-  // Não pedir UID manualmente (vamos criar no Auth via secondaryAuth)
-  try{
-    const uidLabel = refs.techUidEl?.closest("label");
-    if (uidLabel) uidLabel.style.display = "none";
-  }catch(_){}
-
-  refs.techUidEl.value = "";
-  refs.techNameEl.value = "";
-  refs.techEmailEl.value = "";
-  refs.techPhoneEl.value = "";
-  refs.techActiveEl.value = "true";
-
-  state.mgrSelectedTeamIds = [];
-  ensureManagedTeamsForChips()
-    .then(() => renderMgrTeamChips())
-    .catch(() => renderMgrTeamChips());
+function closeCreateTechModal() {
+  managerUsersDomain.closeCreateTechModal(refs);
 }
 
-function closeCreateTechModal(){ if (refs.modalCreateTech) refs.modalCreateTech.hidden = true; }
-
-function renderMgrTeamChips(){
-  if (!refs.mgrTeamChipsEl) return;
-  refs.mgrTeamChipsEl.innerHTML = "";
-
-  const managedIds = getManagedTeamIds();
-  const teams = (state.teams || [])
-    .filter(t => t.active !== false && managedIds.includes(t.id))
-    .sort((a,b)=> (a.name||"").localeCompare(b.name||""));
-
-  if (teams.length === 0){
-    const hint = document.createElement("div");
-    hint.className = "muted";
-    hint.style.fontSize = "13px";
-    hint.textContent = "Nenhuma equipe administrada encontrada. Peça ao Admin da empresa para definir suas equipes administradas.";
-    refs.mgrTeamChipsEl.appendChild(hint);
-    return;
-  }
-
-  for (const t of teams){
-    const chip = document.createElement("div");
-    chip.className = "chip-option" + (state.mgrSelectedTeamIds.includes(t.id) ? " selected" : "");
-    chip.innerHTML = `<span class="dot"></span><span>${escapeHtml(t.name)}</span>`;
-
-    chip.addEventListener("click", () => {
-      const idx = state.mgrSelectedTeamIds.indexOf(t.id);
-      if (idx >= 0) state.mgrSelectedTeamIds.splice(idx, 1);
-      else state.mgrSelectedTeamIds.push(t.id);
-      renderMgrTeamChips();
-    });
-
-    refs.mgrTeamChipsEl.appendChild(chip);
-  }
-}
-
-async function createTech(){
-  clearAlert(refs.createTechAlert);
-
-  let uid = (refs.techUidEl.value || "").trim();
-  const name = (refs.techNameEl.value || "").trim();
-  const email = (refs.techEmailEl.value || "").trim();
-  const phone = normalizePhone(refs.techPhoneEl.value || "");
-  const active = (refs.techActiveEl.value || "true") === "true";
-  const teamIds = Array.from(new Set(state.mgrSelectedTeamIds || []));
-
-  // UID agora é opcional (se vazio, criamos automaticamente no Auth via Cloud Function)
-  const wantsAutoAuth = !uid;
-  if (!name) return setAlert(refs.createTechAlert, "Informe o nome do técnico.");
-  if (!email || !isEmailValidBasic(email)) return setAlert(refs.createTechAlert, "Informe um e-mail válido.");
-  if (teamIds.length === 0) return setAlert(refs.createTechAlert, "Selecione pelo menos 1 equipe.");
-
-  const managedIds = new Set(getManagedTeamIds());
-  if (teamIds.some(t => !managedIds.has(t))){
-    return setAlert(refs.createTechAlert, "Você selecionou uma equipe fora do seu escopo de gestão.");
-  }
-
-  setAlert(refs.createTechAlert, "Salvando...", "info");
-
-  if (wantsAutoAuth) {
-    const data = await createUserWithAuthAndResetLink({
-      companyId: state.companyId,
-      name,
-      email,
-      phone,
-      role: "tecnico",
-      teamIds
-    });
-
-    uid = data.uid;
-
-    await setDoc(doc(db, "userCompanies", uid), { companyId: state.companyId });
-
-    closeCreateTechModal();
-    await loadManagerUsers();
-    setAlertWithResetLink(refs.createTechAlert, "Técnico criado com sucesso!", email, data.resetLink);
-    return;
-  }
-  await setDoc(doc(db, "companies", state.companyId, "users", uid), {
-    name,
-    role: "tecnico",
-    email,
-    phone,
-    active,
-    teamIds,
-    teamId: teamIds[0] || ""
-  });
-
-  await setDoc(doc(db, "userCompanies", uid), { companyId: state.companyId });
-
-  closeCreateTechModal();
-  await loadManagerUsers();
+async function createTech() {
+  await managerUsersDomain.createTech(getManagerUsersDeps());
 }
 
 /** =========================
- *  9.6) ADMIN: DEFINIR EQUIPES ADMINISTRADAS (GESTOR)
+ *  9.6) ADMIN: DEFINIR EQUIPES ADMINISTRADAS (GESTOR) - Delegado para manager-users.domain.js
  *  ========================= */
-function openManagedTeamsModal(targetUid, targetName){
-  if (!refs.modalManagedTeams) return;
-  clearAlert(refs.managedTeamsAlert);
-  refs.modalManagedTeams.hidden = false;
-
-  state.managedTeamsTargetUid = targetUid;
-
-  const title = targetName ? `Gestor: ${targetName}` : "Gestor";
-  if (refs.managedTeamsSubtitle) refs.managedTeamsSubtitle.textContent = `${title} • selecione as equipes administradas`;
-
-  const row = (state._usersCache || []).find(u => u.uid === targetUid);
-  const current = Array.isArray(row?.managedTeamIds) ? row.managedTeamIds : [];
-  state.managedTeamsSelected = Array.from(new Set(current));
-
-  renderManagedTeamsChips();
+function openManagedTeamsModal(targetUid, targetName) {
+  managerUsersDomain.openManagedTeamsModal(getManagerUsersDeps(), targetUid, targetName);
 }
 
-function closeManagedTeamsModal(){ if (refs.modalManagedTeams) refs.modalManagedTeams.hidden = true; }
-
-function renderManagedTeamsChips(){
-  if (!refs.managedTeamsChips) return;
-  refs.managedTeamsChips.innerHTML = "";
-
-  const activeTeams = (state.teams || [])
-    .filter(t => t.active !== false)
-    .sort((a,b)=> (a.name||"").localeCompare(b.name||""));
-
-  if (activeTeams.length === 0){
-    const hint = document.createElement("div");
-    hint.className = "muted";
-    hint.style.fontSize = "13px";
-    hint.textContent = "Crie equipes antes de definir equipes administradas.";
-    refs.managedTeamsChips.appendChild(hint);
-    return;
-  }
-
-  for (const t of activeTeams){
-    const chip = document.createElement("div");
-    chip.className = "chip-option" + (state.managedTeamsSelected.includes(t.id) ? " selected" : "");
-    chip.innerHTML = `<span class="dot"></span><span>${escapeHtml(t.name)}</span>`;
-
-    chip.addEventListener("click", () => {
-      const idx = state.managedTeamsSelected.indexOf(t.id);
-      if (idx >= 0) state.managedTeamsSelected.splice(idx, 1);
-      else state.managedTeamsSelected.push(t.id);
-      renderManagedTeamsChips();
-    });
-
-    refs.managedTeamsChips.appendChild(chip);
-  }
+function closeManagedTeamsModal() {
+  managerUsersDomain.closeManagedTeamsModal(refs);
 }
 
-async function saveManagedTeams(){
-  clearAlert(refs.managedTeamsAlert);
-
-  const targetUid = state.managedTeamsTargetUid;
-  if (!targetUid) return setAlert(refs.managedTeamsAlert, "UID alvo inválido.");
-
-  const managedTeamIds = Array.from(new Set(state.managedTeamsSelected || []));
-  setAlert(refs.managedTeamsAlert, "Salvando...", "info");
-
-  await updateDoc(doc(db, "companies", state.companyId, "users", targetUid), {
-    managedTeamIds
-  });
-
-  closeManagedTeamsModal();
-  await loadUsers();
+async function saveManagedTeams() {
+  await managerUsersDomain.saveManagedTeams(getManagerUsersDeps());
 }
 
 /** =========================
