@@ -46,6 +46,7 @@ import { listCompaniesDocs } from "./src/services/companies.service.js";
 import * as refs from "./src/ui/refs.js";
 import * as companiesDomain from "./src/domain/companies.domain.js";
 import * as teamsDomain from "./src/domain/teams.domain.js";
+import * as usersDomain from "./src/domain/users.domain.js";
 /** =========================
  *  1) CONFIG FIREBASE
  *  ========================= */
@@ -708,230 +709,32 @@ async function createTeam(){
 }
 
 /** =========================
- *  9) ADMIN (EMPRESA): USERS
+ *  9) ADMIN (EMPRESA): USERS - Delegado para users.domain.js
  *  ========================= */
+const getUsersDeps = () => ({
+  refs, state, db, auth,
+  createUserWithAuthAndResetLink, loadUsers, loadTeams,
+  openManagedTeamsModal, ensureTeamsForChips, renderTeamChips
+});
+
 async function loadUsers(){
-  if (!refs.usersTbody) return;
-
-  refs.usersTbody.innerHTML = "";
-  hide(refs.usersEmpty);
-
-  const snap = await getDocs(collection(db, "companies", state.companyId, "users"));
-  const all = snap.docs.map(d => ({ uid: d.id, ...d.data() }));
-
-  const q = (refs.userSearch?.value || "").toLowerCase().trim();
-
-  state._usersCache = all;
-
-  const filtered = all.filter(u => {
-    const text = `${u.uid} ${u.name||""} ${u.email||""} ${u.phone||""}`.toLowerCase();
-    const okQ = !q || text.includes(q);
-    const roleFilter = (refs.userRoleFilter?.value || "").trim();
-    const okRole = !roleFilter || (u.role === roleFilter);
-    return okQ && okRole;
-  }).sort((a,b) => (a.name||"").localeCompare(b.name||""));
-
-  if (filtered.length === 0){
-    show(refs.usersEmpty);
-    return;
-  }
-
-  for (const u of filtered){
-    const tr = document.createElement("tr");
-
-    const teamIds = Array.isArray(u.teamIds) ? u.teamIds : (u.teamId ? [u.teamId] : []);
-    const teamsLabel = teamIds.length ? teamIds.join(", ") : "—";
-    const statusLabel = (u.active === false) ? "Inativo" : "Ativo";
-
-    tr.innerHTML = `
-      <td>
-        <div style="display:flex; flex-direction:column; gap:2px;">
-          <div><b>${u.name || "—"}</b></div>
-          <div class="muted" style="font-size:12px;">UID: ${u.uid}</div>
-        </div>
-      </td>
-      <td>${normalizeRole(u.role)}</td>
-      <td>${u.email || "—"}</td>
-      <td>${u.phone || "—"}</td>
-      <td>${teamsLabel}</td>
-      <td><span class="badge small">${statusLabel}</span></td>
-      <td>
-        <div class="action-row">
-          <button class="btn sm" data-act="toggle">${u.active === false ? "Ativar" : "Inativar"}</button>${u.role === "gestor" ? `<button class="btn sm link" data-act="managed">Equipes</button>` : ""}
-        </div>
-      </td>
-    `;
-
-    tr.querySelector('[data-act="toggle"]').addEventListener("click", async () => {
-      const nextActive = (u.active === false);
-      if (!confirm(`Deseja ${nextActive ? "ativar" : "inativar"} "${u.name}"?`)) return;
-      await updateDoc(doc(db, "companies", state.companyId, "users", u.uid), { active: nextActive });
-      await loadUsers();
-    });
-
-    const btnManaged = tr.querySelector('[data-act="managed"]');
-    if (btnManaged){
-      btnManaged.addEventListener("click", async () => {
-        // garante equipes carregadas
-        await loadTeams();
-        openManagedTeamsModal(u.uid, u.name);
-      });
-    }
-    refs.usersTbody.appendChild(tr);
-  }
+  await usersDomain.loadUsers(getUsersDeps());
 }
 
 function openCreateUserModal(){
-  if (!refs.modalCreateUser) return;
-  clearAlert(refs.createUserAlert);
-  refs.modalCreateUser.hidden = false;
-
-  // Não pedir UID manualmente (vamos criar no Auth via secondaryAuth)
-  try{
-    const uidLabel = refs.newUserUidEl?.closest("label");
-    if (uidLabel) uidLabel.style.display = "none";
-  }catch(_){}
-
-  refs.newUserUidEl.value = "";
-  refs.newUserNameEl.value = "";
-  refs.newUserRoleEl.value = "tecnico";
-  refs.newUserEmailEl.value = "";
-  refs.newUserPhoneEl.value = "";
-  refs.newUserActiveEl.value = "true";
-
-  state.selectedTeamIds = [];
-
-  // garante que os chips tenham as equipes existentes
-  ensureTeamsForChips()
-    .then(() => renderTeamChips())
-    .catch(() => renderTeamChips());
+  usersDomain.openCreateUserModal(getUsersDeps());
 }
 
-function closeCreateUserModal(){ if (refs.modalCreateUser) refs.modalCreateUser.hidden = true; }
+function closeCreateUserModal(){
+  usersDomain.closeCreateUserModal(refs);
+}
 
 function renderTeamChips(){
-  if (!refs.teamChipsEl) return;
-  refs.teamChipsEl.innerHTML = "";
-
-  const activeTeams = (state.teams || []).filter(t => t.active !== false);
-
-  if (activeTeams.length === 0){
-    const hint = document.createElement("div");
-    hint.className = "muted";
-    hint.style.fontSize = "13px";
-    hint.textContent = "Crie pelo menos 1 equipe para selecionar aqui.";
-    refs.teamChipsEl.appendChild(hint);
-    return;
-  }
-
-  for (const t of activeTeams){
-    const chip = document.createElement("div");
-    chip.className = "chip-option" + (state.selectedTeamIds.includes(t.id) ? " selected" : "");
-    chip.innerHTML = `<span class="dot"></span><span>${t.name}</span>`;
-
-    chip.addEventListener("click", () => {
-      const idx = state.selectedTeamIds.indexOf(t.id);
-      if (idx >= 0) state.selectedTeamIds.splice(idx, 1);
-      else state.selectedTeamIds.push(t.id);
-      renderTeamChips();
-    });
-
-    refs.teamChipsEl.appendChild(chip);
-  }
+  usersDomain.renderTeamChips(getUsersDeps());
 }
 
 async function createUser(){
-  clearAlert(refs.createUserAlert);
-
-  let uid = (refs.newUserUidEl?.value || "").trim();
-  const name = (refs.newUserNameEl?.value || "").trim();
-  const role = (refs.newUserRoleEl?.value || "").trim();
-  const email = (refs.newUserEmailEl?.value || "").trim();
-  const phone = normalizePhone(refs.newUserPhoneEl?.value || "");
-  const active = (refs.newUserActiveEl?.value || "true") === "true";
-  const teamIds = Array.from(new Set(state.selectedTeamIds || []));
-
-  // UID agora é opcional (se vazio, criamos automaticamente no Auth via Cloud Function)
-  const wantsAutoAuth = !uid;
-
-  if (!name) return setAlert(refs.createUserAlert, "Informe o nome do usuário.");
-  if (!role) return setAlert(refs.createUserAlert, "Selecione a função.");
-  if (!email || !isEmailValidBasic(email)) return setAlert(refs.createUserAlert, "Informe um e-mail válido.");
-
-  // Regra: Admin pode ficar sem equipe; os demais precisam de pelo menos 1 equipe
-  if (role !== "admin" && teamIds.length === 0){
-    return setAlert(refs.createUserAlert, "Selecione pelo menos 1 equipe para este usuário.");
-  }
-
-  setAlert(refs.createUserAlert, "Salvando...", "info");
-
-  try{
-    if (wantsAutoAuth){
-      const data = await createUserWithAuthAndResetLink({
-        companyId: state.companyId,
-        name,
-        email,
-        phone,
-        role,
-        teamIds
-      });
-
-      uid = data?.uid;
-
-      // Perfil na empresa
-      await setDoc(doc(db, "companies", state.companyId, "users", uid), {
-        name,
-        role,
-        email,
-        phone,
-        active,
-        teamIds,
-        teamId: teamIds[0] || "",
-        createdAt: serverTimestamp(),
-        createdBy: auth.currentUser.uid
-      });
-
-      // Vínculo do usuário com empresa (multi-tenant)
-      await setDoc(doc(db, "userCompanies", uid), { companyId: state.companyId });
-
-      closeCreateUserModal();
-      await loadUsers();
-
-      alert(
-        `Usuário criado com sucesso!
-
-` +
-        `E-mail: ${email}
-UID: ${uid}
-
-` +
-        `✅ Enviamos um e-mail para o usuário definir a senha no primeiro acesso.`
-      );
-return;
-    }
-
-    // Fluxo manual (UID já existe no Auth)
-    await setDoc(doc(db, "companies", state.companyId, "users", uid), {
-      name,
-      role,
-      email,
-      phone,
-      active,
-      teamIds,
-      teamId: teamIds[0] || "",
-      createdAt: serverTimestamp(),
-      createdBy: auth.currentUser.uid
-    });
-
-    await setDoc(doc(db, "userCompanies", uid), { companyId: state.companyId });
-
-    closeCreateUserModal();
-    await loadUsers();
-
-  }catch(err){
-    console.error(err);
-    setAlert(refs.createUserAlert, "Erro ao salvar: " + (err?.message || err));
-  }
+  await usersDomain.createUser(getUsersDeps());
 }
 
 /** =========================
