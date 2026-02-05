@@ -45,6 +45,7 @@ import { setAlert, clearAlert, clearInlineAlert, showInlineAlert } from "./src/u
 import { listCompaniesDocs } from "./src/services/companies.service.js";
 import * as refs from "./src/ui/refs.js";
 import * as companiesDomain from "./src/domain/companies.domain.js";
+import * as teamsDomain from "./src/domain/teams.domain.js";
 /** =========================
  *  1) CONFIG FIREBASE
  *  ========================= */
@@ -650,8 +651,14 @@ async function createCompany() {
 }
 
 /** =========================
- *  8) ADMIN (EMPRESA): TEAMS
+ *  8) ADMIN (EMPRESA): TEAMS - Delegado para teams.domain.js
  *  ========================= */
+const getTeamsDeps = () => ({
+  refs, state, db, auth,
+  loadTeams, openTeamDetailsModal, loadTeamMembers, removeUserFromTeam,
+  loadUsers, loadManagerUsers, renderTeamChips, getNextTeamId
+});
+
 function openAdminView(){
   setView("admin");
   Promise.all([loadTeams(), loadUsers()]).catch(err => {
@@ -661,241 +668,43 @@ function openAdminView(){
 }
 
 async function loadTeams(){
-  if (!refs.teamsGrid) return;
-
-  refs.teamsGrid.innerHTML = "";
-  hide(refs.teamsEmpty);
-
-  const snap = await getDocs(collection(db, "companies", state.companyId, "teams"));
-  const all = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-
-  const q = (refs.teamSearch?.value || "").toLowerCase().trim();
-  const filtered = !q ? all : all.filter(t =>
-    (t.name || "").toLowerCase().includes(q) ||
-    (t.id || "").toLowerCase().includes(q)
-  );
-
-  state.teams = filtered.sort((a,b) => (a.name||"").localeCompare(b.name||""));
-
-  if (state.teams.length === 0){
-    show(refs.teamsEmpty);
-    return;
-  }
-
-  for (const t of state.teams){
-    const el = document.createElement("div");
-    el.className = "card";
-    el.innerHTML = `
-      <h3 class="title">${t.name || t.id}</h3>
-      <p class="desc">ID: <b>${t.id}</b></p>
-      <div class="meta">
-        <span class="badge">${t.active === false ? "Inativa" : "Ativa"}</span>
-      </div>
-    `;
-    el.addEventListener("click", async () => {
-      await openTeamDetailsModal(t.id);
-    });
-    refs.teamsGrid.appendChild(el);
-  }
+  await teamsDomain.loadTeams(getTeamsDeps());
 }
 
 function closeTeamDetailsModal(){
-  if (!refs.modalTeamDetails) return;
-  refs.modalTeamDetails.hidden = true;
-  clearAlert(refs.teamDetailsAlert);
-  state.selectedTeamId = null;
+  teamsDomain.closeTeamDetailsModal(getTeamsDeps());
 }
 
 async function loadTeamMembers(teamId){
-  if (!refs.teamDetailsUsersEl) return [];
-  refs.teamDetailsUsersEl.innerHTML = "";
-  hide(refs.teamDetailsEmptyEl);
-
-  const q = query(
-    collection(db, "companies", state.companyId, "users"),
-    where("teamIds", "array-contains", teamId)
-  );
-
-  const snap = await getDocs(q);
-  const users = snap.docs.map(d => ({ uid: d.id, ...d.data() }))
-    .sort((a,b) => (a.name||"").localeCompare(b.name||""));
-
-  if (users.length === 0){
-    show(refs.teamDetailsEmptyEl);
-    return [];
-  }
-
-  for (const u of users){
-    const row = document.createElement("div");
-    row.className = "list-item";
-    const roleLabel = humanizeRole(u.role);
-    row.innerHTML = `
-      <div style="display:flex; gap:10px; align-items:center; justify-content:space-between;">
-        <div style="min-width:0;">
-          <div style="font-weight:600; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${escapeHtml(u.name || "Sem nome")}</div>
-          <div class="muted" style="font-size:12px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">
-            ${roleLabel} • ${escapeHtml(u.email || "—")}
-          </div>
-        </div>
-        <div style="display:flex; gap:8px; align-items:center;">
-          <button class="btn sm danger" data-act="remove">Remover</button>
-        </div>
-      </div>
-    `;
-
-    row.querySelector('[data-act="remove"]').addEventListener("click", async () => {
-      if (!confirm(`Remover "${u.name}" desta equipe?`)) return;
-      try{
-        await removeUserFromTeam(u.uid, teamId);
-        await openTeamDetailsModal(teamId, { keepOpen: true });
-        if (typeof loadUsers === "function") loadUsers().catch(()=>{});
-        if (typeof loadManagerUsers === "function") loadManagerUsers().catch(()=>{});
-      }catch(err){
-        console.error(err);
-        setAlert(refs.teamDetailsAlert, "Erro ao remover usuário: " + (err?.message || err));
-      }
-    });
-
-    refs.teamDetailsUsersEl.appendChild(row);
-  }
-
-  return users;
+  return await teamsDomain.loadTeamMembers(teamId, getTeamsDeps());
 }
 
 async function removeUserFromTeam(uid, teamId){
-  const ref = doc(db, "companies", state.companyId, "users", uid);
-  const snap = await getDoc(ref);
-  if (!snap.exists()) throw new Error("Usuário não encontrado.");
-  const u = snap.data();
-
-  const teamIds = Array.isArray(u.teamIds) ? u.teamIds.slice() : [];
-  const nextTeamIds = teamIds.filter(t => t !== teamId);
-
-  const updates = { teamIds: nextTeamIds };
-
-  if ((u.teamId || "") === teamId){
-    updates.teamId = nextTeamIds[0] || "";
-  }
-
-  await updateDoc(ref, updates);
+  await teamsDomain.removeUserFromTeam(uid, teamId, getTeamsDeps());
 }
 
 async function openTeamDetailsModal(teamId){
-  if (!refs.modalTeamDetails) return;
-  clearAlert(refs.teamDetailsAlert);
-  refs.modalTeamDetails.hidden = false;
-  state.selectedTeamId = teamId;
-
-  const teamRef = doc(db, "companies", state.companyId, "teams", teamId);
-  const teamSnap = await getDoc(teamRef);
-  if (!teamSnap.exists()){
-    setAlert(refs.teamDetailsAlert, "Equipe não encontrada.");
-    return;
-  }
-  const team = { id: teamSnap.id, ...teamSnap.data() };
-
-  refs.teamDetailsNameEl.value = team.name || team.id;
-  refs.teamDetailsIdEl.value = team.id;
-  refs.teamDetailsStatusEl.value = (team.active === false) ? "Inativa" : "Ativa";
-
-  refs.btnTeamToggleActive.textContent = (team.active === false) ? "Ativar" : "Desativar";
-  refs.btnTeamToggleActive.onclick = async () => {
-    try{
-      const nextActive = !(team.active === false);
-      if (!confirm(`Deseja ${nextActive ? "ativar" : "inativar"} a equipe "${team.name}"?`)) return;
-      await updateDoc(teamRef, { active: !nextActive });
-      await loadTeams();
-      await openTeamDetailsModal(teamId);
-      if (!refs.modalCreateUser.hidden) renderTeamChips();
-    }catch(err){
-      console.error(err);
-      setAlert(refs.teamDetailsAlert, "Erro ao atualizar equipe: " + (err?.message || err));
-    }
-  };
-
-  const members = await loadTeamMembers(teamId);
-
-  refs.btnTeamDelete.disabled = members.length > 0;
-  refs.btnTeamDelete.onclick = async () => {
-    if (members.length > 0) return;
-    if (!confirm(`Excluir definitivamente a equipe "${team.name}"?`)) return;
-    try{
-      await deleteDoc(teamRef);
-      closeTeamDetailsModal();
-      await loadTeams();
-      if (!refs.modalCreateUser.hidden) renderTeamChips();
-    }catch(err){
-      console.error(err);
-      setAlert(refs.teamDetailsAlert, "Erro ao excluir equipe: " + (err?.message || err));
-    }
-  };
+  await teamsDomain.openTeamDetailsModal(teamId, getTeamsDeps());
 }
 
-// Carrega TODAS as equipes (sem filtro de busca) para uso nos chips
 async function ensureTeamsForChips(){
-  if (!state.companyId) return;
-  const snap = await getDocs(collection(db, "companies", state.companyId, "teams"));
-  const all = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-  state.teams = all.sort((a,b) => (a.name||"").localeCompare(b.name||""));
+  await teamsDomain.ensureTeamsForChips(getTeamsDeps());
 }
 
-// Gera próximo ID de equipe: #1, #2, #3...
 async function getNextTeamId(){
-  if (!state.companyId) throw new Error("companyId ausente.");
-  const snap = await getDocs(collection(db, "companies", state.companyId, "teams"));
-  let maxN = 0;
-  snap.forEach(d => {
-    const id = d.id || "";
-    const m = /^#(\d+)$/.exec(id);
-    if (m){
-      const n = parseInt(m[1], 10);
-      if (!Number.isNaN(n)) maxN = Math.max(maxN, n);
-    }
-  });
-  return `#${maxN + 1}`;
+  return await teamsDomain.getNextTeamId(getTeamsDeps());
 }
 
 function openCreateTeamModal(){
-  if (!refs.modalCreateTeam) return;
-  clearAlert(refs.createTeamAlert);
-  refs.modalCreateTeam.hidden = false;
-
-  // Não pedir ID manual (gerar #1, #2, ...)
-  try{
-    const idLabel = refs.teamIdEl?.closest("label");
-    if (idLabel) idLabel.style.display = "none";
-  }catch(_){}
-
-  refs.teamNameEl.value = "";
-  refs.teamIdEl.value = "";
-
-  getNextTeamId()
-    .then(id => { refs.teamIdEl.value = id; })
-    .catch(() => { refs.teamIdEl.value = ""; });
+  teamsDomain.openCreateTeamModal(getTeamsDeps());
 }
 
-function closeCreateTeamModal(){ if (refs.modalCreateTeam) refs.modalCreateTeam.hidden = true; }
+function closeCreateTeamModal(){
+  teamsDomain.closeCreateTeamModal(refs);
+}
 
- async function createTeam(){
-  clearAlert(refs.createTeamAlert);
-
-  const name = (refs.teamNameEl.value || "").trim();
-  if (!name) return setAlert(refs.createTeamAlert, "Informe o nome da equipe.");
-
-  setAlert(refs.createTeamAlert, "Salvando...", "info");
-
-  const teamId = await getNextTeamId();
-
-  await setDoc(doc(db, "companies", state.companyId, "teams", teamId), {
-    name,
-    active: true,
-    number: parseInt(teamId.replace("#",""), 10) || null,
-    createdAt: serverTimestamp(),
-    createdBy: auth.currentUser.uid
-  });
-
-  closeCreateTeamModal();
-  await loadTeams();
+async function createTeam(){
+  await teamsDomain.createTeam(getTeamsDeps());
 }
 
 /** =========================
@@ -1494,6 +1303,173 @@ refs.loginForm?.addEventListener("submit", async (e) => {
 
   try {
     await signInWithEmailAndPassword(auth, email, password);
+  } catch (err) {
+    setAlert(refs.loginAlert, mapAuthError(err));
+  }
+});
+
+refs.btnForgot?.addEventListener("click", async () => {
+  clearAlert(refs.loginAlert);
+  const email = (refs.emailEl?.value || "").trim();
+  if (!email) return setAlert(refs.loginAlert, "Digite seu e-mail para redefinir a senha.");
+
+  try {
+    await sendPasswordResetEmail(auth, email);
+    setAlert(refs.loginAlert, "Link de redefinição enviado para seu e-mail.", "info");
+  } catch (err) {
+    setAlert(refs.loginAlert, mapAuthError(err));
+  }
+});
+
+refs.navLogout?.addEventListener("click", async (e) => {
+  e?.preventDefault?.();
+  await signOut(auth);
+});
+// Dashboard navigation
+refs.btnBackToDashboard?.addEventListener("click", () => setView("dashboard"));
+refs.btnBackFromAdmin?.addEventListener("click", () => setView("dashboard"));
+
+// Gestor Users view
+refs.btnBackFromManagerUsers?.addEventListener("click", () => setView("dashboard"));
+refs.btnReloadMgrUsers?.addEventListener("click", () => loadManagerUsers());
+refs.mgrUserSearch?.addEventListener("input", () => loadManagerUsers());
+refs.mgrTeamFilter?.addEventListener("change", () => loadManagerUsers());
+refs.btnOpenCreateTech?.addEventListener("click", async () => {
+  await loadTeams();
+  openCreateTechModal();
+});
+
+// Modal técnico
+refs.btnCloseCreateTech?.addEventListener("click", () => closeCreateTechModal());
+refs.btnCancelCreateTech?.addEventListener("click", () => closeCreateTechModal());
+refs.btnCreateTech?.addEventListener("click", () => {
+  createTech().catch(err => {
+    console.error(err);
+    setAlert(refs.createTechAlert, "Erro ao salvar: " + (err?.message || err));
+  });
+});
+refs.modalCreateTech?.addEventListener("click", (e) => {
+  if (e.target?.dataset?.close === "true") closeCreateTechModal();
+});
+
+// Modal equipes administradas
+refs.btnCloseManagedTeams?.addEventListener("click", () => closeManagedTeamsModal());
+refs.btnCancelManagedTeams?.addEventListener("click", () => closeManagedTeamsModal());
+refs.btnSaveManagedTeams?.addEventListener("click", () => {
+  saveManagedTeams().catch(err => {
+    console.error(err);
+    setAlert(refs.managedTeamsAlert, "Erro ao salvar: " + (err?.message || err));
+  });
+});
+refs.modalManagedTeams?.addEventListener("click", (e) => {
+  if (e.target?.dataset?.close === "true") closeManagedTeamsModal();
+});
+
+// Companies events
+refs.btnReloadCompanies?.addEventListener("click", () => loadCompanies());
+refs.companySearch?.addEventListener("input", () => loadCompanies());
+refs.btnOpenCreateCompany?.addEventListener("click", () => openCreateCompanyModal());
+
+refs.companyNameEl?.addEventListener("input", () => {
+  const slug = slugify(refs.companyNameEl.value);
+  if (!refs.companyIdEl.value.trim() || refs.companyIdEl.dataset.auto !== "false"){
+    refs.companyIdEl.value = slug;
+    refs.companyIdEl.dataset.auto = "true";
+  }
+});
+refs.companyIdEl?.addEventListener("input", () => {
+  refs.companyIdEl.dataset.auto = "false";
+});
+
+refs.btnCloseCreateCompany?.addEventListener("click", () => closeCreateCompanyModal());
+refs.btnCancelCreateCompany?.addEventListener("click", () => closeCreateCompanyModal());
+refs.btnCreateCompany?.addEventListener("click", () => {
+  createCompany().catch(err => {
+    console.error(err);
+    setAlert(refs.createCompanyAlert, "Erro ao salvar: " + (err?.message || err));
+  });
+});
+
+refs.modalCreateCompany?.addEventListener("click", (e) => {
+  if (e.target?.dataset?.close === "true") closeCreateCompanyModal();
+});
+
+refs.modalCompanyDetail?.addEventListener("click", (e) => {
+  if (e.target?.dataset?.close === "true") closeCompanyDetailModal();
+});
+
+// Teams events
+refs.btnReloadTeams?.addEventListener("click", () => loadTeams());
+refs.teamSearch?.addEventListener("input", () => loadTeams());
+refs.btnOpenCreateTeam?.addEventListener("click", () => openCreateTeamModal());
+
+refs.teamNameEl?.addEventListener("input", () => {
+  const slug = slugify(refs.teamNameEl.value);
+  if (!refs.teamIdEl.value.trim() || refs.teamIdEl.dataset.auto !== "false"){
+    refs.teamIdEl.value = slug;
+    refs.teamIdEl.dataset.auto = "true";
+  }
+});
+refs.teamIdEl?.addEventListener("input", () => {
+  refs.teamIdEl.dataset.auto = "false";
+});
+
+refs.btnCloseCreateTeam?.addEventListener("click", () => closeCreateTeamModal());
+refs.btnCancelCreateTeam?.addEventListener("click", () => closeCreateTeamModal());
+refs.btnCreateTeam?.addEventListener("click", () => {
+  createTeam().catch(err => {
+    console.error(err);
+    setAlert(refs.createTeamAlert, "Erro ao salvar: " + (err?.message || err));
+  });
+});
+
+refs.modalCreateTeam?.addEventListener("click", (e) => {
+  if (e.target?.dataset?.close === "true") closeCreateTeamModal();
+});
+
+// Users events
+refs.btnReloadUsers?.addEventListener("click", () => loadUsers());
+refs.userSearch?.addEventListener("input", () => loadUsers());
+refs.userRoleFilter?.addEventListener("change", () => { loadUsers(); });
+refs.btnOpenCreateUser?.addEventListener("click", async () => {
+  // garante que as equipes estão carregadas antes de abrir
+  await loadTeams();
+  openCreateUserModal();
+});
+
+refs.btnCloseCreateUser?.addEventListener("click", () => closeCreateUserModal());
+refs.btnCancelCreateUser?.addEventListener("click", () => closeCreateUserModal());
+refs.btnCreateUser?.addEventListener("click", () => {
+  createUser().catch(err => {
+    console.error(err);
+    setAlert(refs.createUserAlert, "Erro ao salvar: " + (err?.message || err));
+  });
+});
+
+refs.modalCreateUser?.addEventListener("click", (e) => {
+  if (e.target?.dataset?.close === "true") closeCreateUserModal();
+});
+
+refs.btnCloseCompanyDetail?.addEventListener("click", () => closeCompanyDetailModal());
+
+/** =========================
+ *  12) ERROS FRIENDLY
+ *  ========================= */
+function mapAuthError(err){
+  const code = err?.code || "";
+  if (code.includes("auth/invalid-email")) return "E-mail inválido.";
+  if (code.includes("auth/missing-password")) return "Informe a senha.";
+  if (code.includes("auth/invalid-credential")) return "E-mail ou senha incorretos.";
+  if (code.includes("auth/user-disabled")) return "Usuário desativado.";
+  if (code.includes("auth/user-not-found")) return "Usuário não encontrado.";
+  if (code.includes("auth/wrong-password")) return "Senha incorreta.";
+  if (code.includes("auth/too-many-requests")) return "Muitas tentativas. Tente novamente mais tarde.";
+  return "Não foi possível entrar. Tente novamente.";
+}
+window.__fp = { auth, db, functions };
+
+// Sidebar + tooltips
+try{ initSidebar(); }catch(e){ console.warn("initSidebar falhou", e); }WithEmailAndPassword(auth, email, password);
   } catch (err) {
     setAlert(refs.loginAlert, mapAuthError(err));
   }
