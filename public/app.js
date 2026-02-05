@@ -197,11 +197,6 @@ async function callHttpFunctionWithAuth(functionName, payload){
   return json;
 }
 
-function intersects(a = [], b = []) {
-  const setB = new Set(b || []);
-  return (a || []).some(x => setB.has(x));
-}
-
 function setActiveNav(activeId){
   const items = [refs.navHome, refs.navAddProject, refs.navAddTech, refs.navReports, refs.navConfig].filter(Boolean);
   for (const el of items){
@@ -259,19 +254,6 @@ function initSidebar(){
     setActiveNav("navConfig");
     alert("Em breve: Configurações");
   });
-}
-
-function getTeamNameById(teamId){
-  const t = (state.teams || []).find(x => x.id === teamId);
-  return t ? (t.name || t.id) : teamId;
-}
-
-function initialFromName(name){
-  if (!name) return "U";
-  const parts = name.trim().split(/\s+/);
-  const a = parts[0]?.[0] || "U";
-  const b = parts.length > 1 ? (parts[parts.length - 1]?.[0] || "") : "";
-  return (a + b).toUpperCase();
 }
 
 /** =========================
