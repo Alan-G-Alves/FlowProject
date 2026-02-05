@@ -43,6 +43,7 @@ import { auth, secondaryAuth, db, storage, functions, httpsCallable } from "./sr
 import { normalizePhone, normalizeCnpj, slugify } from "./src/utils/format.js";
 import { setAlert, clearAlert, clearInlineAlert, showInlineAlert } from "./src/ui/alerts.js";
 import { listCompaniesDocs } from "./src/services/companies.service.js";
+import * as refs from "./src/ui/refs.js";
 /** =========================
  *  1) CONFIG FIREBASE
  *  ========================= */
@@ -89,185 +90,12 @@ const state = {
 };
 
 /** =========================
- *  3) ELEMENTOS UI
+ *  3) ELEMENTOS UI (importados de refs.js)
  *  ========================= */
-const viewLogin = document.getElementById("viewLogin");
-const viewDashboard = document.getElementById("viewDashboard");
-const viewAdmin = document.getElementById("viewAdmin");
-const viewCompanies = document.getElementById("viewCompanies");
-const viewManagerUsers = document.getElementById("viewManagerUsers");
-
-// Layout (sidebar)
-const sidebar = document.getElementById("sidebar");
-const btnToggleSidebar = document.getElementById("btnToggleSidebar");
-const navHome = document.getElementById("navHome");
-const navAddProject = document.getElementById("navAddProject");
-const navAddTech = document.getElementById("navAddTech");
-const navReports = document.getElementById("navReports");
-const navConfig = document.getElementById("navConfig");
-
-// Login
-const loginForm = document.getElementById("loginForm");
-const emailEl = document.getElementById("email");
-const passwordEl = document.getElementById("password");
-const btnForgot = document.getElementById("btnForgot");
-const loginAlert = document.getElementById("loginAlert");
-
-// Topbar
-// Compat: alguns arquivos antigos usavam id "btnAvatar".
-const btnAvatar = document.getElementById("btnAvatar") || document.getElementById("avatarBtn");
-const userAvatar = document.getElementById("userAvatar");
-const userAvatarImg = document.getElementById("userAvatarImg");
-const userAvatarFallback = document.getElementById("userAvatarFallback");
-const userMenu = document.getElementById("userMenu");
-const avatarDropdown = document.getElementById("avatarDropdown");
-const btnEditProfile = document.getElementById("btnEditProfile");
-const btnUserLogout = document.getElementById("btnUserLogout");
-const navLogout = document.getElementById("navLogout");
-
-// Perfil (modal)
-const profileModal = document.getElementById("profileModal");
-const btnCloseProfile = document.getElementById("btnCloseProfile");
-const btnCancelProfile = document.getElementById("btnCancelProfile");
-const btnSaveProfile = document.getElementById("btnSaveProfile");
-const profileAlert = document.getElementById("profileAlert");
-
-const profilePhotoPreview = document.getElementById("profilePhotoPreview");
-const profilePhotoImg = document.getElementById("profilePhotoImg");
-const profilePhotoFallback = document.getElementById("profilePhotoFallback");
-const profilePhotoFile = document.getElementById("profilePhotoFile");
-const profilePhotoUrl = document.getElementById("profilePhotoUrl");
-const btnProfileRemovePhoto = document.getElementById("btnProfileRemovePhoto");
-
-const profileName = document.getElementById("profileName");
-const profilePhone = document.getElementById("profilePhone");
-const profileEmail = document.getElementById("profileEmail");
-
-// Dashboard
-const dashTitle = document.getElementById("dashTitle");
-const dashSubtitle = document.getElementById("dashSubtitle");
-const chipTeam = document.getElementById("chipTeam");
-const chipEmail = document.getElementById("chipEmail");
-const dashCards = document.getElementById("dashCards");
-
-// Companies (Master)
-const companiesGrid = document.getElementById("companiesGrid");
-const companiesEmpty = document.getElementById("companiesEmpty");
-const companySearch = document.getElementById("companySearch");
-const btnReloadCompanies = document.getElementById("btnReloadCompanies");
-const btnBackToDashboard = document.getElementById("btnBackToDashboard");
-const btnOpenCreateCompany = document.getElementById("btnOpenCreateCompany");
-
-// Company Detail (Master)
-const modalCompanyDetail = document.getElementById("modalCompanyDetail");
-const btnCloseCompanyDetail = document.getElementById("btnCloseCompanyDetail");
-const companyDetailTitle = document.getElementById("companyDetailTitle");
-const companyDetailMeta = document.getElementById("companyDetailMeta");
-const companyDetailStatus = document.getElementById("companyDetailStatus");
-const btnToggleCompanyBlock = document.getElementById("btnToggleCompanyBlock");
-const companyUsersTbody = document.getElementById("companyUsersTbody");
-const companyUsersEmpty = document.getElementById("companyUsersEmpty");
-const companyUsersAlert = document.getElementById("companyUsersAlert");
+// Todas as referências DOM foram movidas para ./src/ui/refs.js
+// Acesse via refs.nomeDoElemento (ex: refs.viewLogin, refs.btnAvatar)
 
 let currentCompanyDetailId = null;
-
-const modalCreateCompany = document.getElementById("modalCreateCompany");
-const btnCloseCreateCompany = document.getElementById("btnCloseCreateCompany");
-const btnCancelCreateCompany = document.getElementById("btnCancelCreateCompany");
-const btnCreateCompany = document.getElementById("btnCreateCompany");
-
-
-const companyNameEl = document.getElementById("companyName");
-const companyCnpjEl = document.getElementById("companyCnpj");
-const companyIdEl = document.getElementById("companyId");
-const adminNameEl = document.getElementById("adminName");
-const adminEmailEl = document.getElementById("adminEmail");
-const adminPhoneEl = document.getElementById("adminPhone");
-const adminActiveEl = document.getElementById("adminActive");
-const createCompanyAlert = document.getElementById("createCompanyAlert");
-const createCompanySuccess = document.getElementById("createCompanySuccess");
-
-// Admin (Empresa)
-const btnBackFromAdmin = document.getElementById("btnBackFromAdmin");
-
-// Teams
-const teamsGrid = document.getElementById("teamsGrid");
-const teamsEmpty = document.getElementById("teamsEmpty");
-const teamSearch = document.getElementById("teamSearch");
-const btnReloadTeams = document.getElementById("btnReloadTeams");
-const btnOpenCreateTeam = document.getElementById("btnOpenCreateTeam");
-
-const modalCreateTeam = document.getElementById("modalCreateTeam");
-const btnCloseCreateTeam = document.getElementById("btnCloseCreateTeam");
-const btnCancelCreateTeam = document.getElementById("btnCancelCreateTeam");
-const btnCreateTeam = document.getElementById("btnCreateTeam");
-const teamNameEl = document.getElementById("teamName");
-const teamIdEl = document.getElementById("teamId");
-const createTeamAlert = document.getElementById("createTeamAlert");
-// Team Details
-const modalTeamDetails = document.getElementById("modalTeamDetails");
-const btnCloseTeamDetails = document.getElementById("btnCloseTeamDetails");
-const btnCancelTeamDetails = document.getElementById("btnCancelTeamDetails");
-const teamDetailsNameEl = document.getElementById("teamDetailsName");
-const teamDetailsIdEl = document.getElementById("teamDetailsId");
-const teamDetailsStatusEl = document.getElementById("teamDetailsStatus");
-const teamDetailsUsersEl = document.getElementById("teamDetailsUsers");
-const teamDetailsEmptyEl = document.getElementById("teamDetailsEmpty");
-const teamDetailsAlert = document.getElementById("teamDetailsAlert");
-const btnTeamToggleActive = document.getElementById("btnTeamToggleActive");
-const btnTeamDelete = document.getElementById("btnTeamDelete");
-
-// Users
-const usersTbody = document.getElementById("usersTbody");
-const usersEmpty = document.getElementById("usersEmpty");
-const userSearch = document.getElementById("userSearch");
-const userRoleFilter = document.getElementById("userRoleFilter");
-const btnReloadUsers = document.getElementById("btnReloadUsers");
-const btnOpenCreateUser = document.getElementById("btnOpenCreateUser");
-
-const modalCreateUser = document.getElementById("modalCreateUser");
-const btnCloseCreateUser = document.getElementById("btnCloseCreateUser");
-const btnCancelCreateUser = document.getElementById("btnCancelCreateUser");
-const btnCreateUser = document.getElementById("btnCreateUser");
-const newUserUidEl = document.getElementById("newUserUid");
-const newUserNameEl = document.getElementById("newUserName");
-const newUserRoleEl = document.getElementById("newUserRole");
-const newUserEmailEl = document.getElementById("newUserEmail");
-const newUserPhoneEl = document.getElementById("newUserPhone");
-const newUserActiveEl = document.getElementById("newUserActive");
-const teamChipsEl = document.getElementById("teamChips");
-const createUserAlert = document.getElementById("createUserAlert");
-
-// Gestor - Usuários (Técnicos)
-const btnBackFromManagerUsers = document.getElementById("btnBackFromManagerUsers");
-const btnOpenCreateTech = document.getElementById("btnOpenCreateTech");
-const mgrUserSearch = document.getElementById("mgrUserSearch");
-const mgrTeamFilter = document.getElementById("mgrTeamFilter");
-const btnReloadMgrUsers = document.getElementById("btnReloadMgrUsers");
-const mgrUsersTbody = document.getElementById("mgrUsersTbody");
-const mgrUsersEmpty = document.getElementById("mgrUsersEmpty");
-
-// Modal criar técnico (Gestor)
-const modalCreateTech = document.getElementById("modalCreateTech");
-const btnCloseCreateTech = document.getElementById("btnCloseCreateTech");
-const btnCancelCreateTech = document.getElementById("btnCancelCreateTech");
-const btnCreateTech = document.getElementById("btnCreateTech");
-const techUidEl = document.getElementById("techUid");
-const techNameEl = document.getElementById("techName");
-const techEmailEl = document.getElementById("techEmail");
-const techPhoneEl = document.getElementById("techPhone");
-const techActiveEl = document.getElementById("techActive");
-const mgrTeamChipsEl = document.getElementById("mgrTeamChips");
-const createTechAlert = document.getElementById("createTechAlert");
-
-// Modal equipes administradas (Admin da empresa)
-const modalManagedTeams = document.getElementById("modalManagedTeams");
-const managedTeamsSubtitle = document.getElementById("managedTeamsSubtitle");
-const managedTeamsChips = document.getElementById("managedTeamsChips");
-const managedTeamsAlert = document.getElementById("managedTeamsAlert");
-const btnCloseManagedTeams = document.getElementById("btnCloseManagedTeams");
-const btnCancelManagedTeams = document.getElementById("btnCancelManagedTeams");
-const btnSaveManagedTeams = document.getElementById("btnSaveManagedTeams");
 
 /** =========================
  *  4) HELPERS
@@ -366,7 +194,7 @@ function intersects(a = [], b = []) {
 }
 
 function setActiveNav(activeId){
-  const items = [navHome, navAddProject, navAddTech, navReports, navConfig].filter(Boolean);
+  const items = [refs.navHome, refs.navAddProject, refs.navAddTech, refs.navReports, refs.navConfig].filter(Boolean);
   for (const el of items){
     const isActive = el.id === activeId;
     el.classList.toggle("active", isActive);
@@ -374,51 +202,51 @@ function setActiveNav(activeId){
 }
 
 function initSidebar(){
-  if (!sidebar) return;
+  if (!refs.sidebar) return;
 
   // estado persistido (padrão: recolhido)
-  const saved = localStorage.getItem("fp.sidebar.expanded");
-  if (saved === "1") sidebar.classList.add("expanded");
+  const saved = localStorage.getItem("fp.refs.sidebar.expanded");
+  if (saved === "1") refs.sidebar.classList.add("expanded");
 
   const toggle = () => {
-    sidebar.classList.toggle("expanded");
-    localStorage.setItem("fp.sidebar.expanded", sidebar.classList.contains("expanded") ? "1" : "0");
+    refs.sidebar.classList.toggle("expanded");
+    localStorage.setItem("fp.refs.sidebar.expanded", refs.sidebar.classList.contains("expanded") ? "1" : "0");
   };
 
   // Remove o hambúrguer: expansão por clique em qualquer área "vazia" da barra
-  sidebar.addEventListener("click", (e) => {
+  refs.sidebar.addEventListener("click", (e) => {
     // se clicou em um item do menu, NÃO alterna (deixa só navegar)
     if (e.target?.closest?.(".nav-item")) return;
     toggle();
   });
 
   // (se existir por algum motivo no HTML antigo, ainda funciona)
-  btnToggleSidebar?.addEventListener("click", (e) => {
+  refs.btnToggleSidebar?.addEventListener("click", (e) => {
     e.preventDefault();
     e.stopPropagation();
     toggle();
   });
 
   // Ações (por enquanto: navegação de views existentes)
-  navHome?.addEventListener("click", () => {
+  refs.navHome?.addEventListener("click", () => {
     setActiveNav("navHome");
     setView("dashboard");
   });
-  navReports?.addEventListener("click", () => {
+  refs.navReports?.addEventListener("click", () => {
     setActiveNav("navReports");
     alert("Em breve: Relatórios e indicadores");
   });
-  navAddProject?.addEventListener("click", () => {
+  refs.navAddProject?.addEventListener("click", () => {
     setActiveNav("navAddProject");
     alert("Em breve: Adicionar projeto");
   });
-  navAddTech?.addEventListener("click", () => {
+  refs.navAddTech?.addEventListener("click", () => {
     setActiveNav("navAddTech");
     // para gestor, já existe tela de técnicos
     if (state.profile?.role === "gestor") setView("managerUsers");
     else alert("Acesso restrito: somente Gestor");
   });
-  navConfig?.addEventListener("click", () => {
+  refs.navConfig?.addEventListener("click", () => {
     setActiveNav("navConfig");
     alert("Em breve: Configurações");
   });
@@ -442,37 +270,37 @@ function initialFromName(name){
  *  ========================= */
 function renderTopbar(profile, user){
   // Topbar minimal: apenas avatar no canto direito
-  show(btnAvatar);
+  show(refs.btnAvatar);
 
   // Avatar: tenta foto (perfil -> auth), senão usa iniciais
   const photoUrl = profile?.photoURL || user?.photoURL || "";
 
   // OBS: no CSS o .avatar-img começa com display:none; aqui controlamos via display
-  if (photoUrl && userAvatarImg){
+  if (photoUrl && refs.userAvatarImg){
     // Cache-bust leve (evita manter imagem antiga após trocar foto)
     const bust = photoUrl.includes("?") ? "&t=" : "?t=";
-    userAvatarImg.src = photoUrl + bust + Date.now();
+    refs.userAvatarImg.src = photoUrl + bust + Date.now();
 
-    userAvatarImg.hidden = false;
-    userAvatarImg.style.display = "block";
+    refs.userAvatarImg.hidden = false;
+    refs.userAvatarImg.style.display = "block";
 
-    if (userAvatarFallback){
-      userAvatarFallback.hidden = true;
-      userAvatarFallback.style.display = "none";
+    if (refs.userAvatarFallback){
+      refs.userAvatarFallback.hidden = true;
+      refs.userAvatarFallback.style.display = "none";
     }
   }else{
-    if (userAvatarImg){
-      userAvatarImg.hidden = true;
-      userAvatarImg.style.display = "none";
-      userAvatarImg.removeAttribute("src");
+    if (refs.userAvatarImg){
+      refs.userAvatarImg.hidden = true;
+      refs.userAvatarImg.style.display = "none";
+      refs.userAvatarImg.removeAttribute("src");
     }
 
     const label = (profile?.name || user?.displayName || user?.email || "Usuário").trim();
     const initials = label.split(/\s+/).slice(0,2).map(p => (p[0] || "").toUpperCase()).join("") || "U";
-    if (userAvatarFallback){
-      userAvatarFallback.textContent = initials;
-      userAvatarFallback.hidden = false;
-      userAvatarFallback.style.display = "grid";
+    if (refs.userAvatarFallback){
+      refs.userAvatarFallback.textContent = initials;
+      refs.userAvatarFallback.hidden = false;
+      refs.userAvatarFallback.style.display = "grid";
     }
   }
 }
@@ -481,25 +309,25 @@ function renderTopbar(profile, user){
  *  TOPBAR: MENU DO USUÁRIO
  *  ========================= */
 function initUserMenu(){
-  // Estrutura vem do index.html (userMenu/avatarBtn/avatarDropdown)
-  if (!btnAvatar || !avatarDropdown) return;
+  // Estrutura vem do index.html (refs.userMenu/avatarBtn/refs.avatarDropdown)
+  if (!refs.btnAvatar || !refs.avatarDropdown) return;
 
   const closeDropdown = () => {
-    avatarDropdown.classList.remove("open");
-    btnAvatar.setAttribute("aria-expanded", "false");
+    refs.avatarDropdown.classList.remove("open");
+    refs.btnAvatar.setAttribute("aria-expanded", "false");
   };
 
   const toggleDropdown = () => {
-    const isOpen = avatarDropdown.classList.contains("open");
+    const isOpen = refs.avatarDropdown.classList.contains("open");
     if (isOpen) closeDropdown();
     else {
-      avatarDropdown.classList.add("open");
-      btnAvatar.setAttribute("aria-expanded", "true");
+      refs.avatarDropdown.classList.add("open");
+      refs.btnAvatar.setAttribute("aria-expanded", "true");
     }
   };
 
   // Toggle ao clicar no avatar
-  btnAvatar.addEventListener("click", (e) => {
+  refs.btnAvatar.addEventListener("click", (e) => {
     e.preventDefault();
     e.stopPropagation();
     toggleDropdown();
@@ -507,9 +335,9 @@ function initUserMenu(){
 
   // Fecha ao clicar fora
   document.addEventListener("click", (e) => {
-    if (!avatarDropdown.classList.contains("open")) return;
+    if (!refs.avatarDropdown.classList.contains("open")) return;
     const target = e.target;
-    if (userMenu && userMenu.contains(target)) return;
+    if (refs.userMenu && refs.userMenu.contains(target)) return;
     closeDropdown();
   });
 
@@ -519,13 +347,13 @@ function initUserMenu(){
   });
 
   // Ações do menu
-  btnEditProfile?.addEventListener("click", (e) => {
+  refs.btnEditProfile?.addEventListener("click", (e) => {
     e.preventDefault();
     closeDropdown();
     openProfileModal();
   });
 
-  btnUserLogout?.addEventListener("click", async (e) => {
+  refs.btnUserLogout?.addEventListener("click", async (e) => {
     e.preventDefault();
     closeDropdown();
     await signOut(auth);
@@ -536,71 +364,71 @@ function initUserMenu(){
  *  PERFIL: MODAL (EDITAR PERFIL)
  *  ========================= */
 function openProfileModal(){
-  if (!profileModal) return;
-  clearAlert(profileAlert);
+  if (!refs.profileModal) return;
+  clearAlert(refs.profileAlert);
 
   const user = auth.currentUser;
   const p = state.profile || {};
 
   // Preenche campos
-  if (profileName) profileName.value = (p.name || user?.displayName || "").trim();
-  if (profilePhone) profilePhone.value = (p.phone || "").trim();
-  if (profileEmail) profileEmail.value = (user?.email || "").trim();
+  if (refs.profileName) refs.profileName.value = (p.name || user?.displayName || "").trim();
+  if (refs.profilePhone) refs.profilePhone.value = (p.phone || "").trim();
+  if (refs.profileEmail) refs.profileEmail.value = (user?.email || "").trim();
 
   const url = (p.photoURL || user?.photoURL || "").trim();
-  if (profilePhotoUrl) profilePhotoUrl.value = url;
+  if (refs.profilePhotoUrl) refs.profilePhotoUrl.value = url;
   renderProfilePhotoPreview(url);
 
-  profileModal.hidden = false;
+  refs.profileModal.hidden = false;
   document.body.classList.add("modal-open");
 }
 
 function closeProfileModal(){
-  if (!profileModal) return;
-  profileModal.hidden = true;
+  if (!refs.profileModal) return;
+  refs.profileModal.hidden = true;
   document.body.classList.remove("modal-open");
-  if (profilePhotoFile) profilePhotoFile.value = "";
+  if (refs.profilePhotoFile) refs.profilePhotoFile.value = "";
 }
 
 function renderProfilePhotoPreview(url){
   const user = auth.currentUser;
-  const label = ((profileName?.value || state.profile?.name || user?.displayName || user?.email || "Usuário").trim());
+  const label = ((refs.profileName?.value || state.profile?.name || user?.displayName || user?.email || "Usuário").trim());
   const initials = label.split(/\s+/).slice(0,2).map(p => (p[0] || "").toUpperCase()).join("") || "U";
 
   const finalUrl = (url || "").trim();
   if (finalUrl){
-    if (profilePhotoImg){
-      profilePhotoImg.src = finalUrl;
-      profilePhotoImg.style.display = "block";
+    if (refs.profilePhotoImg){
+      refs.profilePhotoImg.src = finalUrl;
+      refs.profilePhotoImg.style.display = "block";
     }
-    if (profilePhotoFallback){
-      profilePhotoFallback.textContent = initials;
-      profilePhotoFallback.style.display = "none";
+    if (refs.profilePhotoFallback){
+      refs.profilePhotoFallback.textContent = initials;
+      refs.profilePhotoFallback.style.display = "none";
     }
   } else {
-    if (profilePhotoImg) profilePhotoImg.style.display = "none";
-    if (profilePhotoFallback){
-      profilePhotoFallback.textContent = initials;
-      profilePhotoFallback.style.display = "block";
+    if (refs.profilePhotoImg) refs.profilePhotoImg.style.display = "none";
+    if (refs.profilePhotoFallback){
+      refs.profilePhotoFallback.textContent = initials;
+      refs.profilePhotoFallback.style.display = "block";
     }
   }
 }
 
 async function saveProfile(){
-  clearAlert(profileAlert);
+  clearAlert(refs.profileAlert);
   const user = auth.currentUser;
   if (!user) return;
 
-  const name = (profileName?.value || "").trim();
-  const phone = (profilePhone?.value || "").trim();
-  const photoURL = (profilePhotoUrl?.value || "").trim();
+  const name = (refs.profileName?.value || "").trim();
+  const phone = (refs.profilePhone?.value || "").trim();
+  const photoURL = (refs.profilePhotoUrl?.value || "").trim();
 
   if (!name){
-    setAlert(profileAlert, "Informe seu nome.");
+    setAlert(refs.profileAlert, "Informe seu nome.");
     return;
   }
 
-  setAlert(profileAlert, "Salvando...", "info");
+  setAlert(refs.profileAlert, "Salvando...", "info");
 
   try {
     if (state.isSuperAdmin){
@@ -621,19 +449,19 @@ async function saveProfile(){
     state.profile = { ...(state.profile || {}), name, phone, photoURL };
     renderTopbar(state.profile, user);
 
-    setAlert(profileAlert, "Perfil atualizado!", "success");
+    setAlert(refs.profileAlert, "Perfil atualizado!", "success");
     setTimeout(closeProfileModal, 400);
   } catch (err){
     console.error("saveProfile error", err);
-    setAlert(profileAlert, "Não foi possível salvar. Verifique permissões no Firestore rules.");
+    setAlert(refs.profileAlert, "Não foi possível salvar. Verifique permissões no Firestore rules.");
   }
 }
 
 // Listeners do modal (se existir na página)
-btnCloseProfile?.addEventListener("click", closeProfileModal);
-btnCancelProfile?.addEventListener("click", closeProfileModal);
+refs.btnCloseProfile?.addEventListener("click", closeProfileModal);
+refs.btnCancelProfile?.addEventListener("click", closeProfileModal);
 
-profileModal?.addEventListener("click", (e) => {
+refs.profileModal?.addEventListener("click", (e) => {
   const target = e.target;
   if (target && target.getAttribute && target.getAttribute("data-close") === "profile"){
     closeProfileModal();
@@ -641,40 +469,40 @@ profileModal?.addEventListener("click", (e) => {
 });
 
 document.addEventListener("keydown", (e) => {
-  if (e.key === "Escape" && profileModal && !profileModal.hidden) closeProfileModal();
+  if (e.key === "Escape" && refs.profileModal && !refs.profileModal.hidden) closeProfileModal();
 });
 
-btnSaveProfile?.addEventListener("click", saveProfile);
+refs.btnSaveProfile?.addEventListener("click", saveProfile);
 
-profilePhotoUrl?.addEventListener("input", () => {
-  renderProfilePhotoPreview(profilePhotoUrl.value);
+refs.profilePhotoUrl?.addEventListener("input", () => {
+  renderProfilePhotoPreview(refs.profilePhotoUrl.value);
 });
 
-btnProfileRemovePhoto?.addEventListener("click", () => {
-  if (profilePhotoUrl) profilePhotoUrl.value = "";
+refs.btnProfileRemovePhoto?.addEventListener("click", () => {
+  if (refs.profilePhotoUrl) refs.profilePhotoUrl.value = "";
   renderProfilePhotoPreview("");
 });
 
-profilePhotoFile?.addEventListener("change", async (e) => {
+refs.profilePhotoFile?.addEventListener("change", async (e) => {
   const file = e.target.files && e.target.files[0];
   if (!file) return;
   // Regras básicas (evita upload gigante)
   const maxMb = 2; // recomendado: 1–2MB
   const allowed = ["image/png", "image/jpeg", "image/jpg", "image/webp"];
   if (!allowed.includes((file.type || "").toLowerCase())){
-    setAlert(profileAlert, "Formato inválido. Use PNG ou JPG.");
+    setAlert(refs.profileAlert, "Formato inválido. Use PNG ou JPG.");
     e.target.value = "";
     return;
   }
   if (file.size > maxMb * 1024 * 1024){
-    setAlert(profileAlert, `A imagem é muito grande (máx. ${maxMb}MB).`);
+    setAlert(refs.profileAlert, `A imagem é muito grande (máx. ${maxMb}MB).`);
     e.target.value = "";
     return;
   }
 
   // Upload para Firebase Storage e grava a URL no input
   try{
-    setAlert(profileAlert, "Enviando foto...", "info");
+    setAlert(refs.profileAlert, "Enviando foto...", "info");
     const user = auth.currentUser;
     if (!user) throw new Error("not-auth");
 
@@ -685,12 +513,12 @@ profilePhotoFile?.addEventListener("change", async (e) => {
     await uploadBytes(ref, file, { contentType: file.type || "image/jpeg" });
     const url = await getDownloadURL(ref);
 
-    if (profilePhotoUrl) profilePhotoUrl.value = url;
+    if (refs.profilePhotoUrl) refs.profilePhotoUrl.value = url;
     renderProfilePhotoPreview(url);
-    clearAlert(profileAlert);
+    clearAlert(refs.profileAlert);
   }catch(err){
     console.error("upload avatar error", err);
-    setAlert(profileAlert, "Não foi possível enviar a foto. Verifique as regras do Storage.");
+    setAlert(refs.profileAlert, "Não foi possível enviar a foto. Verifique as regras do Storage.");
   }finally{
     // permite reenviar o mesmo arquivo se quiser
     e.target.value = "";
@@ -698,8 +526,8 @@ profilePhotoFile?.addEventListener("change", async (e) => {
 });
 
 function renderDashboardCards(profile){
-  if (!dashCards) return;
-  dashCards.innerHTML = "";
+  if (!refs.dashCards) return;
+  refs.dashCards.innerHTML = "";
 
   const cards = [];
 
@@ -748,7 +576,7 @@ function renderDashboardCards(profile){
       <div class="meta"><span class="badge">${c.badge}</span></div>
     `;
     el.addEventListener("click", c.action);
-    dashCards.appendChild(el);
+    refs.dashCards.appendChild(el);
   }
 }
 
@@ -764,14 +592,14 @@ function openCompaniesView(){
 }
 
 async function loadCompanies(){
-  if (!companiesGrid) return;
-  companiesGrid.innerHTML = "";
-  hide(companiesEmpty);
+  if (!refs.companiesGrid) return;
+  refs.companiesGrid.innerHTML = "";
+  hide(refs.companiesEmpty);
 
   // Agora usa o service modular
   const all = await listCompaniesDocs();
 
-  const qtxt = (companySearch?.value || "").toLowerCase().trim();
+  const qtxt = (refs.companySearch?.value || "").toLowerCase().trim();
   const filtered = !qtxt ? all : all.filter(c =>
     (c.name || "").toLowerCase().includes(qtxt) ||
     (c.cnpj || "").toLowerCase().includes(qtxt) ||
@@ -779,7 +607,7 @@ async function loadCompanies(){
   );
 
   if (filtered.length === 0){
-    show(companiesEmpty);
+    show(refs.companiesEmpty);
     return;
   }
 
@@ -796,7 +624,7 @@ async function loadCompanies(){
     `;
     el.style.cursor = "pointer";
     el.addEventListener("click", () => openCompanyDetailModal(c.id));
-    companiesGrid.appendChild(el);
+    refs.companiesGrid.appendChild(el);
   }
 }
 
@@ -835,45 +663,45 @@ function showCompanyCreateSuccess({ adminEmail, uid, resetLink } = {}){
 
 
 
-function closeCreateCompanyModal(){ if (modalCreateCompany) modalCreateCompany.hidden = true; }
+function closeCreateCompanyModal(){ if (refs.modalCreateCompany) refs.modalCreateCompany.hidden = true; }
 
 
 function closeCompanyDetailModal(){
-  if (!modalCompanyDetail) return;
-  modalCompanyDetail.hidden = true;
+  if (!refs.modalCompanyDetail) return;
+  refs.modalCompanyDetail.hidden = true;
   currentCompanyDetailId = null;
-  if (companyUsersTbody) companyUsersTbody.innerHTML = "";
+  if (refs.companyUsersTbody) refs.companyUsersTbody.innerHTML = "";
 }
 
 
 
 function openCreateCompanyModal(){
   if (!state.isSuperAdmin) return;
-  if (!modalCreateCompany) return;
+  if (!refs.modalCreateCompany) return;
 
-  clearAlert(createCompanyAlert);
+  clearAlert(refs.createCompanyAlert);
   clearCompanyCreateSuccess();
 
-  if (companyNameEl) companyNameEl.value = "";
-  if (companyCnpjEl) companyCnpjEl.value = "";
-  if (companyIdEl) companyIdEl.value = "";
-  if (adminNameEl) adminNameEl.value = "";
-  if (adminEmailEl) adminEmailEl.value = "";
-  if (adminPhoneEl) adminPhoneEl.value = "";
-  if (adminActiveEl) adminActiveEl.value = "true";
+  if (refs.companyNameEl) refs.companyNameEl.value = "";
+  if (refs.companyCnpjEl) refs.companyCnpjEl.value = "";
+  if (refs.companyIdEl) refs.companyIdEl.value = "";
+  if (refs.adminNameEl) refs.adminNameEl.value = "";
+  if (refs.adminEmailEl) refs.adminEmailEl.value = "";
+  if (refs.adminPhoneEl) refs.adminPhoneEl.value = "";
+  if (refs.adminActiveEl) refs.adminActiveEl.value = "true";
 
-  modalCreateCompany.hidden = false;
+  refs.modalCreateCompany.hidden = false;
 }
 
 async function openCompanyDetailModal(companyId){
   if (!state.isSuperAdmin) return;
-  if (!modalCompanyDetail) return;
+  if (!refs.modalCompanyDetail) return;
 
-  clearInlineAlert(companyUsersAlert);
-  if (companyUsersTbody) companyUsersTbody.innerHTML = "";
-  if (companyUsersEmpty) companyUsersEmpty.hidden = true;
+  clearInlineAlert(refs.companyUsersAlert);
+  if (refs.companyUsersTbody) refs.companyUsersTbody.innerHTML = "";
+  if (refs.companyUsersEmpty) refs.companyUsersEmpty.hidden = true;
 
-  modalCompanyDetail.hidden = false;
+  refs.modalCompanyDetail.hidden = false;
   currentCompanyDetailId = companyId;
   await loadCompanyDetail(companyId);
 }
@@ -888,22 +716,22 @@ async function loadCompanyDetail(companyId){
     const cRef = doc(db, "companies", companyId);
     const cSnap = await getDoc(cRef);
     if (!cSnap.exists()){
-      showInlineAlert(companyUsersAlert, "Empresa não encontrada.", "error");
+      showInlineAlert(refs.companyUsersAlert, "Empresa não encontrada.", "error");
       return;
     }
     const cData = cSnap.data();
     const active = cData.active === true;
 
-    if (companyDetailTitle) companyDetailTitle.textContent = cData.name || companyId;
-    if (companyDetailMeta) companyDetailMeta.textContent = `CNPJ: ${cData.cnpj || "-"} • ID: ${companyId}`;
-    if (companyDetailStatus){
-      companyDetailStatus.textContent = active ? "ATIVA" : "BLOQUEADA";
-      companyDetailStatus.className = `badge ${active ? "badge-success" : "badge-danger"}`;
+    if (refs.companyDetailTitle) refs.companyDetailTitle.textContent = cData.name || companyId;
+    if (refs.companyDetailMeta) refs.companyDetailMeta.textContent = `CNPJ: ${cData.cnpj || "-"} • ID: ${companyId}`;
+    if (refs.companyDetailStatus){
+      refs.companyDetailStatus.textContent = active ? "ATIVA" : "BLOQUEADA";
+      refs.companyDetailStatus.className = `badge ${active ? "badge-success" : "badge-danger"}`;
     }
-    if (btnToggleCompanyBlock){
-      btnToggleCompanyBlock.textContent = active ? "Bloquear empresa" : "Desbloquear empresa";
-      btnToggleCompanyBlock.className = active ? "btn btn-danger" : "btn btn-secondary";
-      btnToggleCompanyBlock.onclick = () => toggleCompanyBlock(companyId, active);
+    if (refs.btnToggleCompanyBlock){
+      refs.btnToggleCompanyBlock.textContent = active ? "Bloquear empresa" : "Desbloquear empresa";
+      refs.btnToggleCompanyBlock.className = active ? "btn btn-danger" : "btn btn-secondary";
+      refs.btnToggleCompanyBlock.onclick = () => toggleCompanyBlock(companyId, active);
     }
 
     const uCol = collection(db, "companies", companyId, "users");
@@ -915,19 +743,19 @@ async function loadCompanyDetail(companyId){
     renderCompanyUsersTable(companyId, users);
   }catch(err){
     console.error("Erro ao carregar detalhes da empresa:", err);
-    showInlineAlert(companyUsersAlert, "Erro ao carregar detalhes da empresa.", "error");
+    showInlineAlert(refs.companyUsersAlert, "Erro ao carregar detalhes da empresa.", "error");
   }
 }
 
 function renderCompanyUsersTable(companyId, users){
-  if (!companyUsersTbody) return;
-  companyUsersTbody.innerHTML = "";
+  if (!refs.companyUsersTbody) return;
+  refs.companyUsersTbody.innerHTML = "";
 
   if (!users || users.length === 0){
-    if (companyUsersEmpty) companyUsersEmpty.hidden = false;
+    if (refs.companyUsersEmpty) refs.companyUsersEmpty.hidden = false;
     return;
   }
-  if (companyUsersEmpty) companyUsersEmpty.hidden = true;
+  if (refs.companyUsersEmpty) refs.companyUsersEmpty.hidden = true;
 
   for (const u of users){
     const active = u.active === true;
@@ -972,12 +800,12 @@ function renderCompanyUsersTable(companyId, users){
       await loadCompanyDetail(companyId);
     });
 
-    companyUsersTbody.appendChild(tr);
+    refs.companyUsersTbody.appendChild(tr);
   }
 
   // Empty state
-  if (companyUsersEmpty){
-    companyUsersEmpty.style.display = users.length ? "none" : "block";
+  if (refs.companyUsersEmpty){
+    refs.companyUsersEmpty.style.display = users.length ? "none" : "block";
   }
 }
 
@@ -988,7 +816,7 @@ async function setCompanyUserActive(companyId, uid, active){
     await updateDoc(uRef, { active: !!active });
   }catch(err){
     console.error("Erro ao atualizar usuário:", err);
-    showInlineAlert(companyUsersAlert, "Não foi possível atualizar o usuário.", "error");
+    showInlineAlert(refs.companyUsersAlert, "Não foi possível atualizar o usuário.", "error");
   }
 }
 
@@ -1000,7 +828,7 @@ async function setCompanyUserRole(companyId, uid, role){
     await updateDoc(uRef, { role });
   }catch(err){
     console.error("Erro ao trocar perfil:", err);
-    showInlineAlert(companyUsersAlert, "Não foi possível trocar o perfil.", "error");
+    showInlineAlert(refs.companyUsersAlert, "Não foi possível trocar o perfil.", "error");
   }
 }
 
@@ -1020,47 +848,47 @@ async function toggleCompanyBlock(companyId, currentlyActive){
       });
 
       await batch.commit();
-      showInlineAlert(companyUsersAlert, "Empresa bloqueada e usuários bloqueados.", "success");
+      showInlineAlert(refs.companyUsersAlert, "Empresa bloqueada e usuários bloqueados.", "success");
     }else{
       await updateDoc(cRef, { active: true });
-      showInlineAlert(companyUsersAlert, "Empresa desbloqueada. (Usuários permanecem com o status atual.)", "success");
+      showInlineAlert(refs.companyUsersAlert, "Empresa desbloqueada. (Usuários permanecem com o status atual.)", "success");
     }
 
     await loadCompanyDetail(companyId);
     if (typeof loadCompanies === "function") loadCompanies();
   }catch(err){
     console.error("Erro ao bloquear/desbloquear empresa:", err);
-    showInlineAlert(companyUsersAlert, "Não foi possível alterar o status da empresa.", "error");
+    showInlineAlert(refs.companyUsersAlert, "Não foi possível alterar o status da empresa.", "error");
   }
 }
 
 async function createCompany(){
-  clearAlert(createCompanyAlert);
+  clearAlert(refs.createCompanyAlert);
 
   try{
     if (!auth.currentUser){
-      return setAlert(createCompanyAlert, "Você precisa estar logado como Admin Master.");
+      return setAlert(refs.createCompanyAlert, "Você precisa estar logado como Admin Master.");
     }
 
     // força refresh do token para reduzir chance de 401 por token velho
     await auth.currentUser.getIdToken(true);
 
-    const companyId = (companyIdEl?.value || "").trim();
-    const companyName = (companyNameEl?.value || "").trim();
-    const cnpj = (companyCnpjEl?.value || "").trim();
+    const companyId = (refs.companyIdEl?.value || "").trim();
+    const companyName = (refs.companyNameEl?.value || "").trim();
+    const cnpj = (refs.companyCnpjEl?.value || "").trim();
 
-    const adminName = (adminNameEl?.value || "").trim();
-    const adminEmail = (adminEmailEl?.value || "").trim();
-    const adminPhone = (adminPhoneEl?.value || "").trim();
-    const adminActive = (adminActiveEl?.value || "true") === "true";
+    const adminName = (refs.adminNameEl?.value || "").trim();
+    const adminEmail = (refs.adminEmailEl?.value || "").trim();
+    const adminPhone = (refs.adminPhoneEl?.value || "").trim();
+    const adminActive = (refs.adminActiveEl?.value || "true") === "true";
 
-    if (!companyId) return setAlert(createCompanyAlert, "Informe o ID da empresa (slug).");
-    if (!companyName) return setAlert(createCompanyAlert, "Informe o nome da empresa.");
-    if (!cnpj || !isCnpjValidBasic(cnpj)) return setAlert(createCompanyAlert, "Informe um CNPJ válido (14 dígitos).");
-    if (!adminName) return setAlert(createCompanyAlert, "Informe o nome do Admin da empresa.");
-    if (!adminEmail || !isEmailValidBasic(adminEmail)) return setAlert(createCompanyAlert, "Informe um e-mail válido para o Admin.");
+    if (!companyId) return setAlert(refs.createCompanyAlert, "Informe o ID da empresa (slug).");
+    if (!companyName) return setAlert(refs.createCompanyAlert, "Informe o nome da empresa.");
+    if (!cnpj || !isCnpjValidBasic(cnpj)) return setAlert(refs.createCompanyAlert, "Informe um CNPJ válido (14 dígitos).");
+    if (!adminName) return setAlert(refs.createCompanyAlert, "Informe o nome do Admin da empresa.");
+    if (!adminEmail || !isEmailValidBasic(adminEmail)) return setAlert(refs.createCompanyAlert, "Informe um e-mail válido para o Admin.");
 
-    setAlert(createCompanyAlert, "Criando empresa e Admin...", "info");
+    setAlert(refs.createCompanyAlert, "Criando empresa e Admin...", "info");
 
 // Payload no formato esperado pela Function (admin aninhado)
 const payload = {
@@ -1083,13 +911,13 @@ const data = await callHttpFunctionWithAuth("createCompanyWithAdminHttp", payloa
     await loadCompanies();
 
     // Mostra retorno formatado logo abaixo do formulário (sem alert)
-    clearAlert(createCompanyAlert);
+    clearAlert(refs.createCompanyAlert);
     showCompanyCreateSuccess({ adminEmail, uid, resetLink });
 
   }catch(err){
     console.error("Erro ao criar empresa:", err);
     clearCompanyCreateSuccess();
-    setAlert(createCompanyAlert, err?.message || "Erro ao criar empresa");
+    setAlert(refs.createCompanyAlert, err?.message || "Erro ao criar empresa");
   }
 }
 
@@ -1105,15 +933,15 @@ function openAdminView(){
 }
 
 async function loadTeams(){
-  if (!teamsGrid) return;
+  if (!refs.teamsGrid) return;
 
-  teamsGrid.innerHTML = "";
-  hide(teamsEmpty);
+  refs.teamsGrid.innerHTML = "";
+  hide(refs.teamsEmpty);
 
   const snap = await getDocs(collection(db, "companies", state.companyId, "teams"));
   const all = snap.docs.map(d => ({ id: d.id, ...d.data() }));
 
-  const q = (teamSearch?.value || "").toLowerCase().trim();
+  const q = (refs.teamSearch?.value || "").toLowerCase().trim();
   const filtered = !q ? all : all.filter(t =>
     (t.name || "").toLowerCase().includes(q) ||
     (t.id || "").toLowerCase().includes(q)
@@ -1122,7 +950,7 @@ async function loadTeams(){
   state.teams = filtered.sort((a,b) => (a.name||"").localeCompare(b.name||""));
 
   if (state.teams.length === 0){
-    show(teamsEmpty);
+    show(refs.teamsEmpty);
     return;
   }
 
@@ -1139,21 +967,21 @@ async function loadTeams(){
     el.addEventListener("click", async () => {
       await openTeamDetailsModal(t.id);
     });
-    teamsGrid.appendChild(el);
+    refs.teamsGrid.appendChild(el);
   }
 }
 
 function closeTeamDetailsModal(){
-  if (!modalTeamDetails) return;
-  modalTeamDetails.hidden = true;
-  clearAlert(teamDetailsAlert);
+  if (!refs.modalTeamDetails) return;
+  refs.modalTeamDetails.hidden = true;
+  clearAlert(refs.teamDetailsAlert);
   state.selectedTeamId = null;
 }
 
 async function loadTeamMembers(teamId){
-  if (!teamDetailsUsersEl) return [];
-  teamDetailsUsersEl.innerHTML = "";
-  hide(teamDetailsEmptyEl);
+  if (!refs.teamDetailsUsersEl) return [];
+  refs.teamDetailsUsersEl.innerHTML = "";
+  hide(refs.teamDetailsEmptyEl);
 
   const q = query(
     collection(db, "companies", state.companyId, "users"),
@@ -1165,7 +993,7 @@ async function loadTeamMembers(teamId){
     .sort((a,b) => (a.name||"").localeCompare(b.name||""));
 
   if (users.length === 0){
-    show(teamDetailsEmptyEl);
+    show(refs.teamDetailsEmptyEl);
     return [];
   }
 
@@ -1196,11 +1024,11 @@ async function loadTeamMembers(teamId){
         if (typeof loadManagerUsers === "function") loadManagerUsers().catch(()=>{});
       }catch(err){
         console.error(err);
-        setAlert(teamDetailsAlert, "Erro ao remover usuário: " + (err?.message || err));
+        setAlert(refs.teamDetailsAlert, "Erro ao remover usuário: " + (err?.message || err));
       }
     });
 
-    teamDetailsUsersEl.appendChild(row);
+    refs.teamDetailsUsersEl.appendChild(row);
   }
 
   return users;
@@ -1225,52 +1053,52 @@ async function removeUserFromTeam(uid, teamId){
 }
 
 async function openTeamDetailsModal(teamId){
-  if (!modalTeamDetails) return;
-  clearAlert(teamDetailsAlert);
-  modalTeamDetails.hidden = false;
+  if (!refs.modalTeamDetails) return;
+  clearAlert(refs.teamDetailsAlert);
+  refs.modalTeamDetails.hidden = false;
   state.selectedTeamId = teamId;
 
   const teamRef = doc(db, "companies", state.companyId, "teams", teamId);
   const teamSnap = await getDoc(teamRef);
   if (!teamSnap.exists()){
-    setAlert(teamDetailsAlert, "Equipe não encontrada.");
+    setAlert(refs.teamDetailsAlert, "Equipe não encontrada.");
     return;
   }
   const team = { id: teamSnap.id, ...teamSnap.data() };
 
-  teamDetailsNameEl.value = team.name || team.id;
-  teamDetailsIdEl.value = team.id;
-  teamDetailsStatusEl.value = (team.active === false) ? "Inativa" : "Ativa";
+  refs.teamDetailsNameEl.value = team.name || team.id;
+  refs.teamDetailsIdEl.value = team.id;
+  refs.teamDetailsStatusEl.value = (team.active === false) ? "Inativa" : "Ativa";
 
-  btnTeamToggleActive.textContent = (team.active === false) ? "Ativar" : "Desativar";
-  btnTeamToggleActive.onclick = async () => {
+  refs.btnTeamToggleActive.textContent = (team.active === false) ? "Ativar" : "Desativar";
+  refs.btnTeamToggleActive.onclick = async () => {
     try{
       const nextActive = !(team.active === false);
       if (!confirm(`Deseja ${nextActive ? "ativar" : "inativar"} a equipe "${team.name}"?`)) return;
       await updateDoc(teamRef, { active: !nextActive });
       await loadTeams();
       await openTeamDetailsModal(teamId);
-      if (!modalCreateUser.hidden) renderTeamChips();
+      if (!refs.modalCreateUser.hidden) renderTeamChips();
     }catch(err){
       console.error(err);
-      setAlert(teamDetailsAlert, "Erro ao atualizar equipe: " + (err?.message || err));
+      setAlert(refs.teamDetailsAlert, "Erro ao atualizar equipe: " + (err?.message || err));
     }
   };
 
   const members = await loadTeamMembers(teamId);
 
-  btnTeamDelete.disabled = members.length > 0;
-  btnTeamDelete.onclick = async () => {
+  refs.btnTeamDelete.disabled = members.length > 0;
+  refs.btnTeamDelete.onclick = async () => {
     if (members.length > 0) return;
     if (!confirm(`Excluir definitivamente a equipe "${team.name}"?`)) return;
     try{
       await deleteDoc(teamRef);
       closeTeamDetailsModal();
       await loadTeams();
-      if (!modalCreateUser.hidden) renderTeamChips();
+      if (!refs.modalCreateUser.hidden) renderTeamChips();
     }catch(err){
       console.error(err);
-      setAlert(teamDetailsAlert, "Erro ao excluir equipe: " + (err?.message || err));
+      setAlert(refs.teamDetailsAlert, "Erro ao excluir equipe: " + (err?.message || err));
     }
   };
 }
@@ -1300,33 +1128,33 @@ async function getNextTeamId(){
 }
 
 function openCreateTeamModal(){
-  if (!modalCreateTeam) return;
-  clearAlert(createTeamAlert);
-  modalCreateTeam.hidden = false;
+  if (!refs.modalCreateTeam) return;
+  clearAlert(refs.createTeamAlert);
+  refs.modalCreateTeam.hidden = false;
 
   // Não pedir ID manual (gerar #1, #2, ...)
   try{
-    const idLabel = teamIdEl?.closest("label");
+    const idLabel = refs.teamIdEl?.closest("label");
     if (idLabel) idLabel.style.display = "none";
   }catch(_){}
 
-  teamNameEl.value = "";
-  teamIdEl.value = "";
+  refs.teamNameEl.value = "";
+  refs.teamIdEl.value = "";
 
   getNextTeamId()
-    .then(id => { teamIdEl.value = id; })
-    .catch(() => { teamIdEl.value = ""; });
+    .then(id => { refs.teamIdEl.value = id; })
+    .catch(() => { refs.teamIdEl.value = ""; });
 }
 
-function closeCreateTeamModal(){ if (modalCreateTeam) modalCreateTeam.hidden = true; }
+function closeCreateTeamModal(){ if (refs.modalCreateTeam) refs.modalCreateTeam.hidden = true; }
 
  async function createTeam(){
-  clearAlert(createTeamAlert);
+  clearAlert(refs.createTeamAlert);
 
-  const name = (teamNameEl.value || "").trim();
-  if (!name) return setAlert(createTeamAlert, "Informe o nome da equipe.");
+  const name = (refs.teamNameEl.value || "").trim();
+  if (!name) return setAlert(refs.createTeamAlert, "Informe o nome da equipe.");
 
-  setAlert(createTeamAlert, "Salvando...", "info");
+  setAlert(refs.createTeamAlert, "Salvando...", "info");
 
   const teamId = await getNextTeamId();
 
@@ -1346,28 +1174,28 @@ function closeCreateTeamModal(){ if (modalCreateTeam) modalCreateTeam.hidden = t
  *  9) ADMIN (EMPRESA): USERS
  *  ========================= */
 async function loadUsers(){
-  if (!usersTbody) return;
+  if (!refs.usersTbody) return;
 
-  usersTbody.innerHTML = "";
-  hide(usersEmpty);
+  refs.usersTbody.innerHTML = "";
+  hide(refs.usersEmpty);
 
   const snap = await getDocs(collection(db, "companies", state.companyId, "users"));
   const all = snap.docs.map(d => ({ uid: d.id, ...d.data() }));
 
-  const q = (userSearch?.value || "").toLowerCase().trim();
+  const q = (refs.userSearch?.value || "").toLowerCase().trim();
 
   state._usersCache = all;
 
   const filtered = all.filter(u => {
     const text = `${u.uid} ${u.name||""} ${u.email||""} ${u.phone||""}`.toLowerCase();
     const okQ = !q || text.includes(q);
-    const roleFilter = (userRoleFilter?.value || "").trim();
+    const roleFilter = (refs.userRoleFilter?.value || "").trim();
     const okRole = !roleFilter || (u.role === roleFilter);
     return okQ && okRole;
   }).sort((a,b) => (a.name||"").localeCompare(b.name||""));
 
   if (filtered.length === 0){
-    show(usersEmpty);
+    show(refs.usersEmpty);
     return;
   }
 
@@ -1412,27 +1240,27 @@ async function loadUsers(){
         openManagedTeamsModal(u.uid, u.name);
       });
     }
-    usersTbody.appendChild(tr);
+    refs.usersTbody.appendChild(tr);
   }
 }
 
 function openCreateUserModal(){
-  if (!modalCreateUser) return;
-  clearAlert(createUserAlert);
-  modalCreateUser.hidden = false;
+  if (!refs.modalCreateUser) return;
+  clearAlert(refs.createUserAlert);
+  refs.modalCreateUser.hidden = false;
 
   // Não pedir UID manualmente (vamos criar no Auth via secondaryAuth)
   try{
-    const uidLabel = newUserUidEl?.closest("label");
+    const uidLabel = refs.newUserUidEl?.closest("label");
     if (uidLabel) uidLabel.style.display = "none";
   }catch(_){}
 
-  newUserUidEl.value = "";
-  newUserNameEl.value = "";
-  newUserRoleEl.value = "tecnico";
-  newUserEmailEl.value = "";
-  newUserPhoneEl.value = "";
-  newUserActiveEl.value = "true";
+  refs.newUserUidEl.value = "";
+  refs.newUserNameEl.value = "";
+  refs.newUserRoleEl.value = "tecnico";
+  refs.newUserEmailEl.value = "";
+  refs.newUserPhoneEl.value = "";
+  refs.newUserActiveEl.value = "true";
 
   state.selectedTeamIds = [];
 
@@ -1442,11 +1270,11 @@ function openCreateUserModal(){
     .catch(() => renderTeamChips());
 }
 
-function closeCreateUserModal(){ if (modalCreateUser) modalCreateUser.hidden = true; }
+function closeCreateUserModal(){ if (refs.modalCreateUser) refs.modalCreateUser.hidden = true; }
 
 function renderTeamChips(){
-  if (!teamChipsEl) return;
-  teamChipsEl.innerHTML = "";
+  if (!refs.teamChipsEl) return;
+  refs.teamChipsEl.innerHTML = "";
 
   const activeTeams = (state.teams || []).filter(t => t.active !== false);
 
@@ -1455,7 +1283,7 @@ function renderTeamChips(){
     hint.className = "muted";
     hint.style.fontSize = "13px";
     hint.textContent = "Crie pelo menos 1 equipe para selecionar aqui.";
-    teamChipsEl.appendChild(hint);
+    refs.teamChipsEl.appendChild(hint);
     return;
   }
 
@@ -1471,34 +1299,34 @@ function renderTeamChips(){
       renderTeamChips();
     });
 
-    teamChipsEl.appendChild(chip);
+    refs.teamChipsEl.appendChild(chip);
   }
 }
 
 async function createUser(){
-  clearAlert(createUserAlert);
+  clearAlert(refs.createUserAlert);
 
-  let uid = (newUserUidEl?.value || "").trim();
-  const name = (newUserNameEl?.value || "").trim();
-  const role = (newUserRoleEl?.value || "").trim();
-  const email = (newUserEmailEl?.value || "").trim();
-  const phone = normalizePhone(newUserPhoneEl?.value || "");
-  const active = (newUserActiveEl?.value || "true") === "true";
+  let uid = (refs.newUserUidEl?.value || "").trim();
+  const name = (refs.newUserNameEl?.value || "").trim();
+  const role = (refs.newUserRoleEl?.value || "").trim();
+  const email = (refs.newUserEmailEl?.value || "").trim();
+  const phone = normalizePhone(refs.newUserPhoneEl?.value || "");
+  const active = (refs.newUserActiveEl?.value || "true") === "true";
   const teamIds = Array.from(new Set(state.selectedTeamIds || []));
 
   // UID agora é opcional (se vazio, criamos automaticamente no Auth via Cloud Function)
   const wantsAutoAuth = !uid;
 
-  if (!name) return setAlert(createUserAlert, "Informe o nome do usuário.");
-  if (!role) return setAlert(createUserAlert, "Selecione a função.");
-  if (!email || !isEmailValidBasic(email)) return setAlert(createUserAlert, "Informe um e-mail válido.");
+  if (!name) return setAlert(refs.createUserAlert, "Informe o nome do usuário.");
+  if (!role) return setAlert(refs.createUserAlert, "Selecione a função.");
+  if (!email || !isEmailValidBasic(email)) return setAlert(refs.createUserAlert, "Informe um e-mail válido.");
 
   // Regra: Admin pode ficar sem equipe; os demais precisam de pelo menos 1 equipe
   if (role !== "admin" && teamIds.length === 0){
-    return setAlert(createUserAlert, "Selecione pelo menos 1 equipe para este usuário.");
+    return setAlert(refs.createUserAlert, "Selecione pelo menos 1 equipe para este usuário.");
   }
 
-  setAlert(createUserAlert, "Salvando...", "info");
+  setAlert(refs.createUserAlert, "Salvando...", "info");
 
   try{
     if (wantsAutoAuth){
@@ -1565,7 +1393,7 @@ return;
 
   }catch(err){
     console.error(err);
-    setAlert(createUserAlert, "Erro ao salvar: " + (err?.message || err));
+    setAlert(refs.createUserAlert, "Erro ao salvar: " + (err?.message || err));
   }
 }
 
@@ -1586,9 +1414,9 @@ function getManagedTeamIds(){
 }
 
 function populateMgrTeamFilter(){
-  if (!mgrTeamFilter) return;
+  if (!refs.mgrTeamFilter) return;
   const managedIds = getManagedTeamIds();
-  mgrTeamFilter.innerHTML = '<option value="">Todas as minhas equipes</option>';
+  refs.mgrTeamFilter.innerHTML = '<option value="">Todas as minhas equipes</option>';
 
   const activeManagedTeams = (state.teams || [])
     .filter(t => t.active !== false && managedIds.includes(t.id))
@@ -1598,15 +1426,15 @@ function populateMgrTeamFilter(){
     const opt = document.createElement("option");
     opt.value = t.id;
     opt.textContent = t.name || t.id;
-    mgrTeamFilter.appendChild(opt);
+    refs.mgrTeamFilter.appendChild(opt);
   }
 }
 
 async function loadManagerUsers(){
-  if (!mgrUsersTbody) return;
+  if (!refs.mgrUsersTbody) return;
 
-  mgrUsersTbody.innerHTML = "";
-  hide(mgrUsersEmpty);
+  refs.mgrUsersTbody.innerHTML = "";
+  hide(refs.mgrUsersEmpty);
 
   const managedIds = getManagedTeamIds();
   populateMgrTeamFilter();
@@ -1614,8 +1442,8 @@ async function loadManagerUsers(){
   const snap = await getDocs(collection(db, "companies", state.companyId, "users"));
   const all = snap.docs.map(d => ({ uid: d.id, ...d.data() }));
 
-  const q = (mgrUserSearch?.value || "").toLowerCase().trim();
-  const teamFilter = (mgrTeamFilter?.value || "").trim();
+  const q = (refs.mgrUserSearch?.value || "").toLowerCase().trim();
+  const teamFilter = (refs.mgrTeamFilter?.value || "").trim();
 
   const filtered = all.filter(u => {
     if (u.role !== "tecnico") return false;
@@ -1631,7 +1459,7 @@ async function loadManagerUsers(){
   }).sort((a,b)=> (a.name||"").localeCompare(b.name||""));
 
   if (filtered.length === 0){
-    show(mgrUsersEmpty);
+    show(refs.mgrUsersEmpty);
     return;
   }
 
@@ -1666,26 +1494,26 @@ async function loadManagerUsers(){
       await loadManagerUsers();
     });
 
-    mgrUsersTbody.appendChild(tr);
+    refs.mgrUsersTbody.appendChild(tr);
   }
 }
 
 function openCreateTechModal(){
-  if (!modalCreateTech) return;
-  clearAlert(createTechAlert);
-  modalCreateTech.hidden = false;
+  if (!refs.modalCreateTech) return;
+  clearAlert(refs.createTechAlert);
+  refs.modalCreateTech.hidden = false;
 
   // Não pedir UID manualmente (vamos criar no Auth via secondaryAuth)
   try{
-    const uidLabel = techUidEl?.closest("label");
+    const uidLabel = refs.techUidEl?.closest("label");
     if (uidLabel) uidLabel.style.display = "none";
   }catch(_){}
 
-  techUidEl.value = "";
-  techNameEl.value = "";
-  techEmailEl.value = "";
-  techPhoneEl.value = "";
-  techActiveEl.value = "true";
+  refs.techUidEl.value = "";
+  refs.techNameEl.value = "";
+  refs.techEmailEl.value = "";
+  refs.techPhoneEl.value = "";
+  refs.techActiveEl.value = "true";
 
   state.mgrSelectedTeamIds = [];
   ensureManagedTeamsForChips()
@@ -1693,11 +1521,11 @@ function openCreateTechModal(){
     .catch(() => renderMgrTeamChips());
 }
 
-function closeCreateTechModal(){ if (modalCreateTech) modalCreateTech.hidden = true; }
+function closeCreateTechModal(){ if (refs.modalCreateTech) refs.modalCreateTech.hidden = true; }
 
 function renderMgrTeamChips(){
-  if (!mgrTeamChipsEl) return;
-  mgrTeamChipsEl.innerHTML = "";
+  if (!refs.mgrTeamChipsEl) return;
+  refs.mgrTeamChipsEl.innerHTML = "";
 
   const managedIds = getManagedTeamIds();
   const teams = (state.teams || [])
@@ -1709,7 +1537,7 @@ function renderMgrTeamChips(){
     hint.className = "muted";
     hint.style.fontSize = "13px";
     hint.textContent = "Nenhuma equipe administrada encontrada. Peça ao Admin da empresa para definir suas equipes administradas.";
-    mgrTeamChipsEl.appendChild(hint);
+    refs.mgrTeamChipsEl.appendChild(hint);
     return;
   }
 
@@ -1725,32 +1553,32 @@ function renderMgrTeamChips(){
       renderMgrTeamChips();
     });
 
-    mgrTeamChipsEl.appendChild(chip);
+    refs.mgrTeamChipsEl.appendChild(chip);
   }
 }
 
 async function createTech(){
-  clearAlert(createTechAlert);
+  clearAlert(refs.createTechAlert);
 
-  let uid = (techUidEl.value || "").trim();
-  const name = (techNameEl.value || "").trim();
-  const email = (techEmailEl.value || "").trim();
-  const phone = normalizePhone(techPhoneEl.value || "");
-  const active = (techActiveEl.value || "true") === "true";
+  let uid = (refs.techUidEl.value || "").trim();
+  const name = (refs.techNameEl.value || "").trim();
+  const email = (refs.techEmailEl.value || "").trim();
+  const phone = normalizePhone(refs.techPhoneEl.value || "");
+  const active = (refs.techActiveEl.value || "true") === "true";
   const teamIds = Array.from(new Set(state.mgrSelectedTeamIds || []));
 
   // UID agora é opcional (se vazio, criamos automaticamente no Auth via Cloud Function)
   const wantsAutoAuth = !uid;
-  if (!name) return setAlert(createTechAlert, "Informe o nome do técnico.");
-  if (!email || !isEmailValidBasic(email)) return setAlert(createTechAlert, "Informe um e-mail válido.");
-  if (teamIds.length === 0) return setAlert(createTechAlert, "Selecione pelo menos 1 equipe.");
+  if (!name) return setAlert(refs.createTechAlert, "Informe o nome do técnico.");
+  if (!email || !isEmailValidBasic(email)) return setAlert(refs.createTechAlert, "Informe um e-mail válido.");
+  if (teamIds.length === 0) return setAlert(refs.createTechAlert, "Selecione pelo menos 1 equipe.");
 
   const managedIds = new Set(getManagedTeamIds());
   if (teamIds.some(t => !managedIds.has(t))){
-    return setAlert(createTechAlert, "Você selecionou uma equipe fora do seu escopo de gestão.");
+    return setAlert(refs.createTechAlert, "Você selecionou uma equipe fora do seu escopo de gestão.");
   }
 
-  setAlert(createTechAlert, "Salvando...", "info");
+  setAlert(refs.createTechAlert, "Salvando...", "info");
 
   if (wantsAutoAuth) {
     const data = await createUserWithAuthAndResetLink({
@@ -1768,7 +1596,7 @@ async function createTech(){
 
     closeCreateTechModal();
     await loadManagerUsers();
-    setAlertWithResetLink(createTechAlert, "Técnico criado com sucesso!", email, data.resetLink);
+    setAlertWithResetLink(refs.createTechAlert, "Técnico criado com sucesso!", email, data.resetLink);
     return;
   }
   await setDoc(doc(db, "companies", state.companyId, "users", uid), {
@@ -1791,14 +1619,14 @@ async function createTech(){
  *  9.6) ADMIN: DEFINIR EQUIPES ADMINISTRADAS (GESTOR)
  *  ========================= */
 function openManagedTeamsModal(targetUid, targetName){
-  if (!modalManagedTeams) return;
-  clearAlert(managedTeamsAlert);
-  modalManagedTeams.hidden = false;
+  if (!refs.modalManagedTeams) return;
+  clearAlert(refs.managedTeamsAlert);
+  refs.modalManagedTeams.hidden = false;
 
   state.managedTeamsTargetUid = targetUid;
 
   const title = targetName ? `Gestor: ${targetName}` : "Gestor";
-  if (managedTeamsSubtitle) managedTeamsSubtitle.textContent = `${title} • selecione as equipes administradas`;
+  if (refs.managedTeamsSubtitle) refs.managedTeamsSubtitle.textContent = `${title} • selecione as equipes administradas`;
 
   const row = (state._usersCache || []).find(u => u.uid === targetUid);
   const current = Array.isArray(row?.managedTeamIds) ? row.managedTeamIds : [];
@@ -1807,11 +1635,11 @@ function openManagedTeamsModal(targetUid, targetName){
   renderManagedTeamsChips();
 }
 
-function closeManagedTeamsModal(){ if (modalManagedTeams) modalManagedTeams.hidden = true; }
+function closeManagedTeamsModal(){ if (refs.modalManagedTeams) refs.modalManagedTeams.hidden = true; }
 
 function renderManagedTeamsChips(){
-  if (!managedTeamsChips) return;
-  managedTeamsChips.innerHTML = "";
+  if (!refs.managedTeamsChips) return;
+  refs.managedTeamsChips.innerHTML = "";
 
   const activeTeams = (state.teams || [])
     .filter(t => t.active !== false)
@@ -1822,7 +1650,7 @@ function renderManagedTeamsChips(){
     hint.className = "muted";
     hint.style.fontSize = "13px";
     hint.textContent = "Crie equipes antes de definir equipes administradas.";
-    managedTeamsChips.appendChild(hint);
+    refs.managedTeamsChips.appendChild(hint);
     return;
   }
 
@@ -1838,18 +1666,18 @@ function renderManagedTeamsChips(){
       renderManagedTeamsChips();
     });
 
-    managedTeamsChips.appendChild(chip);
+    refs.managedTeamsChips.appendChild(chip);
   }
 }
 
 async function saveManagedTeams(){
-  clearAlert(managedTeamsAlert);
+  clearAlert(refs.managedTeamsAlert);
 
   const targetUid = state.managedTeamsTargetUid;
-  if (!targetUid) return setAlert(managedTeamsAlert, "UID alvo inválido.");
+  if (!targetUid) return setAlert(refs.managedTeamsAlert, "UID alvo inválido.");
 
   const managedTeamIds = Array.from(new Set(state.managedTeamsSelected || []));
-  setAlert(managedTeamsAlert, "Salvando...", "info");
+  setAlert(refs.managedTeamsAlert, "Salvando...", "info");
 
   await updateDoc(doc(db, "companies", state.companyId, "users", targetUid), {
     managedTeamIds
@@ -1866,7 +1694,7 @@ async function saveManagedTeams(){
 initUserMenu();
 
 onAuthStateChanged(auth, async (user) => {
-  clearAlert(loginAlert);
+  clearAlert(refs.loginAlert);
 
   state.companyId = null;
   state.profile = null;
@@ -1893,7 +1721,7 @@ onAuthStateChanged(auth, async (user) => {
   const companyId = await fetchCompanyIdForUser(user.uid);
   if (!companyId){
     setView("login");
-    setAlert(loginAlert, "Seu usuário não está vinculado a nenhuma empresa. Peça ao admin para configurar.");
+    setAlert(refs.loginAlert, "Seu usuário não está vinculado a nenhuma empresa. Peça ao admin para configurar.");
     await signOut(auth);
     return;
   }
@@ -1901,14 +1729,14 @@ onAuthStateChanged(auth, async (user) => {
   const profile = await fetchCompanyUserProfile(companyId, user.uid);
   if (!profile){
     setView("login");
-    setAlert(loginAlert, "Seu perfil não foi encontrado dentro da empresa. Peça ao admin para criar.");
+    setAlert(refs.loginAlert, "Seu perfil não foi encontrado dentro da empresa. Peça ao admin para criar.");
     await signOut(auth);
     return;
   }
 
   if (profile.active === false){
     setView("login");
-    setAlert(loginAlert, "Usuário bloqueado. Fale com o administrador.");
+    setAlert(refs.loginAlert, "Usuário bloqueado. Fale com o administrador.");
     await signOut(auth);
     return;
   }
@@ -1924,168 +1752,168 @@ onAuthStateChanged(auth, async (user) => {
 /** =========================
  *  11) EVENTOS
  *  ========================= */
-loginForm?.addEventListener("submit", async (e) => {
+refs.loginForm?.addEventListener("submit", async (e) => {
   e.preventDefault();
-  clearAlert(loginAlert);
+  clearAlert(refs.loginAlert);
 
-  const email = (emailEl?.value || "").trim();
-  const password = passwordEl?.value || "";
+  const email = (refs.emailEl?.value || "").trim();
+  const password = refs.passwordEl?.value || "";
 
   if (!email || !password){
-    setAlert(loginAlert, "Preencha e-mail e senha.");
+    setAlert(refs.loginAlert, "Preencha e-mail e senha.");
     return;
   }
 
   try {
     await signInWithEmailAndPassword(auth, email, password);
   } catch (err) {
-    setAlert(loginAlert, mapAuthError(err));
+    setAlert(refs.loginAlert, mapAuthError(err));
   }
 });
 
-btnForgot?.addEventListener("click", async () => {
-  clearAlert(loginAlert);
-  const email = (emailEl?.value || "").trim();
-  if (!email) return setAlert(loginAlert, "Digite seu e-mail para redefinir a senha.");
+refs.btnForgot?.addEventListener("click", async () => {
+  clearAlert(refs.loginAlert);
+  const email = (refs.emailEl?.value || "").trim();
+  if (!email) return setAlert(refs.loginAlert, "Digite seu e-mail para redefinir a senha.");
 
   try {
     await sendPasswordResetEmail(auth, email);
-    setAlert(loginAlert, "Link de redefinição enviado para seu e-mail.", "info");
+    setAlert(refs.loginAlert, "Link de redefinição enviado para seu e-mail.", "info");
   } catch (err) {
-    setAlert(loginAlert, mapAuthError(err));
+    setAlert(refs.loginAlert, mapAuthError(err));
   }
 });
 
-navLogout?.addEventListener("click", async (e) => {
+refs.navLogout?.addEventListener("click", async (e) => {
   e?.preventDefault?.();
   await signOut(auth);
 });
 // Dashboard navigation
-btnBackToDashboard?.addEventListener("click", () => setView("dashboard"));
-btnBackFromAdmin?.addEventListener("click", () => setView("dashboard"));
+refs.btnBackToDashboard?.addEventListener("click", () => setView("dashboard"));
+refs.btnBackFromAdmin?.addEventListener("click", () => setView("dashboard"));
 
 // Gestor Users view
-btnBackFromManagerUsers?.addEventListener("click", () => setView("dashboard"));
-btnReloadMgrUsers?.addEventListener("click", () => loadManagerUsers());
-mgrUserSearch?.addEventListener("input", () => loadManagerUsers());
-mgrTeamFilter?.addEventListener("change", () => loadManagerUsers());
-btnOpenCreateTech?.addEventListener("click", async () => {
+refs.btnBackFromManagerUsers?.addEventListener("click", () => setView("dashboard"));
+refs.btnReloadMgrUsers?.addEventListener("click", () => loadManagerUsers());
+refs.mgrUserSearch?.addEventListener("input", () => loadManagerUsers());
+refs.mgrTeamFilter?.addEventListener("change", () => loadManagerUsers());
+refs.btnOpenCreateTech?.addEventListener("click", async () => {
   await loadTeams();
   openCreateTechModal();
 });
 
 // Modal técnico
-btnCloseCreateTech?.addEventListener("click", () => closeCreateTechModal());
-btnCancelCreateTech?.addEventListener("click", () => closeCreateTechModal());
-btnCreateTech?.addEventListener("click", () => {
+refs.btnCloseCreateTech?.addEventListener("click", () => closeCreateTechModal());
+refs.btnCancelCreateTech?.addEventListener("click", () => closeCreateTechModal());
+refs.btnCreateTech?.addEventListener("click", () => {
   createTech().catch(err => {
     console.error(err);
-    setAlert(createTechAlert, "Erro ao salvar: " + (err?.message || err));
+    setAlert(refs.createTechAlert, "Erro ao salvar: " + (err?.message || err));
   });
 });
-modalCreateTech?.addEventListener("click", (e) => {
+refs.modalCreateTech?.addEventListener("click", (e) => {
   if (e.target?.dataset?.close === "true") closeCreateTechModal();
 });
 
 // Modal equipes administradas
-btnCloseManagedTeams?.addEventListener("click", () => closeManagedTeamsModal());
-btnCancelManagedTeams?.addEventListener("click", () => closeManagedTeamsModal());
-btnSaveManagedTeams?.addEventListener("click", () => {
+refs.btnCloseManagedTeams?.addEventListener("click", () => closeManagedTeamsModal());
+refs.btnCancelManagedTeams?.addEventListener("click", () => closeManagedTeamsModal());
+refs.btnSaveManagedTeams?.addEventListener("click", () => {
   saveManagedTeams().catch(err => {
     console.error(err);
-    setAlert(managedTeamsAlert, "Erro ao salvar: " + (err?.message || err));
+    setAlert(refs.managedTeamsAlert, "Erro ao salvar: " + (err?.message || err));
   });
 });
-modalManagedTeams?.addEventListener("click", (e) => {
+refs.modalManagedTeams?.addEventListener("click", (e) => {
   if (e.target?.dataset?.close === "true") closeManagedTeamsModal();
 });
 
 // Companies events
-btnReloadCompanies?.addEventListener("click", () => loadCompanies());
-companySearch?.addEventListener("input", () => loadCompanies());
-btnOpenCreateCompany?.addEventListener("click", () => openCreateCompanyModal());
+refs.btnReloadCompanies?.addEventListener("click", () => loadCompanies());
+refs.companySearch?.addEventListener("input", () => loadCompanies());
+refs.btnOpenCreateCompany?.addEventListener("click", () => openCreateCompanyModal());
 
-companyNameEl?.addEventListener("input", () => {
-  const slug = slugify(companyNameEl.value);
-  if (!companyIdEl.value.trim() || companyIdEl.dataset.auto !== "false"){
-    companyIdEl.value = slug;
-    companyIdEl.dataset.auto = "true";
+refs.companyNameEl?.addEventListener("input", () => {
+  const slug = slugify(refs.companyNameEl.value);
+  if (!refs.companyIdEl.value.trim() || refs.companyIdEl.dataset.auto !== "false"){
+    refs.companyIdEl.value = slug;
+    refs.companyIdEl.dataset.auto = "true";
   }
 });
-companyIdEl?.addEventListener("input", () => {
-  companyIdEl.dataset.auto = "false";
+refs.companyIdEl?.addEventListener("input", () => {
+  refs.companyIdEl.dataset.auto = "false";
 });
 
-btnCloseCreateCompany?.addEventListener("click", () => closeCreateCompanyModal());
-btnCancelCreateCompany?.addEventListener("click", () => closeCreateCompanyModal());
-btnCreateCompany?.addEventListener("click", () => {
+refs.btnCloseCreateCompany?.addEventListener("click", () => closeCreateCompanyModal());
+refs.btnCancelCreateCompany?.addEventListener("click", () => closeCreateCompanyModal());
+refs.btnCreateCompany?.addEventListener("click", () => {
   createCompany().catch(err => {
     console.error(err);
-    setAlert(createCompanyAlert, "Erro ao salvar: " + (err?.message || err));
+    setAlert(refs.createCompanyAlert, "Erro ao salvar: " + (err?.message || err));
   });
 });
 
-modalCreateCompany?.addEventListener("click", (e) => {
+refs.modalCreateCompany?.addEventListener("click", (e) => {
   if (e.target?.dataset?.close === "true") closeCreateCompanyModal();
 });
 
-modalCompanyDetail?.addEventListener("click", (e) => {
+refs.modalCompanyDetail?.addEventListener("click", (e) => {
   if (e.target?.dataset?.close === "true") closeCompanyDetailModal();
 });
 
 // Teams events
-btnReloadTeams?.addEventListener("click", () => loadTeams());
-teamSearch?.addEventListener("input", () => loadTeams());
-btnOpenCreateTeam?.addEventListener("click", () => openCreateTeamModal());
+refs.btnReloadTeams?.addEventListener("click", () => loadTeams());
+refs.teamSearch?.addEventListener("input", () => loadTeams());
+refs.btnOpenCreateTeam?.addEventListener("click", () => openCreateTeamModal());
 
-teamNameEl?.addEventListener("input", () => {
-  const slug = slugify(teamNameEl.value);
-  if (!teamIdEl.value.trim() || teamIdEl.dataset.auto !== "false"){
-    teamIdEl.value = slug;
-    teamIdEl.dataset.auto = "true";
+refs.teamNameEl?.addEventListener("input", () => {
+  const slug = slugify(refs.teamNameEl.value);
+  if (!refs.teamIdEl.value.trim() || refs.teamIdEl.dataset.auto !== "false"){
+    refs.teamIdEl.value = slug;
+    refs.teamIdEl.dataset.auto = "true";
   }
 });
-teamIdEl?.addEventListener("input", () => {
-  teamIdEl.dataset.auto = "false";
+refs.teamIdEl?.addEventListener("input", () => {
+  refs.teamIdEl.dataset.auto = "false";
 });
 
-btnCloseCreateTeam?.addEventListener("click", () => closeCreateTeamModal());
-btnCancelCreateTeam?.addEventListener("click", () => closeCreateTeamModal());
-btnCreateTeam?.addEventListener("click", () => {
+refs.btnCloseCreateTeam?.addEventListener("click", () => closeCreateTeamModal());
+refs.btnCancelCreateTeam?.addEventListener("click", () => closeCreateTeamModal());
+refs.btnCreateTeam?.addEventListener("click", () => {
   createTeam().catch(err => {
     console.error(err);
-    setAlert(createTeamAlert, "Erro ao salvar: " + (err?.message || err));
+    setAlert(refs.createTeamAlert, "Erro ao salvar: " + (err?.message || err));
   });
 });
 
-modalCreateTeam?.addEventListener("click", (e) => {
+refs.modalCreateTeam?.addEventListener("click", (e) => {
   if (e.target?.dataset?.close === "true") closeCreateTeamModal();
 });
 
 // Users events
-btnReloadUsers?.addEventListener("click", () => loadUsers());
-userSearch?.addEventListener("input", () => loadUsers());
-userRoleFilter?.addEventListener("change", () => { loadUsers(); });
-btnOpenCreateUser?.addEventListener("click", async () => {
+refs.btnReloadUsers?.addEventListener("click", () => loadUsers());
+refs.userSearch?.addEventListener("input", () => loadUsers());
+refs.userRoleFilter?.addEventListener("change", () => { loadUsers(); });
+refs.btnOpenCreateUser?.addEventListener("click", async () => {
   // garante que as equipes estão carregadas antes de abrir
   await loadTeams();
   openCreateUserModal();
 });
 
-btnCloseCreateUser?.addEventListener("click", () => closeCreateUserModal());
-btnCancelCreateUser?.addEventListener("click", () => closeCreateUserModal());
-btnCreateUser?.addEventListener("click", () => {
+refs.btnCloseCreateUser?.addEventListener("click", () => closeCreateUserModal());
+refs.btnCancelCreateUser?.addEventListener("click", () => closeCreateUserModal());
+refs.btnCreateUser?.addEventListener("click", () => {
   createUser().catch(err => {
     console.error(err);
-    setAlert(createUserAlert, "Erro ao salvar: " + (err?.message || err));
+    setAlert(refs.createUserAlert, "Erro ao salvar: " + (err?.message || err));
   });
 });
 
-modalCreateUser?.addEventListener("click", (e) => {
+refs.modalCreateUser?.addEventListener("click", (e) => {
   if (e.target?.dataset?.close === "true") closeCreateUserModal();
 });
 
-btnCloseCompanyDetail?.addEventListener("click", () => closeCompanyDetailModal());
+refs.btnCloseCompanyDetail?.addEventListener("click", () => closeCompanyDetailModal());
 
 /** =========================
  *  12) ERROS FRIENDLY
