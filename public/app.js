@@ -1256,6 +1256,19 @@ refs.modalCreateTeam?.addEventListener("click", (e) => {
   if (e.target?.dataset?.close === "true") closeCreateTeamModal();
 });
 
+// Team Details modal events
+refs.btnCloseTeamDetails?.addEventListener("click", () => {
+  if (refs.modalTeamDetails) refs.modalTeamDetails.hidden = true;
+});
+refs.btnCancelTeamDetails?.addEventListener("click", () => {
+  if (refs.modalTeamDetails) refs.modalTeamDetails.hidden = true;
+});
+refs.modalTeamDetails?.addEventListener("click", (e) => {
+  if (e.target?.dataset?.close === "true") {
+    refs.modalTeamDetails.hidden = true;
+  }
+});
+
 // Users events
 refs.btnReloadUsers?.addEventListener("click", () => loadUsers());
 refs.userSearch?.addEventListener("input", () => loadUsers());

@@ -709,13 +709,14 @@
 
 <!-- MODAL: DETALHES DA EQUIPE -->
 <div class="modal" hidden id="modalTeamDetails">
+  <div class="modal-backdrop" data-close="true"></div>
   <div class="modal-card wide">
-    <div class="modal-head">
+    <div class="modal-header">
       <div>
-        <h2 style="margin:0;">Equipe</h2>
-        <p class="muted" style="margin:4px 0 0 0;">Veja os usuários vinculados e gerencie a equipe.</p>
+        <h2>Equipe</h2>
+        <p class="muted">Veja os usuários vinculados e gerencie a equipe.</p>
       </div>
-      <button class="icon-btn" id="btnCloseTeamDetails" title="Fechar">×</button>
+      <button class="btn ghost" id="btnCloseTeamDetails">✕</button>
     </div>
 
     <div class="modal-body">
@@ -754,14 +755,10 @@
       <div class="alert" hidden id="teamDetailsAlert" style="margin-top:12px;"></div>
     </div>
 
-    <div class="modal-foot">
-      <div style="display:flex; gap:10px; flex-wrap:wrap;">
-        <button class="btn" id="btnTeamToggleActive">Desativar</button>
-        <button class="btn danger" id="btnTeamDelete" disabled>Excluir equipe</button>
-      </div>
-      <div style="display:flex; gap:10px;">
-        <button class="btn" id="btnCancelTeamDetails">Fechar</button>
-      </div>
+    <div class="modal-footer">
+      <button class="btn" id="btnTeamToggleActive">Desativar</button>
+      <button class="btn danger" id="btnTeamDelete" disabled>Excluir equipe</button>
+      <button class="btn" id="btnCancelTeamDetails">Fechar</button>
     </div>
   </div>
 </div>
