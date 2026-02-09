@@ -96,7 +96,7 @@ export async function loadUsers(deps) {
       <td><span class="badge small">${statusLabel}</span></td>
       <td>
         <div class="action-row">
-          <button class="btn sm" data-act="toggle">${u.active === false ? "Ativar" : "Inativar"}</button>${u.role === "gestor" ? `<button class="btn sm link" data-act="managed">Equipes</button>` : ""}
+          <button class="btn sm" data-act="toggle">${u.active === false ? "Ativar" : "Inativar"}</button>${u.role === "gestor" ? `<button class="btn sm link" data-act="managed">Equipes gerenciadas</button>` : ""}${u.role !== "admin" ? `<button class="btn sm link" data-act="edit-teams">Equipes</button>` : ""}
         </div>
       </td>
     `;
@@ -301,5 +301,108 @@ export async function createUser(deps) {
     } else {
       setAlert(refs.createUserAlert, "Erro ao salvar: " + (err?.message || err));
     }
+  }
+}
+
+/**
+ * Abrir modal para editar equipes do usuário
+ */
+export function openEditUserTeamsModal(uid, userName, currentTeamIds, deps) {
+  const { refs, state } = deps;
+  
+  if (!refs.modalEditUserTeams) return;
+  
+  // Armazenar dados do usuário sendo editado
+  state.editingUserUid = uid;
+  state.editingUserTeamIds = [...(currentTeamIds || [])];
+  
+  // Atualizar título
+  if (refs.editUserTeamsTitle) {
+    refs.editUserTeamsTitle.textContent = `Selecione as equipes para ${userName}`;
+  }
+  
+  // Limpar alert
+  if (refs.editUserTeamsAlert) {
+    refs.editUserTeamsAlert.hidden = true;
+    refs.editUserTeamsAlert.textContent = "";
+  }
+  
+  // Renderizar chips de equipes
+  renderEditUserTeamsChips(deps);
+  
+  refs.modalEditUserTeams.hidden = false;
+}
+
+/**
+ * Renderizar chips de equipes no modal de edição
+ */
+function renderEditUserTeamsChips(deps) {
+  const { refs, state } = deps;
+  
+  if (!refs.editUserTeamsChips) return;
+  
+  refs.editUserTeamsChips.innerHTML = "";
+  
+  const teams = state.teams || [];
+  const selectedIds = state.editingUserTeamIds || [];
+  
+  if (teams.length === 0) {
+    refs.editUserTeamsChips.innerHTML = '<p class="muted">Nenhuma equipe cadastrada.</p>';
+    return;
+  }
+  
+  teams.forEach(team => {
+    const isSelected = selectedIds.includes(team.id);
+    
+    const chip = document.createElement("button");
+    chip.className = `chip ${isSelected ? "selected" : ""}`;
+    chip.textContent = team.name;
+    chip.type = "button";
+    
+    chip.addEventListener("click", () => {
+      const index = state.editingUserTeamIds.indexOf(team.id);
+      if (index > -1) {
+        state.editingUserTeamIds.splice(index, 1);
+      } else {
+        state.editingUserTeamIds.push(team.id);
+      }
+      renderEditUserTeamsChips(deps);
+    });
+    
+    refs.editUserTeamsChips.appendChild(chip);
+  });
+}
+
+/**
+ * Salvar equipes editadas do usuário
+ */
+export async function saveEditUserTeams(deps) {
+  const { refs, state, db, auth } = deps;
+  
+  const uid = state.editingUserUid;
+  const teamIds = state.editingUserTeamIds || [];
+  
+  if (!uid) {
+    return setAlert(refs.editUserTeamsAlert, "Erro: usuário não identificado.");
+  }
+  
+  setAlert(refs.editUserTeamsAlert, "Salvando...", "info");
+  
+  try {
+    await updateDoc(doc(db, "companies", state.companyId, "users", uid), {
+      teamIds,
+      teamId: teamIds[0] || ""
+    });
+    
+    // Fechar modal
+    refs.modalEditUserTeams.hidden = true;
+    
+    // Recarregar lista
+    const { loadUsers } = deps;
+    if (loadUsers) await loadUsers(deps);
+    
+  } catch (err) {
+    console.error(err);
+    setAlert(refs.editUserTeamsAlert, "Erro ao salvar: " + (err?.message || err));
   }
 }

@@ -144,6 +144,15 @@ export const newUserActiveEl = byId("newUserActive");
 export const teamChipsEl = byId("teamChips");
 export const createUserAlert = byId("createUserAlert");
 
+// Edit User Teams Modal
+export const modalEditUserTeams = byId("modalEditUserTeams");
+export const btnCloseEditUserTeams = byId("btnCloseEditUserTeams");
+export const btnCancelEditUserTeams = byId("btnCancelEditUserTeams");
+export const btnSaveEditUserTeams = byId("btnSaveEditUserTeams");
+export const editUserTeamsChips = byId("editUserTeamsChips");
+export const editUserTeamsAlert = byId("editUserTeamsAlert");
+export const editUserTeamsTitle = byId("editUserTeamsTitle");
+
 // Gestor
 export const btnBackFromManagerUsers = byId("btnBackFromManagerUsers");
 export const btnOpenCreateTech = byId("btnOpenCreateTech");

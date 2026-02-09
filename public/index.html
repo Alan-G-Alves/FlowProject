@@ -763,6 +763,28 @@
   </div>
 </div>
 
+<!-- MODAL: EDITAR EQUIPES DO USUÁRIO -->
+<div class="modal" hidden id="modalEditUserTeams">
+  <div class="modal-backdrop" data-close="true"></div>
+  <div class="modal-card">
+    <div class="modal-header">
+      <div>
+        <h2>Gerenciar Equipes</h2>
+        <p class="muted" id="editUserTeamsTitle">Selecione as equipes do usuário.</p>
+      </div>
+      <button class="btn ghost" id="btnCloseEditUserTeams">✕</button>
+    </div>
+    <div class="modal-body">
+      <div id="editUserTeamsChips" class="chips-container" style="margin-bottom: 16px;"></div>
+      <div class="alert" hidden id="editUserTeamsAlert"></div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn" id="btnCancelEditUserTeams">Cancelar</button>
+      <button class="btn primary" id="btnSaveEditUserTeams">Salvar</button>
+    </div>
+  </div>
+</div>
+
 <!-- MODAL: CRIAR PROJETO -->
 <div class="modal" hidden id="modalCreateProject">
   <div class="modal-backdrop" data-close="true"></div>

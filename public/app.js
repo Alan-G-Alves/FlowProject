@@ -1291,6 +1291,24 @@ refs.modalCreateUser?.addEventListener("click", (e) => {
   if (e.target?.dataset?.close === "true") closeCreateUserModal();
 });
 
+// Edit User Teams modal events
+refs.btnCloseEditUserTeams?.addEventListener("click", () => {
+  refs.modalEditUserTeams.hidden = true;
+});
+refs.btnCancelEditUserTeams?.addEventListener("click", () => {
+  refs.modalEditUserTeams.hidden = true;
+});
+refs.btnSaveEditUserTeams?.addEventListener("click", () => {
+  usersDomain.saveEditUserTeams(getUsersDeps()).catch(err => {
+    console.error(err);
+  });
+});
+refs.modalEditUserTeams?.addEventListener("click", (e) => {
+  if (e.target?.dataset?.close === "true") {
+    refs.modalEditUserTeams.hidden = true;
+  }
+});
+
 refs.btnCloseCompanyDetail?.addEventListener("click", () => closeCompanyDetailModal());
 
 // Sidebar + tooltips
