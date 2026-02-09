@@ -202,22 +202,17 @@ export async function createUser(deps) {
     return setAlert(refs.createUserAlert, "Selecione pelo menos 1 equipe para este usuário.");
   }
 
-  setAlert(refs.createUserAlert, "Verificando e-mail...", "info");
+  setAlert(refs.createUserAlert, "Salvando...", "info");
 
   try {
-    // VERIFICAR SE EMAIL JÁ EXISTE (em qualquer empresa)
-    const q = query(collection(db, "platformUsers"), where("email", "==", email));
-    const snap = await getDocs(q);
-    
-    if (!snap.empty) {
-      return setAlert(refs.createUserAlert, "Este e-mail já está cadastrado no sistema.");
-    }
-
-    setAlert(refs.createUserAlert, "Salvando...", "info");
-
     if (wantsAutoAuth) {
       // Usar Cloud Function createUserInTenant (evita erro de permissão)
+      // A Cloud Function já valida se o email existe
       const { functions, httpsCallable } = deps;
+      
+      console.log("🔧 Chamando Cloud Function createUserInTenant...");
+      console.log("📦 Payload:", { companyId: state.companyId, name, email, role, teamIds });
+      
       const fnCreateUser = httpsCallable(functions, "createUserInTenant");
       
       const result = await fnCreateUser({
@@ -228,6 +223,8 @@ export async function createUser(deps) {
         role,
         teamIds
       });
+
+      console.log("✅ Cloud Function retornou:", result.data);
 
       uid = result.data.uid;
       const resetLink = result.data.resetLink;
@@ -268,6 +265,16 @@ export async function createUser(deps) {
 
   } catch (err) {
     console.error(err);
-    setAlert(refs.createUserAlert, "Erro ao salvar: " + (err?.message || err));
+    
+    // Tratamento de erros específicos da Cloud Function
+    if (err?.code === 'functions/already-exists') {
+      setAlert(refs.createUserAlert, "Já existe um usuário com este e-mail.");
+    } else if (err?.code === 'functions/permission-denied') {
+      setAlert(refs.createUserAlert, "Você não tem permissão para criar este tipo de usuário.");
+    } else if (err?.code === 'functions/invalid-argument') {
+      setAlert(refs.createUserAlert, "Dados inválidos: " + (err?.message || "Verifique os campos."));
+    } else {
+      setAlert(refs.createUserAlert, "Erro ao salvar: " + (err?.message || err));
+    }
   }
 }
