@@ -206,44 +206,56 @@ export async function createUser(deps) {
 
   try {
     if (wantsAutoAuth) {
-      // Usar Cloud Function createUserInTenant (evita erro de permissão)
-      // A Cloud Function já valida se o email existe
       const { functions, httpsCallable, auth } = deps;
       
-      // Verificar se está autenticado
       if (!auth.currentUser) {
         return setAlert(refs.createUserAlert, "Erro: Você não está autenticado. Faça login novamente.");
       }
       
-      console.log("🔧 Chamando Cloud Function createUserInTenant...");
+      console.log("🔧 Tentando criar usuário...");
       console.log("📦 Payload:", { companyId: state.companyId, name, email, role, teamIds });
-      console.log("👤 Current User:", auth.currentUser.uid);
       
       try {
-        // IMPORTANTE: Forçar refresh do token antes de chamar a Cloud Function
-        console.log("🔄 Forçando refresh do token...");
-        await auth.currentUser.getIdToken(true);
-        console.log("✅ Token refreshed");
+        // Obter token
+        const token = await auth.currentUser.getIdToken(true);
+        console.log("✅ Token obtido");
         
-        const fnCreateUser = httpsCallable(functions, "createUserInTenant");
+        // Usar HTTP endpoint como workaround
+        const projectId = "flowproject-17930";
+        const region = "us-central1";
+        const url = `https://${region}-${projectId}.cloudfunctions.net/createUserInTenantHttp`;
         
-        const result = await fnCreateUser({
-          companyId: state.companyId,
-          name,
-          email,
-          phone,
-          role,
-          teamIds
+        console.log("🌐 Chamando HTTP endpoint:", url);
+        
+        const response = await fetch(url, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "Authorization": `Bearer ${token}`
+          },
+          body: JSON.stringify({
+            companyId: state.companyId,
+            name,
+            email,
+            phone,
+            role,
+            teamIds
+          })
         });
 
-        console.log("✅ Cloud Function retornou:", result.data);
+        if (!response.ok) {
+          const errData = await response.json();
+          throw new Error(errData.error?.message || "Erro ao criar usuário");
+        }
 
-        uid = result.data.uid;
-        const resetLink = result.data.resetLink;
+        const result = await response.json();
+        console.log("✅ Usuário criado:", result);
+
+        uid = result.uid;
+        const resetLink = result.resetLink;
 
         await loadUsers(deps);
 
-        // Mostrar sucesso com link de redefinição
         setAlertWithResetLink(
           refs.createUserAlert,
           `Usuário criado com sucesso!`,
@@ -251,15 +263,9 @@ export async function createUser(deps) {
           resetLink
         );
         
-        // Manter modal aberto para mostrar o link
-        // Não fecha automaticamente
-        
         return;
       } catch (funcErr) {
-        console.error("❌ Erro na Cloud Function:", funcErr);
-        console.error("Code:", funcErr.code);
-        console.error("Message:", funcErr.message);
-        console.error("Details:", funcErr.details);
+        console.error("❌ Erro:", funcErr);
         throw funcErr;
       }
     }

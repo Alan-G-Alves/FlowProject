@@ -124,6 +124,83 @@ exports.createUserInTenant = functions.https.onCall(async (data, context) => {
 });
 
 /**
+ * createUserInTenantHttp (HTTP) - Fallback quando callable não funciona
+ */
+exports.createUserInTenantHttp = functions.https.onRequest(async (req, res) => {
+  res.set("Access-Control-Allow-Origin", "*");
+  res.set("Access-Control-Allow-Methods", "POST, OPTIONS");
+  res.set("Access-Control-Allow-Headers", "Content-Type, Authorization");
+
+  if (req.method === "OPTIONS") return res.status(204).send("");
+  if (req.method !== "POST") return res.status(405).json({ error: "method-not-allowed" });
+
+  try {
+    const authHeader = req.get("Authorization") || "";
+    const match = authHeader.match(/^Bearer (.+)$/);
+    if (!match) return res.status(401).json({ error: { message: "Não autenticado." } });
+
+    const decoded = await admin.auth().verifyIdToken(match[1]);
+    const callerUid = decoded.uid;
+    const { companyId, name, email, phone, role, teamIds } = req.body || {};
+
+    if (!companyId) return res.status(400).json({ error: { message: "companyId inválido." } });
+    if (!name) return res.status(400).json({ error: { message: "Nome inválido." } });
+    if (!email) return res.status(400).json({ error: { message: "E-mail inválido." } });
+    if (!role) return res.status(400).json({ error: { message: "Role inválida." } });
+    if (!["admin", "gestor", "coordenador", "tecnico"].includes(role)) {
+      return res.status(403).json({ error: { message: "Role não permitida." } });
+    }
+
+    const db = admin.firestore();
+    const callerCompanySnap = await db.doc(`userCompanies/${callerUid}`).get();
+    if (!callerCompanySnap.exists || callerCompanySnap.data().companyId !== companyId) {
+      return res.status(403).json({ error: { message: "Você não pertence a esta empresa." } });
+    }
+
+    const callerUserSnap = await db.doc(`companies/${companyId}/users/${callerUid}`).get();
+    if (!callerUserSnap.exists || !callerUserSnap.data().active) {
+      return res.status(403).json({ error: { message: "Usuário inválido." } });
+    }
+
+    const callerRole = callerUserSnap.data().role;
+    const normalizedTeamIds = Array.isArray(teamIds) ? teamIds.filter(x => x && x.trim()) : [];
+
+    if (callerRole !== "admin" && callerRole !== "gestor") {
+      return res.status(403).json({ error: { message: "Sem permissão." } });
+    }
+
+    if (callerRole === "gestor") {
+      if (role !== "tecnico") return res.status(403).json({ error: { message: "Gestor só cria Técnico." } });
+      const managed = callerUserSnap.data().managedTeamIds || [];
+      if (normalizedTeamIds.some(t => !managed.includes(t))) {
+        return res.status(403).json({ error: { message: "Equipe fora do escopo." } });
+      }
+    }
+
+    const tempPassword = Math.random().toString(36).slice(-10) + "A1!";
+    let userRecord;
+    try {
+      userRecord = await admin.auth().createUser({ email, password: tempPassword, displayName: name });
+    } catch (e) {
+      return res.status(409).json({ error: { message: "Email já existe." } });
+    }
+
+    const uid = userRecord.uid;
+    await db.doc(`userCompanies/${uid}`).set({ companyId });
+    await db.doc(`companies/${companyId}/users/${uid}`).set({
+      name, role, email, phone: phone || "", active: true,
+      teamIds: normalizedTeamIds, teamId: normalizedTeamIds[0] || ""
+    });
+
+    const resetLink = await admin.auth().generatePasswordResetLink(email);
+    return res.status(200).json({ uid, resetLink });
+  } catch (e) {
+    console.error("createUserInTenantHttp:", e);
+    return res.status(500).json({ error: { message: "Erro interno." } });
+  }
+});
+
+/**
  * createCompanyWithAdmin (callable) - SUPERADMIN
  * Payload:
  * {
