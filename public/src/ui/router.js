@@ -11,6 +11,7 @@ const ids = {
   viewAdmin: "viewAdmin",
   viewCompanies: "viewCompanies",
   viewManagerUsers: "viewManagerUsers",
+  viewProjects: "viewProjects",
 };
 
 function el(id){ return document.getElementById(id); }
@@ -22,12 +23,14 @@ export function setView(name){
   const viewAdmin = el(ids.viewAdmin);
   const viewCompanies = el(ids.viewCompanies);
   const viewManagerUsers = el(ids.viewManagerUsers);
+  const viewProjects = el(ids.viewProjects);
 
   hide(viewLogin);
   hide(viewDashboard);
   hide(viewAdmin);
   hide(viewCompanies);
   hide(viewManagerUsers);
+  hide(viewProjects);
 
   if (name === "login"){
     document.body.classList.add("is-login");
@@ -42,6 +45,7 @@ export function setView(name){
   if (name === "admin") show(viewAdmin);
   if (name === "companies") show(viewCompanies);
   if (name === "managerUsers") show(viewManagerUsers);
+  if (name === "projects") show(viewProjects);
 }
 
 // =========================

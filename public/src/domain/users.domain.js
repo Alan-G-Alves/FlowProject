@@ -7,13 +7,42 @@ import {
   getDocs,
   setDoc,
   updateDoc,
-  serverTimestamp
+  serverTimestamp,
+  query,
+  where
 } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore.js";
 import { show, hide } from "../utils/dom.js";
 import { setAlert, clearAlert } from "../ui/alerts.js";
 import { normalizeRole } from "../utils/roles.js";
 import { normalizePhone } from "../utils/format.js";
 import { isEmailValidBasic } from "../utils/validators.js";
+
+// Helper para mostrar link de redefinição de senha
+function setAlertWithResetLink(alertEl, msg, email, resetLink) {
+  if (!alertEl) return;
+  alertEl.hidden = false;
+  alertEl.className = "alert success";
+  alertEl.innerHTML = `
+    <div style="display:flex; flex-direction:column; gap:8px;">
+      <div>${msg}</div>
+      <div style="display:flex; gap:8px; flex-wrap:wrap; align-items:center;">
+        <a href="${resetLink}" target="_blank" rel="noopener" style="color: inherit; text-decoration: underline;">Abrir link de definição de senha</a>
+        <button class="btn sm" id="btnCopyResetLink">Copiar link</button>
+      </div>
+      <div class="muted" style="font-size:12px;">Envie este link para <b>${email}</b>. Ele serve para definir a senha no primeiro acesso.</div>
+    </div>
+  `;
+  const btn = alertEl.querySelector("#btnCopyResetLink");
+  btn?.addEventListener("click", async () => {
+    try {
+      await navigator.clipboard.writeText(resetLink);
+      btn.textContent = "Copiado!";
+      setTimeout(() => btn.textContent = "Copiar link", 1200);
+    } catch (e) {
+      alert("Não consegui copiar automaticamente. Copie manualmente pelo navegador.");
+    }
+  });
+}
 
 /** =========================
  *  USERS DOMAIN (Admin da Empresa)
@@ -152,7 +181,7 @@ export function renderTeamChips(deps) {
 }
 
 export async function createUser(deps) {
-  const { refs, state, db, auth, createUserWithAuthAndResetLink, loadUsers } = deps;
+  const { refs, state, db, auth, loadUsers } = deps;
   clearAlert(refs.createUserAlert);
 
   let uid = (refs.newUserUidEl?.value || "").trim();
@@ -173,11 +202,25 @@ export async function createUser(deps) {
     return setAlert(refs.createUserAlert, "Selecione pelo menos 1 equipe para este usuário.");
   }
 
-  setAlert(refs.createUserAlert, "Salvando...", "info");
+  setAlert(refs.createUserAlert, "Verificando e-mail...", "info");
 
   try {
+    // VERIFICAR SE EMAIL JÁ EXISTE (em qualquer empresa)
+    const q = query(collection(db, "platformUsers"), where("email", "==", email));
+    const snap = await getDocs(q);
+    
+    if (!snap.empty) {
+      return setAlert(refs.createUserAlert, "Este e-mail já está cadastrado no sistema.");
+    }
+
+    setAlert(refs.createUserAlert, "Salvando...", "info");
+
     if (wantsAutoAuth) {
-      const data = await createUserWithAuthAndResetLink({
+      // Usar Cloud Function createUserInTenant (evita erro de permissão)
+      const { functions, httpsCallable } = deps;
+      const fnCreateUser = httpsCallable(functions, "createUserInTenant");
+      
+      const result = await fnCreateUser({
         companyId: state.companyId,
         name,
         email,
@@ -186,30 +229,22 @@ export async function createUser(deps) {
         teamIds
       });
 
-      uid = data?.uid;
+      uid = result.data.uid;
+      const resetLink = result.data.resetLink;
 
-      await setDoc(doc(db, "companies", state.companyId, "users", uid), {
-        name,
-        role,
-        email,
-        phone,
-        active,
-        teamIds,
-        teamId: teamIds[0] || "",
-        createdAt: serverTimestamp(),
-        createdBy: auth.currentUser.uid
-      });
-
-      await setDoc(doc(db, "userCompanies", uid), { companyId: state.companyId });
-
-      closeCreateUserModal(refs);
       await loadUsers(deps);
 
-      alert(
-        `Usuário criado com sucesso!\n\n` +
-        `E-mail: ${email}\nUID: ${uid}\n\n` +
-        `✅ Enviamos um e-mail para o usuário definir a senha no primeiro acesso.`
+      // Mostrar sucesso com link de redefinição
+      setAlertWithResetLink(
+        refs.createUserAlert,
+        `Usuário criado com sucesso!`,
+        email,
+        resetLink
       );
+      
+      // Manter modal aberto para mostrar o link
+      // Não fecha automaticamente
+      
       return;
     }
 

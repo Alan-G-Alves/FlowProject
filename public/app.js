@@ -701,7 +701,7 @@ async function createTeam(){
  *  9) ADMIN (EMPRESA): USERS - Delegado para users.domain.js
  *  ========================= */
 const getUsersDeps = () => ({
-  refs, state, db, auth,
+  refs, state, db, auth, functions, httpsCallable,
   createUserWithAuthAndResetLink, loadUsers, loadTeams,
   openManagedTeamsModal, ensureTeamsForChips, renderTeamChips
 });
