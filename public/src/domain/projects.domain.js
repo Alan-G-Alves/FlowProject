@@ -613,7 +613,7 @@ export function openMyProjectsView(deps) {
  * Carrega projetos no formato Kanban
  */
 export async function loadMyProjects(deps) {
-  const { refs, state, db } = deps;
+  const { refs, state, db, auth, openEditProjectModal, loadMyProjects: reloadFunc } = deps;
   
   if (!refs.kanbanTodo || !refs.kanbanInProgress || !refs.kanbanDone) return;
   
@@ -665,7 +665,7 @@ export async function loadMyProjects(deps) {
  * Renderiza cards no Kanban
  */
 function renderKanbanCards(container, projects, deps) {
-  const { openEditProjectModal } = deps;
+  const { openEditProjectModal, state, db, auth } = deps;
   
   container.innerHTML = '';
   
@@ -677,6 +677,9 @@ function renderKanbanCards(container, projects, deps) {
   projects.forEach(project => {
     const card = document.createElement("div");
     card.className = "kanban-card";
+    card.draggable = true;
+    card.dataset.projectId = project.id;
+    card.dataset.currentStatus = project.status;
     
     const priorityText = {
       'baixa': 'Baixa',
@@ -693,10 +696,95 @@ function renderKanbanCards(container, projects, deps) {
       </div>
     `;
     
-    card.addEventListener("click", () => {
-      openEditProjectModal(project.id, deps);
+    // Drag events
+    card.addEventListener("dragstart", (e) => {
+      card.classList.add("dragging");
+      e.dataTransfer.effectAllowed = "move";
+      e.dataTransfer.setData("text/plain", project.id);
+    });
+    
+    card.addEventListener("dragend", () => {
+      card.classList.remove("dragging");
+    });
+    
+    // Click to edit (only if not dragging)
+    let isDragging = false;
+    card.addEventListener("mousedown", () => {
+      isDragging = false;
+    });
+    card.addEventListener("mousemove", () => {
+      isDragging = true;
+    });
+    card.addEventListener("mouseup", () => {
+      if (!isDragging) {
+        openEditProjectModal(project.id, deps);
+      }
     });
     
     container.appendChild(card);
+  });
+  
+  // Setup drop zones
+  setupDropZone(container, state, db, auth, deps);
+}
+
+/**
+ * Configura zona de drop para receber cards
+ */
+function setupDropZone(container, state, db, auth, deps) {
+  // Determinar status baseado no ID do container
+  let targetStatus = "";
+  if (container.id === "kanbanTodo") targetStatus = "a-fazer";
+  else if (container.id === "kanbanInProgress") targetStatus = "em-andamento";
+  else if (container.id === "kanbanDone") targetStatus = "concluido";
+  
+  container.addEventListener("dragover", (e) => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = "move";
+    container.classList.add("drag-over");
+  });
+  
+  container.addEventListener("dragleave", () => {
+    container.classList.remove("drag-over");
+  });
+  
+  container.addEventListener("drop", async (e) => {
+    e.preventDefault();
+    container.classList.remove("drag-over");
+    
+    const projectId = e.dataTransfer.getData("text/plain");
+    const draggedCard = document.querySelector(`[data-project-id="${projectId}"]`);
+    const currentStatus = draggedCard?.dataset?.currentStatus;
+    
+    // Se já está no status correto, não fazer nada
+    if (currentStatus === targetStatus) return;
+    
+    // Atualizar status no Firestore
+    try {
+      const companyId = state.companyId;
+      if (!companyId || !auth.currentUser) {
+        alert("Erro: não autenticado");
+        return;
+      }
+      
+      await updateDoc(
+        doc(db, `companies/${companyId}/projects`, projectId),
+        {
+          status: targetStatus,
+          updatedAt: serverTimestamp(),
+          updatedBy: auth.currentUser.uid
+        }
+      );
+      
+      // Recarregar Kanban
+      const { loadMyProjects } = deps;
+      if (loadMyProjects) {
+        await loadMyProjects(deps);
+      }
+      
+    } catch (err) {
+      console.error("Erro ao mover projeto:", err);
+      alert("Erro ao mover projeto: " + (err?.message || err));
+    }
   });
 }

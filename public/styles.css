@@ -1416,6 +1416,14 @@ a{ color: inherit; }
   flex-direction: column;
   gap: 10px;
   min-height: 400px;
+  padding: 8px;
+  border-radius: 8px;
+  transition: background 0.2s;
+}
+
+.kanban-cards.drag-over {
+  background: rgba(var(--primary-rgb, 47, 128, 237), 0.1);
+  border: 2px dashed var(--primary);
 }
 
 .kanban-card {
@@ -1423,9 +1431,19 @@ a{ color: inherit; }
   border: 1px solid var(--border);
   border-radius: 10px;
   padding: 12px;
-  cursor: pointer;
+  cursor: grab;
   transition: all 0.2s;
   box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+}
+
+.kanban-card:active {
+  cursor: grabbing;
+}
+
+.kanban-card.dragging {
+  opacity: 0.5;
+  transform: rotate(2deg);
+  cursor: grabbing;
 }
 
 .kanban-card:hover {
