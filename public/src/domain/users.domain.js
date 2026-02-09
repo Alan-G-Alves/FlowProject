@@ -218,9 +218,13 @@ export async function createUser(deps) {
       console.log("🔧 Chamando Cloud Function createUserInTenant...");
       console.log("📦 Payload:", { companyId: state.companyId, name, email, role, teamIds });
       console.log("👤 Current User:", auth.currentUser.uid);
-      console.log("🔑 Token will be sent automatically by Firebase SDK");
       
       try {
+        // IMPORTANTE: Forçar refresh do token antes de chamar a Cloud Function
+        console.log("🔄 Forçando refresh do token...");
+        await auth.currentUser.getIdToken(true);
+        console.log("✅ Token refreshed");
+        
         const fnCreateUser = httpsCallable(functions, "createUserInTenant");
         
         const result = await fnCreateUser({
