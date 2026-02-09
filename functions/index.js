@@ -239,7 +239,6 @@ exports.createCompanyWithAdmin = functions.https.onCall(async (data, context) =>
  * Returns JSON: { companyId, uid, resetLink }
  */
 exports.createCompanyWithAdminHttp = functions
-  .region("us-central1")
   .https
   .onRequest(async (req, res) => {
     // CORS simples para browser
