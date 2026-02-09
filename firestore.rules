@@ -22,6 +22,7 @@ service cloud.firestore {
 
     function isCompanyAdmin(companyId) {
       return isSignedIn()
+        && !isSuperAdmin()
         && exists(/databases/$(database)/documents/userCompanies/$(myUid()))
         && companyId == myCompanyId()
         && exists(/databases/$(database)/documents/companies/$(companyId)/users/$(myUid()))
@@ -31,6 +32,7 @@ service cloud.firestore {
 
     function isManager(companyId) {
       return isSignedIn()
+        && !isSuperAdmin()
         && exists(/databases/$(database)/documents/userCompanies/$(myUid()))
         && companyId == myCompanyId()
         && exists(/databases/$(database)/documents/companies/$(companyId)/users/$(myUid()))
@@ -40,6 +42,7 @@ service cloud.firestore {
 
     function isCoordenador(companyId) {
       return isSignedIn()
+        && !isSuperAdmin()
         && exists(/databases/$(database)/documents/userCompanies/$(myUid()))
         && companyId == myCompanyId()
         && exists(/databases/$(database)/documents/companies/$(companyId)/users/$(myUid()))
@@ -49,6 +52,7 @@ service cloud.firestore {
     
     function isCompanyMember(companyId) {
       return isSignedIn()
+        && !isSuperAdmin()
         && exists(/databases/$(database)/documents/userCompanies/$(myUid()))
         && companyId == myCompanyId()
         && exists(/databases/$(database)/documents/companies/$(companyId)/users/$(myUid()))

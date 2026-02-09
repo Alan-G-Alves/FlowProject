@@ -218,7 +218,20 @@ function initSidebar(){
     localStorage.setItem("fp.refs.sidebar.expanded", refs.sidebar.classList.contains("expanded") ? "1" : "0");
   };
 
-  // Remove o hambúrguer: expansão por clique em qualquer área "vazia" da barra
+  // Expande ao passar o mouse (hover)
+  refs.sidebar.addEventListener("mouseenter", () => {
+    refs.sidebar.classList.add("expanded");
+  });
+
+  // Recolhe ao sair o mouse (se não foi fixado)
+  refs.sidebar.addEventListener("mouseleave", () => {
+    const saved = localStorage.getItem("fp.refs.sidebar.expanded");
+    if (saved !== "1") {
+      refs.sidebar.classList.remove("expanded");
+    }
+  });
+
+  // Clique na sidebar fixa/desfixa (toggle permanente)
   refs.sidebar.addEventListener("click", (e) => {
     // se clicou em um item do menu, NÃO alterna (deixa só navegar)
     if (e.target?.closest?.(".nav-item")) return;
@@ -242,8 +255,13 @@ function initSidebar(){
     alert("Em breve: Relatórios e indicadores");
   });
   refs.navAddProject?.addEventListener("click", () => {
-    setActiveNav("navAddProject");
-    openProjectsView();
+    try {
+      setActiveNav("navAddProject");
+      openProjectsView();
+    } catch (err) {
+      console.error("Erro ao abrir projetos:", err);
+      alert("Erro ao abrir projetos: " + (err?.message || err));
+    }
   });
   refs.navAddTech?.addEventListener("click", () => {
     setActiveNav("navAddTech");
@@ -847,48 +865,63 @@ onAuthStateChanged(auth, async (user) => {
     return;
   }
 
-  // 1) Super Admin
-  const platformUser = await fetchPlatformUser(user.uid);
-  if (platformUser && platformUser.role === "superadmin" && platformUser.active !== false){
-    state.isSuperAdmin = true;
-    state.profile = platformUser;
+  console.log("🔐 Auth changed - UID:", user.uid, "Email:", user.email);
 
-    renderTopbar(platformUser, user);
-    renderDashboardCards(platformUser);
+  try {
+    // 1) Super Admin
+    const platformUser = await fetchPlatformUser(user.uid);
+    console.log("👤 Platform User:", platformUser);
+    
+    if (platformUser && platformUser.role === "superadmin" && platformUser.active !== false){
+      state.isSuperAdmin = true;
+      state.profile = platformUser;
+
+      renderTopbar(platformUser, user);
+      renderDashboardCards(platformUser);
+      setView("dashboard");
+      return;
+    }
+
+    // 2) Usuário comum (multi-tenant)
+    const companyId = await fetchCompanyIdForUser(user.uid);
+    console.log("🏢 Company ID:", companyId);
+    
+    if (!companyId){
+      setView("login");
+      setAlert(refs.loginAlert, "Seu usuário não está vinculado a nenhuma empresa. Peça ao admin para configurar.");
+      await signOut(auth);
+      return;
+    }
+
+    const profile = await fetchCompanyUserProfile(companyId, user.uid);
+    console.log("👔 Profile:", profile);
+    
+    if (!profile){
+      setView("login");
+      setAlert(refs.loginAlert, "Seu perfil não foi encontrado dentro da empresa. Peça ao admin para criar.");
+      await signOut(auth);
+      return;
+    }
+
+    if (profile.active === false){
+      setView("login");
+      setAlert(refs.loginAlert, "Usuário bloqueado. Fale com o administrador.");
+      await signOut(auth);
+      return;
+    }
+
+    state.companyId = companyId;
+    state.profile = profile;
+
+    renderTopbar(profile, user);
+    renderDashboardCards(profile);
     setView("dashboard");
-    return;
-  }
-
-  // 2) Usuário comum (multi-tenant)
-  const companyId = await fetchCompanyIdForUser(user.uid);
-  if (!companyId){
+  } catch (err) {
+    console.error("❌ Erro no fluxo de autenticação:", err);
     setView("login");
-    setAlert(refs.loginAlert, "Seu usuário não está vinculado a nenhuma empresa. Peça ao admin para configurar.");
+    setAlert(refs.loginAlert, "Erro ao carregar perfil: " + (err?.message || err));
     await signOut(auth);
-    return;
   }
-
-  const profile = await fetchCompanyUserProfile(companyId, user.uid);
-  if (!profile){
-    setView("login");
-    setAlert(refs.loginAlert, "Seu perfil não foi encontrado dentro da empresa. Peça ao admin para criar.");
-    await signOut(auth);
-    return;
-  }
-
-  if (profile.active === false){
-    setView("login");
-    setAlert(refs.loginAlert, "Usuário bloqueado. Fale com o administrador.");
-    await signOut(auth);
-    return;
-  }
-
-  state.companyId = companyId;
-  state.profile = profile;
-
-  renderTopbar(profile, user);
-  renderDashboardCards(profile);
-  setView("dashboard");
 });
 
 /** =========================
