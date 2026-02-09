@@ -596,3 +596,107 @@ export async function updateProject(deps) {
     setAlert(refs.editProjectAlert, "Erro ao atualizar projeto: " + (err?.message || err));
   }
 }
+
+/**
+ * Abre view Meus Projetos (Kanban)
+ */
+export function openMyProjectsView(deps) {
+  const { loadMyProjects } = deps;
+  setView("myProjects");
+  loadMyProjects().catch(err => {
+    console.error(err);
+    alert("Erro ao carregar projetos: " + (err?.message || err));
+  });
+}
+
+/**
+ * Carrega projetos no formato Kanban
+ */
+export async function loadMyProjects(deps) {
+  const { refs, state, db } = deps;
+  
+  if (!refs.kanbanTodo || !refs.kanbanInProgress || !refs.kanbanDone) return;
+  
+  // Mostrar loading
+  refs.kanbanTodo.innerHTML = '<p class="muted" style="padding:12px;">Carregando...</p>';
+  refs.kanbanInProgress.innerHTML = '<p class="muted" style="padding:12px;">Carregando...</p>';
+  refs.kanbanDone.innerHTML = '<p class="muted" style="padding:12px;">Carregando...</p>';
+  
+  try {
+    const companyId = state.companyId;
+    if (!companyId) throw new Error("companyId não encontrado");
+    
+    const snap = await getDocs(
+      query(
+        collection(db, `companies/${companyId}/projects`),
+        orderBy("createdAt", "desc")
+      )
+    );
+    
+    let projects = [];
+    snap.forEach(docSnap => {
+      projects.push({ id: docSnap.id, ...docSnap.data() });
+    });
+    
+    // Separar por status
+    const todo = projects.filter(p => p.status === "a-fazer");
+    const inProgress = projects.filter(p => p.status === "em-andamento");
+    const done = projects.filter(p => p.status === "concluido");
+    
+    // Atualizar contadores
+    if (refs.kanbanCountTodo) refs.kanbanCountTodo.textContent = todo.length;
+    if (refs.kanbanCountInProgress) refs.kanbanCountInProgress.textContent = inProgress.length;
+    if (refs.kanbanCountDone) refs.kanbanCountDone.textContent = done.length;
+    
+    // Renderizar cards
+    renderKanbanCards(refs.kanbanTodo, todo, deps);
+    renderKanbanCards(refs.kanbanInProgress, inProgress, deps);
+    renderKanbanCards(refs.kanbanDone, done, deps);
+    
+  } catch (err) {
+    console.error(err);
+    refs.kanbanTodo.innerHTML = '<p class="muted" style="padding:12px;">Erro ao carregar projetos.</p>';
+    refs.kanbanInProgress.innerHTML = '<p class="muted" style="padding:12px;">Erro ao carregar projetos.</p>';
+    refs.kanbanDone.innerHTML = '<p class="muted" style="padding:12px;">Erro ao carregar projetos.</p>';
+  }
+}
+
+/**
+ * Renderiza cards no Kanban
+ */
+function renderKanbanCards(container, projects, deps) {
+  const { openEditProjectModal } = deps;
+  
+  container.innerHTML = '';
+  
+  if (projects.length === 0) {
+    container.innerHTML = '<p class="muted" style="padding:12px;">Nenhum projeto</p>';
+    return;
+  }
+  
+  projects.forEach(project => {
+    const card = document.createElement("div");
+    card.className = "kanban-card";
+    
+    const priorityText = {
+      'baixa': 'Baixa',
+      'media': 'Média',
+      'alta': 'Alta'
+    }[project.priority] || 'Média';
+    
+    card.innerHTML = `
+      <div class="kanban-card-title">${escapeHtml(project.name)}</div>
+      ${project.description ? `<div class="kanban-card-desc">${escapeHtml(project.description)}</div>` : ''}
+      <div class="kanban-card-meta">
+        ${project.teamId ? `<span class="kanban-card-tag">${escapeHtml(project.teamId)}</span>` : ''}
+        <span class="kanban-card-priority ${project.priority || 'media'}">${priorityText}</span>
+      </div>
+    `;
+    
+    card.addEventListener("click", () => {
+      openEditProjectModal(project.id, deps);
+    });
+    
+    container.appendChild(card);
+  });
+}

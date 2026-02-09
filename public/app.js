@@ -266,6 +266,10 @@ function initSidebar(){
       alert("Erro ao abrir modal de projeto: " + (err?.message || err));
     }
   });
+  refs.navMyProjects?.addEventListener("click", () => {
+    setActiveNav("navMyProjects");
+    openMyProjectsView();
+  });
   refs.navAddTech?.addEventListener("click", () => {
     setActiveNav("navAddTech");
     // para gestor, já existe tela de técnicos
@@ -810,6 +814,14 @@ const getProjectsDeps = () => ({
   openCreateProjectModal, closeCreateProjectModal, createProject
 });
 
+function openMyProjectsView() {
+  projectsDomain.openMyProjectsView({ loadMyProjects, openEditProjectModal });
+}
+
+async function loadMyProjects() {
+  await projectsDomain.loadMyProjects(getProjectsDeps());
+}
+
 function openProjectsView() {
   projectsDomain.openProjectsView({ loadProjects });
 }
@@ -1183,6 +1195,14 @@ refs.modalCreateCompany?.addEventListener("click", (e) => {
 
 refs.modalCompanyDetail?.addEventListener("click", (e) => {
   if (e.target?.dataset?.close === "true") closeCompanyDetailModal();
+});
+
+// My Projects (Kanban) events
+refs.btnBackFromMyProjects?.addEventListener("click", () => setView("dashboard"));
+refs.btnOpenCreateProjectFromKanban?.addEventListener("click", async () => {
+  await loadTeams();
+  await loadUsers();
+  openCreateProjectModal();
 });
 
 // Projects events

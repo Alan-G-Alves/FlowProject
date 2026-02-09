@@ -11,6 +11,7 @@ const ids = {
   viewAdmin: "viewAdmin",
   viewCompanies: "viewCompanies",
   viewManagerUsers: "viewManagerUsers",
+  viewMyProjects: "viewMyProjects",
   viewProjects: "viewProjects",
 };
 
@@ -23,6 +24,7 @@ export function setView(name){
   const viewAdmin = el(ids.viewAdmin);
   const viewCompanies = el(ids.viewCompanies);
   const viewManagerUsers = el(ids.viewManagerUsers);
+  const viewMyProjects = el(ids.viewMyProjects);
   const viewProjects = el(ids.viewProjects);
 
   hide(viewLogin);
@@ -30,6 +32,7 @@ export function setView(name){
   hide(viewAdmin);
   hide(viewCompanies);
   hide(viewManagerUsers);
+  hide(viewMyProjects);
   hide(viewProjects);
 
   if (name === "login"){
@@ -45,6 +48,7 @@ export function setView(name){
   if (name === "admin") show(viewAdmin);
   if (name === "companies") show(viewCompanies);
   if (name === "managerUsers") show(viewManagerUsers);
+  if (name === "myProjects") show(viewMyProjects);
   if (name === "projects") show(viewProjects);
 }
 

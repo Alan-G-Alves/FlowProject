@@ -15,6 +15,7 @@ export const sidebar = byId("sidebar");
 export const btnToggleSidebar = byId("btnToggleSidebar");
 export const navHome = byId("navHome");
 export const navAddProject = byId("navAddProject");
+export const navMyProjects = byId("navMyProjects");
 export const navAddTech = byId("navAddTech");
 export const navReports = byId("navReports");
 export const navConfig = byId("navConfig");
@@ -193,6 +194,17 @@ export const managedTeamsAlert = byId("managedTeamsAlert");
 export const btnCloseManagedTeams = byId("btnCloseManagedTeams");
 export const btnCancelManagedTeams = byId("btnCancelManagedTeams");
 export const btnSaveManagedTeams = byId("btnSaveManagedTeams");
+
+// My Projects (Kanban)
+export const viewMyProjects = byId("viewMyProjects");
+export const btnBackFromMyProjects = byId("btnBackFromMyProjects");
+export const btnOpenCreateProjectFromKanban = byId("btnOpenCreateProjectFromKanban");
+export const kanbanTodo = byId("kanbanTodo");
+export const kanbanInProgress = byId("kanbanInProgress");
+export const kanbanDone = byId("kanbanDone");
+export const kanbanCountTodo = byId("kanbanCountTodo");
+export const kanbanCountInProgress = byId("kanbanCountInProgress");
+export const kanbanCountDone = byId("kanbanCountDone");
 
 // Projects
 export const viewProjects = byId("viewProjects");

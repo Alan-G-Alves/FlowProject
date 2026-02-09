@@ -69,6 +69,10 @@
 <img alt="" class="nav-ico" src="adicionar-projeto.png"/>
 <span class="nav-label">Adicionar projeto</span>
 </button>
+<button class="nav-item" data-tooltip="Meus Projetos" id="navMyProjects">
+<img alt="" class="nav-ico" src="adicionar-projeto.png"/>
+<span class="nav-label">Meus Projetos</span>
+</button>
 <button class="nav-item" data-tooltip="Adicionar técnico" id="navAddTech">
 <img alt="" class="nav-ico" src="adicionar-tecnico.png"/>
 <span class="nav-label">Adicionar técnico</span>
@@ -295,7 +299,60 @@
 <p class="muted">Clique em “Criar Empresa” para começar.</p>
 </div>
 </div>
-</section><!-- PROJECTS VIEW --><section class="view" hidden="" id="viewProjects">
+</section>
+
+<!-- MY PROJECTS VIEW (KANBAN) -->
+<section class="view" hidden id="viewMyProjects">
+  <div class="container">
+    <div class="page-header">
+      <div>
+        <h1>Meus Projetos</h1>
+        <p class="muted">Visualize e gerencie seus projetos em Kanban.</p>
+      </div>
+      <div class="chips">
+        <button class="btn primary" id="btnOpenCreateProjectFromKanban">+ Novo Projeto</button>
+        <button class="btn ghost" id="btnBackFromMyProjects">Voltar</button>
+      </div>
+    </div>
+    
+    <div class="kanban-board">
+      <!-- Coluna A Fazer -->
+      <div class="kanban-column">
+        <div class="kanban-header">
+          <h3>A Fazer</h3>
+          <span class="kanban-count" id="kanbanCountTodo">0</span>
+        </div>
+        <div class="kanban-cards" id="kanbanTodo">
+          <p class="muted" style="padding:12px;">Carregando...</p>
+        </div>
+      </div>
+      
+      <!-- Coluna Em Andamento -->
+      <div class="kanban-column">
+        <div class="kanban-header">
+          <h3>Em Andamento</h3>
+          <span class="kanban-count" id="kanbanCountInProgress">0</span>
+        </div>
+        <div class="kanban-cards" id="kanbanInProgress">
+          <p class="muted" style="padding:12px;">Carregando...</p>
+        </div>
+      </div>
+      
+      <!-- Coluna Concluído -->
+      <div class="kanban-column">
+        <div class="kanban-header">
+          <h3>Concluído</h3>
+          <span class="kanban-count" id="kanbanCountDone">0</span>
+        </div>
+        <div class="kanban-cards" id="kanbanDone">
+          <p class="muted" style="padding:12px;">Carregando...</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- PROJECTS VIEW --><section class="view" hidden="" id="viewProjects">
 <div class="container">
 <div class="page-header">
 <div>
