@@ -1269,6 +1269,30 @@ refs.modalTeamDetails?.addEventListener("click", (e) => {
   }
 });
 
+// Add Users to Team modal events
+refs.btnAddUsersToTeam?.addEventListener("click", () => {
+  const teamId = state.currentTeamId;
+  const teamName = refs.teamDetailsName?.value || "equipe";
+  teamsDomain.openAddUsersToTeamModal(teamId, teamName, getTeamsDeps());
+});
+
+refs.btnCloseAddUsersToTeam?.addEventListener("click", () => {
+  teamsDomain.closeAddUsersToTeamModal(refs);
+});
+refs.btnCancelAddUsersToTeam?.addEventListener("click", () => {
+  teamsDomain.closeAddUsersToTeamModal(refs);
+});
+refs.btnSaveAddUsersToTeam?.addEventListener("click", () => {
+  teamsDomain.saveAddUsersToTeam(getTeamsDeps()).catch(err => {
+    console.error(err);
+  });
+});
+refs.modalAddUsersToTeam?.addEventListener("click", (e) => {
+  if (e.target?.dataset?.close === "true") {
+    teamsDomain.closeAddUsersToTeamModal(refs);
+  }
+});
+
 // Users events
 refs.btnReloadUsers?.addEventListener("click", () => loadUsers());
 refs.userSearch?.addEventListener("input", () => loadUsers());

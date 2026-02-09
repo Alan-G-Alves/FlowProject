@@ -123,6 +123,16 @@ export const teamDetailsEmptyEl = byId("teamDetailsEmpty");
 export const teamDetailsAlert = byId("teamDetailsAlert");
 export const btnTeamToggleActive = byId("btnTeamToggleActive");
 export const btnTeamDelete = byId("btnTeamDelete");
+export const btnAddUsersToTeam = byId("btnAddUsersToTeam");
+
+// Modal: Add Users to Team
+export const modalAddUsersToTeam = byId("modalAddUsersToTeam");
+export const btnCloseAddUsersToTeam = byId("btnCloseAddUsersToTeam");
+export const btnCancelAddUsersToTeam = byId("btnCancelAddUsersToTeam");
+export const btnSaveAddUsersToTeam = byId("btnSaveAddUsersToTeam");
+export const addUsersTeamName = byId("addUsersTeamName");
+export const addUsersToTeamList = byId("addUsersToTeamList");
+export const addUsersToTeamAlert = byId("addUsersToTeamAlert");
 
 // Users
 export const usersTbody = byId("usersTbody");

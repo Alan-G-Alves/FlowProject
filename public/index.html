@@ -756,9 +756,44 @@
     </div>
 
     <div class="modal-footer">
+      <button class="btn primary" id="btnAddUsersToTeam" title="Adicionar usuários à equipe">
+        <i class="fas fa-user-plus"></i> Adicionar usuários
+      </button>
       <button class="btn" id="btnTeamToggleActive">Desativar</button>
       <button class="btn danger" id="btnTeamDelete" disabled>Excluir equipe</button>
       <button class="btn" id="btnCancelTeamDetails">Fechar</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL: ADICIONAR USUÁRIOS À EQUIPE -->
+<div class="modal" hidden id="modalAddUsersToTeam">
+  <div class="modal-backdrop" data-close="true"></div>
+  <div class="modal-card">
+    <div class="modal-header">
+      <div>
+        <h2>Adicionar Usuários</h2>
+        <p class="muted" id="addUsersTeamName">Selecione os usuários para adicionar à equipe.</p>
+      </div>
+      <button class="btn ghost" id="btnCloseAddUsersToTeam">✕</button>
+    </div>
+
+    <div class="modal-body">
+      <div class="alert" hidden id="addUsersToTeamAlert"></div>
+      
+      <div class="panel subtle">
+        <p class="muted" style="margin:0 0 12px 0;">
+          Clique nos usuários abaixo para adicionar à equipe:
+        </p>
+        <div id="addUsersToTeamList" class="chips-container">
+          <p class="muted">Carregando usuários...</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="modal-footer">
+      <button class="btn" id="btnCancelAddUsersToTeam">Cancelar</button>
+      <button class="btn primary" id="btnSaveAddUsersToTeam">Salvar</button>
     </div>
   </div>
 </div>

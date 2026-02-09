@@ -151,6 +151,7 @@ export async function openTeamDetailsModal(teamId, deps) {
   clearAlert(refs.teamDetailsAlert);
   refs.modalTeamDetails.hidden = false;
   state.selectedTeamId = teamId;
+  state.currentTeamId = teamId; // Para usar no botão de adicionar usuários
 
   const teamRef = doc(db, "companies", state.companyId, "teams", teamId);
   const teamSnap = await getDoc(teamRef);
@@ -265,4 +266,176 @@ export async function createTeam(deps) {
 
   closeCreateTeamModal(refs);
   await loadTeams();
+}
+
+/**
+ * Abre modal para adicionar usuários à equipe
+ */
+export async function openAddUsersToTeamModal(teamId, teamName, deps) {
+  const { refs, state, db } = deps;
+  
+  if (!refs.modalAddUsersToTeam) return;
+  
+  // Armazenar ID da equipe no state
+  state.currentTeamId = teamId;
+  state.selectedUsersToAdd = [];
+  
+  // Atualizar título
+  refs.addUsersTeamName.textContent = `Selecione os usuários para adicionar à equipe: ${teamName}`;
+  
+  // Limpar alertas
+  if (refs.addUsersToTeamAlert) {
+    refs.addUsersToTeamAlert.hidden = true;
+  }
+  
+  // Mostrar modal
+  refs.modalAddUsersToTeam.hidden = false;
+  
+  // Carregar usuários disponíveis
+  await loadAvailableUsers(deps);
+}
+
+/**
+ * Carregar usuários que NÃO estão na equipe
+ */
+async function loadAvailableUsers(deps) {
+  const { refs, state, db } = deps;
+  const teamId = state.currentTeamId;
+  
+  if (!refs.addUsersToTeamList) return;
+  
+  refs.addUsersToTeamList.innerHTML = '<p class="muted">Carregando usuários...</p>';
+  
+  try {
+    // Buscar todos os usuários da empresa
+    const usersSnap = await getDocs(
+      collection(db, "companies", state.companyId, "users")
+    );
+    
+    // Filtrar usuários que NÃO estão na equipe
+    const availableUsers = [];
+    usersSnap.forEach(doc => {
+      const data = doc.data();
+      const userTeamIds = data.teamIds || [];
+      
+      // Se o usuário NÃO está na equipe, adiciona à lista
+      if (!userTeamIds.includes(teamId)) {
+        availableUsers.push({
+          uid: doc.id,
+          name: data.name,
+          email: data.email,
+          role: data.role
+        });
+      }
+    });
+    
+    // Renderizar chips de usuários
+    renderAvailableUsersChips(availableUsers, deps);
+    
+  } catch (err) {
+    console.error(err);
+    refs.addUsersToTeamList.innerHTML = '<p class="muted">Erro ao carregar usuários.</p>';
+  }
+}
+
+/**
+ * Renderizar chips de usuários disponíveis
+ */
+function renderAvailableUsersChips(users, deps) {
+  const { refs, state } = deps;
+  
+  if (!refs.addUsersToTeamList) return;
+  
+  refs.addUsersToTeamList.innerHTML = '';
+  
+  if (users.length === 0) {
+    refs.addUsersToTeamList.innerHTML = '<p class="muted">Todos os usuários já estão nesta equipe.</p>';
+    return;
+  }
+  
+  users.forEach(user => {
+    const isSelected = state.selectedUsersToAdd.includes(user.uid);
+    
+    const chip = document.createElement("button");
+    chip.className = `chip ${isSelected ? "selected" : ""}`;
+    chip.type = "button";
+    chip.innerHTML = `
+      <strong>${escapeHtml(user.name)}</strong>
+      <br>
+      <small style="opacity:0.7;">${escapeHtml(user.email)}</small>
+    `;
+    
+    chip.addEventListener("click", () => {
+      const index = state.selectedUsersToAdd.indexOf(user.uid);
+      if (index > -1) {
+        state.selectedUsersToAdd.splice(index, 1);
+      } else {
+        state.selectedUsersToAdd.push(user.uid);
+      }
+      renderAvailableUsersChips(users, deps);
+    });
+    
+    refs.addUsersToTeamList.appendChild(chip);
+  });
+}
+
+/**
+ * Salvar usuários adicionados à equipe
+ */
+export async function saveAddUsersToTeam(deps) {
+  const { refs, state, db } = deps;
+  const teamId = state.currentTeamId;
+  const usersToAdd = state.selectedUsersToAdd || [];
+  
+  if (usersToAdd.length === 0) {
+    setAlert(refs.addUsersToTeamAlert, "Selecione pelo menos um usuário.");
+    return;
+  }
+  
+  setAlert(refs.addUsersToTeamAlert, "Salvando...", "info");
+  
+  try {
+    // Atualizar cada usuário selecionado
+    for (const uid of usersToAdd) {
+      const userRef = doc(db, "companies", state.companyId, "users", uid);
+      const userSnap = await getDoc(userRef);
+      
+      if (userSnap.exists()) {
+        const userData = userSnap.data();
+        const currentTeamIds = userData.teamIds || [];
+        
+        // Adicionar o teamId se ainda não existe
+        if (!currentTeamIds.includes(teamId)) {
+          currentTeamIds.push(teamId);
+          
+          await updateDoc(userRef, {
+            teamIds: currentTeamIds,
+            teamId: currentTeamIds[0] || "" // Primeiro teamId como padrão
+          });
+        }
+      }
+    }
+    
+    // Fechar modal
+    refs.modalAddUsersToTeam.hidden = true;
+    
+    // Recarregar detalhes da equipe
+    const { openTeamDetailsModal } = deps;
+    if (openTeamDetailsModal) {
+      await openTeamDetailsModal(teamId, deps);
+    }
+    
+  } catch (err) {
+    console.error(err);
+    setAlert(refs.addUsersToTeamAlert, "Erro ao adicionar usuários: " + (err?.message || err));
+  }
+}
+
+/**
+ * Fechar modal de adicionar usuários
+ */
+export function closeAddUsersToTeamModal(refs) {
+  if (refs.modalAddUsersToTeam) {
+    refs.modalAddUsersToTeam.hidden = true;
+  }
 }
