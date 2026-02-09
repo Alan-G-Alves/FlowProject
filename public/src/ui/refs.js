@@ -174,3 +174,62 @@ export const managedTeamsAlert = byId("managedTeamsAlert");
 export const btnCloseManagedTeams = byId("btnCloseManagedTeams");
 export const btnCancelManagedTeams = byId("btnCancelManagedTeams");
 export const btnSaveManagedTeams = byId("btnSaveManagedTeams");
+
+// Projects
+export const viewProjects = byId("viewProjects");
+export const btnBackFromProjects = byId("btnBackFromProjects");
+export const projectsGrid = byId("projectsGrid");
+export const projectsEmpty = byId("projectsEmpty");
+export const projectSearch = byId("projectSearch");
+export const projectTeamFilter = byId("projectTeamFilter");
+export const projectStatusFilter = byId("projectStatusFilter");
+export const projectCoordinatorFilter = byId("projectCoordinatorFilter");
+export const btnReloadProjects = byId("btnReloadProjects");
+export const btnOpenCreateProject = byId("btnOpenCreateProject");
+
+// Create project modal
+export const modalCreateProject = byId("modalCreateProject");
+export const btnCloseCreateProject = byId("btnCloseCreateProject");
+export const btnCancelCreateProject = byId("btnCancelCreateProject");
+export const btnCreateProject = byId("btnCreateProject");
+export const projectNameEl = byId("projectName");
+export const projectDescriptionEl = byId("projectDescription");
+export const projectTeamEl = byId("projectTeam");
+export const projectCoordinatorEl = byId("projectCoordinator");
+export const projectStatusEl = byId("projectStatus");
+export const projectPriorityEl = byId("projectPriority");
+export const projectStartDateEl = byId("projectStartDate");
+export const projectEndDateEl = byId("projectEndDate");
+export const createProjectAlert = byId("createProjectAlert");
+
+// Project detail modal
+export const modalProjectDetail = byId("modalProjectDetail");
+export const btnCloseProjectDetail = byId("btnCloseProjectDetail");
+export const btnCancelProjectDetail = byId("btnCancelProjectDetail");
+export const projectDetailTitle = byId("projectDetailTitle");
+export const projectDetailDescription = byId("projectDetailDescription");
+export const projectDetailTeam = byId("projectDetailTeam");
+export const projectDetailCoordinator = byId("projectDetailCoordinator");
+export const projectDetailStatus = byId("projectDetailStatus");
+export const projectDetailPriority = byId("projectDetailPriority");
+export const projectDetailStartDate = byId("projectDetailStartDate");
+export const projectDetailEndDate = byId("projectDetailEndDate");
+export const projectDetailAlert = byId("projectDetailAlert");
+export const btnEditProject = byId("btnEditProject");
+export const btnDeleteProject = byId("btnDeleteProject");
+
+// Edit project modal
+export const modalEditProject = byId("modalEditProject");
+export const btnCloseEditProject = byId("btnCloseEditProject");
+export const btnCancelEditProject = byId("btnCancelEditProject");
+export const btnUpdateProject = byId("btnUpdateProject");
+export const editProjectNameEl = byId("editProjectName");
+export const editProjectDescriptionEl = byId("editProjectDescription");
+export const editProjectTeamEl = byId("editProjectTeam");
+export const editProjectCoordinatorEl = byId("editProjectCoordinator");
+export const editProjectStatusEl = byId("editProjectStatus");
+export const editProjectPriorityEl = byId("editProjectPriority");
+export const editProjectStartDateEl = byId("editProjectStartDate");
+export const editProjectEndDateEl = byId("editProjectEndDate");
+export const editProjectAlert = byId("editProjectAlert");
+

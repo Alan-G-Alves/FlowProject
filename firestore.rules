@@ -1,0 +1,116 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // ===== PLATFORM USERS (Super Admin) =====
+    match /platformUsers/{uid} {
+      allow read: if request.auth != null && request.auth.uid == uid;
+      allow write: if false; // Apenas Functions podem escrever
+    }
+    
+    // ===== USER COMPANIES (Multi-tenant Mapping) =====
+    match /userCompanies/{uid} {
+      allow read: if request.auth != null && request.auth.uid == uid;
+      allow write: if false; // Apenas Functions podem escrever
+    }
+    
+    // ===== COMPANIES =====
+    match /companies/{companyId} {
+      // Apenas Super Admin pode ler/escrever empresas
+      allow read: if isSuperAdmin();
+      allow write: if isSuperAdmin();
+      
+      // ===== TEAMS (Admin da empresa pode gerenciar) =====
+      match /teams/{teamId} {
+        allow read: if belongsToCompany(companyId);
+        allow create: if isCompanyAdmin(companyId);
+        allow update, delete: if isCompanyAdmin(companyId);
+      }
+      
+      // ===== USERS (Perfis dentro da empresa) =====
+      match /users/{userId} {
+        allow read: if belongsToCompany(companyId);
+        allow create: if isCompanyAdmin(companyId) || isGestor(companyId);
+        allow update: if isCompanyAdmin(companyId) || (isGestor(companyId) && userIsInManagedTeams(companyId, userId));
+        allow delete: if isCompanyAdmin(companyId);
+      }
+      
+      // ===== PROJECTS (Gestão de Projetos) =====
+      match /projects/{projectId} {
+        allow read: if belongsToCompany(companyId);
+        allow create: if isCompanyAdmin(companyId) || isGestor(companyId) || isCoordenador(companyId);
+        allow update: if isCompanyAdmin(companyId) || isGestor(companyId) || isCoordenador(companyId);
+        allow delete: if isCompanyAdmin(companyId) || isGestor(companyId);
+      }
+      
+      // ===== TASKS (Gestão de Tarefas) =====
+      match /tasks/{taskId} {
+        allow read: if belongsToCompany(companyId);
+        allow create: if isCompanyAdmin(companyId) || isGestor(companyId) || isCoordenador(companyId);
+        allow update: if isCompanyAdmin(companyId) || isGestor(companyId) || isCoordenador(companyId) || isTecnico(companyId);
+        allow delete: if isCompanyAdmin(companyId) || isGestor(companyId) || isCoordenador(companyId);
+      }
+    }
+    
+    // ===== HELPER FUNCTIONS =====
+    
+    // Super Admin (platformUsers)
+    function isSuperAdmin() {
+      return request.auth != null &&
+        exists(/databases/$(database)/documents/platformUsers/$(request.auth.uid)) &&
+        get(/databases/$(database)/documents/platformUsers/$(request.auth.uid)).data.role == 'superadmin' &&
+        get(/databases/$(database)/documents/platformUsers/$(request.auth.uid)).data.active == true;
+    }
+    
+    // Pertence à empresa (via userCompanies)
+    function belongsToCompany(companyId) {
+      return request.auth != null &&
+        exists(/databases/$(database)/documents/userCompanies/$(request.auth.uid)) &&
+        get(/databases/$(database)/documents/userCompanies/$(request.auth.uid)).data.companyId == companyId;
+    }
+    
+    // Admin da empresa
+    function isCompanyAdmin(companyId) {
+      return belongsToCompany(companyId) &&
+        exists(/databases/$(database)/documents/companies/$(companyId)/users/$(request.auth.uid)) &&
+        get(/databases/$(database)/documents/companies/$(companyId)/users/$(request.auth.uid)).data.role == 'admin' &&
+        get(/databases/$(database)/documents/companies/$(companyId)/users/$(request.auth.uid)).data.active == true;
+    }
+    
+    // Gestor da empresa
+    function isGestor(companyId) {
+      return belongsToCompany(companyId) &&
+        exists(/databases/$(database)/documents/companies/$(companyId)/users/$(request.auth.uid)) &&
+        get(/databases/$(database)/documents/companies/$(companyId)/users/$(request.auth.uid)).data.role == 'gestor' &&
+        get(/databases/$(database)/documents/companies/$(companyId)/users/$(request.auth.uid)).data.active == true;
+    }
+    
+    // Coordenador da empresa
+    function isCoordenador(companyId) {
+      return belongsToCompany(companyId) &&
+        exists(/databases/$(database)/documents/companies/$(companyId)/users/$(request.auth.uid)) &&
+        get(/databases/$(database)/documents/companies/$(companyId)/users/$(request.auth.uid)).data.role == 'coordenador' &&
+        get(/databases/$(database)/documents/companies/$(companyId)/users/$(request.auth.uid)).data.active == true;
+    }
+    
+    // Técnico da empresa
+    function isTecnico(companyId) {
+      return belongsToCompany(companyId) &&
+        exists(/databases/$(database)/documents/companies/$(companyId)/users/$(request.auth.uid)) &&
+        get(/databases/$(database)/documents/companies/$(companyId)/users/$(request.auth.uid)).data.role == 'tecnico' &&
+        get(/databases/$(database)/documents/companies/$(companyId)/users/$(request.auth.uid)).data.active == true;
+    }
+    
+    // Verifica se usuário está nas equipes administradas pelo Gestor
+    function userIsInManagedTeams(companyId, userId) {
+      let managerData = get(/databases/$(database)/documents/companies/$(companyId)/users/$(request.auth.uid)).data;
+      let userData = get(/databases/$(database)/documents/companies/$(companyId)/users/$(userId)).data;
+      let managedTeams = managerData.get('managedTeamIds', []);
+      let userTeams = userData.get('teamIds', []);
+      
+      // Verifica se há interseção entre managedTeamIds e userTeams
+      return managedTeams.hasAny(userTeams);
+    }
+  }
+}

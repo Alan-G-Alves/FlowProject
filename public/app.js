@@ -48,6 +48,7 @@ import * as companiesDomain from "./src/domain/companies.domain.js?v=1770332251"
 import * as teamsDomain from "./src/domain/teams.domain.js?v=1770332251";
 import * as usersDomain from "./src/domain/users.domain.js?v=1770332251";
 import * as managerUsersDomain from "./src/domain/manager-users.domain.js?v=1770332251";
+import * as projectsDomain from "./src/domain/projects.domain.js?v=1770332251";
 import * as profileModal from "./src/ui/modals/profile.modal.js?v=1770332251";
 import * as topbar from "./src/ui/topbar.js?v=1770332251";
 import * as sidebar from "./src/ui/sidebar.js?v=1770332251";
@@ -242,7 +243,7 @@ function initSidebar(){
   });
   refs.navAddProject?.addEventListener("click", () => {
     setActiveNav("navAddProject");
-    alert("Em breve: Adicionar projeto");
+    openProjectsView();
   });
   refs.navAddTech?.addEventListener("click", () => {
     setActiveNav("navAddTech");
@@ -779,6 +780,56 @@ async function saveManagedTeams() {
 }
 
 /** =========================
+ *  9.7) PROJECTS - Delegado para projects.domain.js
+ *  ========================= */
+const getProjectsDeps = () => ({
+  refs, state, db, auth,
+  loadProjects, openProjectDetailModal, closeProjectDetailModal,
+  openEditProjectModal, closeEditProjectModal, updateProject,
+  openCreateProjectModal, closeCreateProjectModal, createProject
+});
+
+function openProjectsView() {
+  projectsDomain.openProjectsView({ loadProjects });
+}
+
+async function loadProjects() {
+  await projectsDomain.loadProjects(getProjectsDeps());
+}
+
+function openCreateProjectModal() {
+  projectsDomain.openCreateProjectModal(getProjectsDeps());
+}
+
+function closeCreateProjectModal() {
+  projectsDomain.closeCreateProjectModal(refs);
+}
+
+async function createProject() {
+  await projectsDomain.createProject(getProjectsDeps());
+}
+
+async function openProjectDetailModal(projectId) {
+  await projectsDomain.openProjectDetailModal(projectId, getProjectsDeps());
+}
+
+function closeProjectDetailModal() {
+  projectsDomain.closeProjectDetailModal(refs);
+}
+
+async function openEditProjectModal(projectId) {
+  await projectsDomain.openEditProjectModal(projectId, getProjectsDeps());
+}
+
+function closeEditProjectModal() {
+  projectsDomain.closeEditProjectModal(refs);
+}
+
+async function updateProject() {
+  await projectsDomain.updateProject(getProjectsDeps());
+}
+
+/** =========================
  *  10) AUTH FLOW
  *  ========================= */
 // Inicializa o dropdown do avatar (não depende do login)
@@ -1098,6 +1149,51 @@ refs.modalCompanyDetail?.addEventListener("click", (e) => {
   if (e.target?.dataset?.close === "true") closeCompanyDetailModal();
 });
 
+// Projects events
+refs.btnBackFromProjects?.addEventListener("click", () => setView("dashboard"));
+refs.btnReloadProjects?.addEventListener("click", () => loadProjects());
+refs.projectSearch?.addEventListener("input", () => loadProjects());
+refs.projectTeamFilter?.addEventListener("change", () => loadProjects());
+refs.projectStatusFilter?.addEventListener("change", () => loadProjects());
+refs.projectCoordinatorFilter?.addEventListener("change", () => loadProjects());
+refs.btnOpenCreateProject?.addEventListener("click", async () => {
+  await loadTeams();
+  openCreateProjectModal();
+});
+
+// Modal criar projeto
+refs.btnCloseCreateProject?.addEventListener("click", () => closeCreateProjectModal());
+refs.btnCancelCreateProject?.addEventListener("click", () => closeCreateProjectModal());
+refs.btnCreateProject?.addEventListener("click", () => {
+  createProject().catch(err => {
+    console.error(err);
+    setAlert(refs.createProjectAlert, "Erro ao salvar: " + (err?.message || err));
+  });
+});
+refs.modalCreateProject?.addEventListener("click", (e) => {
+  if (e.target?.dataset?.close === "true") closeCreateProjectModal();
+});
+
+// Modal detalhes do projeto
+refs.btnCloseProjectDetail?.addEventListener("click", () => closeProjectDetailModal());
+refs.btnCancelProjectDetail?.addEventListener("click", () => closeProjectDetailModal());
+refs.modalProjectDetail?.addEventListener("click", (e) => {
+  if (e.target?.dataset?.close === "true") closeProjectDetailModal();
+});
+
+// Modal editar projeto
+refs.btnCloseEditProject?.addEventListener("click", () => closeEditProjectModal());
+refs.btnCancelEditProject?.addEventListener("click", () => closeEditProjectModal());
+refs.btnUpdateProject?.addEventListener("click", () => {
+  updateProject().catch(err => {
+    console.error(err);
+    setAlert(refs.editProjectAlert, "Erro ao salvar: " + (err?.message || err));
+  });
+});
+refs.modalEditProject?.addEventListener("click", (e) => {
+  if (e.target?.dataset?.close === "true") closeEditProjectModal();
+});
+
 // Teams events
 refs.btnReloadTeams?.addEventListener("click", () => loadTeams());
 refs.teamSearch?.addEventListener("input", () => loadTeams());
@@ -1132,7 +1228,6 @@ refs.btnReloadUsers?.addEventListener("click", () => loadUsers());
 refs.userSearch?.addEventListener("input", () => loadUsers());
 refs.userRoleFilter?.addEventListener("change", () => { loadUsers(); });
 refs.btnOpenCreateUser?.addEventListener("click", async () => {
-  // garante que as equipes estão carregadas antes de abrir
   await loadTeams();
   openCreateUserModal();
 });
@@ -1151,7 +1246,6 @@ refs.modalCreateUser?.addEventListener("click", (e) => {
 });
 
 refs.btnCloseCompanyDetail?.addEventListener("click", () => closeCompanyDetailModal());
-
 
 // Sidebar + tooltips
 try{ initSidebar(); }catch(e){ console.warn("initSidebar falhou", e); }

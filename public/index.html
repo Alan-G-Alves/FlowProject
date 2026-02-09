@@ -295,6 +295,54 @@
 <p class="muted">Clique em “Criar Empresa” para começar.</p>
 </div>
 </div>
+</section><!-- PROJECTS VIEW --><section class="view" hidden="" id="viewProjects">
+<div class="container">
+<div class="page-header">
+<div>
+<h1>Projetos</h1>
+<p class="muted">Gerencie os projetos da sua equipe.</p>
+</div>
+<div class="chips">
+<button class="btn primary" id="btnOpenCreateProject">+ Criar Projeto</button>
+<button class="btn ghost" id="btnBackFromProjects">Voltar</button>
+</div>
+</div>
+<div class="panel" style="margin-bottom:12px;">
+<div class="row" style="display:flex; gap:10px; align-items:flex-end; flex-wrap:wrap;">
+<label class="field" style="min-width:240px;">
+<span>Buscar projeto</span>
+<input id="projectSearch" placeholder="Ex.: Projeto X"/>
+</label>
+<label class="field" style="min-width:200px;">
+<span>Filtrar equipe</span>
+<select id="projectTeamFilter">
+<option value="">Todas</option>
+</select>
+</label>
+<label class="field" style="min-width:180px;">
+<span>Filtrar status</span>
+<select id="projectStatusFilter">
+<option value="">Todos</option>
+<option value="a-fazer">A Fazer</option>
+<option value="em-andamento">Em Andamento</option>
+<option value="concluido">Concluído</option>
+</select>
+</label>
+<label class="field" style="min-width:220px;">
+<span>Filtrar coordenador</span>
+<select id="projectCoordinatorFilter">
+<option value="">Todos</option>
+</select>
+</label>
+<button class="btn" id="btnReloadProjects">Atualizar</button>
+</div>
+</div>
+<div class="grid" id="projectsGrid"></div>
+<div class="panel subtle" hidden="" id="projectsEmpty" style="margin-top:12px;">
+<h3>Nenhum projeto cadastrado</h3>
+<p class="muted">Clique em "Criar Projeto" para começar.</p>
+</div>
+</div>
 </section></div></main>
 </div>
 <!-- MODAL CRIAR EMPRESA (Master) -->
@@ -717,5 +765,188 @@
     </div>
   </div>
 </div>
+
+<!-- MODAL: CRIAR PROJETO -->
+<div class="modal" hidden id="modalCreateProject">
+  <div class="modal-backdrop" data-close="true"></div>
+  <div class="modal-card">
+    <div class="modal-header">
+      <div>
+        <h2>Criar Projeto</h2>
+        <p class="muted">Crie um novo projeto e vincule à equipe.</p>
+      </div>
+      <button class="btn ghost" id="btnCloseCreateProject">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="grid" style="grid-template-columns: repeat(12, 1fr); gap:12px;">
+        <label class="field" style="grid-column: span 12;">
+          <span>Nome do projeto</span>
+          <input id="projectName" placeholder="Ex.: Projeto de Expansão"/>
+        </label>
+        <label class="field" style="grid-column: span 12;">
+          <span>Descrição</span>
+          <textarea id="projectDescription" placeholder="Descreva o projeto" rows="3" style="width:100%; border-radius:14px; border:1px solid var(--border); padding:10px; font-family:inherit; resize:vertical;"></textarea>
+        </label>
+        <label class="field" style="grid-column: span 6;">
+          <span>Equipe</span>
+          <select id="projectTeam">
+            <option value="">Selecione uma equipe</option>
+          </select>
+        </label>
+        <label class="field" style="grid-column: span 6;">
+          <span>Coordenador</span>
+          <select id="projectCoordinator">
+            <option value="">Selecione (opcional)</option>
+          </select>
+        </label>
+        <label class="field" style="grid-column: span 4;">
+          <span>Status</span>
+          <select id="projectStatus">
+            <option value="a-fazer">A Fazer</option>
+            <option value="em-andamento">Em Andamento</option>
+            <option value="concluido">Concluído</option>
+          </select>
+        </label>
+        <label class="field" style="grid-column: span 4;">
+          <span>Prioridade</span>
+          <select id="projectPriority">
+            <option value="baixa">Baixa</option>
+            <option value="media" selected>Média</option>
+            <option value="alta">Alta</option>
+          </select>
+        </label>
+        <label class="field" style="grid-column: span 6;">
+          <span>Data de início</span>
+          <input type="date" id="projectStartDate"/>
+        </label>
+        <label class="field" style="grid-column: span 6;">
+          <span>Data de término</span>
+          <input type="date" id="projectEndDate"/>
+        </label>
+      </div>
+      <div class="alert" hidden id="createProjectAlert"></div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn" id="btnCancelCreateProject">Cancelar</button>
+      <button class="btn primary" id="btnCreateProject">Salvar</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL: DETALHES DO PROJETO -->
+<div class="modal" hidden id="modalProjectDetail">
+  <div class="modal-backdrop" data-close="true"></div>
+  <div class="modal-card">
+    <div class="modal-header">
+      <div>
+        <h2 id="projectDetailTitle">Projeto</h2>
+        <div style="margin-top:8px;" id="projectDetailStatus"></div>
+      </div>
+      <button class="btn ghost" id="btnCloseProjectDetail">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="panel subtle" style="margin-bottom:12px; padding:14px;">
+        <h4 style="margin:0 0 8px 0;">Descrição</h4>
+        <p style="margin:0;" id="projectDetailDescription">—</p>
+      </div>
+      <div class="grid" style="grid-template-columns: repeat(2, 1fr); gap:12px;">
+        <div class="field">
+          <span>Equipe</span>
+          <div style="padding:10px; background:rgba(255,255,255,.7); border:1px solid var(--border); border-radius:14px;" id="projectDetailTeam">—</div>
+        </div>
+        <div class="field">
+          <span>Coordenador</span>
+          <div style="padding:10px; background:rgba(255,255,255,.7); border:1px solid var(--border); border-radius:14px;" id="projectDetailCoordinator">—</div>
+        </div>
+        <div class="field">
+          <span>Prioridade</span>
+          <div id="projectDetailPriority">—</div>
+        </div>
+        <div class="field">
+          <span>Data de início</span>
+          <div style="padding:10px; background:rgba(255,255,255,.7); border:1px solid var(--border); border-radius:14px;" id="projectDetailStartDate">—</div>
+        </div>
+        <div class="field">
+          <span>Data de término</span>
+          <div style="padding:10px; background:rgba(255,255,255,.7); border:1px solid var(--border); border-radius:14px;" id="projectDetailEndDate">—</div>
+        </div>
+      </div>
+      <div class="alert" hidden id="projectDetailAlert" style="margin-top:12px;"></div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn" id="btnEditProject">Editar</button>
+      <button class="btn danger" id="btnDeleteProject">Excluir</button>
+      <button class="btn ghost" id="btnCancelProjectDetail">Fechar</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL: EDITAR PROJETO -->
+<div class="modal" hidden id="modalEditProject">
+  <div class="modal-backdrop" data-close="true"></div>
+  <div class="modal-card">
+    <div class="modal-header">
+      <div>
+        <h2>Editar Projeto</h2>
+        <p class="muted">Atualize as informações do projeto.</p>
+      </div>
+      <button class="btn ghost" id="btnCloseEditProject">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="grid" style="grid-template-columns: repeat(12, 1fr); gap:12px;">
+        <label class="field" style="grid-column: span 12;">
+          <span>Nome do projeto</span>
+          <input id="editProjectName" placeholder="Ex.: Projeto de Expansão"/>
+        </label>
+        <label class="field" style="grid-column: span 12;">
+          <span>Descrição</span>
+          <textarea id="editProjectDescription" placeholder="Descreva o projeto" rows="3" style="width:100%; border-radius:14px; border:1px solid var(--border); padding:10px; font-family:inherit; resize:vertical;"></textarea>
+        </label>
+        <label class="field" style="grid-column: span 6;">
+          <span>Equipe</span>
+          <select id="editProjectTeam">
+            <option value="">Selecione uma equipe</option>
+          </select>
+        </label>
+        <label class="field" style="grid-column: span 6;">
+          <span>Coordenador</span>
+          <select id="editProjectCoordinator">
+            <option value="">Selecione (opcional)</option>
+          </select>
+        </label>
+        <label class="field" style="grid-column: span 4;">
+          <span>Status</span>
+          <select id="editProjectStatus">
+            <option value="a-fazer">A Fazer</option>
+            <option value="em-andamento">Em Andamento</option>
+            <option value="concluido">Concluído</option>
+          </select>
+        </label>
+        <label class="field" style="grid-column: span 4;">
+          <span>Prioridade</span>
+          <select id="editProjectPriority">
+            <option value="baixa">Baixa</option>
+            <option value="media">Média</option>
+            <option value="alta">Alta</option>
+          </select>
+        </label>
+        <label class="field" style="grid-column: span 6;">
+          <span>Data de início</span>
+          <input type="date" id="editProjectStartDate"/>
+        </label>
+        <label class="field" style="grid-column: span 6;">
+          <span>Data de término</span>
+          <input type="date" id="editProjectEndDate"/>
+        </label>
+      </div>
+      <div class="alert" hidden id="editProjectAlert"></div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn" id="btnCancelEditProject">Cancelar</button>
+      <button class="btn primary" id="btnUpdateProject">Salvar Alterações</button>
+    </div>
+  </div>
+</div>
+
 </body>
 </html>
