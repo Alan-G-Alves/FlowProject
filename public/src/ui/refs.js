@@ -213,13 +213,17 @@ export const btnCancelCreateProject = byId("btnCancelCreateProject");
 export const btnCreateProject = byId("btnCreateProject");
 export const projectNameEl = byId("projectName");
 export const projectDescriptionEl = byId("projectDescription");
-export const projectTeamEl = byId("projectTeam");
+export const projectManagerEl = byId("projectManager");
 export const projectCoordinatorEl = byId("projectCoordinator");
+export const projectTeamEl = byId("projectTeam");
+export const projectBillingValueEl = byId("projectBillingValue");
+export const projectBillingHoursEl = byId("projectBillingHours");
 export const projectStatusEl = byId("projectStatus");
 export const projectPriorityEl = byId("projectPriority");
 export const projectStartDateEl = byId("projectStartDate");
 export const projectEndDateEl = byId("projectEndDate");
 export const createProjectAlert = byId("createProjectAlert");
+
 
 // Project detail modal
 export const modalProjectDetail = byId("modalProjectDetail");

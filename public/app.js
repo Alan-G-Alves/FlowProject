@@ -254,13 +254,16 @@ function initSidebar(){
     setActiveNav("navReports");
     alert("Em breve: Relatórios e indicadores");
   });
-  refs.navAddProject?.addEventListener("click", () => {
+  refs.navAddProject?.addEventListener("click", async () => {
     try {
       setActiveNav("navAddProject");
-      openProjectsView();
+      // Carregar equipes e usuários antes de abrir o modal
+      await loadTeams();
+      await loadUsers();
+      openCreateProjectModal();
     } catch (err) {
-      console.error("Erro ao abrir projetos:", err);
-      alert("Erro ao abrir projetos: " + (err?.message || err));
+      console.error("Erro ao abrir modal de projeto:", err);
+      alert("Erro ao abrir modal de projeto: " + (err?.message || err));
     }
   });
   refs.navAddTech?.addEventListener("click", () => {

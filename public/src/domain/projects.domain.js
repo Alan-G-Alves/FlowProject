@@ -178,8 +178,10 @@ export function openCreateProjectModal(deps) {
   // Limpa campos
   if (refs.projectNameEl) refs.projectNameEl.value = "";
   if (refs.projectDescriptionEl) refs.projectDescriptionEl.value = "";
-  if (refs.projectTeamEl) refs.projectTeamEl.value = "";
+  if (refs.projectManagerEl) refs.projectManagerEl.value = "";
   if (refs.projectCoordinatorEl) refs.projectCoordinatorEl.value = "";
+  if (refs.projectTeamEl) refs.projectTeamEl.value = "";
+  if (refs.projectBillingValueEl) refs.projectBillingValueEl.checked = true;
   if (refs.projectStatusEl) refs.projectStatusEl.value = "a-fazer";
   if (refs.projectPriorityEl) refs.projectPriorityEl.value = "media";
   if (refs.projectStartDateEl) refs.projectStartDateEl.value = "";
@@ -188,8 +190,11 @@ export function openCreateProjectModal(deps) {
   // Preenche select de equipes
   populateTeamSelect(refs.projectTeamEl, state.teams);
   
-  // Preenche select de coordenadores (Gestores + Coordenadores da empresa)
-  populateCoordinatorSelect(refs.projectCoordinatorEl, deps);
+  // Preenche select de gestores (apenas role='gestor')
+  populateManagerSelect(refs.projectManagerEl, state._usersCache);
+  
+  // Preenche select de coordenadores (apenas role='coordenador')
+  populateCoordinatorSelectNew(refs.projectCoordinatorEl, state._usersCache);
   
   refs.modalCreateProject.hidden = false;
   document.body.classList.add("modal-open");
@@ -208,26 +213,29 @@ export function closeCreateProjectModal(refs) {
  * Cria projeto
  */
 export async function createProject(deps) {
-  const { refs, state, db, auth, loadProjects } = deps;
+  const { refs, state, db, auth, closeCreateProjectModal } = deps;
   
   clearAlert(refs.createProjectAlert);
   
   const name = (refs.projectNameEl?.value || "").trim();
   const description = (refs.projectDescriptionEl?.value || "").trim();
-  const teamId = refs.projectTeamEl?.value || "";
+  const managerUid = refs.projectManagerEl?.value || "";
   const coordinatorUid = refs.projectCoordinatorEl?.value || "";
+  const teamId = refs.projectTeamEl?.value || "";
+  const billingType = refs.projectBillingValueEl?.checked ? "valor" : "horas";
   const status = refs.projectStatusEl?.value || "a-fazer";
   const priority = refs.projectPriorityEl?.value || "media";
   const startDate = refs.projectStartDateEl?.value || "";
   const endDate = refs.projectEndDateEl?.value || "";
   
+  // Validações
   if (!name) {
     setAlert(refs.createProjectAlert, "Informe o nome do projeto.");
     return;
   }
   
-  if (!teamId) {
-    setAlert(refs.createProjectAlert, "Selecione uma equipe.");
+  if (!managerUid) {
+    setAlert(refs.createProjectAlert, "Selecione um gestor.");
     return;
   }
   
@@ -244,8 +252,10 @@ export async function createProject(deps) {
     const payload = {
       name,
       description,
-      teamId,
+      managerUid,
       coordinatorUid: coordinatorUid || "",
+      teamId: teamId || "",
+      billingType,
       status,
       priority,
       startDate: startDate || null,
@@ -282,6 +292,46 @@ function populateTeamSelect(selectEl, teams) {
     const opt = document.createElement("option");
     opt.value = team.id;
     opt.textContent = team.name || team.id;
+    selectEl.appendChild(opt);
+  }
+}
+
+/**
+ * Popula select de gestores (apenas role='gestor')
+ */
+function populateManagerSelect(selectEl, users) {
+  if (!selectEl) return;
+  selectEl.innerHTML = '<option value="">Selecione um gestor</option>';
+  
+  if (!users || !Array.isArray(users)) return;
+  
+  const managers = users.filter(u => u.role === 'gestor' && u.active !== false);
+  managers.sort((a, b) => (a.name || "").localeCompare(b.name || ""));
+  
+  for (const user of managers) {
+    const opt = document.createElement("option");
+    opt.value = user.uid;
+    opt.textContent = user.name || user.email;
+    selectEl.appendChild(opt);
+  }
+}
+
+/**
+ * Popula select de coordenadores (apenas role='coordenador')
+ */
+function populateCoordinatorSelectNew(selectEl, users) {
+  if (!selectEl) return;
+  selectEl.innerHTML = '<option value="">Selecione (opcional)</option>';
+  
+  if (!users || !Array.isArray(users)) return;
+  
+  const coordinators = users.filter(u => u.role === 'coordenador' && u.active !== false);
+  coordinators.sort((a, b) => (a.name || "").localeCompare(b.name || ""));
+  
+  for (const user of coordinators) {
+    const opt = document.createElement("option");
+    opt.value = user.uid;
+    opt.textContent = user.name || user.email;
     selectEl.appendChild(opt);
   }
 }
