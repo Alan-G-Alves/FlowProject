@@ -21,10 +21,18 @@ export const auth = getAuth(app);
 export const db = getFirestore(app);
 export const storage = getStorage(app);
 
-// IMPORTANTE: Cloud Functions precisam da região configurada
-// Se deployou no us-central1 (padrão), não precisa especificar
-// Se deployou em outra região, especifique aqui
-export const functions = getFunctions(app, 'us-central1');
+// Cloud Functions - tenta conectar sem especificar região primeiro
+// Se der erro "unauthenticated", pode ser problema de região
+let functions;
+try {
+  functions = getFunctions(app);
+  console.log("✅ Functions conectado sem região específica");
+} catch (err) {
+  console.warn("⚠️ Erro ao conectar Functions, tentando us-central1:", err);
+  functions = getFunctions(app, 'us-central1');
+}
+
+export { functions };
 
 // Exporta httpsCallable pois o app usa em alguns fluxos
 export { httpsCallable };

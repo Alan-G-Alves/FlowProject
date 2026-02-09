@@ -218,37 +218,46 @@ export async function createUser(deps) {
       console.log("🔧 Chamando Cloud Function createUserInTenant...");
       console.log("📦 Payload:", { companyId: state.companyId, name, email, role, teamIds });
       console.log("👤 Current User:", auth.currentUser.uid);
+      console.log("🔑 Token will be sent automatically by Firebase SDK");
       
-      const fnCreateUser = httpsCallable(functions, "createUserInTenant");
-      
-      const result = await fnCreateUser({
-        companyId: state.companyId,
-        name,
-        email,
-        phone,
-        role,
-        teamIds
-      });
+      try {
+        const fnCreateUser = httpsCallable(functions, "createUserInTenant");
+        
+        const result = await fnCreateUser({
+          companyId: state.companyId,
+          name,
+          email,
+          phone,
+          role,
+          teamIds
+        });
 
-      console.log("✅ Cloud Function retornou:", result.data);
+        console.log("✅ Cloud Function retornou:", result.data);
 
-      uid = result.data.uid;
-      const resetLink = result.data.resetLink;
+        uid = result.data.uid;
+        const resetLink = result.data.resetLink;
 
-      await loadUsers(deps);
+        await loadUsers(deps);
 
-      // Mostrar sucesso com link de redefinição
-      setAlertWithResetLink(
-        refs.createUserAlert,
-        `Usuário criado com sucesso!`,
-        email,
-        resetLink
-      );
-      
-      // Manter modal aberto para mostrar o link
-      // Não fecha automaticamente
-      
-      return;
+        // Mostrar sucesso com link de redefinição
+        setAlertWithResetLink(
+          refs.createUserAlert,
+          `Usuário criado com sucesso!`,
+          email,
+          resetLink
+        );
+        
+        // Manter modal aberto para mostrar o link
+        // Não fecha automaticamente
+        
+        return;
+      } catch (funcErr) {
+        console.error("❌ Erro na Cloud Function:", funcErr);
+        console.error("Code:", funcErr.code);
+        console.error("Message:", funcErr.message);
+        console.error("Details:", funcErr.details);
+        throw funcErr;
+      }
     }
 
     // Fluxo manual (UID já existe no Auth)
