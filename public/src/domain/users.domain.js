@@ -208,10 +208,16 @@ export async function createUser(deps) {
     if (wantsAutoAuth) {
       // Usar Cloud Function createUserInTenant (evita erro de permissão)
       // A Cloud Function já valida se o email existe
-      const { functions, httpsCallable } = deps;
+      const { functions, httpsCallable, auth } = deps;
+      
+      // Verificar se está autenticado
+      if (!auth.currentUser) {
+        return setAlert(refs.createUserAlert, "Erro: Você não está autenticado. Faça login novamente.");
+      }
       
       console.log("🔧 Chamando Cloud Function createUserInTenant...");
       console.log("📦 Payload:", { companyId: state.companyId, name, email, role, teamIds });
+      console.log("👤 Current User:", auth.currentUser.uid);
       
       const fnCreateUser = httpsCallable(functions, "createUserInTenant");
       
