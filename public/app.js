@@ -221,7 +221,7 @@ async function callHttpFunctionWithAuth(functionName, payload){
 }
 
 function setActiveNav(activeId){
-  const items = [refs.navHome, refs.navAddProject, refs.navAddTech, refs.navReports, refs.navConfig].filter(Boolean);
+  const items = [refs.navHome, refs.navAddTech, refs.navReports, refs.navConfig].filter(Boolean);
   for (const el of items){
     const isActive = el.id === activeId;
     el.classList.toggle("active", isActive);
@@ -276,22 +276,6 @@ function initSidebar(){
     setActiveNav("navReports");
     alert("Em breve: Relatórios e indicadores");
   });
-  refs.navAddProject?.addEventListener("click", async () => {
-    try {
-      setActiveNav("navAddProject");
-      // Carregar equipes e usuários antes de abrir o modal
-      await loadTeams();
-      await loadUsers();
-      openCreateProjectModal();
-    } catch (err) {
-      console.error("Erro ao abrir modal de projeto:", err);
-      alert("Erro ao abrir modal de projeto: " + (err?.message || err));
-    }
-  });
-  refs.navMyProjects?.addEventListener("click", async () => {
-  setActiveNav("navMyProjects");
-  await openMyProjectsView();
-});
   refs.navAddTech?.addEventListener("click", () => {
     setActiveNav("navAddTech");
     // para gestor, já existe tela de técnicos
@@ -582,9 +566,9 @@ function renderDashboardCards(profile){
 } else {
     cards.push({
       title: "Meus Projetos",
-      desc: "Em breve: Kanban de projetos e visão por equipe.",
-      badge: "Fase 2",
-      action: () => alert("Fase 2: Kanban de Projetos")
+      desc: "Visualize seus projetos em formato Kanban.",
+      badge: "Kanban",
+      action: () => openMyProjectsView()
     });
 
     if (profile.role === "gestor") {
@@ -1153,10 +1137,6 @@ function mapAuthError(err){
   return "Não foi possível entrar. Tente novamente.";
 }
 window.__fp = { auth, db, functions };
-
-// Sidebar + tooltips
-try{ initSidebar(); }catch(e){ console.warn("initSidebar falhou", e); }
-
 
 // Gestor Users view
 refs.btnReloadMgrUsers?.addEventListener("click", () => loadManagerUsers());
