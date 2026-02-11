@@ -111,6 +111,28 @@ let currentCompanyDetailId = null;
  *  4) HELPERS
  *  ========================= */
 
+async function ensureCompanyContext(){
+  if (state.companyId) return state.companyId;
+
+  const cached =
+    localStorage.getItem("currentCompanyId") ||
+    localStorage.getItem("companyId");
+
+  if (cached) {
+    state.companyId = cached;
+    return cached;
+  }
+
+  const uid = auth?.currentUser?.uid;
+  if (!uid) throw new Error("Não autenticado.");
+
+  const companyId = await fetchCompanyIdForUser(uid);
+  if (!companyId) throw new Error("companyId não encontrado para o usuário.");
+
+  state.companyId = companyId;
+  localStorage.setItem("currentCompanyId", companyId);
+  return companyId;
+}
 
 
 function setAlertWithResetLink(alertEl, msg, email, resetLink){
@@ -266,10 +288,10 @@ function initSidebar(){
       alert("Erro ao abrir modal de projeto: " + (err?.message || err));
     }
   });
-  refs.navMyProjects?.addEventListener("click", () => {
-    setActiveNav("navMyProjects");
-    openMyProjectsView();
-  });
+  refs.navMyProjects?.addEventListener("click", async () => {
+  setActiveNav("navMyProjects");
+  await openMyProjectsView();
+});
   refs.navAddTech?.addEventListener("click", () => {
     setActiveNav("navAddTech");
     // para gestor, já existe tela de técnicos
@@ -814,8 +836,17 @@ const getProjectsDeps = () => ({
   openCreateProjectModal, closeCreateProjectModal, createProject
 });
 
-function openMyProjectsView() {
-  projectsDomain.openMyProjectsView({ loadMyProjects, openEditProjectModal });
+async function openMyProjectsView() {
+  try{
+    await ensureCompanyContext();
+  }catch(err){
+    console.error("openMyProjectsView: ensureCompanyContext falhou:", err);
+    alert("Não foi possível identificar a empresa do usuário. Faça logout e login novamente.");
+    return;
+  }
+
+  // ✅ IMPORTANTE: passe deps completos (não só um objeto parcial)
+  projectsDomain.openMyProjectsView(getProjectsDeps());
 }
 
 async function loadMyProjects() {
@@ -926,6 +957,8 @@ onAuthStateChanged(auth, async (user) => {
     }
 
     state.companyId = companyId;
+    localStorage.setItem("currentCompanyId", companyId);
+
     state.profile = profile;
 
     renderTopbar(profile, user);

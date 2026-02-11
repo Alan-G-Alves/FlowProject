@@ -3,6 +3,7 @@
 // Rotas no formato: #/login, #/dashboard, #/admin, #/companies, #/manager-users
 
 import { show, hide } from "../utils/dom.js";
+import { unsubscribeMyProjects } from "../domain/projects.domain.js";
 
 const ids = {
   sidebar: "sidebar",
@@ -26,6 +27,16 @@ export function setView(name){
   const viewManagerUsers = el(ids.viewManagerUsers);
   const viewMyProjects = el(ids.viewMyProjects);
   const viewProjects = el(ids.viewProjects);
+
+  // 🔥 Cleanup: ao sair do Kanban realtime, cancela o onSnapshot
+  const wasInMyProjects = !!viewMyProjects && !viewMyProjects.hidden;
+  if (wasInMyProjects && name !== "myProjects") {
+    try {
+      unsubscribeMyProjects();
+    } catch (e) {
+      console.warn("unsubscribeMyProjects failed:", e);
+    }
+  }
 
   hide(viewLogin);
   hide(viewDashboard);
