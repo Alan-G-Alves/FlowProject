@@ -309,7 +309,7 @@
     
     <div class="kanban-board">
       <!-- Coluna A Fazer -->
-      <div class="kanban-column">
+      <div class="kanban-column" data-status="a-fazer" style="border-top:4px solid #4F81BD;">
         <div class="kanban-header">
           <h3>A Fazer</h3>
           <span class="kanban-count" id="kanbanCountTodo">0</span>
@@ -318,9 +318,9 @@
           <p class="muted" style="padding:12px;">Carregando...</p>
         </div>
       </div>
-      
+
       <!-- Coluna Em Andamento -->
-      <div class="kanban-column">
+      <div class="kanban-column" data-status="em-andamento" style="border-top:4px solid #F4B183;">
         <div class="kanban-header">
           <h3>Em Andamento</h3>
           <span class="kanban-count" id="kanbanCountInProgress">0</span>
@@ -329,14 +329,47 @@
           <p class="muted" style="padding:12px;">Carregando...</p>
         </div>
       </div>
-      
+
+      <!-- Coluna Go Live -->
+      <div class="kanban-column" data-status="go-live" style="border-top:4px solid #9BBB59;">
+        <div class="kanban-header">
+          <h3>Go Live</h3>
+          <span class="kanban-count" id="kanbanCountGoLive">0</span>
+        </div>
+        <div class="kanban-cards" id="kanbanGoLive">
+          <p class="muted" style="padding:12px;">Carregando...</p>
+        </div>
+      </div>
+
       <!-- Coluna Concluído -->
-      <div class="kanban-column">
+      <div class="kanban-column" data-status="concluido" style="border-top:4px solid #A5A5A5;">
         <div class="kanban-header">
           <h3>Concluído</h3>
           <span class="kanban-count" id="kanbanCountDone">0</span>
         </div>
         <div class="kanban-cards" id="kanbanDone">
+          <p class="muted" style="padding:12px;">Carregando...</p>
+        </div>
+      </div>
+
+      <!-- Coluna Parado -->
+      <div class="kanban-column" data-status="parado" style="border-top:4px solid #C55A11;">
+        <div class="kanban-header">
+          <h3>Parado</h3>
+          <span class="kanban-count" id="kanbanCountPaused">0</span>
+        </div>
+        <div class="kanban-cards" id="kanbanPaused">
+          <p class="muted" style="padding:12px;">Carregando...</p>
+        </div>
+      </div>
+
+      <!-- Coluna Backlog -->
+      <div class="kanban-column" data-status="backlog" style="border-top:4px solid #8064A2;">
+        <div class="kanban-header">
+          <h3>Backlog</h3>
+          <span class="kanban-count" id="kanbanCountBacklog">0</span>
+        </div>
+        <div class="kanban-cards" id="kanbanBacklog">
           <p class="muted" style="padding:12px;">Carregando...</p>
         </div>
       </div>
@@ -374,7 +407,10 @@
 <option value="">Todos</option>
 <option value="a-fazer">A Fazer</option>
 <option value="em-andamento">Em Andamento</option>
+<option value="go-live">Go Live</option>
 <option value="concluido">Concluído</option>
+<option value="parado">Parado</option>
+<option value="backlog">Backlog</option>
 </select>
 </label>
 <label class="field" style="min-width:220px;">
@@ -931,14 +967,6 @@
         </div>
         
         <label class="field" style="grid-column: span 4;">
-          <span>Status</span>
-          <select id="projectStatus">
-            <option value="a-fazer">A Fazer</option>
-            <option value="em-andamento">Em Andamento</option>
-            <option value="concluido">Concluído</option>
-          </select>
-        </label>
-        <label class="field" style="grid-column: span 4;">
           <span>Prioridade</span>
           <select id="projectPriority">
             <option value="baixa">Baixa</option>
@@ -1048,10 +1076,13 @@
         <label class="field" style="grid-column: span 4;">
           <span>Status</span>
           <select id="editProjectStatus">
-            <option value="a-fazer">A Fazer</option>
-            <option value="em-andamento">Em Andamento</option>
-            <option value="concluido">Concluído</option>
-          </select>
+<option value="a-fazer">A Fazer</option>
+<option value="em-andamento">Em Andamento</option>
+<option value="go-live">Go Live</option>
+<option value="concluido">Concluído</option>
+<option value="parado">Parado</option>
+<option value="backlog">Backlog</option>
+</select>
         </label>
         <label class="field" style="grid-column: span 4;">
           <span>Prioridade</span>

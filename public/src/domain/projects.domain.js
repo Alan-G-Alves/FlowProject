@@ -33,24 +33,25 @@ let unsubscribeMyProjectsListener = null;
  * Helper: garante refs do Kanban mesmo quando deps/refs não são passados
  */
 function getKanbanRefsSafe(deps) {
-  const safeDeps = deps || {};
-  const refs = safeDeps.refs || {};
-
-  // fallback DOM
+  const refs = deps?.refs || {};
   const dom = (id) => document.getElementById(id);
 
   return {
-    ...refs,
-
-    // containers kanban
+    // containers kanban (ordem: A Fazer, Em Andamento, Go Live, Concluído, Parado, Backlog)
     kanbanTodo: refs.kanbanTodo || dom("kanbanTodo"),
     kanbanInProgress: refs.kanbanInProgress || dom("kanbanInProgress"),
+    kanbanGoLive: refs.kanbanGoLive || dom("kanbanGoLive"),
     kanbanDone: refs.kanbanDone || dom("kanbanDone"),
+    kanbanPaused: refs.kanbanPaused || dom("kanbanPaused"),
+    kanbanBacklog: refs.kanbanBacklog || dom("kanbanBacklog"),
 
     // contadores (se existirem)
     kanbanCountTodo: refs.kanbanCountTodo || dom("kanbanCountTodo"),
     kanbanCountInProgress: refs.kanbanCountInProgress || dom("kanbanCountInProgress"),
+    kanbanCountGoLive: refs.kanbanCountGoLive || dom("kanbanCountGoLive"),
     kanbanCountDone: refs.kanbanCountDone || dom("kanbanCountDone"),
+    kanbanCountPaused: refs.kanbanCountPaused || dom("kanbanCountPaused"),
+    kanbanCountBacklog: refs.kanbanCountBacklog || dom("kanbanCountBacklog"),
   };
 }
 
@@ -177,13 +178,38 @@ function renderProjectCard(proj, deps) {
 /**
  * Badge de status
  */
+/**
+ * Meta (UI) por status do projeto
+ * - Use as mesmas cores das colunas do Kanban, para manter consistência visual.
+ * - Tons "leves" (não saturados) para não poluir a tela.
+ */
+const PROJECT_STATUS_META = {
+  "a-fazer":      { label: "A Fazer",       color: "#3b82f6" }, // azul leve
+  "em-andamento": { label: "Em andamento",  color: "#f59e0b" }, // âmbar/laranja leve
+  "go-live":      { label: "Go Live",       color: "#22c55e" }, // verde leve
+  "concluido":    { label: "Concluído",     color: "#94a3b8" }, // cinza/neutral
+  "parado":       { label: "Parado",        color: "#ef4444" }, // vermelho leve
+  "backlog":      { label: "Backlog",       color: "#8b5cf6" }, // roxo leve
+};
+
+function getProjectStatusMeta(status){
+  const st = (status || "a-fazer").toLowerCase();
+  return PROJECT_STATUS_META[st] || PROJECT_STATUS_META["a-fazer"];
+}
+
 function getStatusBadge(status) {
   const map = {
-    "a-fazer": '<span class="badge" style="background:rgba(59,130,246,.10); border-color:rgba(59,130,246,.25); color:#1e40af;">A Fazer</span>',
-    "em-andamento": '<span class="badge" style="background:rgba(249,115,22,.10); border-color:rgba(249,115,22,.25); color:#c2410c;">Em Andamento</span>',
-    "concluido": '<span class="badge badge-success">Concluído</span>'
+    "a-fazer":    { label: "A Fazer",      cls: "badge info"    }, // azul leve
+    "em-andamento": { label: "Em Andamento", cls: "badge warn"    }, // laranja leve
+    "go-live":    { label: "Go Live",      cls: "badge success" }, // verde leve
+    "concluido":  { label: "Concluído",    cls: "badge"         }, // neutro/cinza
+    "parado":     { label: "Parado",       cls: "badge danger"  }, // vermelho/alarme
+    "backlog":    { label: "Backlog",      cls: "badge info"    }, // roxo leve (se não existir, cai no badge padrão)
   };
-  return map[status] || '<span class="badge">—</span>';
+
+  const st = (status || "a-fazer").toLowerCase();
+  const obj = map[st] || { label: st, cls: "badge" };
+  return `<span class="${obj.cls}">${escapeHtml(obj.label)}</span>`;
 }
 
 /**
@@ -256,7 +282,7 @@ export async function createProject(deps) {
   const coordinatorUid = refs.projectCoordinatorEl?.value || "";
   const teamId = refs.projectTeamEl?.value || "";
   const billingType = refs.projectBillingValueEl?.checked ? "valor" : "horas";
-  const status = refs.projectStatusEl?.value || "a-fazer";
+  const status = "a-fazer";
   const priority = refs.projectPriorityEl?.value || "media";
   const startDate = refs.projectStartDateEl?.value || "";
   const endDate = refs.projectEndDateEl?.value || "";
@@ -731,22 +757,47 @@ export async function loadMyProjects(deps) {
  * Renderiza Kanban a partir de uma lista de projetos (já carregada)
  */
 function renderMyProjectsKanban(projects, deps) {
-  const refs = deps?.refs || getKanbanRefsSafe(deps);
+  const k = getKanbanRefsSafe(deps);
 
-  // Separar por status
-  const todo = (projects || []).filter(p => p.status === "a-fazer");
-  const inProgress = (projects || []).filter(p => p.status === "em-andamento");
-  const done = (projects || []).filter(p => p.status === "concluido");
+  const todo = [];
+  const doing = [];
+  const goLive = [];
+  const done = [];
+  const paused = [];
+  const backlog = [];
 
-  // Atualizar contadores
-  if (refs.kanbanCountTodo) refs.kanbanCountTodo.textContent = todo.length;
-  if (refs.kanbanCountInProgress) refs.kanbanCountInProgress.textContent = inProgress.length;
-  if (refs.kanbanCountDone) refs.kanbanCountDone.textContent = done.length;
+  (projects || []).forEach((p) => {
+    const st = (p?.status || "a-fazer").toLowerCase();
+    if (st === "a-fazer") todo.push(p);
+    else if (st === "em-andamento") doing.push(p);
+    else if (st === "go-live") goLive.push(p);
+    else if (st === "concluido") done.push(p);
+    else if (st === "parado") paused.push(p);
+    else if (st === "backlog") backlog.push(p);
+    else backlog.push(p); // fallback
+  });
 
-  // Renderizar cards
-  renderKanbanCards(refs.kanbanTodo, todo, deps);
-  renderKanbanCards(refs.kanbanInProgress, inProgress, deps);
-  renderKanbanCards(refs.kanbanDone, done, deps);
+  renderKanbanCards(k.kanbanTodo, todo, deps);
+  renderKanbanCards(k.kanbanInProgress, doing, deps);
+  renderKanbanCards(k.kanbanGoLive, goLive, deps);
+  renderKanbanCards(k.kanbanDone, done, deps);
+  renderKanbanCards(k.kanbanPaused, paused, deps);
+  renderKanbanCards(k.kanbanBacklog, backlog, deps);
+
+  if (k.kanbanCountTodo) k.kanbanCountTodo.textContent = String(todo.length);
+  if (k.kanbanCountInProgress) k.kanbanCountInProgress.textContent = String(doing.length);
+  if (k.kanbanCountGoLive) k.kanbanCountGoLive.textContent = String(goLive.length);
+  if (k.kanbanCountDone) k.kanbanCountDone.textContent = String(done.length);
+  if (k.kanbanCountPaused) k.kanbanCountPaused.textContent = String(paused.length);
+  if (k.kanbanCountBacklog) k.kanbanCountBacklog.textContent = String(backlog.length);
+
+  // Habilita drag & drop em todas as colunas (uma vez)
+  setupDropZone(k.kanbanTodo, deps.state, deps.db, deps.auth, deps);
+  setupDropZone(k.kanbanInProgress, deps.state, deps.db, deps.auth, deps);
+  setupDropZone(k.kanbanGoLive, deps.state, deps.db, deps.auth, deps);
+  setupDropZone(k.kanbanDone, deps.state, deps.db, deps.auth, deps);
+  setupDropZone(k.kanbanPaused, deps.state, deps.db, deps.auth, deps);
+  setupDropZone(k.kanbanBacklog, deps.state, deps.db, deps.auth, deps);
 }
 
 /**
@@ -770,7 +821,10 @@ function renderKanbanCards(container, projects, deps) {
     card.className = "kanban-card";
     card.draggable = true;
     card.dataset.projectId = project.id;
-    card.dataset.currentStatus = project.status;
+    card.dataset.currentStatus = project.status || "a-fazer";
+    const meta = getProjectStatusMeta(card.dataset.currentStatus);
+    card.style.boxShadow = `inset 4px 0 0 ${meta.color}`;
+
 
     const priorityText = {
       baixa: "Baixa",
@@ -824,7 +878,10 @@ function setupDropZone(container, state, db, auth, deps) {
   let targetStatus = "";
   if (container.id === "kanbanTodo") targetStatus = "a-fazer";
   else if (container.id === "kanbanInProgress") targetStatus = "em-andamento";
+  else if (container.id === "kanbanGoLive") targetStatus = "go-live";
   else if (container.id === "kanbanDone") targetStatus = "concluido";
+  else if (container.id === "kanbanPaused") targetStatus = "parado";
+  else if (container.id === "kanbanBacklog") targetStatus = "backlog";
 
   container.addEventListener("dragover", (e) => {
     e.preventDefault();
