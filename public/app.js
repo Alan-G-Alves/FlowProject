@@ -1157,12 +1157,8 @@ window.__fp = { auth, db, functions };
 // Sidebar + tooltips
 try{ initSidebar(); }catch(e){ console.warn("initSidebar falhou", e); }
 
-// Dashboard navigation
-refs.btnBackToDashboard?.addEventListener("click", () => setView("dashboard"));
-refs.btnBackFromAdmin?.addEventListener("click", () => setView("dashboard"));
 
 // Gestor Users view
-refs.btnBackFromManagerUsers?.addEventListener("click", () => setView("dashboard"));
 refs.btnReloadMgrUsers?.addEventListener("click", () => loadManagerUsers());
 refs.mgrUserSearch?.addEventListener("input", () => loadManagerUsers());
 refs.mgrTeamFilter?.addEventListener("change", () => loadManagerUsers());
@@ -1180,9 +1176,6 @@ refs.btnCreateTech?.addEventListener("click", () => {
     setAlert(refs.createTechAlert, "Erro ao salvar: " + (err?.message || err));
   });
 });
-refs.modalCreateTech?.addEventListener("click", (e) => {
-  if (e.target?.dataset?.close === "true") closeCreateTechModal();
-});
 
 // Modal equipes administradas
 refs.btnCloseManagedTeams?.addEventListener("click", () => closeManagedTeamsModal());
@@ -1193,14 +1186,9 @@ refs.btnSaveManagedTeams?.addEventListener("click", () => {
     setAlert(refs.managedTeamsAlert, "Erro ao salvar: " + (err?.message || err));
   });
 });
-refs.modalManagedTeams?.addEventListener("click", (e) => {
-  if (e.target?.dataset?.close === "true") closeManagedTeamsModal();
-});
 
 // Companies events
-refs.btnReloadCompanies?.addEventListener("click", () => loadCompanies());
 refs.companySearch?.addEventListener("input", () => loadCompanies());
-refs.btnOpenCreateCompany?.addEventListener("click", () => openCreateCompanyModal());
 
 refs.companyNameEl?.addEventListener("input", () => {
   const slug = slugify(refs.companyNameEl.value);
@@ -1222,9 +1210,6 @@ refs.btnCreateCompany?.addEventListener("click", () => {
   });
 });
 
-refs.modalCreateCompany?.addEventListener("click", (e) => {
-  if (e.target?.dataset?.close === "true") closeCreateCompanyModal();
-});
 
 refs.modalCompanyDetail?.addEventListener("click", (e) => {
   if (e.target?.dataset?.close === "true") closeCompanyDetailModal();
@@ -1284,9 +1269,7 @@ refs.modalEditProject?.addEventListener("click", (e) => {
 });
 
 // Teams events
-refs.btnReloadTeams?.addEventListener("click", () => loadTeams());
 refs.teamSearch?.addEventListener("input", () => loadTeams());
-refs.btnOpenCreateTeam?.addEventListener("click", () => openCreateTeamModal());
 
 refs.teamNameEl?.addEventListener("input", () => {
   const slug = slugify(refs.teamNameEl.value);
@@ -1306,10 +1289,6 @@ refs.btnCreateTeam?.addEventListener("click", () => {
     console.error(err);
     setAlert(refs.createTeamAlert, "Erro ao salvar: " + (err?.message || err));
   });
-});
-
-refs.modalCreateTeam?.addEventListener("click", (e) => {
-  if (e.target?.dataset?.close === "true") closeCreateTeamModal();
 });
 
 // Team Details modal events
@@ -1350,13 +1329,8 @@ refs.modalAddUsersToTeam?.addEventListener("click", (e) => {
 });
 
 // Users events
-refs.btnReloadUsers?.addEventListener("click", () => loadUsers());
 refs.userSearch?.addEventListener("input", () => loadUsers());
 refs.userRoleFilter?.addEventListener("change", () => { loadUsers(); });
-refs.btnOpenCreateUser?.addEventListener("click", async () => {
-  await loadTeams();
-  openCreateUserModal();
-});
 
 refs.btnCloseCreateUser?.addEventListener("click", () => closeCreateUserModal());
 refs.btnCancelCreateUser?.addEventListener("click", () => closeCreateUserModal());
@@ -1367,9 +1341,6 @@ refs.btnCreateUser?.addEventListener("click", () => {
   });
 });
 
-refs.modalCreateUser?.addEventListener("click", (e) => {
-  if (e.target?.dataset?.close === "true") closeCreateUserModal();
-});
 
 // Edit User Teams modal events
 refs.btnCloseEditUserTeams?.addEventListener("click", () => {
