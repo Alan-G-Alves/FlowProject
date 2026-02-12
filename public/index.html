@@ -7,6 +7,48 @@
 <title>FlowProject</title>
 <link href="./styles.css" rel="stylesheet"/>
 <link href="logof.png" rel="icon" type="image/png"/>
+<style>
+  /* SaaS Search (My Projects Kanban) */
+  .icon-btn{
+    display:inline-flex; align-items:center; justify-content:center;
+    width:38px; height:38px;
+    border:1px solid rgba(0,0,0,.12);
+    border-radius:10px;
+    background:#fff;
+    cursor:pointer;
+    transition:transform .06s ease, background .12s ease;
+  }
+  .icon-btn:hover{ background:rgba(0,0,0,.03); }
+  .icon-btn:active{ transform:translateY(1px); }
+  .icon-btn svg{ width:18px; height:18px; opacity:.85; }
+
+  .saas-search{
+    display:none;
+    align-items:center;
+    gap:8px;
+    padding:6px 10px;
+    border:1px solid rgba(0,0,0,.12);
+    border-radius:12px;
+    background:#fff;
+    min-width:280px;
+  }
+  .saas-search.is-open{ display:inline-flex; }
+  .saas-search .saas-search-ic{ width:16px; height:16px; opacity:.65; }
+  .saas-search input{
+    border:none; outline:none; background:transparent;
+    width:240px;
+    font-size:14px;
+  }
+  .saas-search .saas-clear{
+    border:none; background:transparent; cursor:pointer;
+    width:28px; height:28px;
+    display:inline-flex; align-items:center; justify-content:center;
+    border-radius:10px;
+    opacity:.85;
+  }
+  .saas-search .saas-clear:hover{ background:rgba(0,0,0,.06); }
+</style>
+
 </head>
 <body>
 <div class="app">
@@ -303,6 +345,27 @@
       </div>
       <div class="chips">
         <button class="btn primary" id="btnOpenCreateProjectFromKanban">+ Novo Projeto</button>
+<button class="icon-btn" id="btnToggleMyProjectsSearch" title="Pesquisar projetos" aria-label="Pesquisar projetos">
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+    <circle cx="11" cy="11" r="7"></circle>
+    <path d="M20 20l-3.5-3.5"></path>
+  </svg>
+</button>
+
+<div class="saas-search" id="myProjectsSearchWrap" aria-label="Filtro de projetos">
+  <svg class="saas-search-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+    <circle cx="11" cy="11" r="7"></circle>
+    <path d="M20 20l-3.5-3.5"></path>
+  </svg>
+  <input id="myProjectsSearchInput" type="text" placeholder="Buscar por projeto, equipe ou prioridade..." autocomplete="off" />
+  <button class="saas-clear" id="btnClearMyProjectsSearch" title="Limpar" aria-label="Limpar">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+      <path d="M18 6L6 18"></path>
+      <path d="M6 6l12 12"></path>
+    </svg>
+  </button>
+</div>
+
         <button class="btn ghost" id="btnBackFromMyProjects">Voltar</button>
       </div>
     </div>

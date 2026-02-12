@@ -29,6 +29,103 @@ import { getTeamNameById, initialFromName } from "../utils/helpers.js";
  */
 let unsubscribeMyProjectsListener = null;
 
+/* My Projects Kanban Search */
+let _myProjectsLast = [];
+let _myProjectsSearch = "";
+let _myProjectsSearchInitialized = false;
+
+function _normText(v){
+  return (v ?? "")
+    .toString()
+    .trim()
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "");
+}
+
+function _applyMyProjectsSearch(list){
+  const q = _normText(_myProjectsSearch);
+  if(!q) return list;
+
+  return list.filter(p => {
+    const name = _normText(p?.name);
+    const team = _normText(p?.teamName);
+    const pri  = _normText(p?.priority);
+
+    const priAlias = pri === "media" ? "media média" : pri;
+
+    return (name && name.includes(q)) ||
+           (team && team.includes(q)) ||
+           (priAlias && priAlias.includes(q));
+  });
+}
+
+function _renderMyProjectsWithFilter(refs){
+  renderMyProjectsKanban(_applyMyProjectsSearch(_myProjectsLast), refs);
+}
+
+function initMyProjectsSearchUI(refs){
+  if (_myProjectsSearchInitialized) return;
+  _myProjectsSearchInitialized = true;
+  const btnToggle = document.getElementById("btnToggleMyProjectsSearch");
+  const wrap = document.getElementById("myProjectsSearchWrap");
+  const input = document.getElementById("myProjectsSearchInput");
+  const btnClear = document.getElementById("btnClearMyProjectsSearch");
+
+  if(!btnToggle || !wrap || !input || !btnClear) return;
+
+  const open = () => {
+    wrap.classList.add("is-open");
+    input.focus();
+    input.select();
+  };
+
+  const close = () => wrap.classList.remove("is-open");
+
+  const syncClearBtn = () => {
+    btnClear.style.visibility = input.value ? "visible" : "hidden";
+  };
+
+  input.value = _myProjectsSearch || "";
+  syncClearBtn();
+
+  btnToggle.addEventListener("click", () => {
+    if(wrap.classList.contains("is-open")) {
+      if(!input.value) close();
+      else input.focus();
+    } else {
+      open();
+    }
+  });
+
+  input.addEventListener("input", () => {
+    _myProjectsSearch = input.value || "";
+    syncClearBtn();
+    _renderMyProjectsWithFilter(refs);
+  });
+
+  btnClear.addEventListener("click", () => {
+    input.value = "";
+    _myProjectsSearch = "";
+    syncClearBtn();
+    _renderMyProjectsWithFilter(refs);
+    close();
+  });
+
+  input.addEventListener("keydown", (e) => {
+    if(e.key === "Escape"){
+      if(input.value){
+        input.value = "";
+        _myProjectsSearch = "";
+        syncClearBtn();
+        _renderMyProjectsWithFilter(refs);
+      }
+      close();
+    }
+  });
+}
+
+
 /**
  * Helper: garante refs do Kanban mesmo quando deps/refs não são passados
  */
@@ -678,6 +775,7 @@ export function subscribeMyProjects(deps) {
   const db = safeDeps.db;
 
   const refs = getKanbanRefsSafe(safeDeps);
+  initMyProjectsSearchUI(refs);
 
   // Se não temos os containers do Kanban, não tem o que renderizar
   if (!refs.kanbanTodo || !refs.kanbanInProgress || !refs.kanbanDone) {
@@ -723,7 +821,8 @@ export function subscribeMyProjects(deps) {
     (snapshot) => {
       const projects = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
       // Usa refs safe para não depender de deps.refs
-      renderMyProjectsKanban(projects, { ...safeDeps, refs });
+      _myProjectsLast = projects;
+      _renderMyProjectsWithFilter(refs);
     },
     (error) => {
       console.error("onSnapshot(myProjects) error", error);
