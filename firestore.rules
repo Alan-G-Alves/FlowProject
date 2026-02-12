@@ -205,6 +205,28 @@ service cloud.firestore {
         allow delete: if isSuperAdmin() || isCompanyAdmin(companyId);
       }
 
+// counters (IDs sequenciais por empresa)
+match /counters/{counterId} {
+  allow read: if isSuperAdmin()
+    || isCompanyAdmin(companyId)
+    || isManager(companyId)
+    || isCoordenador(companyId);
+
+  // Apenas contador de projetos
+  allow create: if (isCompanyAdmin(companyId) || isManager(companyId) || isCoordenador(companyId))
+    && counterId == "projects"
+    && request.resource.data.keys().hasOnly(["next"])
+    && request.resource.data.next is int
+    && request.resource.data.next == 2;
+
+  allow update: if (isCompanyAdmin(companyId) || isManager(companyId) || isCoordenador(companyId))
+    && counterId == "projects"
+    && request.resource.data.keys().hasOnly(["next"])
+    && request.resource.data.next is int
+    && request.resource.data.next == resource.data.next + 1;
+
+  allow delete: if false;
+}
       // users
       match /users/{uid} {
         // IMPORTANTE: Apenas membros da mesma empresa podem ler usuários

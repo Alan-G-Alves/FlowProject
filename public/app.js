@@ -48,7 +48,7 @@ import * as companiesDomain from "./src/domain/companies.domain.js?v=1770332251"
 import * as teamsDomain from "./src/domain/teams.domain.js?v=1770332251";
 import * as usersDomain from "./src/domain/users.domain.js?v=1770332251";
 import * as managerUsersDomain from "./src/domain/manager-users.domain.js?v=1770332251";
-import * as projectsDomain from "./src/domain/projects.domain.js?v=1770332251";
+import * as projectsDomain from "./src/domain/projects.domain.js";
 import * as profileModal from "./src/ui/modals/profile.modal.js?v=1770332251";
 import * as topbar from "./src/ui/topbar.js?v=1770332251";
 import * as sidebar from "./src/ui/sidebar.js?v=1770332251";
@@ -1224,29 +1224,6 @@ refs.btnCreateProject?.addEventListener("click", () => {
     setAlert(refs.createProjectAlert, "Erro ao salvar: " + (err?.message || err));
   });
 });
-
-/**
- * Fallback: garante que o botão de salvar do modal de projeto funcione
- * mesmo se o elemento for recriado dinamicamente (refs pode vir null).
- */
-document.addEventListener("click", (e) => {
-  const btn = e.target?.closest?.("#btnCreateProject");
-  if (!btn) return;
-
-  // evita submit acidental caso o botão esteja dentro de <form>
-  e.preventDefault();
-
-  // se já existe listener via refs, não faz nada
-  // (mas se refs.btnCreateProject for null, este fallback salva)
-  if (refs?.btnCreateProject) return;
-
-  console.log("🧩 Fallback click: btnCreateProject");
-  createProject().catch(err => {
-    console.error(err);
-    setAlert(refs.createProjectAlert, "Erro ao salvar: " + (err?.message || err));
-  });
-});
-
 refs.modalCreateProject?.addEventListener("click", (e) => {
   if (e.target?.dataset?.close === "true") closeCreateProjectModal();
 });

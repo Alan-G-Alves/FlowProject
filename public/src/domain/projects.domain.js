@@ -514,6 +514,27 @@ export function openCreateProjectModal(deps) {
     if (refs.projectCoordinatorEl){ refs.projectCoordinatorEl.value = myUid; }
   }
 
+
+// Garantir que o botão Salvar esteja ligado mesmo que o app.js não tenha conseguido bindar
+if (refs.btnCreateProject){
+  refs.btnCreateProject.onclick = async () => {
+    try{
+      setAlert(refs.createProjectAlert, "Salvando...", "info");
+      console.log("🧾 [projects.domain] click Salvar (createProject)");
+      await createProject(deps);
+    }catch(err){
+      console.error("createProject error", err);
+      setAlert(refs.createProjectAlert, "Erro ao salvar: " + (err?.message || err));
+    }
+  };
+}
+if (refs.btnCancelCreateProject){
+  refs.btnCancelCreateProject.onclick = () => closeCreateProjectModal(refs);
+}
+if (refs.btnCloseCreateProject){
+  refs.btnCloseCreateProject.onclick = () => closeCreateProjectModal(refs);
+}
+
   refs.modalCreateProject.hidden = false;
   document.body.classList.add("modal-open");
 }
@@ -531,7 +552,6 @@ export function closeCreateProjectModal(refs) {
  * Cria projeto
  */
 export async function createProject(deps) {
-  console.log("🧾 createProject() called");
   const { refs, state, db, auth, closeCreateProjectModal } = deps;
 
   clearAlert(refs.createProjectAlert);
@@ -633,7 +653,6 @@ const { projectId, projectSeq } = await runTransaction(db, async (tx) => {
   } catch (err) {
     console.error("createProject error", err);
     setAlert(refs.createProjectAlert, "Erro ao criar projeto: " + (err?.message || err));
-     throw err;
   }
 }
 
