@@ -48,7 +48,7 @@ import * as companiesDomain from "./src/domain/companies.domain.js?v=1770332251"
 import * as teamsDomain from "./src/domain/teams.domain.js?v=1770332251";
 import * as usersDomain from "./src/domain/users.domain.js?v=1770332251";
 import * as managerUsersDomain from "./src/domain/manager-users.domain.js?v=1770332251";
-import * as projectsDomain from "./src/domain/projects.domain.js";
+import * as projectsDomain from "./src/domain/projects.domain.js?v=1770332251";
 import * as profileModal from "./src/ui/modals/profile.modal.js?v=1770332251";
 import * as topbar from "./src/ui/topbar.js?v=1770332251";
 import * as sidebar from "./src/ui/sidebar.js?v=1770332251";
@@ -98,6 +98,10 @@ const state = {
   managedTeamsSelected: [],
   _usersCache: []
 };
+
+// Guard: evita salvar projeto duas vezes (double click / duplo binding)
+let _isCreatingProject = false;
+
 
 /** =========================
  *  3) ELEMENTOS UI (importados de refs.js)
@@ -854,7 +858,27 @@ function closeCreateProjectModal() {
 }
 
 async function createProject() {
-  await projectsDomain.createProject(getProjectsDeps());
+  if (_isCreatingProject) return;
+  _isCreatingProject = true;
+
+  // feedback imediato + bloqueia double click
+  try {
+    if (refs.btnCreateProject) {
+      refs.btnCreateProject.disabled = true;
+      refs.btnCreateProject.dataset.originalText = refs.btnCreateProject.textContent || "";
+      refs.btnCreateProject.textContent = "Salvando...";
+    }
+
+    await projectsDomain.createProject(getProjectsDeps());
+
+  } finally {
+    _isCreatingProject = false;
+    if (refs.btnCreateProject) {
+      refs.btnCreateProject.disabled = false;
+      const t = refs.btnCreateProject.dataset.originalText;
+      if (t) refs.btnCreateProject.textContent = t;
+    }
+  }
 }
 
 async function openProjectDetailModal(projectId) {
