@@ -1372,46 +1372,57 @@ a{ color: inherit; }
 .modal-card.wide{ max-width: 920px; }
 
 /* Kanban Board */
-.kanban-board {
+/* Kanban Board */
+.kanban-board{
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 16px;
-  margin-top: 20px;
+  grid-template-columns: repeat(6, minmax(0, 1fr)); /* 6 colunas na mesma linha */
+  gap: 20px;
+  align-items: start;
+  overflow-x: hidden; /* sem scroll horizontal no desktop */
+  padding-bottom: 10px;
 }
 
-.kanban-column {
+.kanban-column{
   background: rgba(255,255,255,0.5);
   border: 1px solid var(--border);
+  min-height: 360px;
   border-radius: 14px;
-  padding: 12px;
-  min-height: 500px;
+  min-width: 0; /* CRÍTICO: permite encolher e caber na tela */
+  display: flex;
+  flex-direction: column;
 }
 
-.kanban-header {
+.kanban-header{
   display: flex;
   align-items: center;
   justify-content: space-between;
   margin-bottom: 12px;
   padding-bottom: 10px;
   border-bottom: 2px solid var(--border);
+  gap: 10px;
 }
 
-.kanban-header h3 {
+.kanban-header h3{
   margin: 0;
   font-size: 16px;
   font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
 }
 
-.kanban-count {
-  background: var(--primary);
+.kanban-count{
+  background: var(--col, var(--primary));
   color: white;
   padding: 2px 8px;
   border-radius: 999px;
   font-size: 12px;
   font-weight: 600;
+  flex: 0 0 auto;
 }
 
-.kanban-cards {
+.kanban-cards{
   display: flex;
   flex-direction: column;
   gap: 10px;
@@ -1421,12 +1432,12 @@ a{ color: inherit; }
   transition: background 0.2s;
 }
 
-.kanban-cards.drag-over {
+.kanban-cards.drag-over{
   background: rgba(var(--primary-rgb, 47, 128, 237), 0.1);
   border: 2px dashed var(--primary);
 }
 
-.kanban-card {
+.kanban-card{
   background: white;
   border: 1px solid var(--border);
   border-radius: 10px;
@@ -1436,30 +1447,30 @@ a{ color: inherit; }
   box-shadow: 0 1px 3px rgba(0,0,0,0.1);
 }
 
-.kanban-card:active {
+.kanban-card:active{
   cursor: grabbing;
 }
 
-.kanban-card.dragging {
+.kanban-card.dragging{
   opacity: 0.5;
   transform: rotate(2deg);
   cursor: grabbing;
 }
 
-.kanban-card:hover {
+.kanban-card:hover{
   transform: translateY(-2px);
   box-shadow: 0 4px 12px rgba(0,0,0,0.15);
   border-color: var(--primary);
 }
 
-.kanban-card-title {
+.kanban-card-title{
   font-weight: 600;
   font-size: 14px;
   color: var(--text-dark);
   margin-bottom: 6px;
 }
 
-.kanban-card-desc {
+.kanban-card-desc{
   font-size: 12px;
   color: var(--text-muted);
   margin-bottom: 8px;
@@ -1469,7 +1480,7 @@ a{ color: inherit; }
   overflow: hidden;
 }
 
-.kanban-card-meta {
+.kanban-card-meta{
   display: flex;
   align-items: center;
   gap: 8px;
@@ -1477,8 +1488,8 @@ a{ color: inherit; }
   color: var(--text-muted);
 }
 
-.kanban-card-tag {
-  background: rgba(var(--primary-rgb), 0.1);
+.kanban-card-tag{
+  background: rgba(var(--primary-rgb, 47, 128, 237), 0.1);
   color: var(--primary);
   padding: 2px 6px;
   border-radius: 4px;
@@ -1486,34 +1497,92 @@ a{ color: inherit; }
   font-weight: 600;
 }
 
-.kanban-card-priority {
+.kanban-card-priority{
   padding: 2px 6px;
   border-radius: 4px;
   font-size: 10px;
   font-weight: 600;
 }
 
-.kanban-card-priority.baixa {
+.kanban-card-priority.baixa{
   background: rgba(100, 200, 100, 0.2);
   color: rgb(40, 120, 40);
 }
 
-.kanban-card-priority.media {
+.kanban-card-priority.media{
   background: rgba(255, 165, 0, 0.2);
   color: rgb(200, 100, 0);
 }
 
-.kanban-card-priority.alta {
+.kanban-card-priority.alta{
   background: rgba(255, 50, 50, 0.2);
   color: rgb(200, 0, 0);
 }
 
-@media (max-width: 1024px) {
-  .kanban-board {
-    grid-template-columns: 1fr;
+/* Responsivo:
+   - Desktop: sem scroll horizontal
+   - Tablet/mobile: permite scroll horizontal para não esmagar demais as colunas
+*/
+@media (max-width: 1200px){
+  .kanban-board{
+    grid-template-columns: repeat(6, 260px);
+    overflow-x: auto;
   }
-  
-  .kanban-column {
+}
+
+@media (max-width: 1024px){
+  .kanban-board{
+    grid-template-columns: repeat(6, 240px);
+    overflow-x: auto;
+  }
+  .kanban-column{
     min-height: 300px;
   }
+}
+
+
+/* Icon buttons (SVG) */
+.icon-btn svg{
+  width: 18px;
+  height: 18px;
+}
+
+.icon-btn img{
+  width: 18px;
+  height: 18px;
+}
+/* My Projects (Kanban) – alinhamento do header e separador do topo */
+#viewMyProjects .container{
+  max-width: none;
+  padding-top: 56px; /* desce o header para NÃO encostar no avatar/topo */
+}
+
+/* Linha horizontal separando o topo (avatar) do conteúdo */
+#viewMyProjects .page-header{
+  border-top: 2px solid var(--border); /* linha mais “alta” */
+  padding-top: 18px;                  /* espaço entre linha e título */
+  margin-top: 0;                      /* evita subir demais */
+}
+
+/* =========================
+   Botão Adicionar Projeto (Kanban)
+   ========================= */
+
+#btnOpenCreateProjectFromKanban {
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+  width: 44px;       /* aumenta área clicável */
+  height: 44px;
+  padding: 0;
+}
+
+#btnOpenCreateProjectFromKanban svg {
+  width: 42px;       /* aumenta tamanho do ícone */
+  height: 42px;
+}
+
+#btnOpenCreateProjectFromKanban:hover {
+  background: transparent !important;
+  transform: scale(1.08);
 }

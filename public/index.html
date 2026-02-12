@@ -23,7 +23,7 @@
   .icon-btn svg{ width:18px; height:18px; opacity:.85; }
 
   .saas-search{
-    display:none;
+    display:inline-flex;
     align-items:center;
     gap:8px;
     padding:6px 10px;
@@ -344,19 +344,24 @@
         <p class="muted">Visualize e gerencie seus projetos em Kanban.</p>
       </div>
       <div class="chips">
-        <button class="btn primary" id="btnOpenCreateProjectFromKanban">+ Novo Projeto</button>
-<button class="icon-btn" id="btnToggleMyProjectsSearch" title="Pesquisar projetos" aria-label="Pesquisar projetos">
-  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-    <circle cx="11" cy="11" r="7"></circle>
-    <path d="M20 20l-3.5-3.5"></path>
-  </svg>
-</button>
+<button class="icon-btn" id="btnOpenCreateProjectFromKanban" title="Adicionar projeto" aria-label="Adicionar projeto">
+          <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+  <defs>
+    <linearGradient id="fpGradAdd" x1="0" y1="0" x2="24" y2="24" gradientUnits="userSpaceOnUse">
+      <stop stop-color="rgb(119, 59, 246)"/>
+      <stop offset="1" stop-color="rgb(100, 102, 251)"/>
+    </linearGradient>
+  </defs>
+  <circle cx="12" cy="12" r="9" stroke="url(#fpGradAdd)" stroke-width="2"></circle>
+  <path d="M12 8v8M8 12h8" stroke="url(#fpGradAdd)" stroke-width="2" stroke-linecap="round"></path>
+</svg>
+        </button>
+        <div class="saas-search" id="myProjectsSearchWrap" aria-label="Filtro de projetos">
+  <svg class="saas-search-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+  <circle cx="11" cy="11" r="7"></circle>
+  <path d="M20 20l-3.5-3.5"></path>
+</svg>
 
-<div class="saas-search" id="myProjectsSearchWrap" aria-label="Filtro de projetos">
-  <svg class="saas-search-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-    <circle cx="11" cy="11" r="7"></circle>
-    <path d="M20 20l-3.5-3.5"></path>
-  </svg>
   <input id="myProjectsSearchInput" type="text" placeholder="Buscar por projeto, equipe ou prioridade..." autocomplete="off" />
   <button class="saas-clear" id="btnClearMyProjectsSearch" title="Limpar" aria-label="Limpar">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -365,14 +370,14 @@
     </svg>
   </button>
 </div>
-
-        <button class="btn ghost" id="btnBackFromMyProjects">Voltar</button>
-      </div>
+</div>
     </div>
-    
+      </div>
+   
+  
     <div class="kanban-board">
       <!-- Coluna A Fazer -->
-      <div class="kanban-column" data-status="a-fazer" style="border-top:4px solid #4F81BD;">
+      <div class="kanban-column" data-status="a-fazer" style="--col:#4F81BD; border-top:4px solid #4F81BD;">
         <div class="kanban-header">
           <h3>A Fazer</h3>
           <span class="kanban-count" id="kanbanCountTodo">0</span>
@@ -383,7 +388,7 @@
       </div>
 
       <!-- Coluna Em Andamento -->
-      <div class="kanban-column" data-status="em-andamento" style="border-top:4px solid #F4B183;">
+      <div class="kanban-column" data-status="em-andamento" style="--col:#F4B183; border-top:4px solid #F4B183;">
         <div class="kanban-header">
           <h3>Em Andamento</h3>
           <span class="kanban-count" id="kanbanCountInProgress">0</span>
@@ -394,7 +399,7 @@
       </div>
 
       <!-- Coluna Go Live -->
-      <div class="kanban-column" data-status="go-live" style="border-top:4px solid #9BBB59;">
+      <div class="kanban-column" data-status="go-live" style="--col:#9BBB59; border-top:4px solid #9BBB59;">
         <div class="kanban-header">
           <h3>Go Live</h3>
           <span class="kanban-count" id="kanbanCountGoLive">0</span>
@@ -405,7 +410,7 @@
       </div>
 
       <!-- Coluna Concluído -->
-      <div class="kanban-column" data-status="concluido" style="border-top:4px solid #A5A5A5;">
+      <div class="kanban-column" data-status="concluido" style="--col:#A5A5A5; border-top:4px solid #A5A5A5;">
         <div class="kanban-header">
           <h3>Concluído</h3>
           <span class="kanban-count" id="kanbanCountDone">0</span>
@@ -416,7 +421,7 @@
       </div>
 
       <!-- Coluna Parado -->
-      <div class="kanban-column" data-status="parado" style="border-top:4px solid #C55A11;">
+      <div class="kanban-column" data-status="parado" style="--col:#C55A11; border-top:4px solid #C55A11;">
         <div class="kanban-header">
           <h3>Parado</h3>
           <span class="kanban-count" id="kanbanCountPaused">0</span>
@@ -427,7 +432,7 @@
       </div>
 
       <!-- Coluna Backlog -->
-      <div class="kanban-column" data-status="backlog" style="border-top:4px solid #8064A2;">
+      <div class="kanban-column" data-status="backlog" style="--col:#8064A2; border-top:4px solid #8064A2;">
         <div class="kanban-header">
           <h3>Backlog</h3>
           <span class="kanban-count" id="kanbanCountBacklog">0</span>
@@ -1174,4 +1179,4 @@
 </div>
 
 </body>
-</html>
+</html>   
