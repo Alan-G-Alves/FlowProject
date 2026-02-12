@@ -1488,6 +1488,47 @@ a{ color: inherit; }
   color: var(--text-muted);
 }
 
+/* Kanban card (mini infos) */
+.kanban-card-title{
+  display:flex;
+  align-items: baseline;
+  gap: 8px;
+}
+
+.kanban-card-id{
+  font-weight: 700;
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.kanban-card-name{
+  font-weight: 600;
+  font-size: 14px;
+  color: var(--text-dark);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.kanban-card-meta--row{
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.kanban-mini{
+  display:inline-flex;
+  align-items:center;
+  gap: 4px;
+  white-space: nowrap;
+}
+
+.mini-ic{
+  width: 14px;
+  height: 14px;
+  color: var(--text-muted);
+  opacity: .9;
+}
+
 .kanban-card-tag{
   background: rgba(var(--primary-rgb, 47, 128, 237), 0.1);
   color: var(--primary);
@@ -1675,5 +1716,4 @@ a{ color: inherit; }
 
 @media (max-width: 820px){
   .span-6,.span-5,.span-4,.span-3,.span-8{ grid-column: span 12; }
-  .modal-card.modal-xl{ width: calc(100vw - 24px); }
-}
+  .modal-card.modal-xl{ width: calc(100vw - 24px); }}

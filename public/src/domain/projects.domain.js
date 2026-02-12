@@ -15,8 +15,7 @@ import {
   where,
   orderBy,
   serverTimestamp,
-  onSnapshot,
-  runTransaction
+  onSnapshot
 } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore.js";
 
 import { setAlert, clearAlert } from "../ui/alerts.js";
@@ -329,131 +328,6 @@ function getPriorityBadge(priority) {
   return map[priority] || '<span class="badge small">—</span>';
 }
 
-/** =========================
- * Create Project (V2) helpers
- * ========================= */
-
-function shortName(user){
-  const name = (user?.name || user?.email || "—").trim();
-  const parts = name.split(/\s+/).filter(Boolean);
-  if (parts.length === 0) return "—";
-  if (parts.length === 1) return parts[0];
-  return `${parts[0]} ${parts[parts.length-1][0].toUpperCase()}.`;
-}
-
-function parseBRLCurrency(input){
-  const digits = (input || "").toString().replace(/[^\d]/g, "");
-  const cents = digits ? parseInt(digits, 10) : 0;
-  return cents / 100;
-}
-
-function formatBRLCurrency(value){
-  try{
-    return new Intl.NumberFormat("pt-BR", { style:"currency", currency:"BRL" }).format(value || 0);
-  }catch{
-    return `R$ ${(value || 0).toFixed(2)}`;
-  }
-}
-
-function bindPriorityChips(refs){
-  const wrap = document.getElementById("projectPriorityChips");
-  if (!wrap) return;
-  wrap.querySelectorAll("[data-priority]").forEach(btn => {
-    btn.addEventListener("click", () => {
-      wrap.querySelectorAll(".chip").forEach(b => b.classList.remove("selected"));
-      btn.classList.add("selected");
-      if (refs.projectPriorityEl) refs.projectPriorityEl.value = btn.dataset.priority;
-    });
-  });
-}
-
-function bindCurrencyMask(refs){
-  const el = refs.projectBillingValueAmountEl;
-  if (!el) return;
-  el.addEventListener("input", () => {
-    const v = parseBRLCurrency(el.value);
-    el.value = formatBRLCurrency(v);
-  });
-}
-
-function populateTechSelect(selectEl, users){
-  if (!selectEl) return;
-  selectEl.innerHTML = '<option value="">Selecione um técnico</option>';
-  const list = (users || []).filter(u => u.role === "tecnico" && u.active !== false);
-  list.sort((a,b)=>(a.name||"").localeCompare(b.name||""));
-  for (const u of list){
-    const opt = document.createElement("option");
-    opt.value = u.uid;
-    opt.textContent = shortName(u);
-    selectEl.appendChild(opt);
-  }
-}
-
-function renderTechChips(refs, state){
-  const wrap = refs.projectTechChipsEl;
-  if (!wrap) return;
-  const selected = Array.isArray(state._createProjectTechUids) ? state._createProjectTechUids : [];
-  wrap.innerHTML = "";
-  if (!selected.length){
-    wrap.innerHTML = '<span class="muted">Nenhum técnico selecionado</span>';
-    return;
-  }
-  for (const uid of selected){
-    const u = (state._usersCache || []).find(x => x.uid === uid);
-    const chip = document.createElement("div");
-    chip.className = "chip";
-    chip.innerHTML = `<span>${shortName(u)}</span><span class="x" title="Remover">×</span>`;
-    chip.querySelector(".x").onclick = () => {
-      state._createProjectTechUids = selected.filter(x => x !== uid);
-      renderTechChips(refs, state);
-    };
-    wrap.appendChild(chip);
-  }
-}
-
-function bindCreateProjectTeamFilter(refs, state){
-  if (!refs.projectTeamEl) return;
-  if (state._createProjectTeamFilterBound) return;
-  state._createProjectTeamFilterBound = true;
-
-  const apply = () => {
-    const teamId = refs.projectTeamEl.value || "";
-    if (!teamId){
-      populateCoordinatorSelectNew(refs.projectCoordinatorEl, state._usersCache);
-      populateTechSelect(refs.projectTechSelectEl, state._usersCache);
-      return;
-    }
-    const filtered = (state._usersCache || []).filter(u => {
-      const t = Array.isArray(u.teamIds) ? u.teamIds : (u.teamId ? [u.teamId] : []);
-      return t.includes(teamId);
-    });
-    populateCoordinatorSelectNew(refs.projectCoordinatorEl, filtered);
-    populateTechSelect(refs.projectTechSelectEl, filtered);
-    // remove técnicos selecionados que não pertencem à equipe
-    const allowedTech = new Set(filtered.filter(u=>u.role==="tecnico" && u.active!==false).map(u=>u.uid));
-    state._createProjectTechUids = (state._createProjectTechUids || []).filter(uid => allowedTech.has(uid));
-    renderTechChips(refs, state);
-  };
-
-  refs.projectTeamEl.addEventListener("change", apply);
-}
-
-function bindTechPicker(refs, state){
-  if (!refs.projectTechSelectEl) return;
-  if (state._createProjectTechBound) return;
-  state._createProjectTechBound = true;
-
-  refs.projectTechSelectEl.addEventListener("change", () => {
-    const uid = refs.projectTechSelectEl.value;
-    if (!uid) return;
-    const arr = Array.isArray(state._createProjectTechUids) ? state._createProjectTechUids : [];
-    if (!arr.includes(uid)) arr.push(uid);
-    state._createProjectTechUids = arr;
-    refs.projectTechSelectEl.value = "";
-    renderTechChips(refs, state);
-  });
-}
-
 /**
  * Abre modal de criar projeto
  */
@@ -470,70 +344,20 @@ export function openCreateProjectModal(deps) {
   if (refs.projectManagerEl) refs.projectManagerEl.value = "";
   if (refs.projectCoordinatorEl) refs.projectCoordinatorEl.value = "";
   if (refs.projectTeamEl) refs.projectTeamEl.value = "";
-  if (refs.projectBillingValueAmountEl) refs.projectBillingValueAmountEl.value = "R$ 0,00";
-  if (refs.projectBillingHoursAmountEl) refs.projectBillingHoursAmountEl.value = "";
+  if (refs.projectBillingValueEl) refs.projectBillingValueEl.checked = true;
+  if (refs.projectStatusEl) refs.projectStatusEl.value = "a-fazer";
   if (refs.projectPriorityEl) refs.projectPriorityEl.value = "media";
   if (refs.projectStartDateEl) refs.projectStartDateEl.value = "";
   if (refs.projectEndDateEl) refs.projectEndDateEl.value = "";
 
   // Preenche select de equipes
   populateTeamSelect(refs.projectTeamEl, state.teams);
-  bindCreateProjectTeamFilter(refs, state);
 
   // Preenche select de gestores (apenas role='gestor')
-  const myTeamIds = Array.isArray(state.profile?.teamIds) ? state.profile.teamIds : (state.profile?.teamId ? [state.profile.teamId] : []);
-  const role = state.profile?.role;
-  // Se CP logado: restringe gestores às equipes do CP
-  populateManagerSelect(refs.projectManagerEl, state._usersCache, (role === "coordenador") ? myTeamIds : null);
+  populateManagerSelect(refs.projectManagerEl, state._usersCache);
 
   // Preenche select de coordenadores (apenas role='coordenador')
   populateCoordinatorSelectNew(refs.projectCoordinatorEl, state._usersCache);
-
-  // Técnicos (multi)
-  state._createProjectTechUids = [];
-  populateTechSelect(refs.projectTechSelectEl, state._usersCache);
-  renderTechChips(refs, state);
-  bindTechPicker(refs, state);
-
-  // Bind UI (chips/máscara) – roda 1x
-  if (!state._createProjectUiBound){
-    state._createProjectUiBound = true;
-    bindPriorityChips(refs);
-    bindCurrencyMask(refs);
-  }
-
-  // Defaults por papel
-  const role2 = state.profile?.role;
-  const myUid = state.profile?.uid || state.profile?.userId || state.profile?.id || state.profile?.uid;
-  if (role2 === "gestor" && myUid){
-    if (refs.projectManagerEl){ refs.projectManagerEl.value = myUid; refs.projectManagerEl.disabled = true; }
-  } else {
-    if (refs.projectManagerEl) refs.projectManagerEl.disabled = false;
-  }
-  if (role2 === "coordenador" && myUid){
-    if (refs.projectCoordinatorEl){ refs.projectCoordinatorEl.value = myUid; }
-  }
-
-
-// Garantir que o botão Salvar esteja ligado mesmo que o app.js não tenha conseguido bindar
-if (refs.btnCreateProject){
-  refs.btnCreateProject.onclick = async () => {
-    try{
-      setAlert(refs.createProjectAlert, "Salvando...", "info");
-      console.log("🧾 [projects.domain] click Salvar (createProject)");
-      await createProject(deps);
-    }catch(err){
-      console.error("createProject error", err);
-      setAlert(refs.createProjectAlert, "Erro ao salvar: " + (err?.message || err));
-    }
-  };
-}
-if (refs.btnCancelCreateProject){
-  refs.btnCancelCreateProject.onclick = () => closeCreateProjectModal(refs);
-}
-if (refs.btnCloseCreateProject){
-  refs.btnCloseCreateProject.onclick = () => closeCreateProjectModal(refs);
-}
 
   refs.modalCreateProject.hidden = false;
   document.body.classList.add("modal-open");
@@ -561,27 +385,15 @@ export async function createProject(deps) {
   const managerUid = refs.projectManagerEl?.value || "";
   const coordinatorUid = refs.projectCoordinatorEl?.value || "";
   const teamId = refs.projectTeamEl?.value || "";
+  const billingType = refs.projectBillingValueEl?.checked ? "valor" : "horas";
   const status = "a-fazer";
   const priority = refs.projectPriorityEl?.value || "media";
   const startDate = refs.projectStartDateEl?.value || "";
   const endDate = refs.projectEndDateEl?.value || "";
 
-  if (startDate && endDate && startDate > endDate){
-    setAlert(refs.createProjectAlert, "A data de início não pode ser maior que a data de fim.");
-    return;
-  }
-
   // Validações
   if (!name) {
     setAlert(refs.createProjectAlert, "Informe o nome do projeto.");
-    return;
-  }
-  if (name.length > 35){
-    setAlert(refs.createProjectAlert, "Nome do projeto deve ter no máximo 35 caracteres.");
-    return;
-  }
-  if (description.length > 1000){
-    setAlert(refs.createProjectAlert, "Descrição deve ter no máximo 1000 caracteres.");
     return;
   }
 
@@ -598,48 +410,26 @@ export async function createProject(deps) {
 
     if (!companyId || !user) throw new Error("Não autenticado ou empresa não encontrada");
 
-    // Sequência numérica por empresa (transaction)
-const counterRef = doc(db, "companies", companyId, "counters", "projects");
+    const projectId = `proj-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 
-const { projectId, projectSeq } = await runTransaction(db, async (tx) => {
-  const counterSnap = await tx.get(counterRef);
-  const current = counterSnap.exists() ? (counterSnap.data().next || 1) : 1;
-  const next = current + 1;
+    const payload = {
+      name,
+      description,
+      managerUid,
+      coordinatorUid: coordinatorUid || "",
+      teamId: teamId || "",
+      billingType,
+      status,
+      priority,
+      startDate: startDate || null,
+      endDate: endDate || null,
+      createdAt: serverTimestamp(),
+      createdBy: user.uid,
+      updatedAt: serverTimestamp(),
+      updatedBy: user.uid
+    };
 
-  // Atualiza contador
-  tx.set(counterRef, { next }, { merge: true });
-
-  // ID numérico (sequência) – docId também sequencial para facilitar
-  const pid = `#${current}`;
-  const projectRef = doc(db, "companies", companyId, "projects", pid);
-
-  const payload = {
-    number: current,                 // sequência numérica
-    projectId: pid,                  // redundância útil
-    name,
-    description,
-    clientId: refs.projectClientEl?.value || "",
-    managerUid,
-    coordinatorUid: coordinatorUid || "",
-    teamId: teamId || "",
-    technicianUids: Array.isArray(state._createProjectTechUids) ? state._createProjectTechUids : [],
-    priority,
-    status,
-    startDate: startDate || null,
-    endDate: endDate || null,
-    billing: {
-      value: parseBRLCurrency(refs.projectBillingValueAmountEl?.value || ""),
-      hours: parseFloat(refs.projectBillingHoursAmountEl?.value || "0") || 0
-    },
-    createdAt: serverTimestamp(),
-    createdBy: user.uid,
-    updatedAt: serverTimestamp(),
-    updatedBy: user.uid
-  };
-
-  tx.set(projectRef, payload);
-  return { projectId: pid, projectSeq: current };
-});
+    await setDoc(doc(db, `companies/${companyId}/projects`, projectId), payload);
 
     setAlert(refs.createProjectAlert, "Projeto criado com sucesso!", "success");
 
@@ -647,7 +437,7 @@ const { projectId, projectSeq } = await runTransaction(db, async (tx) => {
       closeCreateProjectModal(refs);
       // ✅ grid: recarrega usando deps
       if (typeof deps.loadProjects === "function") deps.loadProjects(deps);
-      // ✅ kanban realtime já vai refletir via onSnapshot, runTransaction se estiver aberto
+      // ✅ kanban realtime já vai refletir via onSnapshot se estiver aberto
     }, 600);
 
   } catch (err) {
@@ -674,19 +464,13 @@ function populateTeamSelect(selectEl, teams) {
 /**
  * Popula select de gestores (apenas role='gestor')
  */
-function populateManagerSelect(selectEl, users, allowedTeamIds = null) {
+function populateManagerSelect(selectEl, users) {
   if (!selectEl) return;
   selectEl.innerHTML = '<option value="">Selecione um gestor</option>';
 
   if (!users || !Array.isArray(users)) return;
 
-  let managers = users.filter(u => u.role === "gestor" && u.active !== false);
-  if (Array.isArray(allowedTeamIds) && allowedTeamIds.length){
-    managers = managers.filter(u => {
-      const t = Array.isArray(u.teamIds) ? u.teamIds : (u.teamId ? [u.teamId] : []);
-      return t.some(id => allowedTeamIds.includes(id));
-    });
-  }
+  const managers = users.filter(u => u.role === "gestor" && u.active !== false);
   managers.sort((a, b) => (a.name || "").localeCompare(b.name || ""));
 
   for (const user of managers) {
@@ -1043,20 +827,20 @@ export function subscribeMyProjects(deps) {
   );
 
   unsubscribeMyProjectsListener = onSnapshot(
-  q,
-  (snapshot) => {
-    const projects = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
-    // Usa refs safe para não depender de deps.refs
-    _myProjectsLast = projects;
-    _renderMyProjectsWithFilter(refs);
-  },
-  (error) => {
-    console.error("onSnapshot(myProjects) error", error);
-    refs.kanbanTodo.innerHTML = '<p class="muted" style="padding:12px;">Erro ao carregar projetos.</p>';
-    refs.kanbanInProgress.innerHTML = '<p class="muted" style="padding:12px;">Erro ao carregar projetos.</p>';
-    refs.kanbanDone.innerHTML = '<p class="muted" style="padding:12px;">Erro ao carregar projetos.</p>';
-  }
-);
+    q,
+    (snapshot) => {
+      const projects = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+      // Usa refs safe para não depender de deps.refs
+      _myProjectsLast = projects;
+      _renderMyProjectsWithFilter(refs);
+    },
+    (error) => {
+      console.error("onSnapshot(myProjects) error", error);
+      refs.kanbanTodo.innerHTML = '<p class="muted" style="padding:12px;">Erro ao carregar projetos.</p>';
+      refs.kanbanInProgress.innerHTML = '<p class="muted" style="padding:12px;">Erro ao carregar projetos.</p>';
+      refs.kanbanDone.innerHTML = '<p class="muted" style="padding:12px;">Erro ao carregar projetos.</p>';
+    }
+  );
 }
 
 /**
@@ -1135,6 +919,60 @@ function renderKanbanCards(container, projects, deps) {
   setupDropZone(container, state, db, auth, deps);
 
   container.innerHTML = "";
+// Helpers de apresentação (kanban card)
+const _fmtDateBR = (v) => {
+  if (!v) return "";
+  try {
+    // v pode ser 'YYYY-MM-DD' ou Timestamp serializado
+    if (typeof v === "string") {
+      // mantém apenas a parte de data
+      const s = v.slice(0, 10);
+      const [y, m, d] = s.split("-");
+      if (y && m && d) return `${d}/${m}/${y}`;
+      return v;
+    }
+    if (v?.toDate) {
+      const dt = v.toDate();
+      const dd = String(dt.getDate()).padStart(2, "0");
+      const mm = String(dt.getMonth() + 1).padStart(2, "0");
+      const yy = dt.getFullYear();
+      return `${dd}/${mm}/${yy}`;
+    }
+  } catch {}
+  return "";
+};
+
+const _projectDisplayId = (p) => {
+  const n = p?.projectNumber ?? p?.number ?? p?.seq ?? p?.codeNumber;
+  if (typeof n === "number") return `#${n}`;
+  if (typeof n === "string" && n.trim()) {
+    // se já veio com # ou é numérico
+    const s = n.trim();
+    if (/^#?\d+$/.test(s)) return s.startsWith("#") ? s : `#${s}`;
+    return s;
+  }
+  // fallback: usa parte do doc id
+  const id = String(p?.id || "");
+  if (!id) return "";
+  const m = id.match(/(\d{1,6})/);
+  if (m) return `#${m[1]}`;
+  return id.length > 8 ? `#${id.slice(-6)}` : `#${id}`;
+};
+
+const _fmtBRL = (val) => {
+  if (val === null || val === undefined || val === "") return "";
+  const num = typeof val === "number" ? val : Number(String(val).replace(/[^0-9.,-]/g, "").replace(".", "").replace(",", "."));
+  if (Number.isNaN(num)) return "";
+  return num.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
+};
+
+const _fmtHours = (val) => {
+  if (val === null || val === undefined || val === "") return "";
+  const num = typeof val === "number" ? val : Number(String(val).replace(/[^0-9.,-]/g, "").replace(",", "."));
+  if (Number.isNaN(num)) return "";
+  return `${num}`;
+};
+
 
   if (!projects || projects.length === 0) {
     container.innerHTML = '<p class="muted" style="padding:12px;">Nenhum projeto</p>';
@@ -1157,14 +995,40 @@ function renderKanbanCards(container, projects, deps) {
       alta: "Alta"
     }[project.priority] || "Média";
 
-    card.innerHTML = `
-      <div class="kanban-card-title">${escapeHtml(project.name)}</div>
-      ${project.description ? `<div class="kanban-card-desc">${escapeHtml(project.description)}</div>` : ""}
-      <div class="kanban-card-meta">
-        ${project.teamId ? `<span class="kanban-card-tag">${escapeHtml(project.teamId)}</span>` : ""}
-        <span class="kanban-card-priority ${project.priority || "media"}">${priorityText}</span>
-      </div>
-    `;
+    const displayId = _projectDisplayId(project);
+const endBR = _fmtDateBR(project.endDate || project.endAt || project.dateEnd);
+const valueBRL = _fmtBRL(project.billingValue ?? project.value ?? project.billing?.value ?? project.cobrancaValor);
+const hoursTxt = _fmtHours(project.billingHours ?? project.hours ?? project.billing?.hours ?? project.cobrancaHoras);
+
+const icCalendar = `<svg class="mini-ic" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+  <path d="M7 3v3M17 3v3" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+  <path d="M4 8h16" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+  <path d="M6 21h12a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2Z" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/>
+</svg>`;
+
+const icMoney = `<svg class="mini-ic" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+  <path d="M12 3v18" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+  <path d="M17 7.5c0-1.93-2.24-3.5-5-3.5s-5 1.57-5 3.5S9.24 11 12 11s5 1.57 5 3.5S14.76 18 12 18s-5-1.57-5-3.5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>`;
+
+const icClock = `<svg class="mini-ic" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+  <path d="M12 8v5l3 2" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M12 22c5.523 0 10-4.477 10-10S17.523 2 12 2 2 6.477 2 12s4.477 10 10 10Z" stroke="currentColor" stroke-width="2"/>
+</svg>`;
+
+card.innerHTML = `
+  <div class="kanban-card-title">
+    <span class="kanban-card-id">${escapeHtml(displayId)}</span>
+    <span class="kanban-card-name">${escapeHtml(project.name || "")}</span>
+  </div>
+
+  <div class="kanban-card-meta kanban-card-meta--row">
+    ${endBR ? `<span class="kanban-mini">${icCalendar}<span>${escapeHtml(endBR)}</span></span>` : ""}
+    ${valueBRL ? `<span class="kanban-mini">${icMoney}<span>${escapeHtml(valueBRL)}</span></span>` : ""}
+    ${hoursTxt ? `<span class="kanban-mini">${icClock}<span>${escapeHtml(hoursTxt)}h</span></span>` : ""}
+    <span class="kanban-card-priority ${project.priority || "media"}">${priorityText}</span>
+  </div>
+`;
 
     card.addEventListener("dragstart", (e) => {
       card.classList.add("dragging");
@@ -1251,7 +1115,7 @@ function setupDropZone(container, state, db, auth, deps) {
         }
       );
 
-      // ✅ Não precisa recarregar: onSnapshot, runTransaction atualiza automaticamente
+      // ✅ Não precisa recarregar: onSnapshot atualiza automaticamente
 
     } catch (err) {
       console.error("Erro ao mover projeto:", err);
