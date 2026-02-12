@@ -976,86 +976,145 @@
 <!-- MODAL: CRIAR PROJETO -->
 <div class="modal" hidden id="modalCreateProject">
   <div class="modal-backdrop" data-close="true"></div>
-  <div class="modal-card">
+  <div class="modal-card modal-xl">
     <div class="modal-header">
       <div>
         <h2>Criar Projeto</h2>
-        <p class="muted">Crie um novo projeto e vincule à equipe.</p>
+        <p class="muted">Preencha as informações abaixo para criar um novo projeto.</p>
       </div>
       <button class="btn ghost" id="btnCloseCreateProject">✕</button>
     </div>
+
     <div class="modal-body">
-      <div class="grid" style="grid-template-columns: repeat(12, 1fr); gap:12px;">
-        <label class="field" style="grid-column: span 12;">
-          <span>Nome do projeto <span style="color:red;">*</span></span>
-          <input id="projectName" placeholder="Ex.: Projeto de Expansão"/>
-        </label>
-        <label class="field" style="grid-column: span 12;">
-          <span>Descrição</span>
-          <textarea id="projectDescription" placeholder="Descreva o projeto" rows="3" style="width:100%; border-radius:14px; border:1px solid var(--border); padding:10px; font-family:inherit; resize:vertical;"></textarea>
-        </label>
-        
-        <!-- Gestor (obrigatório) -->
-        <label class="field" style="grid-column: span 6;">
-          <span>Gestor <span style="color:red;">*</span></span>
-          <select id="projectManager">
-            <option value="">Selecione um gestor</option>
-          </select>
-        </label>
-        
-        <!-- Coordenador (opcional) -->
-        <label class="field" style="grid-column: span 6;">
-          <span>Coordenador</span>
-          <select id="projectCoordinator">
-            <option value="">Selecione (opcional)</option>
-          </select>
-        </label>
-        
-        <!-- Equipe -->
-        <label class="field" style="grid-column: span 6;">
-          <span>Equipe</span>
-          <select id="projectTeam">
-            <option value="">Selecione uma equipe</option>
-          </select>
-        </label>
-        
-        <!-- Tipo de Cobrança (obrigatório) -->
-        <div class="field" style="grid-column: span 6;">
-          <span>Tipo de Cobrança <span style="color:red;">*</span></span>
-          <div style="display:flex; gap:16px; margin-top:8px;">
-            <label style="display:flex; align-items:center; gap:6px; cursor:pointer;">
-              <input type="radio" name="billingType" value="valor" id="projectBillingValue" checked>
-              <span>Valor</span>
+      <div class="grid-2">
+
+        <!-- Seção: Básico -->
+        <div class="form-section span-12">
+          <h3>Informações do Projeto </h3>
+          <div class="grid-2">
+            <label class="field span-12">
+              <span>Nome do projeto <span style="color:red;">*</span></span>
+              <input id="projectName" maxlength="35" placeholder="Ex.: Implantação módulo compras (máx 35 caracteres)"/>
+              <div class="help">Máximo 35 caracteres (inclui espaços).</div>
             </label>
-            <label style="display:flex; align-items:center; gap:6px; cursor:pointer;">
-              <input type="radio" name="billingType" value="horas" id="projectBillingHours">
-              <span>Horas</span>
+
+            <label class="field span-12">
+              <span>Descrição</span>
+              <textarea id="projectDescription" maxlength="1000" placeholder="Descreva o projeto (máx 1000 caracteres)" rows="4"
+                style="width:100%; border-radius:14px; border:1px solid var(--border); padding:10px; font-family:inherit; resize:vertical;"></textarea>
+              <div class="help">Máximo 1000 caracteres.</div>
+            </label>
+
+            <label class="field span-6">
+              <span>Cliente</span>
+              <select id="projectClient" disabled>
+                <option value="">(Em breve) Cadastro de clientes</option>
+              </select>
+            </label>
+
+            <label class="field span-6">
+              <span>Equipe</span>
+              <select id="projectTeam">
+                <option value="">Selecione uma equipe</option>
+              </select>
             </label>
           </div>
         </div>
-        
-        <label class="field" style="grid-column: span 4;">
-          <span>Prioridade</span>
-          <select id="projectPriority">
-            <option value="baixa">Baixa</option>
-            <option value="media" selected>Média</option>
-            <option value="alta">Alta</option>
-          </select>
-        </label>
-        <label class="field" style="grid-column: span 6;">
-          <span>Data de início</span>
-          <input type="date" id="projectStartDate"/>
-        </label>
-        <label class="field" style="grid-column: span 6;">
-          <span>Data de término</span>
-          <input type="date" id="projectEndDate"/>
-        </label>
+
+        <!-- Seção: Responsáveis -->
+        <div class="form-section span-12">
+          <h3>Responsáveis</h3>
+          <div class="grid-2">
+            <label class="field span-6">
+              <span>Gestor do projeto (GP) <span style="color:red;">*</span></span>
+              <select id="projectManager">
+                <option value="">Selecione um gestor</option>
+              </select>
+              <div class="help">Por padrão: gestor logado. Se CP logado, pode selecionar gestores da sua(s) equipe(s).</div>
+            </label>
+
+            <label class="field span-6">
+              <span>Coordenador do projeto (CP)</span>
+              <select id="projectCoordinator">
+                <option value="">Selecione (opcional)</option>
+              </select>
+              <div class="help">Opcional. Por padrão: CP logado (se aplicável).</div>
+            </label>
+          </div>
+        </div>
+
+        <!-- Seção: Técnicos -->
+        <div class="form-section span-12">
+          <h3>Técnicos</h3>
+          <div class="grid-2">
+            <label class="field span-6">
+              <span>Adicionar técnico</span>
+              <select id="projectTechSelect">
+                <option value="">Selecione um técnico</option>
+              </select>
+              <div class="help">Seleção múltipla (vira chips abaixo).</div>
+            </label>
+
+            <div class="field span-6">
+              <span>Selecionados</span>
+              <div id="projectTechChips" class="chips" style="min-height:42px;"></div>
+              <div class="help">Clique no “x” para remover.</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Seção: Datas e Prioridade -->
+        <div class="form-section span-12">
+          <h3>Planejamento</h3>
+          <div class="grid-2">
+            <div class="field span-6">
+              <span>Prioridade</span>
+              <div class="chips" id="projectPriorityChips">
+                <button type="button" class="chip chip-prio baixa" data-priority="baixa">Baixa</button>
+                <button type="button" class="chip chip-prio media selected" data-priority="media">Média</button>
+                <button type="button" class="chip chip-prio alta" data-priority="alta">Alta</button>
+              </div>
+              <input type="hidden" id="projectPriority" value="media" />
+            </div>
+
+            <label class="field span-3">
+              <span>Início</span>
+              <input type="date" id="projectStartDate"/>
+            </label>
+
+            <label class="field span-3">
+              <span>Fim</span>
+              <input type="date" id="projectEndDate"/>
+            </label>
+          </div>
+        </div>
+
+        <!-- Seção: Cobrança -->
+        <div class="form-section span-12">
+          <h3>Cobrança</h3>
+          <div class="grid-2">
+            <label class="field span-6">
+              <span>Valor (R$)</span>
+              <input id="projectBillingValueAmount" inputmode="decimal" placeholder="R$ 0,00"/>
+              <div class="help">Opcional. Digite apenas números; o sistema formata em Real.</div>
+            </label>
+
+            <label class="field span-6">
+              <span>Horas</span>
+              <input id="projectBillingHoursAmount" type="number" min="0" step="0.5" placeholder="0"/>
+              <div class="help">Opcional. Use 0,5 para meia hora.</div>
+            </label>
+          </div>
+        </div>
+
       </div>
+
       <div class="alert" hidden id="createProjectAlert"></div>
     </div>
+
     <div class="modal-footer">
       <button class="btn" id="btnCancelCreateProject">Cancelar</button>
-      <button class="btn primary" id="btnCreateProject">Salvar</button>
+      <button class="btn primary" id="btnSaveCreateProject">Salvar projeto</button>
     </div>
   </div>
 </div>

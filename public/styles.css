@@ -1586,3 +1586,94 @@ a{ color: inherit; }
   background: transparent !important;
   transform: scale(1.08);
 }
+
+/* Create Project V2 */
+.modal-card.modal-xl{
+  width: min(1040px, calc(100vw - 48px));
+  max-height: calc(100vh - 80px);
+  display:flex;
+  flex-direction:column;
+}
+.modal-card.modal-xl .modal-body{
+  overflow:auto;
+}
+.form-section{
+  border:1px solid var(--border);
+  background: rgba(255,255,255,0.55);
+  border-radius: 16px;
+  padding: 14px;
+}
+.form-section h3{
+  margin:0 0 10px 0;
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--text-dark);
+  display:flex;
+  align-items:center;
+  gap:8px;
+}
+.grid-2{
+  display:grid;
+  grid-template-columns: repeat(12, 1fr);
+  gap: 12px;
+}
+.span-12{ grid-column: span 12; }
+.span-6{ grid-column: span 6; }
+.span-4{ grid-column: span 4; }
+.span-3{ grid-column: span 3; }
+.span-8{ grid-column: span 8; }
+.span-5{ grid-column: span 5; }
+.help{
+  font-size:12px;
+  color: var(--text-muted);
+  margin-top:6px;
+}
+.chips{
+  display:flex;
+  flex-wrap:wrap;
+  gap:8px;
+  margin-top:8px;
+}
+.chip{
+  display:inline-flex;
+  align-items:center;
+  gap:6px;
+  padding:6px 10px;
+  border-radius: 999px;
+  border:1px solid var(--border);
+  background: rgba(255,255,255,0.75);
+  font-size:12px;
+  cursor:pointer;
+  user-select:none;
+  transition: transform .15s, box-shadow .15s, border-color .15s;
+}
+.chip:hover{
+  transform: translateY(-1px);
+  border-color: var(--primary);
+  box-shadow: 0 4px 10px rgba(0,0,0,.08);
+}
+.chip.selected{
+  border-color: var(--primary);
+  box-shadow: 0 6px 14px rgba(0,0,0,.10);
+}
+.chip .x{
+  width:18px;height:18px;
+  display:inline-grid;
+  place-items:center;
+  border-radius:999px;
+  border:1px solid var(--border);
+  font-weight:700;
+  line-height:1;
+  opacity:.8;
+}
+.chip .x:hover{ opacity:1; }
+
+/* Prioridade chips (reaproveita cores existentes) */
+.chip-prio.baixa{ background: rgba(100,200,100,.18); border-color: rgba(100,200,100,.35); }
+.chip-prio.media{ background: rgba(255,165,0,.18); border-color: rgba(255,165,0,.35); }
+.chip-prio.alta { background: rgba(255, 50,50,.18); border-color: rgba(255, 50,50,.35); }
+
+@media (max-width: 820px){
+  .span-6,.span-5,.span-4,.span-3,.span-8{ grid-column: span 12; }
+  .modal-card.modal-xl{ width: calc(100vw - 24px); }
+}

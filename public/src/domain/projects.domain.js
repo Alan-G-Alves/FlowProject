@@ -15,7 +15,8 @@ import {
   where,
   orderBy,
   serverTimestamp,
-  onSnapshot
+  onSnapshot,
+  runTransaction
 } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore.js";
 
 import { setAlert, clearAlert } from "../ui/alerts.js";
@@ -328,6 +329,131 @@ function getPriorityBadge(priority) {
   return map[priority] || '<span class="badge small">—</span>';
 }
 
+/** =========================
+ * Create Project (V2) helpers
+ * ========================= */
+
+function shortName(user){
+  const name = (user?.name || user?.email || "—").trim();
+  const parts = name.split(/\s+/).filter(Boolean);
+  if (parts.length === 0) return "—";
+  if (parts.length === 1) return parts[0];
+  return `${parts[0]} ${parts[parts.length-1][0].toUpperCase()}.`;
+}
+
+function parseBRLCurrency(input){
+  const digits = (input || "").toString().replace(/[^\d]/g, "");
+  const cents = digits ? parseInt(digits, 10) : 0;
+  return cents / 100;
+}
+
+function formatBRLCurrency(value){
+  try{
+    return new Intl.NumberFormat("pt-BR", { style:"currency", currency:"BRL" }).format(value || 0);
+  }catch{
+    return `R$ ${(value || 0).toFixed(2)}`;
+  }
+}
+
+function bindPriorityChips(refs){
+  const wrap = document.getElementById("projectPriorityChips");
+  if (!wrap) return;
+  wrap.querySelectorAll("[data-priority]").forEach(btn => {
+    btn.addEventListener("click", () => {
+      wrap.querySelectorAll(".chip").forEach(b => b.classList.remove("selected"));
+      btn.classList.add("selected");
+      if (refs.projectPriorityEl) refs.projectPriorityEl.value = btn.dataset.priority;
+    });
+  });
+}
+
+function bindCurrencyMask(refs){
+  const el = refs.projectBillingValueAmountEl;
+  if (!el) return;
+  el.addEventListener("input", () => {
+    const v = parseBRLCurrency(el.value);
+    el.value = formatBRLCurrency(v);
+  });
+}
+
+function populateTechSelect(selectEl, users){
+  if (!selectEl) return;
+  selectEl.innerHTML = '<option value="">Selecione um técnico</option>';
+  const list = (users || []).filter(u => u.role === "tecnico" && u.active !== false);
+  list.sort((a,b)=>(a.name||"").localeCompare(b.name||""));
+  for (const u of list){
+    const opt = document.createElement("option");
+    opt.value = u.uid;
+    opt.textContent = shortName(u);
+    selectEl.appendChild(opt);
+  }
+}
+
+function renderTechChips(refs, state){
+  const wrap = refs.projectTechChipsEl;
+  if (!wrap) return;
+  const selected = Array.isArray(state._createProjectTechUids) ? state._createProjectTechUids : [];
+  wrap.innerHTML = "";
+  if (!selected.length){
+    wrap.innerHTML = '<span class="muted">Nenhum técnico selecionado</span>';
+    return;
+  }
+  for (const uid of selected){
+    const u = (state._usersCache || []).find(x => x.uid === uid);
+    const chip = document.createElement("div");
+    chip.className = "chip";
+    chip.innerHTML = `<span>${shortName(u)}</span><span class="x" title="Remover">×</span>`;
+    chip.querySelector(".x").onclick = () => {
+      state._createProjectTechUids = selected.filter(x => x !== uid);
+      renderTechChips(refs, state);
+    };
+    wrap.appendChild(chip);
+  }
+}
+
+function bindCreateProjectTeamFilter(refs, state){
+  if (!refs.projectTeamEl) return;
+  if (state._createProjectTeamFilterBound) return;
+  state._createProjectTeamFilterBound = true;
+
+  const apply = () => {
+    const teamId = refs.projectTeamEl.value || "";
+    if (!teamId){
+      populateCoordinatorSelectNew(refs.projectCoordinatorEl, state._usersCache);
+      populateTechSelect(refs.projectTechSelectEl, state._usersCache);
+      return;
+    }
+    const filtered = (state._usersCache || []).filter(u => {
+      const t = Array.isArray(u.teamIds) ? u.teamIds : (u.teamId ? [u.teamId] : []);
+      return t.includes(teamId);
+    });
+    populateCoordinatorSelectNew(refs.projectCoordinatorEl, filtered);
+    populateTechSelect(refs.projectTechSelectEl, filtered);
+    // remove técnicos selecionados que não pertencem à equipe
+    const allowedTech = new Set(filtered.filter(u=>u.role==="tecnico" && u.active!==false).map(u=>u.uid));
+    state._createProjectTechUids = (state._createProjectTechUids || []).filter(uid => allowedTech.has(uid));
+    renderTechChips(refs, state);
+  };
+
+  refs.projectTeamEl.addEventListener("change", apply);
+}
+
+function bindTechPicker(refs, state){
+  if (!refs.projectTechSelectEl) return;
+  if (state._createProjectTechBound) return;
+  state._createProjectTechBound = true;
+
+  refs.projectTechSelectEl.addEventListener("change", () => {
+    const uid = refs.projectTechSelectEl.value;
+    if (!uid) return;
+    const arr = Array.isArray(state._createProjectTechUids) ? state._createProjectTechUids : [];
+    if (!arr.includes(uid)) arr.push(uid);
+    state._createProjectTechUids = arr;
+    refs.projectTechSelectEl.value = "";
+    renderTechChips(refs, state);
+  });
+}
+
 /**
  * Abre modal de criar projeto
  */
@@ -344,20 +470,49 @@ export function openCreateProjectModal(deps) {
   if (refs.projectManagerEl) refs.projectManagerEl.value = "";
   if (refs.projectCoordinatorEl) refs.projectCoordinatorEl.value = "";
   if (refs.projectTeamEl) refs.projectTeamEl.value = "";
-  if (refs.projectBillingValueEl) refs.projectBillingValueEl.checked = true;
-  if (refs.projectStatusEl) refs.projectStatusEl.value = "a-fazer";
+  if (refs.projectBillingValueAmountEl) refs.projectBillingValueAmountEl.value = "R$ 0,00";
+  if (refs.projectBillingHoursAmountEl) refs.projectBillingHoursAmountEl.value = "";
   if (refs.projectPriorityEl) refs.projectPriorityEl.value = "media";
   if (refs.projectStartDateEl) refs.projectStartDateEl.value = "";
   if (refs.projectEndDateEl) refs.projectEndDateEl.value = "";
 
   // Preenche select de equipes
   populateTeamSelect(refs.projectTeamEl, state.teams);
+  bindCreateProjectTeamFilter(refs, state);
 
   // Preenche select de gestores (apenas role='gestor')
-  populateManagerSelect(refs.projectManagerEl, state._usersCache);
+  const myTeamIds = Array.isArray(state.profile?.teamIds) ? state.profile.teamIds : (state.profile?.teamId ? [state.profile.teamId] : []);
+  const role = state.profile?.role;
+  // Se CP logado: restringe gestores às equipes do CP
+  populateManagerSelect(refs.projectManagerEl, state._usersCache, (role === "coordenador") ? myTeamIds : null);
 
   // Preenche select de coordenadores (apenas role='coordenador')
   populateCoordinatorSelectNew(refs.projectCoordinatorEl, state._usersCache);
+
+  // Técnicos (multi)
+  state._createProjectTechUids = [];
+  populateTechSelect(refs.projectTechSelectEl, state._usersCache);
+  renderTechChips(refs, state);
+  bindTechPicker(refs, state);
+
+  // Bind UI (chips/máscara) – roda 1x
+  if (!state._createProjectUiBound){
+    state._createProjectUiBound = true;
+    bindPriorityChips(refs);
+    bindCurrencyMask(refs);
+  }
+
+  // Defaults por papel
+  const role2 = state.profile?.role;
+  const myUid = state.profile?.uid || state.profile?.userId || state.profile?.id || state.profile?.uid;
+  if (role2 === "gestor" && myUid){
+    if (refs.projectManagerEl){ refs.projectManagerEl.value = myUid; refs.projectManagerEl.disabled = true; }
+  } else {
+    if (refs.projectManagerEl) refs.projectManagerEl.disabled = false;
+  }
+  if (role2 === "coordenador" && myUid){
+    if (refs.projectCoordinatorEl){ refs.projectCoordinatorEl.value = myUid; }
+  }
 
   refs.modalCreateProject.hidden = false;
   document.body.classList.add("modal-open");
@@ -376,6 +531,7 @@ export function closeCreateProjectModal(refs) {
  * Cria projeto
  */
 export async function createProject(deps) {
+  console.log("🧾 createProject() called");
   const { refs, state, db, auth, closeCreateProjectModal } = deps;
 
   clearAlert(refs.createProjectAlert);
@@ -385,15 +541,27 @@ export async function createProject(deps) {
   const managerUid = refs.projectManagerEl?.value || "";
   const coordinatorUid = refs.projectCoordinatorEl?.value || "";
   const teamId = refs.projectTeamEl?.value || "";
-  const billingType = refs.projectBillingValueEl?.checked ? "valor" : "horas";
   const status = "a-fazer";
   const priority = refs.projectPriorityEl?.value || "media";
   const startDate = refs.projectStartDateEl?.value || "";
   const endDate = refs.projectEndDateEl?.value || "";
 
+  if (startDate && endDate && startDate > endDate){
+    setAlert(refs.createProjectAlert, "A data de início não pode ser maior que a data de fim.");
+    return;
+  }
+
   // Validações
   if (!name) {
     setAlert(refs.createProjectAlert, "Informe o nome do projeto.");
+    return;
+  }
+  if (name.length > 35){
+    setAlert(refs.createProjectAlert, "Nome do projeto deve ter no máximo 35 caracteres.");
+    return;
+  }
+  if (description.length > 1000){
+    setAlert(refs.createProjectAlert, "Descrição deve ter no máximo 1000 caracteres.");
     return;
   }
 
@@ -410,26 +578,48 @@ export async function createProject(deps) {
 
     if (!companyId || !user) throw new Error("Não autenticado ou empresa não encontrada");
 
-    const projectId = `proj-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+    // Sequência numérica por empresa (transaction)
+const counterRef = doc(db, "companies", companyId, "counters", "projects");
 
-    const payload = {
-      name,
-      description,
-      managerUid,
-      coordinatorUid: coordinatorUid || "",
-      teamId: teamId || "",
-      billingType,
-      status,
-      priority,
-      startDate: startDate || null,
-      endDate: endDate || null,
-      createdAt: serverTimestamp(),
-      createdBy: user.uid,
-      updatedAt: serverTimestamp(),
-      updatedBy: user.uid
-    };
+const { projectId, projectSeq } = await runTransaction(db, async (tx) => {
+  const counterSnap = await tx.get(counterRef);
+  const current = counterSnap.exists() ? (counterSnap.data().next || 1) : 1;
+  const next = current + 1;
 
-    await setDoc(doc(db, `companies/${companyId}/projects`, projectId), payload);
+  // Atualiza contador
+  tx.set(counterRef, { next }, { merge: true });
+
+  // ID numérico (sequência) – docId também sequencial para facilitar
+  const pid = `#${current}`;
+  const projectRef = doc(db, "companies", companyId, "projects", pid);
+
+  const payload = {
+    number: current,                 // sequência numérica
+    projectId: pid,                  // redundância útil
+    name,
+    description,
+    clientId: refs.projectClientEl?.value || "",
+    managerUid,
+    coordinatorUid: coordinatorUid || "",
+    teamId: teamId || "",
+    technicianUids: Array.isArray(state._createProjectTechUids) ? state._createProjectTechUids : [],
+    priority,
+    status,
+    startDate: startDate || null,
+    endDate: endDate || null,
+    billing: {
+      value: parseBRLCurrency(refs.projectBillingValueAmountEl?.value || ""),
+      hours: parseFloat(refs.projectBillingHoursAmountEl?.value || "0") || 0
+    },
+    createdAt: serverTimestamp(),
+    createdBy: user.uid,
+    updatedAt: serverTimestamp(),
+    updatedBy: user.uid
+  };
+
+  tx.set(projectRef, payload);
+  return { projectId: pid, projectSeq: current };
+});
 
     setAlert(refs.createProjectAlert, "Projeto criado com sucesso!", "success");
 
@@ -437,12 +627,13 @@ export async function createProject(deps) {
       closeCreateProjectModal(refs);
       // ✅ grid: recarrega usando deps
       if (typeof deps.loadProjects === "function") deps.loadProjects(deps);
-      // ✅ kanban realtime já vai refletir via onSnapshot se estiver aberto
+      // ✅ kanban realtime já vai refletir via onSnapshot, runTransaction se estiver aberto
     }, 600);
 
   } catch (err) {
     console.error("createProject error", err);
     setAlert(refs.createProjectAlert, "Erro ao criar projeto: " + (err?.message || err));
+     throw err;
   }
 }
 
@@ -464,13 +655,19 @@ function populateTeamSelect(selectEl, teams) {
 /**
  * Popula select de gestores (apenas role='gestor')
  */
-function populateManagerSelect(selectEl, users) {
+function populateManagerSelect(selectEl, users, allowedTeamIds = null) {
   if (!selectEl) return;
   selectEl.innerHTML = '<option value="">Selecione um gestor</option>';
 
   if (!users || !Array.isArray(users)) return;
 
-  const managers = users.filter(u => u.role === "gestor" && u.active !== false);
+  let managers = users.filter(u => u.role === "gestor" && u.active !== false);
+  if (Array.isArray(allowedTeamIds) && allowedTeamIds.length){
+    managers = managers.filter(u => {
+      const t = Array.isArray(u.teamIds) ? u.teamIds : (u.teamId ? [u.teamId] : []);
+      return t.some(id => allowedTeamIds.includes(id));
+    });
+  }
   managers.sort((a, b) => (a.name || "").localeCompare(b.name || ""));
 
   for (const user of managers) {
@@ -827,20 +1024,20 @@ export function subscribeMyProjects(deps) {
   );
 
   unsubscribeMyProjectsListener = onSnapshot(
-    q,
-    (snapshot) => {
-      const projects = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
-      // Usa refs safe para não depender de deps.refs
-      _myProjectsLast = projects;
-      _renderMyProjectsWithFilter(refs);
-    },
-    (error) => {
-      console.error("onSnapshot(myProjects) error", error);
-      refs.kanbanTodo.innerHTML = '<p class="muted" style="padding:12px;">Erro ao carregar projetos.</p>';
-      refs.kanbanInProgress.innerHTML = '<p class="muted" style="padding:12px;">Erro ao carregar projetos.</p>';
-      refs.kanbanDone.innerHTML = '<p class="muted" style="padding:12px;">Erro ao carregar projetos.</p>';
-    }
-  );
+  q,
+  (snapshot) => {
+    const projects = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+    // Usa refs safe para não depender de deps.refs
+    _myProjectsLast = projects;
+    _renderMyProjectsWithFilter(refs);
+  },
+  (error) => {
+    console.error("onSnapshot(myProjects) error", error);
+    refs.kanbanTodo.innerHTML = '<p class="muted" style="padding:12px;">Erro ao carregar projetos.</p>';
+    refs.kanbanInProgress.innerHTML = '<p class="muted" style="padding:12px;">Erro ao carregar projetos.</p>';
+    refs.kanbanDone.innerHTML = '<p class="muted" style="padding:12px;">Erro ao carregar projetos.</p>';
+  }
+);
 }
 
 /**
@@ -1035,7 +1232,7 @@ function setupDropZone(container, state, db, auth, deps) {
         }
       );
 
-      // ✅ Não precisa recarregar: onSnapshot atualiza automaticamente
+      // ✅ Não precisa recarregar: onSnapshot, runTransaction atualiza automaticamente
 
     } catch (err) {
       console.error("Erro ao mover projeto:", err);

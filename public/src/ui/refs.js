@@ -234,6 +234,12 @@ export const projectStatusEl = byId("projectStatus");
 export const projectPriorityEl = byId("projectPriority");
 export const projectStartDateEl = byId("projectStartDate");
 export const projectEndDateEl = byId("projectEndDate");
+export const projectClientEl = byId("projectClient");
+export const projectTechSelectEl = byId("projectTechSelect");
+export const projectTechChipsEl = byId("projectTechChips");
+export const projectBillingValueAmountEl = byId("projectBillingValueAmount");
+export const projectBillingHoursAmountEl = byId("projectBillingHoursAmount");
+export const projectIdPreviewEl = byId("projectIdPreview");
 export const createProjectAlert = byId("createProjectAlert");
 
 
