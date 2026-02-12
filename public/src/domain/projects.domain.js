@@ -280,9 +280,6 @@ function renderProjectCard(proj, deps) {
 }
 
 /**
- * Badge de status
- */
-/**
  * Meta (UI) por status do projeto
  * - Use as mesmas cores das colunas do Kanban, para manter consistência visual.
  * - Tons "leves" (não saturados) para não poluir a tela.
@@ -919,60 +916,62 @@ function renderKanbanCards(container, projects, deps) {
   setupDropZone(container, state, db, auth, deps);
 
   container.innerHTML = "";
-// Helpers de apresentação (kanban card)
-const _fmtDateBR = (v) => {
-  if (!v) return "";
-  try {
-    // v pode ser 'YYYY-MM-DD' ou Timestamp serializado
-    if (typeof v === "string") {
-      // mantém apenas a parte de data
-      const s = v.slice(0, 10);
-      const [y, m, d] = s.split("-");
-      if (y && m && d) return `${d}/${m}/${y}`;
-      return v;
+
+  // Helpers de apresentação (kanban card)
+  const _fmtDateBR = (v) => {
+    if (!v) return "";
+    try {
+      // v pode ser 'YYYY-MM-DD' ou Timestamp serializado
+      if (typeof v === "string") {
+        // mantém apenas a parte de data
+        const s = v.slice(0, 10);
+        const [y, m, d] = s.split("-");
+        if (y && m && d) return `${d}/${m}/${y}`;
+        return v;
+      }
+      if (v?.toDate) {
+        const dt = v.toDate();
+        const dd = String(dt.getDate()).padStart(2, "0");
+        const mm = String(dt.getMonth() + 1).padStart(2, "0");
+        const yy = dt.getFullYear();
+        return `${dd}/${mm}/${yy}`;
+      }
+    } catch {}
+    return "";
+  };
+
+  const _projectDisplayId = (p) => {
+    const n = p?.projectNumber ?? p?.number ?? p?.seq ?? p?.codeNumber;
+    if (typeof n === "number") return `#${n}`;
+    if (typeof n === "string" && n.trim()) {
+      // se já veio com # ou é numérico
+      const s = n.trim();
+      if (/^#?\d+$/.test(s)) return s.startsWith("#") ? s : `#${s}`;
+      return s;
     }
-    if (v?.toDate) {
-      const dt = v.toDate();
-      const dd = String(dt.getDate()).padStart(2, "0");
-      const mm = String(dt.getMonth() + 1).padStart(2, "0");
-      const yy = dt.getFullYear();
-      return `${dd}/${mm}/${yy}`;
-    }
-  } catch {}
-  return "";
-};
+    // fallback: usa parte do doc id
+    const id = String(p?.id || "");
+    if (!id) return "";
+    const m = id.match(/(\d{1,6})/);
+    if (m) return `#${m[1]}`;
+    return id.length > 8 ? `#${id.slice(-6)}` : `#${id}`;
+  };
 
-const _projectDisplayId = (p) => {
-  const n = p?.projectNumber ?? p?.number ?? p?.seq ?? p?.codeNumber;
-  if (typeof n === "number") return `#${n}`;
-  if (typeof n === "string" && n.trim()) {
-    // se já veio com # ou é numérico
-    const s = n.trim();
-    if (/^#?\d+$/.test(s)) return s.startsWith("#") ? s : `#${s}`;
-    return s;
-  }
-  // fallback: usa parte do doc id
-  const id = String(p?.id || "");
-  if (!id) return "";
-  const m = id.match(/(\d{1,6})/);
-  if (m) return `#${m[1]}`;
-  return id.length > 8 ? `#${id.slice(-6)}` : `#${id}`;
-};
+  const _fmtBRL = (val) => {
+    if (val === null || val === undefined || val === "") return "";
+    const num = typeof val === "number"
+      ? val
+      : Number(String(val).replace(/[^0-9.,-]/g, "").replace(".", "").replace(",", "."));
+    if (Number.isNaN(num)) return "";
+    return num.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
+  };
 
-const _fmtBRL = (val) => {
-  if (val === null || val === undefined || val === "") return "";
-  const num = typeof val === "number" ? val : Number(String(val).replace(/[^0-9.,-]/g, "").replace(".", "").replace(",", "."));
-  if (Number.isNaN(num)) return "";
-  return num.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
-};
-
-const _fmtHours = (val) => {
-  if (val === null || val === undefined || val === "") return "";
-  const num = typeof val === "number" ? val : Number(String(val).replace(/[^0-9.,-]/g, "").replace(",", "."));
-  if (Number.isNaN(num)) return "";
-  return `${num}`;
-};
-
+  const _fmtHours = (val) => {
+    if (val === null || val === undefined || val === "") return "";
+    const num = typeof val === "number" ? val : Number(String(val).replace(/[^0-9.,-]/g, "").replace(",", "."));
+    if (Number.isNaN(num)) return "";
+    return `${num}`;
+  };
 
   if (!projects || projects.length === 0) {
     container.innerHTML = '<p class="muted" style="padding:12px;">Nenhum projeto</p>';
@@ -988,7 +987,6 @@ const _fmtHours = (val) => {
     const meta = getProjectStatusMeta(card.dataset.currentStatus);
     card.style.boxShadow = `inset 4px 0 0 ${meta.color}`;
 
-
     const priorityText = {
       baixa: "Baixa",
       media: "Média",
@@ -996,39 +994,39 @@ const _fmtHours = (val) => {
     }[project.priority] || "Média";
 
     const displayId = _projectDisplayId(project);
-const endBR = _fmtDateBR(project.endDate || project.endAt || project.dateEnd);
-const valueBRL = _fmtBRL(project.billingValue ?? project.value ?? project.billing?.value ?? project.cobrancaValor);
-const hoursTxt = _fmtHours(project.billingHours ?? project.hours ?? project.billing?.hours ?? project.cobrancaHoras);
+    const endBR = _fmtDateBR(project.endDate || project.endAt || project.dateEnd);
+    const valueBRL = _fmtBRL(project.billingValue ?? project.value ?? project.billing?.value ?? project.cobrancaValor);
+    const hoursTxt = _fmtHours(project.billingHours ?? project.hours ?? project.billing?.hours ?? project.cobrancaHoras);
 
-const icCalendar = `<svg class="mini-ic" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-  <path d="M7 3v3M17 3v3" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
-  <path d="M4 8h16" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
-  <path d="M6 21h12a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2Z" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/>
-</svg>`;
+    const icCalendar = `<svg class="mini-ic" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <path d="M7 3v3M17 3v3" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+      <path d="M4 8h16" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+      <path d="M6 21h12a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2Z" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/>
+    </svg>`;
 
-const icMoney = `<svg class="mini-ic" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-  <path d="M12 3v18" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
-  <path d="M17 7.5c0-1.93-2.24-3.5-5-3.5s-5 1.57-5 3.5S9.24 11 12 11s5 1.57 5 3.5S14.76 18 12 18s-5-1.57-5-3.5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-</svg>`;
+    const icMoney = `<svg class="mini-ic" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <path d="M12 3v18" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+      <path d="M17 7.5c0-1.93-2.24-3.5-5-3.5s-5 1.57-5 3.5S9.24 11 12 11s5 1.57 5 3.5S14.76 18 12 18s-5-1.57-5-3.5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+    </svg>`;
 
-const icClock = `<svg class="mini-ic" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-  <path d="M12 8v5l3 2" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-  <path d="M12 22c5.523 0 10-4.477 10-10S17.523 2 12 2 2 6.477 2 12s4.477 10 10 10Z" stroke="currentColor" stroke-width="2"/>
-</svg>`;
+    const icClock = `<svg class="mini-ic" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <path d="M12 8v5l3 2" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+      <path d="M12 22c5.523 0 10-4.477 10-10S17.523 2 12 2 2 6.477 2 12s4.477 10 10 10Z" stroke="currentColor" stroke-width="2"/>
+    </svg>`;
 
-card.innerHTML = `
-  <div class="kanban-card-title">
-    <span class="kanban-card-id">${escapeHtml(displayId)}</span>
-    <span class="kanban-card-name">${escapeHtml(project.name || "")}</span>
-  </div>
+    card.innerHTML = `
+      <div class="kanban-card-title">
+        <span class="kanban-card-id">${escapeHtml(displayId)}</span>
+        <span class="kanban-card-name">${escapeHtml(project.name || "")}</span>
+      </div>
 
-  <div class="kanban-card-meta kanban-card-meta--row">
-    ${endBR ? `<span class="kanban-mini">${icCalendar}<span>${escapeHtml(endBR)}</span></span>` : ""}
-    ${valueBRL ? `<span class="kanban-mini">${icMoney}<span>${escapeHtml(valueBRL)}</span></span>` : ""}
-    ${hoursTxt ? `<span class="kanban-mini">${icClock}<span>${escapeHtml(hoursTxt)}h</span></span>` : ""}
-    <span class="kanban-card-priority ${project.priority || "media"}">${priorityText}</span>
-  </div>
-`;
+      <div class="kanban-card-meta kanban-card-meta--row">
+        ${endBR ? `<span class="kanban-mini" title="Data final">${icCalendar}<span>${escapeHtml(endBR)}</span></span>` : ""}
+        ${valueBRL ? `<span class="kanban-mini" title="Valor">${icMoney}<span>${escapeHtml(valueBRL)}</span></span>` : ""}
+        ${hoursTxt ? `<span class="kanban-mini" title="Horas">${icClock}<span>${escapeHtml(hoursTxt)}h</span></span>` : ""}
+        <span class="kanban-card-priority ${project.priority || "media"}">${priorityText}</span>
+      </div>
+    `;
 
     card.addEventListener("dragstart", (e) => {
       card.classList.add("dragging");
@@ -1040,8 +1038,6 @@ card.innerHTML = `
       card.classList.remove("dragging");
     });
 
-    // Click abre o projeto (detalhes) — e não depende de mousedown/mousemove
-    // (o hack anterior quebrava fácil e fazia o clique “não funcionar”).
     card.addEventListener("click", () => {
       if (card.classList.contains("dragging")) return;
 
