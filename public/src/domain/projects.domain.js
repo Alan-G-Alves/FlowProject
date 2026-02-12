@@ -29,6 +29,10 @@ import { getTeamNameById, initialFromName } from "../utils/helpers.js";
  */
 let unsubscribeMyProjectsListener = null;
 
+// Guarda o deps mais recente do Kanban para que busca/filters e re-renders
+// não percam state/db/auth (evita "Erro: não autenticado" no drag&drop).
+let _myProjectsDeps = null;
+
 /* My Projects Kanban Search */
 let _myProjectsLast = [];
 let _myProjectsSearch = "";
@@ -61,7 +65,10 @@ function _applyMyProjectsSearch(list){
 }
 
 function _renderMyProjectsWithFilter(refs){
-  renderMyProjectsKanban(_applyMyProjectsSearch(_myProjectsLast), refs);
+  // ⚠️ Importante: ao re-renderizar (ex.: busca), precisamos manter state/db/auth.
+  // Caso contrário, o drag&drop cai no alert "Erro: não autenticado".
+  const deps = _myProjectsDeps || {};
+  renderMyProjectsKanban(_applyMyProjectsSearch(_myProjectsLast), { ...deps, refs });
 }
 
 function initMyProjectsSearchUI(refs){
@@ -774,6 +781,9 @@ export function subscribeMyProjects(deps) {
   const state = safeDeps.state || {};
   const db = safeDeps.db;
 
+  // Mantém o deps da view para re-renders (busca, snapshot, etc.)
+  _myProjectsDeps = safeDeps;
+
   const refs = getKanbanRefsSafe(safeDeps);
   initMyProjectsSearchUI(refs);
 
@@ -903,7 +913,7 @@ function renderMyProjectsKanban(projects, deps) {
  * Renderiza cards no Kanban
  */
 function renderKanbanCards(container, projects, deps) {
-  const { openEditProjectModal, state, db, auth } = deps || {};
+  const { openEditProjectModal, openProjectDetailModal, state, db, auth } = deps || {};
 
   // Sempre prepara a dropzone (inclusive coluna vazia)
   setupDropZone(container, state, db, auth, deps);
@@ -950,12 +960,18 @@ function renderKanbanCards(container, projects, deps) {
       card.classList.remove("dragging");
     });
 
-    // click editar (sem arrastar)
-    let isDragging = false;
-    card.addEventListener("mousedown", () => { isDragging = false; });
-    card.addEventListener("mousemove", () => { isDragging = true; });
-    card.addEventListener("mouseup", () => {
-      if (!isDragging && typeof openEditProjectModal === "function") {
+    // Click abre o projeto (detalhes) — e não depende de mousedown/mousemove
+    // (o hack anterior quebrava fácil e fazia o clique “não funcionar”).
+    card.addEventListener("click", () => {
+      if (card.classList.contains("dragging")) return;
+
+      if (typeof openProjectDetailModal === "function") {
+        openProjectDetailModal(project.id, deps);
+        return;
+      }
+
+      // fallback: abre edição se o modal de detalhes não existir
+      if (typeof openEditProjectModal === "function") {
         openEditProjectModal(project.id, deps);
       }
     });
