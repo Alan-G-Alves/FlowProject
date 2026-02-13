@@ -14,6 +14,7 @@ import {
   query,
   where,
   orderBy,
+  limit,
   serverTimestamp,
   onSnapshot
 } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore.js";
@@ -37,6 +38,11 @@ let _myProjectsDeps = null;
 let _myProjectsLast = [];
 let _myProjectsSearch = "";
 let _myProjectsSearchInitialized = false;
+
+// Create Project Modal state
+let _createProjectUiInitialized = false;
+let _selectedTechUids = [];
+let _isCreatingProjectLocal = false;
 
 function _normText(v){
   return (v ?? "")
@@ -130,6 +136,158 @@ function initMyProjectsSearchUI(refs){
       close();
     }
   });
+}
+
+function _parseBRLToNumber(input){
+  const raw = (input ?? "").toString().trim();
+  if (!raw) return null;
+  // remove R$, espaços e qualquer coisa que não seja número, ponto, vírgula, sinal
+  const cleaned = raw
+    .replace(/\s/g, "")
+    .replace(/R\$/gi, "")
+    .replace(/[^0-9,.-]/g, "");
+
+  // pt-BR: 1.234,56
+  const normalized = cleaned
+    .replace(/\./g, "")
+    .replace(/,/g, ".");
+
+  const num = Number(normalized);
+  if (Number.isNaN(num)) return null;
+  return num;
+}
+
+function _formatBRL(input){
+  const n = _parseBRLToNumber(input);
+  if (n === null) return "";
+  return n.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
+}
+
+function _parseHoursToNumber(input){
+  const raw = (input ?? "").toString().trim();
+  if (!raw) return null;
+  const num = Number(raw.replace(/,/g, ".").replace(/[^0-9.-]/g, ""));
+  if (Number.isNaN(num)) return null;
+  return num;
+}
+
+function _ensureCreateProjectUi(refs, state){
+  if (_createProjectUiInitialized) return;
+  _createProjectUiInitialized = true;
+
+  // Prioridade (chips)
+  const chipsWrap = document.getElementById("projectPriorityChips");
+  const hidden = refs?.projectPriorityEl || document.getElementById("projectPriority");
+  if (chipsWrap && hidden) {
+    chipsWrap.addEventListener("click", (e) => {
+      const btn = e.target?.closest?.(".chip[data-priority]");
+      if (!btn) return;
+      const val = btn.getAttribute("data-priority") || "media";
+
+      chipsWrap.querySelectorAll(".chip").forEach(b => b.classList.remove("selected"));
+      btn.classList.add("selected");
+      hidden.value = val;
+    });
+  }
+
+  // Valor (mask BRL)
+  const valueEl = refs?.projectBillingValueAmountEl || document.getElementById("projectBillingValueAmount");
+  if (valueEl) {
+    valueEl.addEventListener("blur", () => {
+      const f = _formatBRL(valueEl.value);
+      valueEl.value = f || "";
+    });
+    // Se o usuário começar a digitar "R$" etc, não atrapalhar: apenas limpa no focus
+    valueEl.addEventListener("focus", () => {
+      // mantém números (pra facilitar edição)
+      const n = _parseBRLToNumber(valueEl.value);
+      valueEl.value = n === null ? "" : String(n).replace(/\./g, ",");
+    });
+  }
+
+  // Técnicos (select + chips)
+  const techSelect = refs?.projectTechSelectEl || document.getElementById("projectTechSelect");
+  if (techSelect) {
+    techSelect.addEventListener("change", () => {
+      const uid = techSelect.value || "";
+      if (!uid) return;
+      if (!_selectedTechUids.includes(uid)) _selectedTechUids.push(uid);
+      techSelect.value = "";
+      _renderSelectedTechChips(refs, state);
+    });
+  }
+
+  const chipsEl = refs?.projectTechChipsEl || document.getElementById("projectTechChips");
+  if (chipsEl) {
+    chipsEl.addEventListener("click", (e) => {
+      const btn = e.target?.closest?.("button[data-tech-uid]");
+      if (!btn) return;
+      const uid = btn.getAttribute("data-tech-uid");
+      _selectedTechUids = _selectedTechUids.filter(x => x !== uid);
+      _renderSelectedTechChips(refs, state);
+    });
+  }
+}
+
+function _listActiveTechs(state, teamId){
+  const users = Array.isArray(state?._usersCache) ? state._usersCache : [];
+  const techs = users
+    .filter(u => u && u.role === "tecnico" && u.active !== false);
+
+  if (teamId) {
+    return techs.filter(u => {
+      const teamIds = Array.isArray(u.teamIds) ? u.teamIds : (u.teamId ? [u.teamId] : []);
+      return teamIds.includes(teamId);
+    });
+  }
+
+  return techs;
+}
+
+function _populateTechSelect(selectEl, state, teamId){
+  if (!selectEl) return;
+  selectEl.innerHTML = '<option value="">Selecione um técnico</option>';
+
+  const techs = _listActiveTechs(state, teamId);
+  techs.sort((a, b) => (a.name || "").localeCompare(b.name || ""));
+
+  for (const t of techs) {
+    // não listar os já selecionados
+    if (_selectedTechUids.includes(t.uid)) continue;
+    const opt = document.createElement("option");
+    opt.value = t.uid;
+    opt.textContent = t.name || t.email || t.uid;
+    selectEl.appendChild(opt);
+  }
+}
+
+function _renderSelectedTechChips(refs, state){
+  const chipsEl = refs?.projectTechChipsEl || document.getElementById("projectTechChips");
+  const techSelect = refs?.projectTechSelectEl || document.getElementById("projectTechSelect");
+  if (!chipsEl) return;
+
+  const users = Array.isArray(state?._usersCache) ? state._usersCache : [];
+  const byUid = new Map(users.map(u => [u.uid, u]));
+
+  chipsEl.innerHTML = "";
+  for (const uid of _selectedTechUids) {
+    const u = byUid.get(uid);
+    const name = (u?.name || u?.email || uid);
+    const chip = document.createElement("span");
+    chip.className = "chip";
+    chip.style.display = "inline-flex";
+    chip.style.alignItems = "center";
+    chip.style.gap = "8px";
+    chip.innerHTML = `
+      <span>${escapeHtml(name)}</span>
+      <button type="button" class="btn ghost sm" data-tech-uid="${escapeHtml(uid)}" aria-label="Remover técnico" style="padding:2px 8px;">✕</button>
+    `;
+    chipsEl.appendChild(chip);
+  }
+
+  // re-popula select para esconder os já escolhidos
+  const teamId = (refs?.projectTeamEl?.value || document.getElementById("projectTeam")?.value || "");
+  _populateTechSelect(techSelect, state, teamId);
 }
 
 
@@ -341,11 +499,20 @@ export function openCreateProjectModal(deps) {
   if (refs.projectManagerEl) refs.projectManagerEl.value = "";
   if (refs.projectCoordinatorEl) refs.projectCoordinatorEl.value = "";
   if (refs.projectTeamEl) refs.projectTeamEl.value = "";
+  // billing/status antigos (inputs removidos do HTML) — mantemos compatibilidade via refs opcionais
   if (refs.projectBillingValueEl) refs.projectBillingValueEl.checked = true;
+  if (refs.projectBillingHoursEl) refs.projectBillingHoursEl.checked = false;
   if (refs.projectStatusEl) refs.projectStatusEl.value = "a-fazer";
   if (refs.projectPriorityEl) refs.projectPriorityEl.value = "media";
   if (refs.projectStartDateEl) refs.projectStartDateEl.value = "";
   if (refs.projectEndDateEl) refs.projectEndDateEl.value = "";
+  if (refs.projectBillingValueAmountEl) refs.projectBillingValueAmountEl.value = "";
+  if (refs.projectBillingHoursAmountEl) refs.projectBillingHoursAmountEl.value = "";
+
+  // reset técnicos
+  _selectedTechUids = [];
+  if (refs.projectTechSelectEl) refs.projectTechSelectEl.value = "";
+  if (refs.projectTechChipsEl) refs.projectTechChipsEl.innerHTML = "";
 
   // Preenche select de equipes
   populateTeamSelect(refs.projectTeamEl, state.teams);
@@ -355,6 +522,26 @@ export function openCreateProjectModal(deps) {
 
   // Preenche select de coordenadores (apenas role='coordenador')
   populateCoordinatorSelectNew(refs.projectCoordinatorEl, state._usersCache);
+
+  // UI do modal (chips + máscara + técnicos)
+  _ensureCreateProjectUi(refs, state);
+
+  // Reseta visual dos chips de prioridade para o padrão (média)
+  const chipsWrap = document.getElementById("projectPriorityChips");
+  if (chipsWrap) {
+    chipsWrap.querySelectorAll(".chip").forEach(b => b.classList.remove("selected"));
+    const def = chipsWrap.querySelector('.chip[data-priority="media"]');
+    def?.classList.add("selected");
+  }
+  _populateTechSelect(refs.projectTechSelectEl, state, refs.projectTeamEl?.value || "");
+
+  // Quando troca equipe, filtra técnicos
+  if (refs.projectTeamEl) {
+    refs.projectTeamEl.onchange = () => {
+      _populateTechSelect(refs.projectTechSelectEl, state, refs.projectTeamEl.value || "");
+      _renderSelectedTechChips(refs, state);
+    };
+  }
 
   refs.modalCreateProject.hidden = false;
   document.body.classList.add("modal-open");
@@ -382,11 +569,23 @@ export async function createProject(deps) {
   const managerUid = refs.projectManagerEl?.value || "";
   const coordinatorUid = refs.projectCoordinatorEl?.value || "";
   const teamId = refs.projectTeamEl?.value || "";
-  const billingType = refs.projectBillingValueEl?.checked ? "valor" : "horas";
+  // Cobrança (inputs atuais do modal)
+  const billingValue = _parseBRLToNumber(refs.projectBillingValueAmountEl?.value || "");
+  const billingHours = _parseHoursToNumber(refs.projectBillingHoursAmountEl?.value || "");
+
+  const billingType = (billingValue !== null && billingValue > 0)
+    ? "valor"
+    : (billingHours !== null && billingHours > 0)
+      ? "horas"
+      : "";
+
   const status = "a-fazer";
   const priority = refs.projectPriorityEl?.value || "media";
   const startDate = refs.projectStartDateEl?.value || "";
   const endDate = refs.projectEndDateEl?.value || "";
+
+  // Técnicos selecionados (chips)
+  const techUids = Array.isArray(_selectedTechUids) ? [..._selectedTechUids] : [];
 
   // Validações
   if (!name) {
@@ -399,6 +598,8 @@ export async function createProject(deps) {
     return;
   }
 
+  if (_isCreatingProjectLocal) return;
+  _isCreatingProjectLocal = true;
   setAlert(refs.createProjectAlert, "Salvando...", "info");
 
   try {
@@ -409,13 +610,36 @@ export async function createProject(deps) {
 
     const projectId = `proj-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 
+    // ✅ Sequência numérica do projeto (compatível com o formato antigo do card)
+    // Estratégia simples (sem criar coleção extra): busca o maior projectNumber e soma +1.
+    // (Assunção) Volume por empresa é baixo a médio.
+    let nextProjectNumber = 1;
+    try {
+      const snapAll = await getDocs(collection(db, `companies/${companyId}/projects`));
+      let maxNum = 0;
+      snapAll.forEach(s => {
+        const d = s.data() || {};
+        const n = d.projectNumber ?? d.number ?? d.seq ?? d.codeNumber;
+        const nn = (typeof n === "number") ? n : Number(String(n || "").replace(/[^0-9]/g, ""));
+        if (!Number.isNaN(nn) && nn > maxNum) maxNum = nn;
+      });
+      nextProjectNumber = maxNum + 1;
+    } catch (e) {
+      // fallback: mantém 1
+      console.warn("Não consegui calcular projectNumber, usando 1.", e);
+    }
+
     const payload = {
+      projectNumber: nextProjectNumber,
       name,
       description,
       managerUid,
       coordinatorUid: coordinatorUid || "",
       teamId: teamId || "",
       billingType,
+      billingValue: billingValue ?? null,
+      billingHours: billingHours ?? null,
+      techUids,
       status,
       priority,
       startDate: startDate || null,
@@ -440,6 +664,8 @@ export async function createProject(deps) {
   } catch (err) {
     console.error("createProject error", err);
     setAlert(refs.createProjectAlert, "Erro ao criar projeto: " + (err?.message || err));
+  } finally {
+    _isCreatingProjectLocal = false;
   }
 }
 
@@ -942,19 +1168,19 @@ function renderKanbanCards(container, projects, deps) {
 
   const _projectDisplayId = (p) => {
     const n = p?.projectNumber ?? p?.number ?? p?.seq ?? p?.codeNumber;
-    if (typeof n === "number") return `#${n}`;
+    if (typeof n === "number") return `${n}`;
     if (typeof n === "string" && n.trim()) {
       // se já veio com # ou é numérico
       const s = n.trim();
-      if (/^#?\d+$/.test(s)) return s.startsWith("#") ? s : `#${s}`;
-      return s;
+      if (/^#?\d+$/.test(s)) return s.replace(/^#/, "");
+      return s.replace(/^#/, "");
     }
     // fallback: usa parte do doc id
     const id = String(p?.id || "");
     if (!id) return "";
     const m = id.match(/(\d{1,6})/);
-    if (m) return `#${m[1]}`;
-    return id.length > 8 ? `#${id.slice(-6)}` : `#${id}`;
+    if (m) return `${m[1]}`;
+    return id.length > 8 ? `${id.slice(-6)}` : `${id}`;
   };
 
   const _fmtBRL = (val) => {
