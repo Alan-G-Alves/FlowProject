@@ -53,22 +53,71 @@ function _normText(v){
     .replace(/[\u0300-\u036f]/g, "");
 }
 
+function _formatBRLAlias(num){
+  if (num === null || num === undefined || num === "") return "";
+  const n = Number(num);
+  if (Number.isNaN(n)) return "";
+  // inclui variações úteis para busca: "1500", "1500.5", "1500,50", "1.500,50", "r$ 1.500,50"
+  const brl = n.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
+  const plain = String(n);
+  const noSep = brl.replace(/[^0-9,]/g, "").replace(/\./g, "");
+  return `${brl} ${plain} ${noSep}`.trim();
+}
+
+function _dateAliases(dateStr){
+  if (!dateStr) return "";
+  const s = String(dateStr).trim();
+  // suporta "YYYY-MM-DD" ou "YYYY/MM/DD"
+  const m = s.match(/^(\d{4})[-\/](\d{2})[-\/](\d{2})/);
+  if (!m) return s;
+  const yyyy = m[1], mm = m[2], dd = m[3];
+  const br1 = `${dd}/${mm}/${yyyy}`;
+  const br2 = `${dd}-${mm}-${yyyy}`;
+  return `${s} ${br1} ${br2} ${mm}/${yyyy} ${yyyy}`.trim();
+}
+
+function _buildProjectSearchHaystack(p){
+  const parts = [];
+  // id/seq
+  if (p?.projectNumber !== undefined && p?.projectNumber !== null) parts.push(String(p.projectNumber));
+  if (p?.id) parts.push(String(p.id));
+  // textos
+  parts.push(p?.name || "");
+  parts.push(p?.description || "");
+  // prioridade (inclui alias com acento)
+  const pri = String(p?.priority || "");
+  if (pri) parts.push(pri, pri === "media" ? "média" : "", pri === "alta" ? "alta" : "", pri === "baixa" ? "baixa" : "");
+  // datas
+  parts.push(_dateAliases(p?.startDate));
+  parts.push(_dateAliases(p?.endDate));
+  // cobrança
+  parts.push(_formatBRLAlias(p?.billingValue));
+  if (p?.billingHours !== undefined && p?.billingHours !== null) parts.push(String(p.billingHours), `${p.billingHours}h`, `${p.billingHours}horas`);
+  // status
+  if (p?.status) parts.push(String(p.status));
+  // remove vazios e normaliza
+  return _normText(parts.filter(Boolean).join(" "));
+}
+
+function _matchesTokens(haystackNorm, query){
+  const qn = _normText(query);
+  if (!qn) return true;
+  const tokens = qn.split(/\s+/).filter(Boolean);
+  if (tokens.length === 0) return true;
+  return tokens.every(t => haystackNorm.includes(t));
+}
+
 function _applyMyProjectsSearch(list){
-  const q = _normText(_myProjectsSearch);
-  if(!q) return list;
+  if (!Array.isArray(list)) return [];
+  const q = _myProjectsSearch || "";
+  if (!_normText(q)) return list;
 
   return list.filter(p => {
-    const name = _normText(p?.name);
-    const team = _normText(p?.teamName);
-    const pri  = _normText(p?.priority);
-
-    const priAlias = pri === "media" ? "media média" : pri;
-
-    return (name && name.includes(q)) ||
-           (team && team.includes(q)) ||
-           (priAlias && priAlias.includes(q));
+    const hay = _buildProjectSearchHaystack(p);
+    return _matchesTokens(hay, q);
   });
 }
+
 
 function _renderMyProjectsWithFilter(refs){
   // ⚠️ Importante: ao re-renderizar (ex.: busca), precisamos manter state/db/auth.
@@ -78,38 +127,24 @@ function _renderMyProjectsWithFilter(refs){
 }
 
 function initMyProjectsSearchUI(refs){
+  // Busca "Meus Projetos" (Kanban)
+  // Observação: o HTML atual não tem botão toggle; o campo fica sempre visível.
   if (_myProjectsSearchInitialized) return;
   _myProjectsSearchInitialized = true;
-  const btnToggle = document.getElementById("btnToggleMyProjectsSearch");
-  const wrap = document.getElementById("myProjectsSearchWrap");
+
   const input = document.getElementById("myProjectsSearchInput");
   const btnClear = document.getElementById("btnClearMyProjectsSearch");
 
-  if(!btnToggle || !wrap || !input || !btnClear) return;
-
-  const open = () => {
-    wrap.classList.add("is-open");
-    input.focus();
-    input.select();
-  };
-
-  const close = () => wrap.classList.remove("is-open");
+  if(!input) return;
 
   const syncClearBtn = () => {
+    if (!btnClear) return;
     btnClear.style.visibility = input.value ? "visible" : "hidden";
   };
 
+  // estado inicial
   input.value = _myProjectsSearch || "";
   syncClearBtn();
-
-  btnToggle.addEventListener("click", () => {
-    if(wrap.classList.contains("is-open")) {
-      if(!input.value) close();
-      else input.focus();
-    } else {
-      open();
-    }
-  });
 
   input.addEventListener("input", () => {
     _myProjectsSearch = input.value || "";
@@ -117,23 +152,25 @@ function initMyProjectsSearchUI(refs){
     _renderMyProjectsWithFilter(refs);
   });
 
-  btnClear.addEventListener("click", () => {
-    input.value = "";
-    _myProjectsSearch = "";
-    syncClearBtn();
-    _renderMyProjectsWithFilter(refs);
-    close();
-  });
+  if (btnClear) {
+    btnClear.addEventListener("click", () => {
+      input.value = "";
+      _myProjectsSearch = "";
+      syncClearBtn();
+      _renderMyProjectsWithFilter(refs);
+      input.focus();
+    });
+  }
 
   input.addEventListener("keydown", (e) => {
-    if(e.key === "Escape"){
-      if(input.value){
+    if (e.key === "Escape") {
+      if (input.value) {
         input.value = "";
         _myProjectsSearch = "";
         syncClearBtn();
         _renderMyProjectsWithFilter(refs);
       }
-      close();
+      input.blur();
     }
   });
 }
@@ -366,11 +403,9 @@ export async function loadProjects(deps) {
       projects.push({ id: docSnap.id, ...docSnap.data() });
     });
 
-    // Filtros client-side (nome, equipe, status, coordenador)
+    // Filtros client-side (busca livre + equipe/status/coordenador)
     if (searchText) {
-      projects = projects.filter(p =>
-        (p.name || "").toLowerCase().includes(searchText)
-      );
+      projects = projects.filter(p => _matchesTokens(_buildProjectSearchHaystack(p), searchText));
     }
 
     if (teamFilter) {
