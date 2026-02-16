@@ -40,6 +40,17 @@ service cloud.firestore {
         && myCompanyUserDoc(companyId).data.active == true;
     }
 
+    function isCoordinator(companyId) {
+      return isSignedIn()
+        && !isSuperAdmin()
+        && exists(/databases/$(database)/documents/userCompanies/$(myUid()))
+        && companyId == myCompanyId()
+        && exists(/databases/$(database)/documents/companies/$(companyId)/users/$(myUid()))
+        && myCompanyUserDoc(companyId).data.role == "coordenador"
+        && myCompanyUserDoc(companyId).data.active == true;
+    }
+
+
     function isCoordenador(companyId) {
       return isSignedIn()
         && !isSuperAdmin()
@@ -210,16 +221,19 @@ match /counters/{counterId} {
   allow read: if isSuperAdmin()
     || isCompanyAdmin(companyId)
     || isManager(companyId)
+          || isCoordinator(companyId)
     || isCoordenador(companyId);
 
   // Apenas contador de projetos
-  allow create: if (isCompanyAdmin(companyId) || isManager(companyId) || isCoordenador(companyId))
+  allow create: if (isCompanyAdmin(companyId) || isManager(companyId)
+          || isCoordinator(companyId) || isCoordenador(companyId))
     && counterId == "projects"
     && request.resource.data.keys().hasOnly(["next"])
     && request.resource.data.next is int
     && request.resource.data.next == 2;
 
-  allow update: if (isCompanyAdmin(companyId) || isManager(companyId) || isCoordenador(companyId))
+  allow update: if (isCompanyAdmin(companyId) || isManager(companyId)
+          || isCoordinator(companyId) || isCoordenador(companyId))
     && counterId == "projects"
     && request.resource.data.keys().hasOnly(["next"])
     && request.resource.data.next is int
@@ -233,6 +247,7 @@ match /counters/{counterId} {
         allow read: if isSuperAdmin()
           || isCompanyAdmin(companyId)
           || isManager(companyId)
+          || isCoordinator(companyId)
           || (isSignedIn() && uid == myUid() && companyId == myCompanyId());
 
         function userWriteValid() {
@@ -260,7 +275,30 @@ match /counters/{counterId} {
           && userWriteValid()
           && teamsSubsetOfMyManaged(companyId);
 
-        allow delete: if false;
+        // coordenador: mesmas permissões do gestor
+        allow create, update: if isCoordinator(companyId)
+          && request.resource.data.role == "tecnico"
+          && userWriteValid()
+          && teamsSubsetOfMyManaged(companyId);
+
+        
+
+        // feedbacks do técnico
+        match /feedbacks/{feedbackId} {
+          allow read: if isSuperAdmin()
+            || isCompanyAdmin(companyId)
+            || isManager(companyId)
+            || isCoordinator(companyId)
+            || (isSignedIn() && uid == myUid() && companyId == myCompanyId());
+
+          allow create: if isCompanyAdmin(companyId)
+            || isManager(companyId)
+            || isCoordinator(companyId);
+
+          allow update, delete: if false;
+        }
+
+allow delete: if false;
       }
 
       // projects (NOVO)
@@ -270,16 +308,19 @@ match /counters/{counterId} {
         allow create: if isSuperAdmin()
           || isCompanyAdmin(companyId)
           || isManager(companyId)
+          || isCoordinator(companyId)
           || isCoordenador(companyId);
         
         allow update: if isSuperAdmin()
           || isCompanyAdmin(companyId)
           || isManager(companyId)
+          || isCoordinator(companyId)
           || isCoordenador(companyId);
         
         allow delete: if isSuperAdmin()
           || isCompanyAdmin(companyId)
-          || isManager(companyId);
+          || isManager(companyId)
+          || isCoordinator(companyId);
       }
 
       // tasks (FUTURO - Sprint 2)
@@ -289,17 +330,20 @@ match /counters/{counterId} {
         allow create: if isSuperAdmin()
           || isCompanyAdmin(companyId)
           || isManager(companyId)
+          || isCoordinator(companyId)
           || isCoordenador(companyId);
         
         allow update: if isSuperAdmin()
           || isCompanyAdmin(companyId)
           || isManager(companyId)
+          || isCoordinator(companyId)
           || isCoordenador(companyId)
           || (isSignedIn() && companyId == myCompanyId()); // técnico pode atualizar próprias tarefas
         
         allow delete: if isSuperAdmin()
           || isCompanyAdmin(companyId)
           || isManager(companyId)
+          || isCoordinator(companyId)
           || isCoordenador(companyId);
       }
 

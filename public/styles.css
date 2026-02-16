@@ -1757,3 +1757,47 @@ a{ color: inherit; }
   word-break: break-word;
   line-height: 1.2;
 }
+
+/* ===== Técnicos: seções do formulário + chips ===== */
+.form-sections{ display:flex; flex-direction:column; gap:14px; }
+.form-section{
+  border:1px solid var(--border);
+  background: rgba(255,255,255,.65);
+  border-radius: 14px;
+  padding: 12px;
+}
+.section-title{
+  font-weight: 700;
+  margin-bottom: 10px;
+  color: rgba(12,18,32,.8);
+  font-size: 13px;
+}
+.chip-input input{
+  width:100%;
+  border:1px solid var(--border);
+  border-radius: 12px;
+  padding: 10px 12px;
+  background: rgba(255,255,255,.85);
+}
+.chips-mini{ margin-top:10px; display:flex; flex-wrap:wrap; gap:8px; }
+.chip.mini{
+  padding: 6px 10px;
+  font-size: 11px;
+  background: rgba(255,255,255,.75);
+}
+.chip.mini.removable{
+  cursor:pointer;
+}
+.chip.mini.removable:hover{
+  border-color: var(--primary);
+}
+.action-col{
+  display:flex;
+  flex-direction:column;
+  gap:8px;
+  min-width: 160px;
+}
+.action-col .action-row{ display:flex; gap:8px; flex-wrap:wrap; }
+.action-meta{ display:flex; flex-direction:column; gap:6px; }
+.action-meta .meta-line{ font-size:12px; color: rgba(12,18,32,.75); }
+.action-meta .meta-line b{ color: rgba(12,18,32,.9); }

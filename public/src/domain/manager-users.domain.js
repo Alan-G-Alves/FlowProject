@@ -9,8 +9,93 @@
  * - Modal de definição de equipes administradas
  */
 
-import { collection, getDocs, doc, setDoc, updateDoc } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore.js";
+// ===== helpers (skills / busca / feedback) =====
+function normalizeText(v){
+  return (v || "")
+    .toString()
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .trim();
+}
+
+function splitTerms(q){
+  const s = normalizeText(q);
+  if (!s) return [];
+  return s.split(/\s+/).filter(Boolean);
+}
+
+function uniqClean(list){
+  const out = [];
+  const seen = new Set();
+  for (const raw of (list || [])){
+    const v = (raw || "").toString().trim();
+    if (!v) continue;
+    const key = normalizeText(v);
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push(v);
+  }
+  return out;
+}
+
+function setupChipInput(inputEl, chipsEl, state, key){
+  if (!inputEl || !chipsEl) return;
+
+  // init state
+  state[key] = Array.isArray(state[key]) ? state[key] : [];
+
+  const render = () => {
+    chipsEl.innerHTML = "";
+    for (const v of state[key]){
+      const chip = document.createElement("button");
+      chip.type = "button";
+      chip.className = "chip mini removable";
+      chip.textContent = v;
+      chip.title = "Clique para remover";
+      chip.addEventListener("click", () => {
+        state[key] = state[key].filter(x => normalizeText(x) !== normalizeText(v));
+        render();
+      });
+      chipsEl.appendChild(chip);
+    }
+  };
+
+  const addFromInput = () => {
+    const raw = (inputEl.value || "").trim();
+    if (!raw) return;
+    // permite separar por vírgula
+    const parts = raw.split(",").map(s => s.trim()).filter(Boolean);
+    state[key] = uniqClean([...(state[key]||[]), ...parts]);
+    inputEl.value = "";
+    render();
+  };
+
+  inputEl.addEventListener("keydown", (e) => {
+    if (e.key === "Enter" || e.key === ","){
+      e.preventDefault();
+      addFromInput();
+    }
+  });
+
+  inputEl.addEventListener("blur", () => addFromInput());
+
+  render();
+}
+
+async function getFeedbackCount(db, companyId, uid){
+  // se já existe em campo, preferimos ele (mais rápido)
+  try{
+    // nada aqui; count vem do doc do usuário no loadManagerUsers
+    return 0;
+  }catch(_){
+    return 0;
+  }
+}
+
+import { collection, getDocs, doc, setDoc, updateDoc, serverTimestamp, query } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore.js";
 import { setAlert, clearAlert } from "../ui/alerts.js";
+import { humanizeRole } from "../utils/roles.js";
 import { show, hide, escapeHtml } from "../utils/dom.js";
 import { isEmailValidBasic } from "../utils/validators.js";
 import { normalizePhone } from "../utils/format.js";
@@ -38,10 +123,10 @@ export function populateMgrTeamFilter(deps) {
   if (!refs.mgrTeamFilter) return;
   
   const managedIds = getManagedTeamIds(state);
-  refs.mgrTeamFilter.innerHTML = '<option value="">Todas as minhas equipes</option>';
+  refs.mgrTeamFilter.innerHTML = '<option value="">Todas as equipes</option>';
 
   const activeManagedTeams = (state.teams || [])
-    .filter(t => t.active !== false && managedIds.includes(t.id))
+    .filter(t => t.active !== false)
     .sort((a,b)=> (a.name||"").localeCompare(b.name||""));
 
   for (const t of activeManagedTeams){
@@ -74,18 +159,25 @@ export async function loadManagerUsers(deps) {
   const snap = await getDocs(collection(db, "companies", state.companyId, "users"));
   const all = snap.docs.map(d => ({ uid: d.id, ...d.data() }));
 
-  const q = (refs.mgrUserSearch?.value || "").toLowerCase().trim();
+  const qRaw = (refs.mgrUserSearch?.value || "");
+  const terms = splitTerms(qRaw);
   const teamFilter = (refs.mgrTeamFilter?.value || "").trim();
 
   const filtered = all.filter(u => {
     if (u.role !== "tecnico") return false;
 
     const teamIds = Array.isArray(u.teamIds) ? u.teamIds : (u.teamId ? [u.teamId] : []);
-    if (!intersects(teamIds, managedIds)) return false;
+    // ✅ Visibilidade global entre gestores/coordenadores: não filtramos mais por equipes administradas
     if (teamFilter && !teamIds.includes(teamFilter)) return false;
 
-    const text = `${u.uid} ${u.name||""} ${u.email||""} ${u.phone||""}`.toLowerCase();
-    if (q && !text.includes(q)) return false;
+    const soft = Array.isArray(u.softSkills) ? u.softSkills.join(" ") : "";
+    const hard = Array.isArray(u.hardSkills) ? u.hardSkills.join(" ") : "";
+    const status = (u.active === false) ? "bloqueado inativo" : "ativo";
+    const teamsTxt = teamIds.map(tid => getTeamNameById(state, tid)).join(" ");
+    const text = normalizeText(`${u.uid} ${u.name||""} ${u.email||""} ${u.phone||""} ${status} ${teamsTxt} ${soft} ${hard} ${u.feedbackCount||0}`);
+    for (const t of terms){
+      if (!text.includes(t)) return false;
+    }
 
     return true;
   }).sort((a,b)=> (a.name||"").localeCompare(b.name||""));
@@ -113,17 +205,65 @@ export async function loadManagerUsers(deps) {
       <td>${escapeHtml(teamsLabel)}</td>
       <td><span class="badge small">${statusLabel}</span></td>
       <td>
-        <div class="action-row">
-          <button class="btn sm" data-act="toggle">${u.active === false ? "Ativar" : "Inativar"}</button>
+        <div class="action-col">
+          <div class="action-row">
+            <button class="btn sm" data-act="toggle">${u.active === false ? "Ativar" : "Bloquear"}</button>
+            <button class="btn sm ghost" data-act="feedback">Feedback <span class="badge small" style="margin-left:6px;">${(u.feedbackCount||0)}</span></button>
+          </div>
+
+          <div class="action-meta">
+            <div class="meta-line"><b>Soft:</b> <span data-soft></span></div>
+            <div class="meta-line"><b>Hard:</b> <span data-hard></span></div>
+          </div>
         </div>
       </td>
     `;
 
     tr.querySelector('[data-act="toggle"]').addEventListener("click", async () => {
       const nextActive = (u.active === false);
-      if (!confirm(`Deseja ${nextActive ? "ativar" : "inativar"} "${u.name}"?`)) return;
+      if (!confirm(`Deseja ${nextActive ? "ativar" : "bloquear"} "${u.name}"?`)) return;
       await updateDoc(doc(db, "companies", state.companyId, "users", u.uid), { active: nextActive });
       await loadManagerUsers(deps);
+    });
+
+
+    // skills chips
+    const softWrap = tr.querySelector("[data-soft]");
+    const hardWrap = tr.querySelector("[data-hard]");
+    const softArr = Array.isArray(u.softSkills) ? u.softSkills : [];
+    const hardArr = Array.isArray(u.hardSkills) ? u.hardSkills : [];
+
+    const renderMiniChips = (wrap, arr) => {
+      if (!wrap) return;
+      wrap.innerHTML = "";
+      if (!arr.length){
+        const em = document.createElement("span");
+        em.className = "muted";
+        em.style.fontSize = "12px";
+        em.textContent = "—";
+        wrap.appendChild(em);
+        return;
+      }
+      for (const v of arr.slice(0,6)){
+        const chip = document.createElement("span");
+        chip.className = "chip mini";
+        chip.textContent = v;
+        wrap.appendChild(chip);
+      }
+      if (arr.length > 6){
+        const more = document.createElement("span");
+        more.className = "muted";
+        more.style.fontSize = "12px";
+        more.textContent = `+${arr.length-6}`;
+        wrap.appendChild(more);
+      }
+    };
+
+    renderMiniChips(softWrap, softArr);
+    renderMiniChips(hardWrap, hardArr);
+
+    tr.querySelector('[data-act="feedback"]').addEventListener("click", async () => {
+      await openTechFeedbackModal(deps, u);
     });
 
     refs.mgrUsersTbody.appendChild(tr);
@@ -139,6 +279,12 @@ export function openCreateTechModal(deps) {
   if (!refs.modalCreateTech) return;
   
   clearAlert(refs.createTechAlert);
+  // skills (chips)
+  deps.state._techSoftSkillsDraft = [];
+  deps.state._techHardSkillsDraft = [];
+  setupChipInput(refs.techSoftSkillInputEl, refs.techSoftSkillChips, deps.state, "_techSoftSkillsDraft");
+  setupChipInput(refs.techHardSkillInputEl, refs.techHardSkillChips, deps.state, "_techHardSkillsDraft");
+
   refs.modalCreateTech.hidden = false;
 
   // Não pedir UID manualmente (vamos criar no Auth via secondaryAuth)
@@ -170,7 +316,7 @@ export function renderMgrTeamChips(deps) {
 
   const managedIds = getManagedTeamIds(state);
   const teams = (state.teams || [])
-    .filter(t => t.active !== false && managedIds.includes(t.id))
+    .filter(t => t.active !== false)
     .sort((a,b)=> (a.name||"").localeCompare(b.name||""));
 
   if (teams.length === 0){
@@ -198,9 +344,10 @@ export function renderMgrTeamChips(deps) {
   }
 }
 
-export async function createTech(deps) {
-  const { refs, state, db, createUserWithAuthAndResetLink, setAlertWithResetLink, loadManagerUsers } = deps;
-  
+export 
+async function createTech(deps) {
+  const { refs, state, db, auth, createUserWithAuthAndResetLink, setAlertWithResetLink, loadManagerUsers } = deps;
+
   clearAlert(refs.createTechAlert);
 
   let uid = (refs.techUidEl.value || "").trim();
@@ -208,20 +355,41 @@ export async function createTech(deps) {
   const email = (refs.techEmailEl.value || "").trim();
   const phone = normalizePhone(refs.techPhoneEl.value || "");
   const active = (refs.techActiveEl.value || "true") === "true";
-  const teamIds = Array.from(new Set(state.mgrSelectedTeamIds || []));
+
+  // ✅ Vinculação automática por escopo:
+  // - Admin: todas as equipes da empresa
+  // - Gestor/Coordenador: todas as equipes que administra
+  const role = state.profile?.role || "";
+  const allTeamIds = Array.isArray(state.teams) ? state.teams.map(t => t.id).filter(Boolean) : [];
+  const managedIds = Array.from(new Set(getManagedTeamIds(state)));
+  const assignableTeamIds = (role === "admin") ? allTeamIds : managedIds;
+
+  const softSkills = uniqClean(state._techSoftSkillsDraft || []);
+  const hardSkills = uniqClean(state._techHardSkillsDraft || []);
 
   // UID agora é opcional (se vazio, criamos automaticamente no Auth via Cloud Function)
   const wantsAutoAuth = !uid;
   if (!name) return setAlert(refs.createTechAlert, "Informe o nome do técnico.");
   if (!email || !isEmailValidBasic(email)) return setAlert(refs.createTechAlert, "Informe um e-mail válido.");
-  if (teamIds.length === 0) return setAlert(refs.createTechAlert, "Selecione pelo menos 1 equipe.");
 
-  const managedIds = new Set(getManagedTeamIds(state));
-  if (teamIds.some(t => !managedIds.has(t))){
-    return setAlert(refs.createTechAlert, "Você selecionou uma equipe fora do seu escopo de gestão.");
+  if (!assignableTeamIds.length){
+    return setAlert(refs.createTechAlert, "Nenhuma equipe disponível no seu escopo. Cadastre equipes antes.");
   }
 
   setAlert(refs.createTechAlert, "Salvando...", "info");
+
+  const baseUserData = {
+    name,
+    role: "tecnico",
+    email,
+    phone,
+    active,
+    teamIds: assignableTeamIds,
+    teamId: assignableTeamIds[0] || "",
+    softSkills,
+    hardSkills,
+    feedbackCount: 0
+  };
 
   if (wantsAutoAuth) {
     const data = await createUserWithAuthAndResetLink({
@@ -230,11 +398,12 @@ export async function createTech(deps) {
       email,
       phone,
       role: "tecnico",
-      teamIds
+      teamIds: assignableTeamIds
     });
 
     uid = data.uid;
 
+    await setDoc(doc(db, "companies", state.companyId, "users", uid), baseUserData);
     await setDoc(doc(db, "userCompanies", uid), { companyId: state.companyId });
 
     closeCreateTechModal(refs);
@@ -242,22 +411,14 @@ export async function createTech(deps) {
     setAlertWithResetLink(refs.createTechAlert, "Técnico criado com sucesso!", email, data.resetLink);
     return;
   }
-  
-  await setDoc(doc(db, "companies", state.companyId, "users", uid), {
-    name,
-    role: "tecnico",
-    email,
-    phone,
-    active,
-    teamIds,
-    teamId: teamIds[0] || ""
-  });
 
+  await setDoc(doc(db, "companies", state.companyId, "users", uid), baseUserData);
   await setDoc(doc(db, "userCompanies", uid), { companyId: state.companyId });
 
   closeCreateTechModal(refs);
   await loadManagerUsers(deps);
 }
+
 
 /** =========================
  *  MODAL EQUIPES ADMINISTRADAS

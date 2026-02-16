@@ -651,53 +651,89 @@
 <!-- MODAL CRIAR TÉCNICO (Gestor) -->
 <div class="modal" hidden="" id="modalCreateTech">
 <div class="modal-backdrop" data-close="true"></div>
-<div class="modal-card">
-<div class="modal-header">
-<div>
-<h2>Novo Técnico</h2>
-<p class="muted">Selecione equipes apenas dentro das equipes que você administra.</p>
-</div>
-<button class="btn ghost" id="btnCloseCreateTech">✕</button>
-</div>
-<div class="modal-body">
-<div class="grid" style="grid-template-columns: repeat(12, 1fr); gap:12px;">
-<label class="field" style="grid-column: span 12;">
-<span>UID (do Authentication)</span>
-<input id="techUid" placeholder="Cole o UID do usuário técnico"/>
-</label>
-<label class="field" style="grid-column: span 6;">
-<span>Nome</span>
-<input id="techName" placeholder="Nome do técnico"/>
-</label>
-<label class="field" style="grid-column: span 6;">
-<span>Status</span>
-<select id="techActive">
-<option selected="" value="true">Ativo</option>
-<option value="false">Inativo</option>
-</select>
-</label>
-<label class="field" style="grid-column: span 6;">
-<span>E-mail</span>
-<input id="techEmail" placeholder="tecnico@empresa.com" type="email"/>
-</label>
-<label class="field" style="grid-column: span 6;">
-<span>Telefone</span>
-<input id="techPhone" placeholder="11999999999"/>
-</label>
-<div class="field" style="grid-column: span 12;">
-<span>Equipes (chips)</span>
-<div class="chips-select" id="mgrTeamChips"></div>
-<div class="muted" style="font-size:12px; margin-top:6px;">
-              Você só pode selecionar equipes que estão em <b>Equipes administradas</b> do seu perfil.
+<div class="modal-card modal-xl">
+  <div class="modal-header">
+    <div>
+      <h2>Novo Técnico</h2>
+      <p class="muted">O técnico será vinculado automaticamente a todas as equipes do seu escopo.</p>
+    </div>
+    <button class="btn ghost" id="btnCloseCreateTech" data-close="true" type="button">✕</button>
+  </div>
+
+  <div class="modal-body">
+    <div class="form-sections">
+      <div class="form-section">
+        <div class="section-title">Dados básicos</div>
+        <div class="grid" style="grid-template-columns: repeat(12, 1fr); gap:12px;">
+          <label class="field" style="grid-column: span 12;">
+            <span>UID (opcional)</span>
+            <input id="techUid" placeholder="Deixe vazio para criar automaticamente via Auth"/>
+            <small class="muted">Se vazio, o sistema cria o usuário no Authentication e gera link de redefinição de senha.</small>
+          </label>
+
+          <label class="field" style="grid-column: span 6;">
+            <span>Nome</span>
+            <input id="techName" placeholder="Nome do técnico"/>
+          </label>
+
+          <label class="field" style="grid-column: span 6;">
+            <span>Status</span>
+            <select id="techActive">
+              <option value="true" selected>Ativo</option>
+              <option value="false">Bloqueado</option>
+            </select>
+          </label>
+
+          <label class="field" style="grid-column: span 6;">
+            <span>E-mail</span>
+            <input id="techEmail" placeholder="tecnico@empresa.com" type="email"/>
+          </label>
+
+          <label class="field" style="grid-column: span 6;">
+            <span>Telefone</span>
+            <input id="techPhone" placeholder="11999999999"/>
+          </label>
+        </div>
+      </div>
+
+      <div class="form-section">
+        <div class="section-title">Skills</div>
+
+        <div class="grid" style="grid-template-columns: repeat(12, 1fr); gap:12px;">
+          <div class="field" style="grid-column: span 12;">
+            <span>Soft skills</span>
+            <div class="chip-input">
+              <input id="techSoftSkillInput" placeholder="Digite e pressione Enter (ex.: comunicação, liderança)"/>
             </div>
-</div>
-</div>
-<div class="alert" hidden="" id="createTechAlert"></div>
-</div>
-<div class="modal-footer">
-<button class="btn" id="btnCancelCreateTech">Cancelar</button>
-<button class="btn primary" id="btnCreateTech">Salvar</button>
-</div>
+            <div class="chips-select chips-mini" id="techSoftSkillChips"></div>
+            <small class="muted">Dica: Enter ou vírgula para criar o chip. Clique no chip para remover.</small>
+          </div>
+
+          <div class="field" style="grid-column: span 12;">
+            <span>Hard skills</span>
+            <div class="chip-input">
+              <input id="techHardSkillInput" placeholder="Digite e pressione Enter (ex.: Protheus, SQL, ADVPL)"/>
+            </div>
+            <div class="chips-select chips-mini" id="techHardSkillChips"></div>
+            <small class="muted">Dica: Enter ou vírgula para criar o chip. Clique no chip para remover.</small>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Mantido por compatibilidade (não exibido) -->
+    <div class="field" style="display:none;">
+      <span>Equipes (chips)</span>
+      <div class="chips-select" id="mgrTeamChips"></div>
+    </div>
+
+    <div class="alert" hidden id="createTechAlert"></div>
+  </div>
+
+  <div class="modal-footer">
+    <button class="btn" id="btnCancelCreateTech" data-close="true" type="button">Cancelar</button>
+    <button class="btn primary" id="btnCreateTech" type="button">Salvar</button>
+  </div>
 </div>
 </div>
 <!-- MODAL DEFINIR EQUIPES ADMINISTRADAS (Admin da empresa) -->
@@ -1239,3 +1275,56 @@
 
 </body>
 </html>   
+<!-- MODAL FEEDBACK TÉCNICO -->
+<section class="modal" hidden id="modalTechFeedback">
+  <div class="modal-backdrop" data-close="true"></div>
+  <div class="modal-card" style="max-width:780px;">
+    <div class="modal-header">
+      <div>
+        <h2>Feedback do Técnico</h2>
+        <p class="muted" id="techFeedbackSubtitle">Registre e acompanhe feedbacks.</p>
+      </div>
+      <button class="btn ghost" id="btnCloseTechFeedback">✕</button>
+    </div>
+
+    <div class="modal-body">
+      <div class="form-sections">
+        <div class="form-section">
+          <div class="section-title">Novo feedback</div>
+
+          <div class="grid" style="grid-template-columns: repeat(12, 1fr); gap:12px;">
+            <label class="field" style="grid-column: span 4;">
+              <span>Data</span>
+              <input id="techFeedbackDate" type="date"/>
+            </label>
+
+            <label class="field" style="grid-column: span 4;">
+              <span>Nota (1 a 10)</span>
+              <input id="techFeedbackScore" type="number" min="1" max="10" step="1" placeholder="Ex.: 8"/>
+            </label>
+
+            <label class="field" style="grid-column: span 12;">
+              <span>Anotação</span>
+              <textarea id="techFeedbackNote" rows="3" placeholder="Descreva o feedback (pontos fortes, melhorias, próximos passos)"></textarea>
+            </label>
+          </div>
+
+          <div class="alert" hidden id="techFeedbackAlert"></div>
+
+          <div style="display:flex; gap:10px; justify-content:flex-end; margin-top:10px;">
+            <button class="btn" id="btnCancelTechFeedback">Fechar</button>
+            <button class="btn primary" id="btnSaveTechFeedback">Salvar feedback</button>
+          </div>
+        </div>
+
+        <div class="form-section">
+          <div class="section-title">Histórico</div>
+          <div class="panel subtle" id="techFeedbackList" style="max-height:260px; overflow:auto;">
+            <div class="muted" style="padding:10px;">Nenhum feedback ainda.</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+

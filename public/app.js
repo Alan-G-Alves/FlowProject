@@ -1028,9 +1028,33 @@ refs.btnBackFromManagerUsers?.addEventListener("click", () => setView("dashboard
 refs.btnReloadMgrUsers?.addEventListener("click", () => loadManagerUsers());
 refs.mgrUserSearch?.addEventListener("input", () => loadManagerUsers());
 refs.mgrTeamFilter?.addEventListener("change", () => loadManagerUsers());
-refs.btnOpenCreateTech?.addEventListener("click", async () => {
-  await loadTeams();
-  openCreateTechModal();
+refs.btnOpenCreateTech?.addEventListener("click", async (e) => {
+  // Abre o modal mesmo que loadTeams falhe (não bloqueia o clique)
+  try { e?.preventDefault?.(); e?.stopPropagation?.(); } catch (_) {}
+
+  // tenta carregar equipes, mas não impede abrir
+  try { Promise.resolve(loadTeams()).catch(() => {}); } catch (_) {}
+
+  // abre modal (padrão do app)
+  try { openCreateTechModal(); } catch (err) { console.error("[ui] openCreateTechModal error:", err); }
+
+  // garante visibilidade (remove hidden e garante fora de contêiner hidden)
+  const modal = document.getElementById("modalCreateTech");
+  if (modal) {
+    try {
+      // se o modal estiver dentro de algum container hidden, move para o body
+      const hiddenParent = modal.parentElement && modal.parentElement.closest && modal.parentElement.closest("[hidden]");
+      if (hiddenParent) document.body.appendChild(modal);
+
+      modal.hidden = false;
+      modal.removeAttribute("hidden");
+      modal.classList.add("open");
+      modal.style.display = "flex";
+      document.body.classList.add("modal-open");
+    } catch (err) {
+      console.error("[ui] ensure modal visible error:", err);
+    }
+  }
 });
 
 // Modal técnico
