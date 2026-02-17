@@ -62,27 +62,15 @@ const fnCreateUserInTenant = httpsCallable(functions, "createUserInTenant");
 const fnCreateCompanyWithAdmin = httpsCallable(functions, "createCompanyWithAdmin") /* (mantido, mas usamos HTTP no createCompany) */;
 
 async function createUserWithAuthAndResetLink(payload){
-  // Cria usuário no Firebase Authentication sem deslogar o Admin/Gestor
-  const email = (payload?.email || "").trim().toLowerCase();
-  if (!email) throw new Error("E-mail inválido.");
-
-  // senha temporária (usuário redefine via e-mail)
-  const tempPass =
-    "Fp@" +
-    Math.random().toString(36).slice(2, 8) +
-    Math.random().toString(36).slice(2, 6).toUpperCase() +
-    "9";
-
-  const cred = await createUserWithEmailAndPassword(secondaryAuth, email, tempPass);
-
-  // dispara e-mail de redefinição de senha (primeiro acesso)
-  try{
-    await sendPasswordResetEmail(secondaryAuth, email);
-  }catch(err){
-    console.warn("Não consegui disparar reset de senha automaticamente:", err);
-  }
-
-  return { uid: cred.user.uid };
+  // Cria usuário via Cloud Function (Admin SDK) sem deslogar o Admin/Gestor
+  // Retorna também o link de redefinição de senha
+  const res = await fnCreateUserInTenant(payload);
+  const data = res?.data || {};
+  return {
+    uid: data.uid,
+    resetLink: data.resetLink || "",
+    number: data.number
+  };
 }
 /** =========================
  *  2) ESTADO

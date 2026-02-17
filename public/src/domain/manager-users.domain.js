@@ -93,13 +93,43 @@ async function getFeedbackCount(db, companyId, uid){
   }
 }
 
-import { collection, getDocs, doc, setDoc, updateDoc, serverTimestamp, query } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore.js";
+import { collection, getDocs, doc, setDoc, updateDoc, serverTimestamp, query, where, limit } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore.js";
 import { setAlert, clearAlert } from "../ui/alerts.js";
 import { humanizeRole } from "../utils/roles.js";
 import { show, hide, escapeHtml } from "../utils/dom.js";
 import { isEmailValidBasic } from "../utils/validators.js";
 import { normalizePhone } from "../utils/format.js";
 
+
+
+async function findUserUidByEmailInCompany(db, companyId, email){
+  const emailLower = normalizeText(email);
+  const usersCol = collection(db, "companies", companyId, "users");
+
+  try{
+    // Preferível: campo emailLower (vamos manter/gravar daqui pra frente)
+    const q1 = query(usersCol, where("emailLower", "==", emailLower), limit(1));
+    const s1 = await getDocs(q1);
+    if (!s1.empty) return s1.docs[0].id;
+  }catch(_){/* ignore */}
+
+  try{
+    // Fallback: alguns docs antigos podem não ter emailLower
+    const q2 = query(usersCol, where("email", "==", email), limit(1));
+    const s2 = await getDocs(q2);
+    if (!s2.empty) return s2.docs[0].id;
+  }catch(_){/* ignore */}
+
+  return null;
+}
+
+async function loadAllActiveTeamIds(db, companyId){
+  const snap = await getDocs(collection(db, "companies", companyId, "teams"));
+  return snap.docs
+    .map(d => ({ id: d.id, ...d.data() }))
+    .filter(t => t && t.id && t.active !== false)
+    .map(t => t.id);
+}
 /** =========================
  *  GESTOR: USUÁRIOS (TÉCNICOS)
  *  ========================= */
@@ -279,6 +309,10 @@ export function openCreateTechModal(deps) {
   if (!refs.modalCreateTech) return;
   
   clearAlert(refs.createTechAlert);
+
+  // evita duplo clique / duplo envio
+  if (state._creatingTech) return;
+  state._creatingTech = true;
   // skills (chips)
   deps.state._techSoftSkillsDraft = [];
   deps.state._techHardSkillsDraft = [];
@@ -356,25 +390,25 @@ async function createTech(deps) {
   const phone = normalizePhone(refs.techPhoneEl.value || "");
   const active = (refs.techActiveEl.value || "true") === "true";
 
-  // ✅ Vinculação automática por escopo:
-  // - Admin: todas as equipes da empresa
-  // - Gestor/Coordenador: todas as equipes que administra
-  const role = state.profile?.role || "";
-  const allTeamIds = Array.isArray(state.teams) ? state.teams.map(t => t.id).filter(Boolean) : [];
-  const managedIds = Array.from(new Set(getManagedTeamIds(state)));
-  const assignableTeamIds = (role === "admin") ? allTeamIds : managedIds;
-
   const softSkills = uniqClean(state._techSoftSkillsDraft || []);
   const hardSkills = uniqClean(state._techHardSkillsDraft || []);
 
   // UID agora é opcional (se vazio, criamos automaticamente no Auth via Cloud Function)
   const wantsAutoAuth = !uid;
+
   if (!name) return setAlert(refs.createTechAlert, "Informe o nome do técnico.");
   if (!email || !isEmailValidBasic(email)) return setAlert(refs.createTechAlert, "Informe um e-mail válido.");
 
-  if (!assignableTeamIds.length){
-    return setAlert(refs.createTechAlert, "Nenhuma equipe disponível no seu escopo. Cadastre equipes antes.");
+  // ❗Regra: não permitir e-mail repetido na MESMA empresa
+  const existingUid = await findUserUidByEmailInCompany(db, state.companyId, email);
+  if (existingUid && existingUid !== uid) {
+    return setAlert(refs.createTechAlert, "Este e-mail já está cadastrado nesta empresa. Use outro e-mail ou edite o usuário existente.");
   }
+
+  // ✅ Regra do FlowProject: Técnico pertence à EMPRESA (aparece para todos os gestores)
+  // -> Vinculamos automaticamente a TODAS as equipes ativas da empresa (se existirem)
+  // -> Se ainda não existir equipe, permitimos salvar com teamIds vazio.
+  const assignableTeamIds = await loadAllActiveTeamIds(db, state.companyId);
 
   setAlert(refs.createTechAlert, "Salvando...", "info");
 
@@ -382,6 +416,7 @@ async function createTech(deps) {
     name,
     role: "tecnico",
     email,
+    emailLower: normalizeText(email),
     phone,
     active,
     teamIds: assignableTeamIds,
@@ -391,33 +426,43 @@ async function createTech(deps) {
     feedbackCount: 0
   };
 
-  if (wantsAutoAuth) {
-    const data = await createUserWithAuthAndResetLink({
-      companyId: state.companyId,
-      name,
-      email,
-      phone,
-      role: "tecnico",
-      teamIds: assignableTeamIds
-    });
+  try {
+    if (wantsAutoAuth) {
+      const data = await createUserWithAuthAndResetLink({
+        companyId: state.companyId,
+        name,
+        email,
+        phone,
+        role: "tecnico",
+        teamIds: assignableTeamIds
+      });
 
-    uid = data.uid;
+      uid = data.uid;
+
+      await setDoc(doc(db, "companies", state.companyId, "users", uid), baseUserData);
+      await setDoc(doc(db, "userCompanies", uid), { companyId: state.companyId });
+
+      closeCreateTechModal(refs);
+      await loadManagerUsers(deps);
+      setAlertWithResetLink(refs.createTechAlert, "Técnico criado com sucesso!", email, data.resetLink || data.resetLink === "" ? data.resetLink : "");
+      return;
+    }
 
     await setDoc(doc(db, "companies", state.companyId, "users", uid), baseUserData);
     await setDoc(doc(db, "userCompanies", uid), { companyId: state.companyId });
 
     closeCreateTechModal(refs);
     await loadManagerUsers(deps);
-    setAlertWithResetLink(refs.createTechAlert, "Técnico criado com sucesso!", email, data.resetLink);
-    return;
+  } catch (err) {
+    const code = err?.code || "";
+    if (code === "auth/email-already-in-use") {
+      return setAlert(refs.createTechAlert, "Este e-mail já está em uso no sistema. Se for da sua empresa e não aparece na lista, peça ao Admin para verificar o cadastro.");
+    }
+    console.error(err);
+    return setAlert(refs.createTechAlert, "Erro ao salvar: " + (err?.message || err));
   }
-
-  await setDoc(doc(db, "companies", state.companyId, "users", uid), baseUserData);
-  await setDoc(doc(db, "userCompanies", uid), { companyId: state.companyId });
-
-  closeCreateTechModal(refs);
-  await loadManagerUsers(deps);
 }
+
 
 
 /** =========================

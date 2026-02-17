@@ -72,7 +72,7 @@ service cloud.firestore {
 
     function userFieldsAllowed() {
       return request.resource.data.keys().hasOnly([
-        "name","role","teamId","teamIds","managedTeamIds","email","phone","active","createdAt","createdBy"
+        "name","role","teamId","teamIds","managedTeamIds","email","emailLower","phone","active","softSkills","hardSkills","feedbackCount","number","createdAt","createdBy"
       ]);
     }
 
@@ -123,8 +123,9 @@ service cloud.firestore {
 
     function userTeamsRuleValid() {
       // admin pode ter 0 equipes
+      // técnico pode ter 0 equipes (quando a empresa ainda não cadastrou equipes)
       // demais devem ter >=1 equipe (teamIds ou teamId)
-      return request.resource.data.role == "admin"
+      return request.resource.data.role in ["admin","tecnico"]
         || (
           (("teamIds" in request.resource.data) && request.resource.data.teamIds.size() >= 1)
           || (("teamId" in request.resource.data) && request.resource.data.teamId.size() > 0)
@@ -227,14 +228,14 @@ match /counters/{counterId} {
   // Apenas contador de projetos
   allow create: if (isCompanyAdmin(companyId) || isManager(companyId)
           || isCoordinator(companyId) || isCoordenador(companyId))
-    && counterId == "projects"
+    && counterId in ["projects","techs"]
     && request.resource.data.keys().hasOnly(["next"])
     && request.resource.data.next is int
     && request.resource.data.next == 2;
 
   allow update: if (isCompanyAdmin(companyId) || isManager(companyId)
           || isCoordinator(companyId) || isCoordenador(companyId))
-    && counterId == "projects"
+    && counterId in ["projects","techs"]
     && request.resource.data.keys().hasOnly(["next"])
     && request.resource.data.next is int
     && request.resource.data.next == resource.data.next + 1;
@@ -269,17 +270,15 @@ match /counters/{counterId} {
         allow create, update: if (isSuperAdmin() || isCompanyAdmin(companyId))
           && userWriteValid();
 
-        // gestor: pode criar/atualizar SOMENTE técnico, e SOMENTE nas equipes que ele administra
+        // gestor: pode criar/atualizar técnico (técnico pertence à empresa, não ao escopo do gestor)
         allow create, update: if isManager(companyId)
           && request.resource.data.role == "tecnico"
-          && userWriteValid()
-          && teamsSubsetOfMyManaged(companyId);
+          && userWriteValid();
 
         // coordenador: mesmas permissões do gestor
         allow create, update: if isCoordinator(companyId)
           && request.resource.data.role == "tecnico"
-          && userWriteValid()
-          && teamsSubsetOfMyManaged(companyId);
+          && userWriteValid();
 
         
 

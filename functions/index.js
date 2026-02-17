@@ -57,26 +57,25 @@ exports.createUserInTenant = functions.https.onCall(async (data, context) => {
 
   if (callerRole === "admin") {
     // ok: admin pode criar qualquer role (inclusive admin)
-  } else if (callerRole === "gestor") {
+  } else if (callerRole === "gestor" || callerRole === "coordenador") {
     if (role !== "tecnico") {
-      throw new functions.https.HttpsError("permission-denied", "Gestor só pode criar Técnico.");
+      throw new functions.https.HttpsError("permission-denied", "Você só pode criar Técnico.");
     }
 
-    const managed = Array.isArray(callerUserSnap.data().managedTeamIds) ? callerUserSnap.data().managedTeamIds : [];
-    const managedSet = new Set(managed);
-
+    // FlowProject: Técnico pertence à EMPRESA (aparece para todos os gestores/coordenadores)
+    // Se a empresa tiver equipes, usamos as equipes informadas (normalmente todas as ativas).
+    // Se não tiver nenhuma equipe ainda, permitimos criar técnico com teamIds vazio.
     if (normalizedTeamIds.length < 1) {
-      throw new functions.https.HttpsError("invalid-argument", "Selecione pelo menos 1 equipe.");
-    }
-    const outOfScope = normalizedTeamIds.some(t => !managedSet.has(t));
-    if (outOfScope) {
-      throw new functions.https.HttpsError("permission-denied", "Equipe fora do seu escopo (managedTeamIds).");
+      const teamsSnap = await db.collection(`companies/${companyId}/teams`).limit(1).get();
+      if (!teamsSnap.empty) {
+        throw new functions.https.HttpsError("invalid-argument", "Selecione pelo menos 1 equipe.");
+      }
     }
   } else {
     throw new functions.https.HttpsError("permission-denied", "Sem permissão para criar usuários.");
   }
 
-  // ===== Cria usuário no Auth (sem senha definida)
+// ===== Cria usuário no Auth (sem senha definida)
   // Cria com senha aleatória e envia link de reset
   const tempPassword = Math.random().toString(36).slice(-10) + "A1!";
 
@@ -97,12 +96,31 @@ exports.createUserInTenant = functions.https.onCall(async (data, context) => {
   // ===== Escreve Firestore
   await db.doc(`userCompanies/${uid}`).set({ companyId });
 
+  // ===== Sequência numérica por empresa (técnicos)
+  let techNumber = null;
+  if (role === "tecnico") {
+    const counterRef = db.doc(`companies/${companyId}/counters/techs`);
+    techNumber = await db.runTransaction(async (tx) => {
+      const snap = await tx.get(counterRef);
+      if (!snap.exists) {
+        // padrão: create next=2 => primeiro número gerado é 1
+        tx.set(counterRef, { next: 2 });
+        return 1;
+      }
+      const next = snap.data().next || 1;
+      tx.update(counterRef, { next: next + 1 });
+      return next;
+    });
+  }
+
+
   const userDoc = {
     name,
     role,
     email,
     phone: phone || "",
     active: true,
+    ...(techNumber ? { number: techNumber } : {}),
   };
 
   // Equipes
@@ -120,7 +138,7 @@ exports.createUserInTenant = functions.https.onCall(async (data, context) => {
   // ===== Gera link de reset de senha
   const resetLink = await admin.auth().generatePasswordResetLink(email);
 
-  return { uid, resetLink };
+  return { uid, resetLink, number: techNumber };
 });
 
 /**
