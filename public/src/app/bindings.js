@@ -86,7 +86,21 @@ export function bindUIEvents(deps){
     if (e.target?.dataset?.close === "true") deps.closeCreateTechModal();
   });
 
-  // Modal equipes administradas
+  
+  // Modal feedback técnico
+  refs.btnCloseTechFeedback?.addEventListener("click", () => deps.closeTechFeedbackModal());
+  refs.btnCancelTechFeedback?.addEventListener("click", () => deps.closeTechFeedbackModal());
+  refs.btnSaveTechFeedback?.addEventListener("click", () => {
+    deps.saveTechFeedback().catch(err => {
+      console.error(err);
+      setAlert(refs.techFeedbackAlert, "Erro ao salvar feedback: " + (err?.message || err));
+    });
+  });
+  refs.modalTechFeedback?.addEventListener("click", (e) => {
+    if (e.target?.dataset?.close === "true") deps.closeTechFeedbackModal();
+  });
+
+// Modal equipes administradas
   refs.btnCloseManagedTeams?.addEventListener("click", () => deps.closeManagedTeamsModal());
   refs.btnCancelManagedTeams?.addEventListener("click", () => deps.closeManagedTeamsModal());
   refs.btnSaveManagedTeams?.addEventListener("click", () => {

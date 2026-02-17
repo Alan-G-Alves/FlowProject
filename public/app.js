@@ -791,6 +791,8 @@ function getManagerUsersDeps() {
     ensureTeamsForChips,
     createUserWithAuthAndResetLink,
     setAlertWithResetLink,
+    closeTechFeedbackModal,
+    saveTechFeedback,
     loadUsers
   };
 }
@@ -810,6 +812,15 @@ function openCreateTechModal() {
 function closeCreateTechModal() {
   managerUsersDomain.closeCreateTechModal(refs);
 }
+
+function closeTechFeedbackModal() {
+  managerUsersDomain.closeTechFeedbackModal(refs);
+}
+
+async function saveTechFeedback() {
+  await managerUsersDomain.saveTechFeedback(getManagerUsersDeps());
+}
+
 
 async function createTech() {
   await managerUsersDomain.createTech(getManagerUsersDeps());

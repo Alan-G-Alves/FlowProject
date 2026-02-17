@@ -187,7 +187,18 @@ export async function loadManagerUsers(deps) {
   populateMgrTeamFilter(deps);
 
   const snap = await getDocs(collection(db, "companies", state.companyId, "users"));
-  const all = snap.docs.map(d => ({ uid: d.id, ...d.data() }));
+  const allRaw = snap.docs.map(d => ({ uid: d.id, ...d.data() }));
+  // Remove duplicados (mesmo e-mail) mantendo o registro mais completo
+  const allMap = new Map();
+  for (const u of allRaw){
+    const key = (u.emailLower || u.email || u.uid || "").toString().toLowerCase();
+    if (!key) { allMap.set(u.uid, u); continue; }
+    const prev = allMap.get(key);
+    if (!prev) { allMap.set(key, u); continue; }
+    const score = (x) => (x?.number ? 10 : 0) + (x?.updatedAt ? 2 : 0) + (x?.createdAt ? 1 : 0);
+    allMap.set(key, score(u) >= score(prev) ? u : prev);
+  }
+  const all = Array.from(allMap.values());
 
   const qRaw = (refs.mgrUserSearch?.value || "");
   const terms = splitTerms(qRaw);
@@ -224,6 +235,7 @@ export async function loadManagerUsers(deps) {
     const statusLabel = (u.active === false) ? "Inativo" : "Ativo";
 
     tr.innerHTML = `
+      <td><span class="badge small">#${escapeHtml(String(u.number ?? "—"))}</span></td>
       <td>
         <div style="display:flex; flex-direction:column; gap:2px;">
           <div><b>${escapeHtml(u.name || "—")}</b></div>
@@ -233,19 +245,16 @@ export async function loadManagerUsers(deps) {
       <td>${escapeHtml(u.email || "—")}</td>
       <td>${escapeHtml(u.phone || "—")}</td>
       <td>${escapeHtml(teamsLabel)}</td>
+      <td><span data-soft></span></td>
+      <td><span data-hard></span></td>
+      <td>
+        <button class="btn sm ghost" data-act="feedbackCount">
+          ${(u.feedbackCount||0)}
+        </button>
+      </td>
       <td><span class="badge small">${statusLabel}</span></td>
       <td>
-        <div class="action-col">
-          <div class="action-row">
-            <button class="btn sm" data-act="toggle">${u.active === false ? "Ativar" : "Bloquear"}</button>
-            <button class="btn sm ghost" data-act="feedback">Feedback <span class="badge small" style="margin-left:6px;">${(u.feedbackCount||0)}</span></button>
-          </div>
-
-          <div class="action-meta">
-            <div class="meta-line"><b>Soft:</b> <span data-soft></span></div>
-            <div class="meta-line"><b>Hard:</b> <span data-hard></span></div>
-          </div>
-        </div>
+        <button class="btn sm" data-act="toggle">${u.active === false ? "Ativar" : "Bloquear"}</button>
       </td>
     `;
 
@@ -292,13 +301,143 @@ export async function loadManagerUsers(deps) {
     renderMiniChips(softWrap, softArr);
     renderMiniChips(hardWrap, hardArr);
 
-    tr.querySelector('[data-act="feedback"]').addEventListener("click", async () => {
+    tr.querySelector('[data-act="feedbackCount"]').addEventListener("click", async () => {
       await openTechFeedbackModal(deps, u);
     });
 
     refs.mgrUsersTbody.appendChild(tr);
   }
 }
+
+
+/** =========================
+ *  FEEDBACK DO TÉCNICO (Modal)
+ *  ========================= */
+async function openTechFeedbackModal(deps, techUser) {
+  const { refs, state, db, auth } = deps;
+  if (!refs.modalTechFeedback) {
+    alert("Modal de feedback não encontrado.");
+    return;
+  }
+
+  // guarda contexto
+  state._techFeedbackUid = techUser.uid;
+  state._techFeedbackName = techUser.name || "Técnico";
+
+  refs.techFeedbackSubtitle.textContent = `Técnico: ${state._techFeedbackName} • ${techUser.email || ""}`.trim();
+
+  clearAlert(refs.techFeedbackAlert);
+  refs.techFeedbackDate.value = "";
+  refs.techFeedbackScore.value = "";
+  refs.techFeedbackNote.value = "";
+
+  refs.modalTechFeedback.hidden = false;
+
+  await loadTechFeedbackList(deps);
+}
+
+export function closeTechFeedbackModal(refs) {
+  if (refs.modalTechFeedback) refs.modalTechFeedback.hidden = true;
+}
+
+async function loadTechFeedbackList(deps) {
+  const { refs, state, db } = deps;
+  if (!refs.techFeedbackList || !state._techFeedbackUid) return;
+
+  refs.techFeedbackList.innerHTML = `<div class="muted" style="padding:10px;">Carregando...</div>`;
+
+  try {
+    const q = query(
+      collection(db, "companies", state.companyId, "users", state._techFeedbackUid, "feedbacks"),
+      orderBy("createdAt", "desc"),
+      limit(50)
+    );
+    const snap = await getDocs(q);
+    if (snap.empty) {
+      refs.techFeedbackList.innerHTML = `<div class="muted" style="padding:10px;">Nenhum feedback ainda.</div>`;
+      return;
+    }
+
+    const items = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+    refs.techFeedbackList.innerHTML = "";
+    for (const it of items) {
+      const div = document.createElement("div");
+      div.className = "panel subtle";
+      div.style.margin = "8px";
+      div.style.padding = "10px";
+
+      const date = it.date || (it.createdAt?.toDate ? it.createdAt.toDate().toLocaleDateString("pt-BR") : "");
+      const score = (it.score ?? "");
+      const by = it.createdByName || it.createdByEmail || "";
+      const note = it.note || "";
+
+      div.innerHTML = `
+        <div style="display:flex; justify-content:space-between; gap:10px;">
+          <div><b>${escapeHtml(date || "—")}</b> <span class="badge small" style="margin-left:6px;">${escapeHtml(String(score || "—"))}</span></div>
+          <div class="muted" style="font-size:12px;">${escapeHtml(by)}</div>
+        </div>
+        <div style="margin-top:6px; white-space:pre-wrap;">${escapeHtml(note || "—")}</div>
+      `;
+      refs.techFeedbackList.appendChild(div);
+    }
+  } catch (err) {
+    console.error(err);
+    refs.techFeedbackList.innerHTML = `<div class="muted" style="padding:10px;">Erro ao carregar feedbacks.</div>`;
+  }
+}
+
+export async function saveTechFeedback(deps) {
+  const { refs, state, db, auth } = deps;
+  clearAlert(refs.techFeedbackAlert);
+
+  if (!state._techFeedbackUid) return;
+
+  const date = refs.techFeedbackDate.value;
+  const score = Number(refs.techFeedbackScore.value || 0);
+  const note = (refs.techFeedbackNote.value || "").trim();
+
+  if (!date) return setAlert(refs.techFeedbackAlert, "Informe a data.");
+  if (!score || score < 1 || score > 10) return setAlert(refs.techFeedbackAlert, "Informe uma nota de 1 a 10.");
+  if (!note) return setAlert(refs.techFeedbackAlert, "Escreva uma anotação.");
+
+  setAlert(refs.techFeedbackAlert, "Salvando...", "info");
+
+  const createdBy = auth.currentUser?.uid || "";
+  const createdByEmail = auth.currentUser?.email || "";
+
+  try {
+    // pega nome do avaliador (se tiver)
+    const meSnap = await getDoc(doc(db, "companies", state.companyId, "users", createdBy));
+    const meName = meSnap.exists() ? (meSnap.data().name || "") : "";
+
+    await addDoc(collection(db, "companies", state.companyId, "users", state._techFeedbackUid, "feedbacks"), {
+      date,
+      score,
+      note,
+      createdBy,
+      createdByEmail,
+      createdByName: meName,
+      createdAt: serverTimestamp()
+    });
+
+    // Atualiza contador no técnico (best effort)
+    await updateDoc(doc(db, "companies", state.companyId, "users", state._techFeedbackUid), {
+      feedbackCount: increment(1)
+    });
+
+    refs.techFeedbackDate.value = "";
+    refs.techFeedbackScore.value = "";
+    refs.techFeedbackNote.value = "";
+
+    await loadTechFeedbackList(deps);
+    setAlert(refs.techFeedbackAlert, "Feedback salvo!", "success");
+    await loadManagerUsers(deps);
+  } catch (err) {
+    console.error(err);
+    setAlert(refs.techFeedbackAlert, "Erro ao salvar feedback: " + (err?.message || err));
+  }
+}
+
 
 /** =========================
  *  MODAL CRIAR TÉCNICO
@@ -309,6 +448,7 @@ export function openCreateTechModal(deps) {
   if (!refs.modalCreateTech) return;
   
   clearAlert(refs.createTechAlert);
+  if (refs.btnCreateTech) { refs.btnCreateTech.disabled = false; refs.btnCreateTech.textContent = "Salvar"; }
   // skills (chips)
   deps.state._techSoftSkillsDraft = [];
   deps.state._techHardSkillsDraft = [];
@@ -435,13 +575,19 @@ async function createTech(deps) {
 
       uid = data.uid;
 
-
       // A criação e a escrita no Firestore são feitas pela Cloud Function (Admin SDK).
-      // Aqui apenas fechamos o modal, recarregamos a lista e exibimos o link de redefinição.
-      closeCreateTechModal(refs);
+      // Mantemos o modal aberto para o usuário copiar o link de redefinição.
       await loadManagerUsers(deps);
+
       const numLabel = data?.number ? `#${data.number} ` : "";
       setAlertWithResetLink(refs.createTechAlert, `Técnico ${numLabel}criado com sucesso!`, email, data.resetLink);
+
+      // ✅ Após sucesso: desabilita o botão salvar para evitar duplicidade
+      if (refs.btnCreateTech) {
+        refs.btnCreateTech.disabled = true;
+        refs.btnCreateTech.textContent = "Salvo";
+      }
+
       return;
     }
 

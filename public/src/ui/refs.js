@@ -274,3 +274,16 @@ export const editProjectStartDateEl = byId("editProjectStartDate");
 export const editProjectEndDateEl = byId("editProjectEndDate");
 export const editProjectAlert = byId("editProjectAlert");
 
+
+
+// Feedback Técnico
+export const modalTechFeedback = byId("modalTechFeedback");
+export const btnCloseTechFeedback = byId("btnCloseTechFeedback");
+export const btnCancelTechFeedback = byId("btnCancelTechFeedback");
+export const btnSaveTechFeedback = byId("btnSaveTechFeedback");
+export const techFeedbackSubtitle = byId("techFeedbackSubtitle");
+export const techFeedbackDate = byId("techFeedbackDate");
+export const techFeedbackScore = byId("techFeedbackScore");
+export const techFeedbackNote = byId("techFeedbackNote");
+export const techFeedbackAlert = byId("techFeedbackAlert");
+export const techFeedbackList = byId("techFeedbackList");
