@@ -62,16 +62,44 @@ const fnCreateUserInTenant = httpsCallable(functions, "createUserInTenant");
 const fnCreateCompanyWithAdmin = httpsCallable(functions, "createCompanyWithAdmin") /* (mantido, mas usamos HTTP no createCompany) */;
 
 async function createUserWithAuthAndResetLink(payload){
-  // Cria usuário via Cloud Function (Admin SDK) sem deslogar o Admin/Gestor
-  // Retorna também o link de redefinição de senha
-  const res = await fnCreateUserInTenant(payload);
-  const data = res?.data || {};
-  return {
-    uid: data.uid,
-    resetLink: data.resetLink || "",
-    number: data.number
+  // Criação de usuário SEM duplicar Auth e SEM quebrar quando o Firestore negar
+  // Fluxo oficial: Cloud Function (Admin SDK) => retorna { uid, resetLink, number }
+  const user = auth.currentUser || await new Promise((resolve) => {
+    const unsub = onAuthStateChanged(auth, (u) => { unsub(); resolve(u || null); });
+  });
+
+  if (!user) throw new Error("Não autenticado.");
+
+  // força refresh do token antes de chamar callable (reduz erro de unauthenticated)
+  try { await user.getIdToken(true); } catch (_) {}
+
+  const safePayload = {
+    companyId: (payload?.companyId || state?.companyId || "").trim(),
+    name: (payload?.name || "").trim(),
+    email: (payload?.email || "").trim().toLowerCase(),
+    phone: (payload?.phone || "").trim(),
+    role: payload?.role || "tecnico",
+    teamIds: Array.isArray(payload?.teamIds) ? payload.teamIds : [],
   };
+
+  // 1) Tenta callable (mais simples)
+  try{
+    const r = await fnCreateUserInTenant(safePayload);
+    return r?.data || r;
+  }catch(err){
+    const code = err?.code || "";
+    const msg = err?.message || "";
+
+    // Quando a callable não envia auth (bug/race), cai no HTTP com Bearer token
+    if (code === "functions/unauthenticated" || msg.includes("Não autenticado")) {
+      const httpRes = await callHttpFunctionWithAuth("createUserInTenantHttp", safePayload);
+      return httpRes;
+    }
+    throw err;
+  }
 }
+
+
 /** =========================
  *  2) ESTADO
  *  ========================= */

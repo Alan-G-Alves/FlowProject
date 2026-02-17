@@ -309,10 +309,6 @@ export function openCreateTechModal(deps) {
   if (!refs.modalCreateTech) return;
   
   clearAlert(refs.createTechAlert);
-
-  // evita duplo clique / duplo envio
-  if (state._creatingTech) return;
-  state._creatingTech = true;
   // skills (chips)
   deps.state._techSoftSkillsDraft = [];
   deps.state._techHardSkillsDraft = [];
@@ -439,12 +435,13 @@ async function createTech(deps) {
 
       uid = data.uid;
 
-      await setDoc(doc(db, "companies", state.companyId, "users", uid), baseUserData);
-      await setDoc(doc(db, "userCompanies", uid), { companyId: state.companyId });
 
+      // A criação e a escrita no Firestore são feitas pela Cloud Function (Admin SDK).
+      // Aqui apenas fechamos o modal, recarregamos a lista e exibimos o link de redefinição.
       closeCreateTechModal(refs);
       await loadManagerUsers(deps);
-      setAlertWithResetLink(refs.createTechAlert, "Técnico criado com sucesso!", email, data.resetLink || data.resetLink === "" ? data.resetLink : "");
+      const numLabel = data?.number ? `#${data.number} ` : "";
+      setAlertWithResetLink(refs.createTechAlert, `Técnico ${numLabel}criado com sucesso!`, email, data.resetLink);
       return;
     }
 
