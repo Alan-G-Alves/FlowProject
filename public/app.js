@@ -308,7 +308,7 @@ function initSidebar(){
   refs.navAddTech?.addEventListener("click", () => {
     setActiveNav("navAddTech");
     // para gestor, já existe tela de técnicos
-    if (state.profile?.role === "gestor") setView("managerUsers");
+    if (state.profile?.role === "gestor") openManagerUsersView();
     else alert("Acesso restrito: somente Gestor");
   });
   refs.navConfig?.addEventListener("click", () => {

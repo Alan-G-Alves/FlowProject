@@ -267,8 +267,20 @@
 <p class="muted">Cadastre técnicos e vincule às equipes que você administra.</p>
 </div>
 <div class="chips">
-<button class="btn ghost" id="btnBackFromManagerUsers">Voltar</button>
-<button class="btn primary" id="btnOpenCreateTech">+ Novo Técnico</button>
+<!-- Removido botão Voltar (UX pedido) -->
+<!-- Botão Novo Técnico como ícone + (mesmo padrão do Adicionar Projeto) -->
+<button class="icon-btn" id="btnOpenCreateTech" title="Adicionar técnico" aria-label="Adicionar técnico">
+  <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+    <defs>
+      <linearGradient id="fpGradAddTech" x1="0" y1="0" x2="24" y2="24" gradientUnits="userSpaceOnUse">
+        <stop stop-color="rgb(119, 59, 246)"/>
+        <stop offset="1" stop-color="rgb(100, 102, 251)"/>
+      </linearGradient>
+    </defs>
+    <circle cx="12" cy="12" r="9" stroke="url(#fpGradAddTech)" stroke-width="2"></circle>
+    <path d="M12 8v8M8 12h8" stroke="url(#fpGradAddTech)" stroke-width="2" stroke-linecap="round"></path>
+  </svg>
+</button>
 </div>
 </div>
 <div class="panel" style="margin-bottom:12px;">
@@ -277,13 +289,7 @@
 <span>Buscar</span>
 <input id="mgrUserSearch" placeholder="Nome, e-mail, telefone ou UID"/>
 </label>
-<label class="field" style="min-width:260px;">
-<span>Filtrar por equipe (opcional)</span>
-<select id="mgrTeamFilter">
-<option value="">Todas as equipes</option>
-</select>
-</label>
-<button class="btn" id="btnReloadMgrUsers">Atualizar</button>
+<!-- Removido filtro por equipe e botão Atualizar (carregamento agora é automático) -->
 </div>
 <div class="table" style="margin-top:12px; overflow:auto;">
 <table>

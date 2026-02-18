@@ -180,13 +180,18 @@ export async function loadManagerUsers(deps) {
   const { refs, state, db } = deps;
   if (!refs.mgrUsersTbody) return;
 
+  // Evita duplicidade por chamadas concorrentes (race condition)
+  // Ex.: load disparado 2x ao abrir a tela / listeners duplicados
+  state._mgrUsersLoadSeq = (state._mgrUsersLoadSeq || 0) + 1;
+  const mySeq = state._mgrUsersLoadSeq;
+
   refs.mgrUsersTbody.innerHTML = "";
   hide(refs.mgrUsersEmpty);
 
-  const managedIds = getManagedTeamIds(state);
-  populateMgrTeamFilter(deps);
+  // Filtro por equipe removido na UI (mantemos a lista global por empresa)
 
   const snap = await getDocs(collection(db, "companies", state.companyId, "users"));
+  if (mySeq !== state._mgrUsersLoadSeq) return; // resposta antiga, ignora
   const allRaw = snap.docs.map(d => ({ uid: d.id, ...d.data() }));
   // Remove duplicados (mesmo e-mail) mantendo o registro mais completo
   const allMap = new Map();
@@ -202,14 +207,13 @@ export async function loadManagerUsers(deps) {
 
   const qRaw = (refs.mgrUserSearch?.value || "");
   const terms = splitTerms(qRaw);
-  const teamFilter = (refs.mgrTeamFilter?.value || "").trim();
+  // UI não possui mais filtro por equipe
 
   const filtered = all.filter(u => {
     if (u.role !== "tecnico") return false;
 
     const teamIds = Array.isArray(u.teamIds) ? u.teamIds : (u.teamId ? [u.teamId] : []);
-    // ✅ Visibilidade global entre gestores/coordenadores: não filtramos mais por equipes administradas
-    if (teamFilter && !teamIds.includes(teamFilter)) return false;
+    // Visibilidade global (sem filtro por equipe)
 
     const soft = Array.isArray(u.softSkills) ? u.softSkills.join(" ") : "";
     const hard = Array.isArray(u.hardSkills) ? u.hardSkills.join(" ") : "";
@@ -222,6 +226,8 @@ export async function loadManagerUsers(deps) {
 
     return true;
   }).sort((a,b)=> (a.name||"").localeCompare(b.name||""));
+
+  if (mySeq !== state._mgrUsersLoadSeq) return; // evita render duplicado
 
   if (filtered.length === 0){
     show(refs.mgrUsersEmpty);
