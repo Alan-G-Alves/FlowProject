@@ -476,7 +476,25 @@ export function openCreateTechModal(deps) {
 }
 
 export function closeCreateTechModal(refs) {
-  if (refs.modalCreateTech) refs.modalCreateTech.hidden = true;
+  const el = refs?.modalCreateTech;
+  if (!el) return;
+
+  // Fecha de verdade (compatível com modal que usa display:flex + classe open)
+  el.classList.remove("open");
+  el.style.display = "none";
+  el.hidden = true;
+
+  // opcional: limpar alert ao fechar
+  if (refs.createTechAlert) {
+    try { refs.createTechAlert.innerHTML = ""; } catch(_){}
+  }
+
+  // Se você usa body travado quando modal abre
+  try {
+    // só remove se não houver outro modal aberto
+    const hasOpen = document.querySelector(".modal.open, .modal:not([hidden])");
+    if (!hasOpen) document.body.classList.remove("modal-open");
+  } catch (_) {}
 }
 
 export function renderMgrTeamChips(deps) {
