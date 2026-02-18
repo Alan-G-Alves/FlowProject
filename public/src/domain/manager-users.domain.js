@@ -520,6 +520,8 @@ async function createTech(deps) {
 
   clearAlert(refs.createTechAlert);
 
+  // Guard (inicia mais abaixo, após validações)
+
   let uid = (refs.techUidEl.value || "").trim();
   const name = (refs.techNameEl.value || "").trim();
   const email = (refs.techEmailEl.value || "").trim();
@@ -545,6 +547,10 @@ async function createTech(deps) {
   // -> Vinculamos automaticamente a TODAS as equipes ativas da empresa (se existirem)
   // -> Se ainda não existir equipe, permitimos salvar com teamIds vazio.
   const assignableTeamIds = await loadAllActiveTeamIds(db, state.companyId);
+
+  // Guard: evita duplo submit (double click / double binding)
+  if (state._isCreatingTech) return;
+  state._isCreatingTech = true;
 
   setAlert(refs.createTechAlert, "Salvando...", "info");
 
@@ -603,6 +609,8 @@ async function createTech(deps) {
     }
     console.error(err);
     return setAlert(refs.createTechAlert, "Erro ao salvar: " + (err?.message || err));
+  } finally {
+    state._isCreatingTech = false;
   }
 }
 

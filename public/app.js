@@ -54,6 +54,15 @@ import * as topbar from "./src/ui/topbar.js?v=1770332251";
 import * as sidebar from "./src/ui/sidebar.js?v=1770332251";
 import * as dashboard from "./src/ui/dashboard.js?v=1770332251";
 import { intersects, getTeamNameById, initialFromName } from "./src/utils/helpers.js?v=1770332251";
+
+// Evita double-binding de eventos (há blocos de listeners repetidos no app.js)
+function onOnce(el, type, handler, key = type){
+  if (!el) return;
+  const prop = `__fp_on_${key}`;
+  if (el[prop]) return;
+  el.addEventListener(type, handler);
+  el[prop] = true;
+}
 /** =========================
  *  1) CONFIG FIREBASE
  *  ========================= */
@@ -1055,7 +1064,7 @@ refs.btnBackFromManagerUsers?.addEventListener("click", () => setView("dashboard
 refs.btnReloadMgrUsers?.addEventListener("click", () => loadManagerUsers());
 refs.mgrUserSearch?.addEventListener("input", () => loadManagerUsers());
 refs.mgrTeamFilter?.addEventListener("change", () => loadManagerUsers());
-refs.btnOpenCreateTech?.addEventListener("click", async (e) => {
+onOnce(refs.btnOpenCreateTech, "click", async (e) => {
   // Abre o modal mesmo que loadTeams falhe (não bloqueia o clique)
   try { e?.preventDefault?.(); e?.stopPropagation?.(); } catch (_) {}
 
@@ -1082,33 +1091,33 @@ refs.btnOpenCreateTech?.addEventListener("click", async (e) => {
       console.error("[ui] ensure modal visible error:", err);
     }
   }
-});
+}, "btnOpenCreateTech");
 
-// Modal técnico
-refs.btnCloseCreateTech?.addEventListener("click", () => closeCreateTechModal());
-refs.btnCancelCreateTech?.addEventListener("click", () => closeCreateTechModal());
-refs.btnCreateTech?.addEventListener("click", () => {
+// Modal técnico (bind once para evitar duplo submit)
+onOnce(refs.btnCloseCreateTech, "click", () => closeCreateTechModal(), "btnCloseCreateTech");
+onOnce(refs.btnCancelCreateTech, "click", () => closeCreateTechModal(), "btnCancelCreateTech");
+onOnce(refs.btnCreateTech, "click", () => {
   createTech().catch(err => {
     console.error(err);
     setAlert(refs.createTechAlert, "Erro ao salvar: " + (err?.message || err));
   });
-});
-refs.modalCreateTech?.addEventListener("click", (e) => {
+}, "btnCreateTech");
+onOnce(refs.modalCreateTech, "click", (e) => {
   if (e.target?.dataset?.close === "true") closeCreateTechModal();
-});
+}, "modalCreateTech_click");
 
-// Modal equipes administradas
-refs.btnCloseManagedTeams?.addEventListener("click", () => closeManagedTeamsModal());
-refs.btnCancelManagedTeams?.addEventListener("click", () => closeManagedTeamsModal());
-refs.btnSaveManagedTeams?.addEventListener("click", () => {
+// Modal equipes administradas (bind once)
+onOnce(refs.btnCloseManagedTeams, "click", () => closeManagedTeamsModal(), "btnCloseManagedTeams");
+onOnce(refs.btnCancelManagedTeams, "click", () => closeManagedTeamsModal(), "btnCancelManagedTeams");
+onOnce(refs.btnSaveManagedTeams, "click", () => {
   saveManagedTeams().catch(err => {
     console.error(err);
     setAlert(refs.managedTeamsAlert, "Erro ao salvar: " + (err?.message || err));
   });
-});
-refs.modalManagedTeams?.addEventListener("click", (e) => {
+}, "btnSaveManagedTeams");
+onOnce(refs.modalManagedTeams, "click", (e) => {
   if (e.target?.dataset?.close === "true") closeManagedTeamsModal();
-});
+}, "modalManagedTeams_click");
 
 // Companies events
 refs.btnReloadCompanies?.addEventListener("click", () => loadCompanies());
@@ -1217,30 +1226,30 @@ window.__fp = { auth, db, functions };
 refs.btnReloadMgrUsers?.addEventListener("click", () => loadManagerUsers());
 refs.mgrUserSearch?.addEventListener("input", () => loadManagerUsers());
 refs.mgrTeamFilter?.addEventListener("change", () => loadManagerUsers());
-refs.btnOpenCreateTech?.addEventListener("click", async () => {
+onOnce(refs.btnOpenCreateTech, "click", async () => {
   await loadTeams();
   openCreateTechModal();
-});
+}, "btnOpenCreateTech");
 
-// Modal técnico
-refs.btnCloseCreateTech?.addEventListener("click", () => closeCreateTechModal());
-refs.btnCancelCreateTech?.addEventListener("click", () => closeCreateTechModal());
-refs.btnCreateTech?.addEventListener("click", () => {
+// Modal técnico (bind once para evitar duplo submit)
+onOnce(refs.btnCloseCreateTech, "click", () => closeCreateTechModal(), "btnCloseCreateTech");
+onOnce(refs.btnCancelCreateTech, "click", () => closeCreateTechModal(), "btnCancelCreateTech");
+onOnce(refs.btnCreateTech, "click", () => {
   createTech().catch(err => {
     console.error(err);
     setAlert(refs.createTechAlert, "Erro ao salvar: " + (err?.message || err));
   });
-});
+}, "btnCreateTech");
 
-// Modal equipes administradas
-refs.btnCloseManagedTeams?.addEventListener("click", () => closeManagedTeamsModal());
-refs.btnCancelManagedTeams?.addEventListener("click", () => closeManagedTeamsModal());
-refs.btnSaveManagedTeams?.addEventListener("click", () => {
+// Modal equipes administradas (bind once)
+onOnce(refs.btnCloseManagedTeams, "click", () => closeManagedTeamsModal(), "btnCloseManagedTeams");
+onOnce(refs.btnCancelManagedTeams, "click", () => closeManagedTeamsModal(), "btnCancelManagedTeams");
+onOnce(refs.btnSaveManagedTeams, "click", () => {
   saveManagedTeams().catch(err => {
     console.error(err);
     setAlert(refs.managedTeamsAlert, "Erro ao salvar: " + (err?.message || err));
   });
-});
+}, "btnSaveManagedTeams");
 
 // Companies events
 refs.companySearch?.addEventListener("input", () => loadCompanies());
