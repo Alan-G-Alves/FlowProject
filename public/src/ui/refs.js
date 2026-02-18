@@ -186,6 +186,18 @@ export const techActiveEl = byId("techActive");
 export const mgrTeamChipsEl = byId("mgrTeamChips");
 export const createTechAlert = byId("createTechAlert");
 
+// Create tech skills + avatar
+export const techSoftSkillInputEl = byId("techSoftSkillInput");
+export const techSoftSkillChips = byId("techSoftSkillChips");
+export const techHardSkillInputEl = byId("techHardSkillInput");
+export const techHardSkillChips = byId("techHardSkillChips");
+
+export const techAvatarPreview = byId("techAvatarPreview");
+export const techAvatarPreviewImg = byId("techAvatarPreviewImg");
+export const techAvatarPreviewFallback = byId("techAvatarPreviewFallback");
+export const techAvatarFileEl = byId("techAvatarFile");
+export const btnTechRemovePhoto = byId("btnTechRemovePhoto");
+
 // Managed teams modal
 export const modalManagedTeams = byId("modalManagedTeams");
 export const managedTeamsSubtitle = byId("managedTeamsSubtitle");

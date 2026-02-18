@@ -25,6 +25,74 @@ function splitTerms(q){
   return s.split(/\s+/).filter(Boolean);
 }
 
+function parseSearchQuery(q){
+  const raw = (q || "").toString().trim();
+  if (!raw) return { terms: [], skillTerms: [], softTerms: [], hardTerms: [] };
+
+  const parts = raw.split(/\s+/).filter(Boolean);
+  const terms = [];
+  const skillTerms = [];
+  const softTerms = [];
+  const hardTerms = [];
+
+  for (const p of parts){
+    const m = p.match(/^(skill:|skills:|sk:|s:|soft:|h:|hard:)(.+)$/i);
+    if (m){
+      const kind = (m[1] || "").toLowerCase();
+      const value = normalizeText(m[2]);
+      if (!value) continue;
+      if (kind === "s:" || kind === "soft:") softTerms.push(value);
+      else if (kind === "h:" || kind === "hard:") hardTerms.push(value);
+      else skillTerms.push(value);
+      continue;
+    }
+    const v = normalizeText(p);
+    if (v) terms.push(v);
+  }
+
+  return {
+    terms,
+    skillTerms,
+    softTerms,
+    hardTerms
+  };
+}
+
+function initialsFromName(name){
+  const n = (name || "").trim();
+  if (!n) return "?";
+  const parts = n.split(/\s+/).filter(Boolean);
+  const a = parts[0]?.[0] || "";
+  const b = parts.length > 1 ? (parts[parts.length-1]?.[0] || "") : (parts[0]?.[1] || "");
+  return (a + b).toUpperCase();
+}
+
+function renderTechAvatarHtml(user){
+  const url = (user?.photoURL || "").toString().trim();
+  const initials = initialsFromName(user?.name);
+  if (url) {
+    return `<span class="tech-avatar"><img src="${escapeHtml(url)}" alt="" loading="lazy" /></span>`;
+  }
+  return `<span class="tech-avatar tech-avatar-fallback">${escapeHtml(initials)}</span>`;
+}
+
+async function uploadAvatarForUser(deps, uid, file){
+  const { storage } = deps;
+  if (!storage || !uid || !file) return "";
+
+  const maxMb = 2;
+  const allowed = ["image/png", "image/jpeg", "image/jpg", "image/webp"];
+  const type = (file.type || "").toLowerCase();
+  if (!allowed.includes(type)) throw new Error("Formato inválido. Use PNG/JPG/WEBP.");
+  if (file.size > maxMb * 1024 * 1024) throw new Error(`A imagem é muito grande (máx. ${maxMb}MB).`);
+
+  const ext = type.includes("png") ? "png" : (type.includes("webp") ? "webp" : "jpg");
+  const path = `avatars/${uid}.${ext}`;
+  const ref = storageRef(storage, path);
+  await uploadBytes(ref, file, { contentType: file.type || "image/jpeg" });
+  return await getDownloadURL(ref);
+}
+
 function uniqClean(list){
   const out = [];
   const seen = new Set();
@@ -39,18 +107,20 @@ function uniqClean(list){
   return out;
 }
 
-function setupChipInput(inputEl, chipsEl, state, key){
+function setupChipInput(inputEl, chipsEl, state, key, type){
   if (!inputEl || !chipsEl) return;
 
   // init state
   state[key] = Array.isArray(state[key]) ? state[key] : [];
+
+  const chipTypeClass = (type === "hard") ? "chip-hard" : "chip-soft";
 
   const render = () => {
     chipsEl.innerHTML = "";
     for (const v of state[key]){
       const chip = document.createElement("button");
       chip.type = "button";
-      chip.className = "chip mini removable";
+      chip.className = `chip mini removable ${chipTypeClass}`;
       chip.textContent = v;
       chip.title = "Clique para remover";
       chip.addEventListener("click", () => {
@@ -94,6 +164,7 @@ async function getFeedbackCount(db, companyId, uid){
 }
 
 import { collection, getDocs, doc, setDoc, updateDoc, serverTimestamp, query, where, limit } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore.js";
+import { ref as storageRef, uploadBytes, getDownloadURL } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-storage.js";
 import { setAlert, clearAlert } from "../ui/alerts.js";
 import { humanizeRole } from "../utils/roles.js";
 import { show, hide, escapeHtml } from "../utils/dom.js";
@@ -206,7 +277,7 @@ export async function loadManagerUsers(deps) {
   const all = Array.from(allMap.values());
 
   const qRaw = (refs.mgrUserSearch?.value || "");
-  const terms = splitTerms(qRaw);
+  const { terms, skillTerms, softTerms, hardTerms } = parseSearchQuery(qRaw);
   // UI não possui mais filtro por equipe
 
   const filtered = all.filter(u => {
@@ -215,13 +286,35 @@ export async function loadManagerUsers(deps) {
     const teamIds = Array.isArray(u.teamIds) ? u.teamIds : (u.teamId ? [u.teamId] : []);
     // Visibilidade global (sem filtro por equipe)
 
-    const soft = Array.isArray(u.softSkills) ? u.softSkills.join(" ") : "";
-    const hard = Array.isArray(u.hardSkills) ? u.hardSkills.join(" ") : "";
+    const softArr = Array.isArray(u.softSkills) ? u.softSkills : [];
+    const hardArr = Array.isArray(u.hardSkills) ? u.hardSkills : [];
+    const soft = softArr.join(" ");
+    const hard = hardArr.join(" ");
     const status = (u.active === false) ? "bloqueado inativo" : "ativo";
     const teamsTxt = teamIds.map(tid => getTeamNameById(state, tid)).join(" ");
     const text = normalizeText(`${u.uid} ${u.name||""} ${u.email||""} ${u.phone||""} ${status} ${teamsTxt} ${soft} ${hard} ${u.feedbackCount||0}`);
     for (const t of terms){
       if (!text.includes(t)) return false;
+    }
+
+    // filtro explícito por skill (skill:, soft:, hard:)
+    if (skillTerms.length){
+      const sAll = normalizeText(`${soft} ${hard}`);
+      for (const st of skillTerms){
+        if (!sAll.includes(st)) return false;
+      }
+    }
+    if (softTerms.length){
+      const sSoft = normalizeText(soft);
+      for (const st of softTerms){
+        if (!sSoft.includes(st)) return false;
+      }
+    }
+    if (hardTerms.length){
+      const sHard = normalizeText(hard);
+      for (const st of hardTerms){
+        if (!sHard.includes(st)) return false;
+      }
     }
 
     return true;
@@ -243,9 +336,11 @@ export async function loadManagerUsers(deps) {
     tr.innerHTML = `
       <td><span class="badge small">#${escapeHtml(String(u.number ?? "—"))}</span></td>
       <td>
-        <div style="display:flex; flex-direction:column; gap:2px;">
-          <div><b>${escapeHtml(u.name || "—")}</b></div>
-          <div class="muted" style="font-size:12px;">UID: ${escapeHtml(u.uid)}</div>
+        <div class="tech-name-cell">
+          ${renderTechAvatarHtml(u)}
+          <div class="tech-name-text">
+            <div><b>${escapeHtml(u.name || "—")}</b></div>
+          </div>
         </div>
       </td>
       <td>${escapeHtml(u.email || "—")}</td>
@@ -278,7 +373,7 @@ export async function loadManagerUsers(deps) {
     const softArr = Array.isArray(u.softSkills) ? u.softSkills : [];
     const hardArr = Array.isArray(u.hardSkills) ? u.hardSkills : [];
 
-    const renderMiniChips = (wrap, arr) => {
+    const renderMiniChips = (wrap, arr, type) => {
       if (!wrap) return;
       wrap.innerHTML = "";
       if (!arr.length){
@@ -291,7 +386,7 @@ export async function loadManagerUsers(deps) {
       }
       for (const v of arr.slice(0,6)){
         const chip = document.createElement("span");
-        chip.className = "chip mini";
+        chip.className = `chip mini ${(type === "hard") ? "chip-hard" : "chip-soft"}`;
         chip.textContent = v;
         wrap.appendChild(chip);
       }
@@ -304,8 +399,8 @@ export async function loadManagerUsers(deps) {
       }
     };
 
-    renderMiniChips(softWrap, softArr);
-    renderMiniChips(hardWrap, hardArr);
+    renderMiniChips(softWrap, softArr, "soft");
+    renderMiniChips(hardWrap, hardArr, "hard");
 
     tr.querySelector('[data-act="feedbackCount"]').addEventListener("click", async () => {
       await openTechFeedbackModal(deps, u);
@@ -458,8 +553,17 @@ export function openCreateTechModal(deps) {
   // skills (chips)
   deps.state._techSoftSkillsDraft = [];
   deps.state._techHardSkillsDraft = [];
-  setupChipInput(refs.techSoftSkillInputEl, refs.techSoftSkillChips, deps.state, "_techSoftSkillsDraft");
-  setupChipInput(refs.techHardSkillInputEl, refs.techHardSkillChips, deps.state, "_techHardSkillsDraft");
+  setupChipInput(refs.techSoftSkillInputEl, refs.techSoftSkillChips, deps.state, "_techSoftSkillsDraft", "soft");
+  setupChipInput(refs.techHardSkillInputEl, refs.techHardSkillChips, deps.state, "_techHardSkillsDraft", "hard");
+
+  // avatar (upload antes de salvar -> envia após criar UID)
+  state._techAvatarFile = null;
+  if (refs.techAvatarFileEl) refs.techAvatarFileEl.value = "";
+  if (refs.techAvatarPreviewImg && refs.techAvatarPreviewFallback){
+    refs.techAvatarPreviewImg.style.display = "none";
+    refs.techAvatarPreviewImg.src = "";
+    refs.techAvatarPreviewFallback.textContent = initialsFromName("");
+  }
 
   refs.modalCreateTech.hidden = false;
 
@@ -474,6 +578,53 @@ export function openCreateTechModal(deps) {
   refs.techEmailEl.value = "";
   refs.techPhoneEl.value = "";
   refs.techActiveEl.value = "true";
+
+  // atualiza fallback com base no nome enquanto digita
+  if (refs.techNameEl && refs.techAvatarPreviewFallback){
+    if (!refs.techNameEl.dataset.boundAvatar){
+      refs.techNameEl.dataset.boundAvatar = "1";
+      refs.techNameEl.addEventListener("input", () => {
+        if (refs.techAvatarPreviewImg && refs.techAvatarPreviewImg.style.display !== "none") return;
+        refs.techAvatarPreviewFallback.textContent = initialsFromName(refs.techNameEl.value);
+      });
+    }
+    refs.techAvatarPreviewFallback.textContent = initialsFromName(refs.techNameEl.value);
+  }
+
+  if (refs.techAvatarFileEl && refs.techAvatarPreviewImg && refs.techAvatarPreviewFallback){
+    if (!refs.techAvatarFileEl.dataset.bound){
+      refs.techAvatarFileEl.dataset.bound = "1";
+      refs.techAvatarFileEl.addEventListener("change", (e) => {
+        const file = e.target.files && e.target.files[0];
+        if (!file) return;
+        state._techAvatarFile = file;
+
+        // preview local
+        const reader = new FileReader();
+        reader.onload = () => {
+          refs.techAvatarPreviewImg.src = reader.result;
+          refs.techAvatarPreviewImg.style.display = "block";
+          refs.techAvatarPreviewFallback.textContent = "";
+        };
+        reader.readAsDataURL(file);
+
+        // permite reenviar o mesmo arquivo
+        e.target.value = "";
+      });
+    }
+  }
+
+  if (refs.btnTechRemovePhoto && refs.techAvatarPreviewImg && refs.techAvatarPreviewFallback){
+    if (!refs.btnTechRemovePhoto.dataset.bound){
+      refs.btnTechRemovePhoto.dataset.bound = "1";
+      refs.btnTechRemovePhoto.addEventListener("click", () => {
+        state._techAvatarFile = null;
+        refs.techAvatarPreviewImg.style.display = "none";
+        refs.techAvatarPreviewImg.src = "";
+        refs.techAvatarPreviewFallback.textContent = initialsFromName(refs.techNameEl?.value || "");
+      });
+    }
+  }
 
   state.mgrSelectedTeamIds = [];
   ensureTeamsForChips()
@@ -605,6 +756,34 @@ async function createTech(deps) {
 
       uid = data.uid;
 
+      // ⚠️ A Cloud Function pode não gravar campos extras (softSkills/hardSkills/emailLower/etc).
+      // Garantimos aqui via merge (best effort) para manter consistência na tela e no Firestore.
+      try{
+        await setDoc(doc(db, "companies", state.companyId, "users", uid), baseUserData, { merge: true });
+      }catch(errMerge){
+        console.warn("merge user extra fields failed", errMerge);
+      }
+      try{
+        await setDoc(doc(db, "userCompanies", uid), { companyId: state.companyId }, { merge: true });
+      }catch(errUc){
+        console.warn("merge userCompanies failed", errUc);
+      }
+
+      // Upload de avatar (opcional) após UID existir
+      if (state._techAvatarFile){
+        try{
+          setAlert(refs.createTechAlert, "Enviando foto...", "info");
+          const photoURL = await uploadAvatarForUser(deps, uid, state._techAvatarFile);
+          if (photoURL){
+            // merge para não depender do doc já existir/estar pronto
+            await setDoc(doc(db, "companies", state.companyId, "users", uid), { photoURL }, { merge: true });
+          }
+        }catch(errUp){
+          console.warn("avatar upload failed", errUp);
+          // não bloqueia criação; apenas informa
+        }
+      }
+
       // A criação e a escrita no Firestore são feitas pela Cloud Function (Admin SDK).
       // Mantemos o modal aberto para o usuário copiar o link de redefinição.
       await loadManagerUsers(deps);
@@ -623,6 +802,18 @@ async function createTech(deps) {
 
     await setDoc(doc(db, "companies", state.companyId, "users", uid), baseUserData);
     await setDoc(doc(db, "userCompanies", uid), { companyId: state.companyId });
+
+    if (state._techAvatarFile){
+      try{
+        setAlert(refs.createTechAlert, "Enviando foto...", "info");
+        const photoURL = await uploadAvatarForUser(deps, uid, state._techAvatarFile);
+        if (photoURL){
+          await updateDoc(doc(db, "companies", state.companyId, "users", uid), { photoURL });
+        }
+      }catch(errUp){
+        console.warn("avatar upload failed", errUp);
+      }
+    }
 
     closeCreateTechModal(refs);
     await loadManagerUsers(deps);

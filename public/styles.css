@@ -1832,3 +1832,144 @@ a{ color: inherit; }
   background: transparent !important;
   transform: scale(1.08);
 }
+
+
+/* ===== CHIPS PADRÃO ===== */
+
+.chip{
+  display: inline-flex;
+  align-items: center;
+  padding: 6px 10px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 500;
+  margin: 4px 6px 4px 0;
+  cursor: pointer;
+  transition: all .2s ease;
+  border: 1px solid transparent;
+}
+
+/* SOFT SKILLS - Roxo suave */
+.chip-soft{
+  background: rgba(119, 59, 246, 0.12);
+  color: rgb(119, 59, 246);
+  border-color: rgba(119, 59, 246, 0.25);
+}
+
+.chip-soft:hover{
+  background: rgba(119, 59, 246, 0.2);
+}
+
+/* HARD SKILLS - Azul */
+.chip-hard{
+  background: rgba(59, 130, 246, 0.12);
+  color: rgb(59, 130, 246);
+  border-color: rgba(59, 130, 246, 0.25);
+}
+
+.chip-hard:hover{
+  background: rgba(59, 130, 246, 0.2);
+}
+/* =========================
+   TÉCNICOS — AVATAR (lista + modal)
+   ========================= */
+
+/* Avatar compacto para tabela/lista (coluna Nome) */
+.tech-user{
+  display:flex;
+  align-items:center;
+  gap:10px;
+  min-width: 0;
+}
+.tech-avatar{
+  width: 34px;
+  height: 34px;
+  border-radius: 999px;
+  border: 1px solid rgba(12,18,32,.10);
+  background: rgba(37,99,235,.10);
+  overflow: hidden;
+  flex: 0 0 auto;
+  display:grid;
+  place-items:center;
+}
+.tech-avatar img{
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display:block;
+}
+.tech-avatar .fallback{
+  font-weight: 900;
+  font-size: 12px;
+  color: rgba(12,18,32,.78);
+  user-select:none;
+}
+
+/* Nome + (opcional) subtexto dentro da célula */
+.tech-user .tech-user-text{
+  min-width: 0;
+}
+.tech-user .tech-user-name{
+  font-weight: 800;
+  color: rgba(12,18,32,.92);
+  line-height: 1.15;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.tech-user .tech-user-sub{
+  margin-top: 2px;
+  font-size: 12px;
+  color: rgba(12,18,32,.60);
+  line-height: 1.2;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Modal Novo Técnico — seletor de foto (reaproveita padrão do Perfil) */
+.tech-avatar-picker{
+  display:flex;
+  align-items:center;
+  gap: 14px;
+  flex-wrap: wrap;
+}
+.tech-avatar-preview{
+  width: 72px;
+  height: 72px;
+  border-radius: 999px;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  background: rgba(255,255,255,.55);
+  border: 4px solid rgba(255,255,255,.75);
+  box-shadow: 0 12px 30px rgba(0,0,0,.08);
+  overflow: hidden;
+}
+.tech-avatar-preview img{
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: none; /* JS ativa quando tiver URL */
+}
+.tech-avatar-preview span{
+  font-weight: 900;
+  font-size: 18px;
+  color: rgba(12,18,32,.75);
+}
+
+.tech-avatar-actions{
+  display:flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  align-items:center;
+}
+
+/* input file escondido (clicamos via botão) */
+input[type="file"].hidden-file{
+  position:absolute;
+  width:1px;
+  height:1px;
+  opacity:0;
+  pointer-events:none;
+}

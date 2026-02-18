@@ -263,8 +263,8 @@
 <div class="container">
 <div class="page-header">
 <div>
-<h1>Técnicos</h1>
-<p class="muted">Cadastre e visualize técnicos.</p>
+<h1>Usuários (Técnicos)</h1>
+<p class="muted">Cadastre técnicos e vincule às equipes que você administra.</p>
 </div>
 <div class="chips">
 <!-- Removido botão Voltar (UX pedido) -->
@@ -281,27 +281,17 @@
     <path d="M12 8v8M8 12h8" stroke="url(#fpGradAddTech)" stroke-width="2" stroke-linecap="round"></path>
   </svg>
 </button>
-
-<!-- Buscar (mesmo layout do Kanban / Meus Projetos) -->
-<div class="saas-search" id="mgrUsersSearchWrap" aria-label="Buscar técnicos">
-  <svg class="saas-search-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
-    <circle cx="11" cy="11" r="7"></circle>
-    <path d="M20 20l-3.5-3.5"></path>
-  </svg>
-  <input id="mgrUserSearch" type="text" placeholder="Buscar por nome, e-mail, telefone ou UID..." autocomplete="off" />
-  <button class="saas-clear" id="btnClearMgrUsersSearch" title="Limpar" aria-label="Limpar"
-    onclick="(function(){var i=document.getElementById('mgrUserSearch'); if(!i) return; i.value=''; i.dispatchEvent(new Event('input',{bubbles:true})); i.focus();})();">
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
-      <path d="M18 6L6 18"></path>
-      <path d="M6 6l12 12"></path>
-    </svg>
-  </button>
 </div>
 </div>
-</div>
-
 <div class="panel" style="margin-bottom:12px;">
-<div class="table" style="overflow:auto;">
+<div class="row" style="display:flex; gap:10px; align-items:flex-end; flex-wrap:wrap;">
+<label class="field" style="min-width:240px;">
+<span>Buscar</span>
+<input id="mgrUserSearch" placeholder="Nome, e-mail, telefone ou UID"/>
+</label>
+<!-- Removido filtro por equipe e botão Atualizar (carregamento agora é automático) -->
+</div>
+<div class="table" style="margin-top:12px; overflow:auto;">
 <table>
 <thead>
 <tr>
@@ -322,7 +312,7 @@
 </div>
 <div class="panel subtle" hidden="" id="mgrUsersEmpty" style="margin-top:12px;">
 <h3>Nenhum técnico encontrado</h3>
-<p class="muted">Cadastre o primeiro técnico clicando no botão +.</p>
+<p class="muted">Cadastre o primeiro técnico clicando em “Novo Técnico”.</p>
 </div>
 </div>
 </div>
@@ -684,6 +674,18 @@
     <div class="form-sections">
       <div class="form-section">
         <div class="section-title">Dados básicos</div>
+        <div class="tech-photo-row">
+          <div class="tech-avatar-preview" id="techAvatarPreview">
+            <img id="techAvatarPreviewImg" alt="" />
+            <span id="techAvatarPreviewFallback">?</span>
+          </div>
+          <div class="tech-photo-actions">
+            <input id="techAvatarFile" type="file" accept="image/png,image/jpeg,image/jpg,image/webp" style="display:none" />
+            <button class="btn" type="button" onclick="document.getElementById('techAvatarFile').click()">Adicionar/alterar foto</button>
+            <button class="btn ghost" id="btnTechRemovePhoto" type="button">Remover foto</button>
+            <div class="muted" style="font-size:12px;">PNG/JPG/WEBP • até 2MB</div>
+          </div>
+        </div>
         <div class="grid" style="grid-template-columns: repeat(12, 1fr); gap:12px;">
           <label class="field" style="grid-column: span 12;">
             <span>UID (opcional)</span>

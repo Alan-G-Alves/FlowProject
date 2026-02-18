@@ -1,13 +1,33 @@
 rules_version = '2';
 service firebase.storage {
   match /b/{bucket}/o {
-    match /avatars/{fileName} {
+    function companyId(uid){
+      return get(/databases/(default)/documents/userCompanies/$(uid)).data.companyId;
+    }
+
+    function isManagerInCompany(uid){
+      let cid = companyId(uid);
+      let role = get(/databases/(default)/documents/companies/$(cid)/users/$(uid)).data.role;
+      return role in ['admin', 'gestor', 'coordenador'];
+    }
+
+    // Avatar por UID (mantém compatibilidade com o projeto)
+    match /avatars/{uid}.{ext} {
       allow read: if request.auth != null;
 
       allow write: if request.auth != null
-        && fileName.matches('^' + request.auth.uid + '\\.(png|jpg|jpeg|webp)$')
+        && ext.matches('png|jpg|jpeg|webp')
         && request.resource.size < 2 * 1024 * 1024
-        && request.resource.contentType.matches('image/.*');
+        && request.resource.contentType.matches('image/.*')
+        && (
+          // Usuário enviando a própria foto
+          uid == request.auth.uid
+          // Admin/Gestor/Coordenador pode enviar para técnicos da mesma empresa
+          || (
+            isManagerInCompany(request.auth.uid)
+            && companyId(uid) == companyId(request.auth.uid)
+          )
+        );
     }
   }
 }
