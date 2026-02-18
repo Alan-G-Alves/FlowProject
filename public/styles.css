@@ -1605,6 +1605,18 @@ a{ color: inherit; }
   margin-top: 0;                      /* evita subir demais */
 }
 
+/* Usuários (Técnicos) – usar o mesmo padrão visual do Kanban */
+#viewManagerUsers .container{
+  max-width: none;   /* igual ao Kanban: ocupa toda a largura */
+  padding-top: 56px; /* desce o header para NÃO encostar no avatar/topo */
+}
+
+#viewManagerUsers .page-header{
+  border-top: 2px solid var(--border);
+  padding-top: 18px;
+  margin-top: 0;
+}
+
 /* =========================
    Botão Adicionar Projeto (Kanban)
    ========================= */
@@ -1801,3 +1813,22 @@ a{ color: inherit; }
 .action-meta{ display:flex; flex-direction:column; gap:6px; }
 .action-meta .meta-line{ font-size:12px; color: rgba(12,18,32,.75); }
 .action-meta .meta-line b{ color: rgba(12,18,32,.9); }
+
+#btnOpenCreateTech{
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+  width: 44px;
+  height: 44px;
+  padding: 0;
+}
+
+#btnOpenCreateTech svg{
+  width: 42px;
+  height: 42px;
+}
+
+#btnOpenCreateTech:hover{
+  background: transparent !important;
+  transform: scale(1.08);
+}
