@@ -559,7 +559,7 @@ refs.profilePhotoFile?.addEventListener("change", async (e) => {
     if (!user) throw new Error("not-auth");
 
     const ext = (file.type || "").includes("png") ? "png" : "jpg";
-    const path = `avatars/${user.uid}.${ext}`;
+    const path = `avatars/${user.uid}`;
     const ref = storageRef(storage, path);
 
     await uploadBytes(ref, file, { contentType: file.type || "image/jpeg" });
@@ -794,6 +794,7 @@ function getManagerUsersDeps() {
     refs,
     state,
     db,
+    storage,
     setView,
     loadTeams,
     loadManagerUsers,

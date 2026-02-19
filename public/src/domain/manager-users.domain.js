@@ -87,10 +87,25 @@ async function uploadAvatarForUser(deps, uid, file){
   if (file.size > maxMb * 1024 * 1024) throw new Error(`A imagem é muito grande (máx. ${maxMb}MB).`);
 
   const ext = type.includes("png") ? "png" : (type.includes("webp") ? "webp" : "jpg");
-  const path = `avatars/${uid}.${ext}`;
+  // ✅ Storage path SEM extensão (bate com storage.rules: /avatars/{uid})
+  const path = `avatars/${uid}`;
   const ref = storageRef(storage, path);
   await uploadBytes(ref, file, { contentType: file.type || "image/jpeg" });
   return await getDownloadURL(ref);
+}
+
+
+async function waitForCompanyUserDoc(db, companyId, uid, timeoutMs = 4000){
+  const started = Date.now();
+  while (Date.now() - started < timeoutMs){
+    try{
+      const snap = await getDoc(doc(db, "companies", companyId, "users", uid));
+      if (snap.exists()) return true;
+    }catch(_){}
+    // pequeno backoff
+    await new Promise(r => setTimeout(r, 250));
+  }
+  return false;
 }
 
 function uniqClean(list){
@@ -773,6 +788,8 @@ async function createTech(deps) {
       if (state._techAvatarFile){
         try{
           setAlert(refs.createTechAlert, "Enviando foto...", "info");
+          // ✅ evita race condition: aguarda o doc do usuário existir no Firestore (necessário para storage.rules)
+          await waitForCompanyUserDoc(db, state.companyId, uid, 5000);
           const photoURL = await uploadAvatarForUser(deps, uid, state._techAvatarFile);
           if (photoURL){
             // merge para não depender do doc já existir/estar pronto
@@ -806,6 +823,7 @@ async function createTech(deps) {
     if (state._techAvatarFile){
       try{
         setAlert(refs.createTechAlert, "Enviando foto...", "info");
+        await waitForCompanyUserDoc(db, state.companyId, uid, 3000);
         const photoURL = await uploadAvatarForUser(deps, uid, state._techAvatarFile);
         if (photoURL){
           await updateDoc(doc(db, "companies", state.companyId, "users", uid), { photoURL });

@@ -270,6 +270,16 @@ match /counters/{counterId} {
         allow create, update: if (isSuperAdmin() || isCompanyAdmin(companyId))
           && userWriteValid();
 
+
+        // ✅ self-update (perfil): qualquer usuário pode atualizar APENAS seus próprios campos de perfil
+        allow update: if isSignedIn()
+          && uid == myUid()
+          && companyId == myCompanyId()
+          && request.resource.data.diff(resource.data).changedKeys().hasOnly(["name","phone","photoURL"])
+          && userFieldsAllowed()
+          && nameValid()
+          && phoneValid();
+
         // gestor: pode criar/atualizar técnico (técnico pertence à empresa, não ao escopo do gestor)
         allow create, update: if isManager(companyId)
           && request.resource.data.role == "tecnico"

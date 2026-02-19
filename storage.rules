@@ -1,33 +1,48 @@
 rules_version = '2';
 service firebase.storage {
   match /b/{bucket}/o {
-    function companyId(uid){
-      return get(/databases/(default)/documents/userCompanies/$(uid)).data.companyId;
+
+    function signedIn() {
+      return request.auth != null;
     }
 
-    function isManagerInCompany(uid){
-      let cid = companyId(uid);
-      let role = get(/databases/(default)/documents/companies/$(cid)/users/$(uid)).data.role;
-      return role in ['admin', 'gestor', 'coordenador'];
+    function myCompanyId() {
+      return get(/databases/(default)/documents/userCompanies/$(request.auth.uid)).data.companyId;
     }
 
-    // Avatar por UID (mantém compatibilidade com o projeto)
-    match /avatars/{uid}.{ext} {
-      allow read: if request.auth != null;
+    function myRole() {
+      // role do usuário logado dentro da empresa
+      return get(/databases/(default)/documents/companies/$(myCompanyId())/users/$(request.auth.uid)).data.role;
+    }
 
-      allow write: if request.auth != null
-        && ext.matches('png|jpg|jpeg|webp')
+    function canManageUsers() {
+      return myRole() in ['admin', 'gestor', 'coordenador', 'superadmin'];
+    }
+
+    function targetExistsInMyCompany(targetUid) {
+      return exists(/databases/(default)/documents/companies/$(myCompanyId())/users/$(targetUid));
+    }
+
+    // Avatares (SEM extensão): avatars/{uid}
+    match /avatars/{targetUid} {
+      allow read: if signedIn();
+
+      // ✅ qualquer usuário logado pode trocar o PRÓPRIO avatar
+      allow write: if signedIn()
+        && targetUid == request.auth.uid
         && request.resource.size < 2 * 1024 * 1024
-        && request.resource.contentType.matches('image/.*')
-        && (
-          // Usuário enviando a própria foto
-          uid == request.auth.uid
-          // Admin/Gestor/Coordenador pode enviar para técnicos da mesma empresa
-          || (
-            isManagerInCompany(request.auth.uid)
-            && companyId(uid) == companyId(request.auth.uid)
-          )
-        );
+        && request.resource.contentType.matches('image/.*');
+
+      // ✅ admin/gestor/coordenador podem trocar avatar de usuários da MESMA empresa
+      allow write: if signedIn()
+        && canManageUsers()
+        && targetExistsInMyCompany(targetUid)
+        && request.resource.size < 2 * 1024 * 1024
+        && request.resource.contentType.matches('image/.*');
+    }
+
+    match /{allPaths=**} {
+      allow read, write: if false;
     }
   }
 }
