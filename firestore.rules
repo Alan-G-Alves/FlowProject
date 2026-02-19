@@ -72,7 +72,7 @@ service cloud.firestore {
 
     function userFieldsAllowed() {
       return request.resource.data.keys().hasOnly([
-        "name","role","teamId","teamIds","managedTeamIds","email","emailLower","phone","active","softSkills","hardSkills","feedbackCount","number","createdAt","createdBy"
+        "name","role","teamId","teamIds","managedTeamIds","email","emailLower","phone","active","softSkills","hardSkills","feedbackCount","number","createdAt","createdBy","photoURL"
       ]);
     }
 
