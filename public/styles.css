@@ -1991,3 +1991,114 @@ input[type="file"].hidden-file{
   opacity:0;
   pointer-events:none;
 }
+
+/* =============================
+   Técnicos — ajustes UX/UI
+   (somente visual)
+   ============================= */
+
+/* Paginação (topo da tabela) */
+.table-pagination{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:12px;
+  padding: 6px 4px 0 4px;
+}
+
+.table-pagination .page-meta{
+  font-size: 12px;
+  color: rgba(0,0,0,.55);
+}
+
+.table-pagination .page-controls{
+  display:flex;
+  align-items:center;
+  gap:8px;
+}
+
+.table-pagination .page-btn{
+  min-width: 32px;
+  height: 32px;
+  padding: 0 10px;
+  border-radius: 10px;
+  border: 1px solid rgba(0,0,0,.10);
+  background: #fff;
+  font-size: 13px;
+  cursor: pointer;
+  transition: transform .15s ease, opacity .15s ease, background .15s ease;
+}
+
+.table-pagination .page-btn:hover{ transform: translateY(-1px); }
+.table-pagination .page-btn:disabled{ opacity:.45; cursor:not-allowed; transform:none; }
+
+.table-pagination .page-btn.active{
+  background: linear-gradient(135deg, rgb(119, 59, 246), rgb(100, 102, 251));
+  color: #fff;
+  border: none;
+}
+
+.table-pagination .page-btn.nav{
+  padding: 0 10px;
+  font-weight: 700;
+}
+
+.table-pagination .page-ellipsis{
+  font-size: 14px;
+  color: rgba(0,0,0,.35);
+  padding: 0 2px;
+}
+
+/* Feedback contador (gradiente laranja) */
+.feedback-badge{
+  background: linear-gradient(135deg, rgb(244, 158, 71), rgb(251, 147, 77)) !important;
+  color: #fff !important;
+  border: none !important;
+  font-weight: 700;
+  border-radius: 12px;
+}
+
+/* Botão editar (ícone) em gradiente laranja */
+.btn-edit-orange{
+  background: linear-gradient(135deg, rgb(244, 158, 71), rgb(251, 147, 77));
+  border: none;
+  color: #fff;
+}
+
+.btn-edit-orange:hover{ opacity: .95; transform: translateY(-1px); }
+
+/* Status pill: ativo verde / inativo vermelho */
+.status-pill{
+  border: none;
+  border-radius: 999px;
+  padding: 6px 10px;
+}
+
+.status-active{
+  background: #dcfce7;
+  color: #16a34a;
+  font-weight: 700;
+}
+
+.status-inactive{
+  background: #fee2e2;
+  color: #dc2626;
+  font-weight: 700;
+}
+
+/* Ações: bloquear vermelho / ativar verde */
+.btn-block{
+  background: #ef4444 !important;
+  border-color: #ef4444 !important;
+  color: #fff !important;
+}
+
+.btn-block:hover{ opacity:.95; transform: translateY(-1px); }
+
+.btn-activate{
+  background: #22c55e !important;
+  border-color: #22c55e !important;
+  color: #fff !important;
+}
+
+.btn-activate:hover{ opacity:.95; transform: translateY(-1px); }

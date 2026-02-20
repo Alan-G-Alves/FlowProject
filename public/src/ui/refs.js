@@ -173,6 +173,7 @@ export const mgrTeamFilter = byId("mgrTeamFilter");
 export const btnReloadMgrUsers = byId("btnReloadMgrUsers");
 export const mgrUsersTbody = byId("mgrUsersTbody");
 export const mgrUsersEmpty = byId("mgrUsersEmpty");
+export const mgrUsersPagination = byId("mgrUsersPagination");
 
 // Create tech modal
 export const modalCreateTech = byId("modalCreateTech");

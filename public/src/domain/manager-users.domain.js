@@ -165,10 +165,6 @@ function setCreateTechModalMode(deps, mode, tech){
 
   // Label do botão
   if (refs.btnCreateTech) refs.btnCreateTech.textContent = isEdit ? "Salvar alterações" : "Salvar";
-
-  // ✅ IMPORTANTE: o fluxo de criação (autoAuth) desabilita o botão após salvar para evitar duplicidade.
-  // Ao alternar para modo "edit" (ou reabrir o modal), precisamos reabilitar.
-  if (refs.btnCreateTech) refs.btnCreateTech.disabled = false;
 }
 
 export function openEditTechModal(deps, techUser){
@@ -182,9 +178,6 @@ export function openEditTechModal(deps, techUser){
 
   // modo edição
   setCreateTechModalMode(deps, "edit", techUser);
-
-  // ✅ garante botão habilitado ao entrar no modo edição
-  if (refs.btnCreateTech) refs.btnCreateTech.disabled = false;
 
   // preenche campos
   refs.techUidEl.value = techUser?.uid || "";
@@ -490,6 +483,9 @@ export async function loadManagerUsers(deps) {
   const { refs, state, db } = deps;
   if (!refs.mgrUsersTbody) return;
 
+  // Paginação (apenas visual): 20 por página
+  const ITEMS_PER_PAGE = 20;
+
   // Evita duplicidade por chamadas concorrentes (race condition)
   // Ex.: load disparado 2x ao abrir a tela / listeners duplicados
   state._mgrUsersLoadSeq = (state._mgrUsersLoadSeq || 0) + 1;
@@ -518,6 +514,13 @@ export async function loadManagerUsers(deps) {
   const qRaw = (refs.mgrUserSearch?.value || "");
   const { terms, skillTerms, softTerms, hardTerms } = parseSearchQuery(qRaw);
   // UI não possui mais filtro por equipe
+
+  // Se mudou a busca, volta para página 1
+  const qNorm = (qRaw || "").toString();
+  if (state._mgrUsersLastQuery !== qNorm) {
+    state._mgrUsersLastQuery = qNorm;
+    state._mgrUsersPage = 1;
+  }
 
   const filtered = all.filter(u => {
     if (u.role !== "tecnico") return false;
@@ -563,14 +566,76 @@ export async function loadManagerUsers(deps) {
 
   if (filtered.length === 0){
     show(refs.mgrUsersEmpty);
+    if (refs.mgrUsersPagination) refs.mgrUsersPagination.innerHTML = "";
     return;
   }
 
-  for (const u of filtered){
+  // ===== Paginação =====
+  const totalPages = Math.max(1, Math.ceil(filtered.length / ITEMS_PER_PAGE));
+  state._mgrUsersPage = Math.min(Math.max(1, Number(state._mgrUsersPage || 1)), totalPages);
+
+  const startIdx = (state._mgrUsersPage - 1) * ITEMS_PER_PAGE;
+  const endIdx = startIdx + ITEMS_PER_PAGE;
+  const pageItems = filtered.slice(startIdx, endIdx);
+
+  if (refs.mgrUsersPagination) {
+    if (totalPages <= 1) {
+      refs.mgrUsersPagination.innerHTML = "";
+    } else {
+    // Render de botões (compacto)
+    const cur = state._mgrUsersPage;
+    const windowSize = 7;
+    const half = Math.floor(windowSize / 2);
+    let from = Math.max(1, cur - half);
+    let to = Math.min(totalPages, from + windowSize - 1);
+    from = Math.max(1, to - windowSize + 1);
+
+    const parts = [];
+
+    const mkBtn = (label, page, disabled, cls = "") => {
+      const dis = disabled ? "disabled" : "";
+      return `<button class="page-btn ${cls}" data-page="${page}" ${dis}>${label}</button>`;
+    };
+
+    parts.push(`<div class="page-meta">Mostrando <b>${Math.min(endIdx, filtered.length)}</b> de <b>${filtered.length}</b></div>`);
+    parts.push(`<div class="page-controls">`);
+    parts.push(mkBtn("‹", cur - 1, cur <= 1, "nav"));
+
+    if (from > 1) {
+      parts.push(mkBtn("1", 1, false, (cur === 1 ? "active" : "")));
+      if (from > 2) parts.push(`<span class="page-ellipsis">…</span>`);
+    }
+
+    for (let p = from; p <= to; p++) {
+      parts.push(mkBtn(String(p), p, false, (p === cur ? "active" : "")));
+    }
+
+    if (to < totalPages) {
+      if (to < totalPages - 1) parts.push(`<span class="page-ellipsis">…</span>`);
+      parts.push(mkBtn(String(totalPages), totalPages, false, (cur === totalPages ? "active" : "")));
+    }
+
+    parts.push(mkBtn("›", cur + 1, cur >= totalPages, "nav"));
+    parts.push(`</div>`);
+
+    refs.mgrUsersPagination.innerHTML = parts.join("");
+    refs.mgrUsersPagination.querySelectorAll("[data-page]").forEach(btn => {
+      btn.addEventListener("click", () => {
+        const p = Number(btn.getAttribute("data-page"));
+        if (!p || p < 1 || p > totalPages) return;
+        state._mgrUsersPage = p;
+        loadManagerUsers(deps);
+      });
+    });
+    }
+  }
+
+  for (const u of pageItems){
     const tr = document.createElement("tr");
     const teamIds = Array.isArray(u.teamIds) ? u.teamIds : (u.teamId ? [u.teamId] : []);
     const teamsLabel = teamIds.length ? teamIds.map(tid => getTeamNameById(state, tid)).join(", ") : "—";
-    const statusLabel = (u.active === false) ? "Inativo" : "Ativo";
+    const isActive = (u.active !== false);
+    const statusLabel = isActive ? "Ativo" : "Inativo";
 
     tr.innerHTML = `
       <td><span class="badge small">#${escapeHtml(String(u.number ?? "—"))}</span></td>
@@ -588,20 +653,20 @@ export async function loadManagerUsers(deps) {
       <td><span data-soft></span></td>
       <td><span data-hard></span></td>
       <td>
-        <button class="btn sm ghost" data-act="feedbackCount">
+        <button class="btn sm feedback-badge" data-act="feedbackCount">
           ${(u.feedbackCount||0)}
         </button>
       </td>
-      <td><span class="badge small">${statusLabel}</span></td>
+      <td><span class="badge small status-pill ${isActive ? "status-active" : "status-inactive"}">${statusLabel}</span></td>
       <td>
         <div class="table-actions">
-          <button class="icon-btn xs" data-act="edit" title="Editar" aria-label="Editar">
+          <button class="icon-btn xs btn-edit-orange" data-act="edit" title="Editar" aria-label="Editar">
             <svg viewBox="0 0 24 24" width="18" height="18" fill="none" xmlns="http://www.w3.org/2000/svg">
               <path d="M12 20h9" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
               <path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L8 18l-4 1 1-4 11.5-11.5Z" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/>
             </svg>
           </button>
-          <button class="btn sm" data-act="toggle">${u.active === false ? "Ativar" : "Bloquear"}</button>
+          <button class="btn sm ${isActive ? "btn-block" : "btn-activate"}" data-act="toggle">${isActive ? "Bloquear" : "Ativar"}</button>
         </div>
       </td>
     `;
