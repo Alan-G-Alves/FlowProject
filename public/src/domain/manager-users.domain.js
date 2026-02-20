@@ -94,6 +94,41 @@ async function uploadAvatarForUser(deps, uid, file){
   return await getDownloadURL(ref);
 }
 
+async function uploadTempAvatarForDraft(deps, file){
+  const { storage, state, auth } = deps;
+  if (!storage || !file) return { tempAvatarPath: "", tempAvatarURL: "" };
+
+  const maxMb = 2;
+  const allowed = ["image/png", "image/jpeg", "image/jpg", "image/webp"];
+  const type = (file.type || "").toLowerCase();
+  if (!allowed.includes(type)) throw new Error("Formato inválido. Use PNG/JPG/WEBP.");
+  if (file.size > maxMb * 1024 * 1024) throw new Error(`A imagem é muito grande (máx. ${maxMb}MB).`);
+
+  const user = auth?.currentUser;
+  if (!user) throw new Error("Não autenticado.");
+  const companyId = (state?.companyId || "").trim();
+  if (!companyId) throw new Error("Empresa não definida.");
+
+  // tempAvatars/{companyId}/{uploaderUid}/{tempId}
+  const tempId = `${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+  const tempAvatarPath = `tempAvatars/${companyId}/${user.uid}/${tempId}`;
+  const ref = storageRef(storage, tempAvatarPath);
+  await uploadBytes(ref, file, { contentType: file.type || "image/jpeg" });
+  const tempAvatarURL = await getDownloadURL(ref);
+  return { tempAvatarPath, tempAvatarURL };
+}
+
+async function deleteTempAvatarIfAny(deps){
+  const { storage, state } = deps;
+  const path = (state?._techTempAvatarPath || "").trim();
+  if (!storage || !path) return;
+  try {
+    await deleteObject(storageRef(storage, path));
+  } catch (_) {}
+  state._techTempAvatarPath = "";
+  state._techTempAvatarURL = "";
+}
+
 
 async function waitForCompanyUserDoc(db, companyId, uid, timeoutMs = 4000){
   const started = Date.now();
@@ -159,6 +194,8 @@ export function openEditTechModal(deps, techUser){
 
   // avatar preview (usa photoURL existente)
   state._techAvatarFile = null;
+  state._techTempAvatarPath = "";
+  state._techTempAvatarURL = "";
   if (refs.techAvatarFileEl) refs.techAvatarFileEl.value = "";
   const url = (techUser?.photoURL || "").toString().trim();
   if (refs.techAvatarPreviewImg && refs.techAvatarPreviewFallback){
@@ -218,7 +255,7 @@ async function retryUploadAvatarWithBackoff(deps, uid, file, maxWaitMs = 30000){
 }
 
 export async function updateTech(deps){
-  const { refs, state, db } = deps;
+  const { refs, state, db, callHttpFunctionWithAuth } = deps;
   clearAlert(refs.createTechAlert);
 
   const uid = (state._mgrEditingTechUid || "").trim();
@@ -236,16 +273,35 @@ export async function updateTech(deps){
 
   const userRef = doc(db, "companies", state.companyId, "users", uid);
 
-  // upload avatar (opcional)
+  // avatar (opcional)
   let photoURL = "";
-  if (state._techAvatarFile){
+  const tempPath = (state._techTempAvatarPath || "").trim();
+
+  if (tempPath && typeof callHttpFunctionWithAuth === "function"){
+    try{
+      setAlert(refs.createTechAlert, "Salvando foto...", "info");
+      const r = await callHttpFunctionWithAuth("setUserAvatarFromTempHttp", {
+        companyId: state.companyId,
+        targetUid: uid,
+        tempAvatarPath: tempPath
+      });
+      photoURL = (r?.photoURL || "").toString().trim();
+      state._techTempAvatarPath = "";
+      state._techTempAvatarURL = "";
+      state._techAvatarFile = null;
+    }catch(errUp){
+      console.warn("setUserAvatarFromTempHttp failed", errUp);
+      // não bloqueia edição
+    }
+  } else if (state._techAvatarFile){
+    // fallback (caso o temp não tenha sido enviado)
     try{
       setAlert(refs.createTechAlert, "Enviando foto...", "info");
       await waitForCompanyUserDoc(db, state.companyId, uid, 8000);
-      photoURL = await uploadAvatarForUser(deps, uid, state._techAvatarFile);
+      photoURL = await retryUploadAvatarWithBackoff(deps, uid, state._techAvatarFile, 45000);
+      state._techAvatarFile = null;
     }catch(errUp){
       console.warn("avatar upload failed", errUp);
-      // não bloqueia edição
     }
   }
 
@@ -340,7 +396,7 @@ async function getFeedbackCount(db, companyId, uid){
 }
 
 import { collection, getDocs, doc, setDoc, updateDoc, serverTimestamp, query, where, limit } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore.js";
-import { ref as storageRef, uploadBytes, getDownloadURL } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-storage.js";
+import { ref as storageRef, uploadBytes, getDownloadURL, deleteObject } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-storage.js";
 import { setAlert, clearAlert } from "../ui/alerts.js";
 import { humanizeRole } from "../utils/roles.js";
 import { show, hide, escapeHtml } from "../utils/dom.js";
@@ -755,6 +811,8 @@ export function openCreateTechModal(deps) {
 
   // avatar (upload antes de salvar -> envia após criar UID)
   state._techAvatarFile = null;
+  state._techTempAvatarPath = "";
+  state._techTempAvatarURL = "";
   if (refs.techAvatarFileEl) refs.techAvatarFileEl.value = "";
   if (refs.techAvatarPreviewImg && refs.techAvatarPreviewFallback){
     refs.techAvatarPreviewImg.style.display = "none";
@@ -791,19 +849,32 @@ export function openCreateTechModal(deps) {
   if (refs.techAvatarFileEl && refs.techAvatarPreviewImg && refs.techAvatarPreviewFallback){
     if (!refs.techAvatarFileEl.dataset.bound){
       refs.techAvatarFileEl.dataset.bound = "1";
-      refs.techAvatarFileEl.addEventListener("change", (e) => {
+      refs.techAvatarFileEl.addEventListener("change", async (e) => {
         const file = e.target.files && e.target.files[0];
         if (!file) return;
-        state._techAvatarFile = file;
 
-        // preview local
-        const reader = new FileReader();
-        reader.onload = () => {
-          refs.techAvatarPreviewImg.src = reader.result;
+        // limpa temp anterior (se houver)
+        await deleteTempAvatarIfAny(deps);
+
+        state._techAvatarFile = file;
+        setAlert(refs.createTechAlert, "Enviando foto...", "info");
+
+        try{
+          const { tempAvatarPath, tempAvatarURL } = await uploadTempAvatarForDraft(deps, file);
+          state._techTempAvatarPath = tempAvatarPath;
+          state._techTempAvatarURL = tempAvatarURL;
+
+          // preview via URL (já está no Storage)
+          refs.techAvatarPreviewImg.src = tempAvatarURL;
           refs.techAvatarPreviewImg.style.display = "block";
           refs.techAvatarPreviewFallback.textContent = "";
-        };
-        reader.readAsDataURL(file);
+          clearAlert(refs.createTechAlert);
+        }catch(err){
+          console.warn("temp avatar upload failed", err);
+          state._techTempAvatarPath = "";
+          state._techTempAvatarURL = "";
+          setAlert(refs.createTechAlert, "Não foi possível enviar a foto: " + (err?.message || err), "error");
+        }
 
         // permite reenviar o mesmo arquivo
         e.target.value = "";
@@ -816,6 +887,7 @@ export function openCreateTechModal(deps) {
       refs.btnTechRemovePhoto.dataset.bound = "1";
       refs.btnTechRemovePhoto.addEventListener("click", () => {
         state._techAvatarFile = null;
+        deleteTempAvatarIfAny(deps);
         refs.techAvatarPreviewImg.style.display = "none";
         refs.techAvatarPreviewImg.src = "";
         refs.techAvatarPreviewFallback.textContent = initialsFromName(refs.techNameEl?.value || "");
@@ -859,6 +931,10 @@ export function closeCreateTechModal(refs, state) {
     const hasOpen = document.querySelector(".modal.open, .modal:not([hidden])");
     if (!hasOpen) document.body.classList.remove("modal-open");
   } catch (_) {}
+}
+
+export async function cleanupTechDraftAvatar(deps){
+  await deleteTempAvatarIfAny(deps);
 }
 
 export function renderMgrTeamChips(deps) {
@@ -963,7 +1039,8 @@ async function createTech(deps) {
         email,
         phone,
         role: "tecnico",
-        teamIds: assignableTeamIds
+        teamIds: assignableTeamIds,
+        tempAvatarPath: (state._techTempAvatarPath || "").trim()
       });
 
       uid = data.uid;
@@ -981,24 +1058,10 @@ async function createTech(deps) {
         console.warn("merge userCompanies failed", errUc);
       }
 
-      // Upload de avatar (opcional) após UID existir
-      if (state._techAvatarFile){
-        try{
-          setAlert(refs.createTechAlert, "Enviando foto...", "info");
-          // ✅ Evita falha por corrida no exists() das Storage Rules
-          // (às vezes o doc já existe, mas o Storage ainda não “enxerga” imediatamente).
-          // Fazemos retries por alguns segundos.
-          const photoURL = await retryUploadAvatarWithBackoff(deps, uid, state._techAvatarFile, 30000);
-          if (photoURL){
-            // merge para não depender do doc já existir/estar pronto
-            await setDoc(doc(db, "companies", state.companyId, "users", uid), { photoURL }, { merge: true });
-          }
-        }catch(errUp){
-          console.warn("avatar upload failed", errUp);
-          setAlert(refs.createTechAlert, "Técnico criado! Não foi possível enviar a foto agora. Clique em **Editar** e tente novamente em alguns segundos.", "warning");
-          // não bloqueia criação
-        }
-      }
+      // limpeza do draft (a Function já move/deleta o temp)
+      state._techAvatarFile = null;
+      state._techTempAvatarPath = "";
+      state._techTempAvatarURL = "";
 
       // A criação e a escrita no Firestore são feitas pela Cloud Function (Admin SDK).
       // Mantemos o modal aberto para o usuário copiar o link de redefinição.
@@ -1032,6 +1095,7 @@ async function createTech(deps) {
       }
     }
 
+    await deleteTempAvatarIfAny(deps);
     closeCreateTechModal(refs);
     await loadManagerUsers(deps);
   } catch (err) {

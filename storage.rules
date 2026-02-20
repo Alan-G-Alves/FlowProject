@@ -41,6 +41,24 @@ service firebase.storage {
         && request.resource.contentType.matches('image/.*');
     }
 
+    // Upload temporário de avatar enquanto o usuário ainda NÃO existe em companies/{companyId}/users/{uid}
+    // Caminho: tempAvatars/{companyId}/{uploaderUid}/{tempId}
+    match /tempAvatars/{companyId}/{uploaderUid}/{tempId} {
+      // TEMP upload: permite apenas o próprio uploader (evita depender de Firestore get() aqui)
+      allow read: if signedIn() && uploaderUid == request.auth.uid;
+
+      // Criar/atualizar o temp avatar (limitado a imagem e 2MB)
+      allow create, update: if signedIn()
+        && uploaderUid == request.auth.uid
+        && request.resource.size < 2 * 1024 * 1024
+        && request.resource.contentType.matches('image/.*');
+
+      // Remover o temp avatar (ex.: cancelar modal)
+      allow delete: if signedIn() && uploaderUid == request.auth.uid;
+    }
+
+
+
     match /{allPaths=**} {
       allow read, write: if false;
     }

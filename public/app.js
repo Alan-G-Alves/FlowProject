@@ -89,7 +89,20 @@ async function createUserWithAuthAndResetLink(payload){
     phone: (payload?.phone || "").trim(),
     role: payload?.role || "tecnico",
     teamIds: Array.isArray(payload?.teamIds) ? payload.teamIds : [],
+    tempAvatarPath: (payload?.tempAvatarPath || "").trim(),
   };
+
+  // ✅ Preferir HTTP direto para perfis da empresa (evita ruído 401 do callable em alguns ambientes)
+  // Mantemos callable como opção principalmente para SuperAdmin.
+  const preferHttpDirect = (
+    !state?.isSuperAdmin &&
+    ["admin", "gestor", "coordenador"].includes((state?.profile?.role || "").toString())
+  );
+
+  if (preferHttpDirect) {
+    try { await user.getIdToken(true); } catch (_) {}
+    return await callHttpFunctionWithAuth("createUserInTenantHttp", safePayload);
+  }
 
   // 1) Tenta callable (mais simples)
   try{
@@ -809,11 +822,13 @@ function getManagerUsersDeps() {
     state,
     db,
     storage,
+    auth,
     setView,
     loadTeams,
     loadManagerUsers,
     ensureTeamsForChips,
     createUserWithAuthAndResetLink,
+    callHttpFunctionWithAuth,
     setAlertWithResetLink,
     closeTechFeedbackModal,
     saveTechFeedback,
@@ -834,7 +849,10 @@ function openCreateTechModal() {
 }
 
 function closeCreateTechModal() {
-  managerUsersDomain.closeCreateTechModal(refs, state);
+  // limpa upload temporário (se houver) e fecha
+  managerUsersDomain.cleanupTechDraftAvatar(getManagerUsersDeps())
+    .catch(() => {})
+    .finally(() => managerUsersDomain.closeCreateTechModal(refs, state));
 }
 
 function closeTechFeedbackModal() {

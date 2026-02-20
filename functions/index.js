@@ -1,7 +1,46 @@
 const functions = require("firebase-functions");
 const admin = require("firebase-admin");
+const crypto = require("crypto");
 
 admin.initializeApp();
+
+/**
+ * Storage helpers
+ */
+function buildDownloadURL(bucketName, objectPath, token) {
+  const encPath = encodeURIComponent(objectPath);
+  return `https://firebasestorage.googleapis.com/v0/b/${bucketName}/o/${encPath}?alt=media&token=${token}`;
+}
+
+async function moveTempAvatarToFinal({ companyId, callerUid, targetUid, tempPath }) {
+  if (!tempPath) return "";
+  const safeTempPath = String(tempPath || "").trim();
+  const expectedPrefix = `tempAvatars/${companyId}/${callerUid}/`;
+  if (!safeTempPath.startsWith(expectedPrefix)) {
+    throw new functions.https.HttpsError("invalid-argument", "tempAvatarPath inválido.");
+  }
+
+  const bucket = admin.storage().bucket();
+  const bucketName = bucket.name;
+
+  const src = bucket.file(safeTempPath);
+  const [existsSrc] = await src.exists();
+  if (!existsSrc) return "";
+
+  const destPath = `avatars/${targetUid}`;
+  const dest = bucket.file(destPath);
+
+  await src.copy(dest);
+  const token = crypto.randomUUID();
+  await dest.setMetadata({
+    metadata: { firebaseStorageDownloadTokens: token },
+    cacheControl: "public,max-age=31536000",
+  });
+
+  await src.delete().catch(() => {});
+
+  return buildDownloadURL(bucketName, destPath, token);
+}
 
 /**
  * Helpers
@@ -138,7 +177,7 @@ exports.createUserInTenant = functions.https.onCall(async (data, context) => {
   }
 
   const callerUid = context.auth.uid;
-  const { companyId, name, email, phone, role } = data || {};
+  const { companyId, name, email, phone, role, tempAvatarPath } = data || {};
 
   const safeCompanyId = normalizeString(companyId);
   const safeName = normalizeString(name);
@@ -213,6 +252,20 @@ exports.createUserInTenant = functions.https.onCall(async (data, context) => {
 
   await db.doc(`companies/${safeCompanyId}/users/${uid}`).set(userDoc);
 
+  // 7b) Se veio avatar temporário, move para /avatars/{uid} (Admin SDK) e grava photoURL
+  if (tempAvatarPath) {
+    try {
+      const photoURL = await moveTempAvatarToFinal({ companyId: safeCompanyId, callerUid, targetUid: uid, tempPath: tempAvatarPath });
+      if (photoURL) {
+        await db.doc(`companies/${safeCompanyId}/users/${uid}`).set({ photoURL }, { merge: true });
+        // best-effort no Auth
+        await admin.auth().updateUser(uid, { photoURL }).catch(() => {});
+      }
+    } catch (e) {
+      console.warn("moveTempAvatarToFinal (callable) failed:", e);
+    }
+  }
+
   // 8) Gera link de reset
   const resetLink = await admin.auth().generatePasswordResetLink(safeEmailLower);
 
@@ -247,6 +300,7 @@ exports.createUserInTenantHttp = functions.https.onRequest(async (req, res) => {
     const safeEmailLower = normalizeEmail(body.email);
     const safeRole = normalizeString(body.role);
     const safePhone = normalizeString(body.phone);
+    const tempAvatarPath = normalizeString(body.tempAvatarPath);
 
     if (!safeCompanyId) return res.status(400).json({ error: { message: "companyId inválido." } });
     if (!safeName) return res.status(400).json({ error: { message: "Nome inválido." } });
@@ -326,10 +380,80 @@ exports.createUserInTenantHttp = functions.https.onRequest(async (req, res) => {
 
     await db.doc(`companies/${safeCompanyId}/users/${uid}`).set(userDoc);
 
+    // avatar temporário -> final
+    if (tempAvatarPath) {
+      try {
+        const photoURL = await moveTempAvatarToFinal({ companyId: safeCompanyId, callerUid, targetUid: uid, tempPath: tempAvatarPath });
+        if (photoURL) {
+          await db.doc(`companies/${safeCompanyId}/users/${uid}`).set({ photoURL }, { merge: true });
+          await admin.auth().updateUser(uid, { photoURL }).catch(() => {});
+        }
+      } catch (e) {
+        console.warn("moveTempAvatarToFinal (http) failed:", e);
+      }
+    }
+
     const resetLink = await admin.auth().generatePasswordResetLink(safeEmailLower);
     return res.status(200).json({ uid, resetLink, number: techNumber });
   } catch (e) {
     console.error("createUserInTenantHttp:", e);
+    return res.status(500).json({ error: { message: "Erro interno." } });
+  }
+});
+
+/**
+ * setUserAvatarFromTempHttp (HTTP)
+ * Header: Authorization: Bearer <idToken>
+ * Body: { companyId, targetUid, tempAvatarPath }
+ * Returns: { photoURL }
+ */
+exports.setUserAvatarFromTempHttp = functions.https.onRequest(async (req, res) => {
+  res.set("Access-Control-Allow-Origin", "*");
+  res.set("Access-Control-Allow-Methods", "POST, OPTIONS");
+  res.set("Access-Control-Allow-Headers", "Content-Type, Authorization");
+
+  if (req.method === "OPTIONS") return res.status(204).send("");
+  if (req.method !== "POST") return res.status(405).json({ error: "method-not-allowed" });
+
+  try {
+    const authHeader = req.get("Authorization") || "";
+    const match = authHeader.match(/^Bearer (.+)$/);
+    if (!match) return res.status(401).json({ error: { message: "Não autenticado." } });
+
+    const decoded = await admin.auth().verifyIdToken(match[1]);
+    const callerUid = decoded.uid;
+
+    const body = req.body || {};
+    const safeCompanyId = normalizeString(body.companyId);
+    const targetUid = normalizeString(body.targetUid);
+    const tempAvatarPath = normalizeString(body.tempAvatarPath);
+
+    if (!safeCompanyId) return res.status(400).json({ error: { message: "companyId inválido." } });
+    if (!targetUid) return res.status(400).json({ error: { message: "targetUid inválido." } });
+    if (!tempAvatarPath) return res.status(400).json({ error: { message: "tempAvatarPath inválido." } });
+
+    const db = admin.firestore();
+
+    // Permissão (admin/gestor/coordenador conseguem editar técnico)
+    try {
+      await assertCallerPermission(db, callerUid, safeCompanyId, "tecnico");
+    } catch (e) {
+      return res.status(403).json({ error: { message: e?.message || "Sem permissão." } });
+    }
+
+    // Target existe na empresa
+    const targetSnap = await db.doc(`companies/${safeCompanyId}/users/${targetUid}`).get();
+    if (!targetSnap.exists) return res.status(404).json({ error: { message: "Usuário não encontrado." } });
+
+    const photoURL = await moveTempAvatarToFinal({ companyId: safeCompanyId, callerUid, targetUid, tempPath: tempAvatarPath });
+    if (photoURL) {
+      await db.doc(`companies/${safeCompanyId}/users/${targetUid}`).set({ photoURL }, { merge: true });
+      await admin.auth().updateUser(targetUid, { photoURL }).catch(() => {});
+    }
+
+    return res.status(200).json({ photoURL });
+  } catch (e) {
+    console.error("setUserAvatarFromTempHttp:", e);
     return res.status(500).json({ error: { message: "Erro interno." } });
   }
 });
