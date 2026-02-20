@@ -165,6 +165,10 @@ function setCreateTechModalMode(deps, mode, tech){
 
   // Label do botão
   if (refs.btnCreateTech) refs.btnCreateTech.textContent = isEdit ? "Salvar alterações" : "Salvar";
+
+  // ✅ IMPORTANTE: o fluxo de criação (autoAuth) desabilita o botão após salvar para evitar duplicidade.
+  // Ao alternar para modo "edit" (ou reabrir o modal), precisamos reabilitar.
+  if (refs.btnCreateTech) refs.btnCreateTech.disabled = false;
 }
 
 export function openEditTechModal(deps, techUser){
@@ -178,6 +182,9 @@ export function openEditTechModal(deps, techUser){
 
   // modo edição
   setCreateTechModalMode(deps, "edit", techUser);
+
+  // ✅ garante botão habilitado ao entrar no modo edição
+  if (refs.btnCreateTech) refs.btnCreateTech.disabled = false;
 
   // preenche campos
   refs.techUidEl.value = techUser?.uid || "";
