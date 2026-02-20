@@ -949,6 +949,24 @@ a{ color: inherit; }
   place-items:center;
   font-weight: 900;
 }
+
+/* ===== Table action icons (Tecnicos) ===== */
+.table-actions{
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.icon-btn.xs{
+  width: 32px;
+  height: 32px;
+  border-radius: 10px;
+}
+
+.icon-btn.xs svg{
+  width: 18px;
+  height: 18px;
+}
 .icon-btn:hover{
   background: rgba(12,18,32,.04);
   border-color: rgba(12,18,32,.14);

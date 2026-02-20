@@ -168,6 +168,7 @@ export const editUserTeamsTitle = byId("editUserTeamsTitle");
 export const btnBackFromManagerUsers = byId("btnBackFromManagerUsers");
 export const btnOpenCreateTech = byId("btnOpenCreateTech");
 export const mgrUserSearch = byId("mgrUserSearch");
+export const btnClearMgrUserSearch = byId("btnClearMgrUserSearch");
 export const mgrTeamFilter = byId("mgrTeamFilter");
 export const btnReloadMgrUsers = byId("btnReloadMgrUsers");
 export const mgrUsersTbody = byId("mgrUsersTbody");

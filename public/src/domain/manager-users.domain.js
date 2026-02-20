@@ -108,6 +108,167 @@ async function waitForCompanyUserDoc(db, companyId, uid, timeoutMs = 4000){
   return false;
 }
 
+function setCreateTechModalMode(deps, mode, tech){
+  const { refs, state } = deps;
+  const modal = refs.modalCreateTech;
+  if (!modal) return;
+
+  const titleEl = modal.querySelector(".modal-header h2");
+  const subEl = modal.querySelector(".modal-header p");
+  const isEdit = mode === "edit";
+
+  if (titleEl) titleEl.textContent = isEdit ? "Editar Técnico" : "Novo Técnico";
+  if (subEl) subEl.textContent = isEdit
+    ? "Edite os dados do técnico. O e-mail não pode ser alterado."
+    : "O técnico será vinculado automaticamente a todas as equipes do seu escopo.";
+
+  // Email não pode ser editado
+  if (refs.techEmailEl) refs.techEmailEl.disabled = !!isEdit;
+
+  // UID continua oculto (mas armazenamos no state)
+  state._mgrEditingTechUid = isEdit ? (tech?.uid || "") : null;
+
+  // Label do botão
+  if (refs.btnCreateTech) refs.btnCreateTech.textContent = isEdit ? "Salvar alterações" : "Salvar";
+}
+
+export function openEditTechModal(deps, techUser){
+  const { refs, state } = deps;
+  if (!refs.modalCreateTech) {
+    console.warn("[manager-users] modalCreateTech não encontrado no DOM");
+    return;
+  }
+
+  clearAlert(refs.createTechAlert);
+
+  // modo edição
+  setCreateTechModalMode(deps, "edit", techUser);
+
+  // preenche campos
+  refs.techUidEl.value = techUser?.uid || "";
+  refs.techNameEl.value = techUser?.name || "";
+  refs.techEmailEl.value = techUser?.email || "";
+  refs.techPhoneEl.value = techUser?.phone || "";
+  refs.techActiveEl.value = (techUser?.active === false) ? "false" : "true";
+
+  // chips
+  state._techSoftSkillsDraft = Array.isArray(techUser?.softSkills) ? [...techUser.softSkills] : [];
+  state._techHardSkillsDraft = Array.isArray(techUser?.hardSkills) ? [...techUser.hardSkills] : [];
+  setupChipInput(refs.techSoftSkillInputEl, refs.techSoftSkillChips, deps.state, "_techSoftSkillsDraft", "soft");
+  setupChipInput(refs.techHardSkillInputEl, refs.techHardSkillChips, deps.state, "_techHardSkillsDraft", "hard");
+
+  // avatar preview (usa photoURL existente)
+  state._techAvatarFile = null;
+  if (refs.techAvatarFileEl) refs.techAvatarFileEl.value = "";
+  const url = (techUser?.photoURL || "").toString().trim();
+  if (refs.techAvatarPreviewImg && refs.techAvatarPreviewFallback){
+    if (url){
+      refs.techAvatarPreviewImg.src = url;
+      refs.techAvatarPreviewImg.style.display = "block";
+      refs.techAvatarPreviewFallback.textContent = "";
+    } else {
+      refs.techAvatarPreviewImg.style.display = "none";
+      refs.techAvatarPreviewImg.src = "";
+      refs.techAvatarPreviewFallback.textContent = initialsFromName(techUser?.name || "");
+    }
+  }
+
+  // abre modal (garante visibilidade mesmo se estiver dentro de container hidden)
+  const modal = refs.modalCreateTech;
+  try{
+    const hiddenParent = modal.parentElement && modal.parentElement.closest && modal.parentElement.closest("[hidden]");
+    if (hiddenParent) document.body.appendChild(modal);
+  }catch(_){ }
+
+  modal.hidden = false;
+  modal.removeAttribute("hidden");
+  modal.classList.add("open");
+  modal.style.display = "flex";
+  document.body.classList.add("modal-open");
+
+  try{ refs.techNameEl?.focus?.(); }catch(_){ }
+}
+
+async function retryUploadAvatarWithBackoff(deps, uid, file, maxWaitMs = 30000){
+  const started = Date.now();
+  let delay = 600;
+  let lastErr = null;
+
+  while (Date.now() - started < maxWaitMs){
+    try{
+      const url = await uploadAvatarForUser(deps, uid, file);
+      if (url) return url;
+    }catch(err){
+      lastErr = err;
+      const code = (err?.code || "").toString();
+      const msg = (err?.message || "").toString().toLowerCase();
+
+      // storage/unauthorized costuma acontecer por corrida no exists() do Storage Rules.
+      // A gente re-tenta por alguns segundos.
+      const retryable = code === "storage/unauthorized" || msg.includes("permission") || msg.includes("unauthorized") || msg.includes("forbidden");
+      if (!retryable) throw err;
+    }
+
+    await new Promise(r => setTimeout(r, delay));
+    delay = Math.min(Math.round(delay * 1.6), 4000);
+  }
+
+  if (lastErr) throw lastErr;
+  throw new Error("Não foi possível enviar a foto.");
+}
+
+export async function updateTech(deps){
+  const { refs, state, db } = deps;
+  clearAlert(refs.createTechAlert);
+
+  const uid = (state._mgrEditingTechUid || "").trim();
+  if (!uid) return setAlert(refs.createTechAlert, "Não foi possível identificar o técnico para edição.");
+
+  const name = (refs.techNameEl.value || "").trim();
+  const phone = normalizePhone(refs.techPhoneEl.value || "");
+  const active = (refs.techActiveEl.value || "true") === "true";
+  const softSkills = uniqClean(state._techSoftSkillsDraft || []);
+  const hardSkills = uniqClean(state._techHardSkillsDraft || []);
+
+  if (!name) return setAlert(refs.createTechAlert, "Informe o nome do técnico.");
+
+  setAlert(refs.createTechAlert, "Salvando alterações...", "info");
+
+  const userRef = doc(db, "companies", state.companyId, "users", uid);
+
+  // upload avatar (opcional)
+  let photoURL = "";
+  if (state._techAvatarFile){
+    try{
+      setAlert(refs.createTechAlert, "Enviando foto...", "info");
+      await waitForCompanyUserDoc(db, state.companyId, uid, 8000);
+      photoURL = await uploadAvatarForUser(deps, uid, state._techAvatarFile);
+    }catch(errUp){
+      console.warn("avatar upload failed", errUp);
+      // não bloqueia edição
+    }
+  }
+
+  const patch = {
+    name,
+    phone,
+    active,
+    softSkills,
+    hardSkills,
+    ...(photoURL ? { photoURL } : {})
+  };
+
+  await updateDoc(userRef, patch);
+
+  // fecha modal e recarrega
+  setAlert(refs.createTechAlert, "Salvo!", "success");
+  closeCreateTechModal(refs, state);
+  await loadManagerUsers(deps);
+
+  // volta para modo criação (para não “vazar” estado)
+  setCreateTechModalMode(deps, "create");
+}
+
 function uniqClean(list){
   const out = [];
   const seen = new Set();
@@ -370,9 +531,28 @@ export async function loadManagerUsers(deps) {
       </td>
       <td><span class="badge small">${statusLabel}</span></td>
       <td>
-        <button class="btn sm" data-act="toggle">${u.active === false ? "Ativar" : "Bloquear"}</button>
+        <div class="table-actions">
+          <button class="icon-btn xs" data-act="edit" title="Editar" aria-label="Editar">
+            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <path d="M12 20h9" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+              <path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L8 18l-4 1 1-4 11.5-11.5Z" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/>
+            </svg>
+          </button>
+          <button class="btn sm" data-act="toggle">${u.active === false ? "Ativar" : "Bloquear"}</button>
+        </div>
       </td>
     `;
+
+    tr.querySelector('[data-act="edit"]').addEventListener("click", (ev) => {
+      ev.preventDefault();
+      ev.stopPropagation();
+      try{
+        console.log("[manager-users] edit click", { uid: u.uid, email: u.email });
+        openEditTechModal(deps, u);
+      }catch(err){
+        console.error("[manager-users] failed to open edit modal", err);
+      }
+    });
 
     tr.querySelector('[data-act="toggle"]').addEventListener("click", async () => {
       const nextActive = (u.active === false);
@@ -564,6 +744,8 @@ export function openCreateTechModal(deps) {
   if (!refs.modalCreateTech) return;
   
   clearAlert(refs.createTechAlert);
+  // modo criação
+  setCreateTechModalMode(deps, "create");
   if (refs.btnCreateTech) { refs.btnCreateTech.disabled = false; refs.btnCreateTech.textContent = "Salvar"; }
   // skills (chips)
   deps.state._techSoftSkillsDraft = [];
@@ -647,7 +829,7 @@ export function openCreateTechModal(deps) {
     .catch(() => renderMgrTeamChips(deps));
 }
 
-export function closeCreateTechModal(refs) {
+export function closeCreateTechModal(refs, state) {
   const el = refs?.modalCreateTech;
   if (!el) return;
 
@@ -660,6 +842,16 @@ export function closeCreateTechModal(refs) {
   if (refs.createTechAlert) {
     try { refs.createTechAlert.innerHTML = ""; } catch(_){}
   }
+
+  // limpa modo edição (se recebeu state)
+  if (state){
+    state._mgrEditingTechUid = null;
+  }
+
+  // garante que o email volta a ser editável no próximo "Novo Técnico"
+  try{
+    if (refs.techEmailEl) refs.techEmailEl.disabled = false;
+  }catch(_){ }
 
   // Se você usa body travado quando modal abre
   try {
@@ -707,6 +899,11 @@ export function renderMgrTeamChips(deps) {
 export 
 async function createTech(deps) {
   const { refs, state, db, auth, createUserWithAuthAndResetLink, setAlertWithResetLink, loadManagerUsers } = deps;
+
+  // Se estiver em modo edição, salva alterações aqui mesmo
+  if (state._mgrEditingTechUid){
+    return await updateTech(deps);
+  }
 
   clearAlert(refs.createTechAlert);
 
@@ -788,16 +985,18 @@ async function createTech(deps) {
       if (state._techAvatarFile){
         try{
           setAlert(refs.createTechAlert, "Enviando foto...", "info");
-          // ✅ evita race condition: aguarda o doc do usuário existir no Firestore (necessário para storage.rules)
-          await waitForCompanyUserDoc(db, state.companyId, uid, 5000);
-          const photoURL = await uploadAvatarForUser(deps, uid, state._techAvatarFile);
+          // ✅ Evita falha por corrida no exists() das Storage Rules
+          // (às vezes o doc já existe, mas o Storage ainda não “enxerga” imediatamente).
+          // Fazemos retries por alguns segundos.
+          const photoURL = await retryUploadAvatarWithBackoff(deps, uid, state._techAvatarFile, 30000);
           if (photoURL){
             // merge para não depender do doc já existir/estar pronto
             await setDoc(doc(db, "companies", state.companyId, "users", uid), { photoURL }, { merge: true });
           }
         }catch(errUp){
           console.warn("avatar upload failed", errUp);
-          // não bloqueia criação; apenas informa
+          setAlert(refs.createTechAlert, "Técnico criado! Não foi possível enviar a foto agora. Clique em **Editar** e tente novamente em alguns segundos.", "warning");
+          // não bloqueia criação
         }
       }
 

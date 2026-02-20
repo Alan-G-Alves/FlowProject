@@ -281,16 +281,25 @@
     <path d="M12 8v8M8 12h8" stroke="url(#fpGradAddTech)" stroke-width="2" stroke-linecap="round"></path>
   </svg>
 </button>
+
+<!-- Busca ao lado do botão (mesmo padrão do Kanban) -->
+<div class="saas-search" id="mgrUsersSearchWrap" aria-label="Filtro de técnicos">
+  <svg class="saas-search-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+    <circle cx="11" cy="11" r="7"></circle>
+    <path d="M20 20l-3.5-3.5"></path>
+  </svg>
+  <input id="mgrUserSearch" placeholder="Buscar por nome, e-mail, telefone ou UID" autocomplete="off" />
+  <button class="saas-clear" id="btnClearMgrUserSearch" title="Limpar" aria-label="Limpar">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+      <path d="M18 6L6 18"></path>
+      <path d="M6 6l12 12"></path>
+    </svg>
+  </button>
+</div>
 </div>
 </div>
 <div class="panel" style="margin-bottom:12px;">
-<div class="row" style="display:flex; gap:10px; align-items:flex-end; flex-wrap:wrap;">
-<label class="field" style="min-width:240px;">
-<span>Buscar</span>
-<input id="mgrUserSearch" placeholder="Nome, e-mail, telefone ou UID"/>
-</label>
-<!-- Removido filtro por equipe e botão Atualizar (carregamento agora é automático) -->
-</div>
+<!-- Removido bloco de busca aqui (agora fica no header ao lado do botão Adicionar técnico) -->
 <div class="table" style="margin-top:12px; overflow:auto;">
 <table>
 <thead>

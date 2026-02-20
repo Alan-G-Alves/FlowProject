@@ -96,14 +96,28 @@ async function createUserWithAuthAndResetLink(payload){
     const r = await fnCreateUserInTenant(safePayload);
     return r?.data || r;
   }catch(err){
-    const code = err?.code || "";
-    const msg = err?.message || "";
+    const code = (err?.code || "").toString();
+    const msg = (err?.message || "").toString();
 
-    // Quando a callable não envia auth (bug/race), cai no HTTP com Bearer token
-    if (code === "functions/unauthenticated" || msg.includes("Não autenticado")) {
+    // ✅ Fallback robusto:
+    // - Alguns browsers/devtools mostram 401 direto no endpoint do callable
+    // - O SDK pode retornar functions/internal ou functions/unknown
+    // Nesses casos, tentamos a versão HTTP com Bearer token.
+    const looksLikeAuthTransportIssue = (
+      code === "functions/unauthenticated" ||
+      code === "functions/internal" ||
+      code === "functions/unknown" ||
+      /\b401\b/.test(msg) ||
+      msg.toLowerCase().includes("unauth") ||
+      msg.toLowerCase().includes("não autentic")
+    );
+
+    if (looksLikeAuthTransportIssue) {
+      console.warn("[createUserWithAuthAndResetLink] callable falhou, tentando HTTP fallback...", { code, msg });
       const httpRes = await callHttpFunctionWithAuth("createUserInTenantHttp", safePayload);
       return httpRes;
     }
+
     throw err;
   }
 }
@@ -559,7 +573,7 @@ refs.profilePhotoFile?.addEventListener("change", async (e) => {
     if (!user) throw new Error("not-auth");
 
     const ext = (file.type || "").includes("png") ? "png" : "jpg";
-    const path = `avatars/${user.uid}`;
+    const path = `avatars/${user.uid}.${ext}`;
     const ref = storageRef(storage, path);
 
     await uploadBytes(ref, file, { contentType: file.type || "image/jpeg" });
@@ -820,7 +834,7 @@ function openCreateTechModal() {
 }
 
 function closeCreateTechModal() {
-  managerUsersDomain.closeCreateTechModal(refs);
+  managerUsersDomain.closeCreateTechModal(refs, state);
 }
 
 function closeTechFeedbackModal() {
@@ -1064,6 +1078,13 @@ refs.btnBackFromAdmin?.addEventListener("click", () => setView("dashboard"));
 refs.btnBackFromManagerUsers?.addEventListener("click", () => setView("dashboard"));
 refs.btnReloadMgrUsers?.addEventListener("click", () => loadManagerUsers());
 refs.mgrUserSearch?.addEventListener("input", () => loadManagerUsers());
+onOnce(refs.btnClearMgrUserSearch, "click", (e) => {
+  try { e?.preventDefault?.(); } catch (_) {}
+  if (!refs.mgrUserSearch) return;
+  refs.mgrUserSearch.value = "";
+  // dispara o mesmo fluxo do input
+  loadManagerUsers();
+}, "btnClearMgrUserSearch");
 refs.mgrTeamFilter?.addEventListener("change", () => loadManagerUsers());
 onOnce(refs.btnOpenCreateTech, "click", async (e) => {
   // Abre o modal mesmo que loadTeams falhe (não bloqueia o clique)
