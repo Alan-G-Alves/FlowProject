@@ -660,13 +660,18 @@ export async function loadManagerUsers(deps) {
       <td><span class="badge small status-pill ${isActive ? "status-active" : "status-inactive"}">${statusLabel}</span></td>
       <td>
         <div class="table-actions">
-          <button class="icon-btn xs btn-edit-orange" data-act="edit" title="Editar" aria-label="Editar">
+          <button class="icon-btn xs btn-edit" data-act="edit" title="Editar" aria-label="Editar">
             <svg viewBox="0 0 24 24" width="18" height="18" fill="none" xmlns="http://www.w3.org/2000/svg">
               <path d="M12 20h9" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
               <path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L8 18l-4 1 1-4 11.5-11.5Z" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/>
             </svg>
           </button>
-          <button class="btn sm ${isActive ? "btn-block" : "btn-activate"}" data-act="toggle">${isActive ? "Bloquear" : "Ativar"}</button>
+          <button class="icon-btn xs ${isActive ? "btn-block" : "btn-activate"}" data-act="toggle" title="${isActive ? "Bloquear" : "Ativar"}" aria-label="${isActive ? "Bloquear" : "Ativar"}">
+            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <path d="M12 2v10" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+              <path d="M7.5 4.5a8 8 0 1 0 9 0" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+            </svg>
+          </button>
         </div>
       </td>
     `;

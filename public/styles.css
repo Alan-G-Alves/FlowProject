@@ -2095,39 +2095,32 @@ input[type="file"].hidden-file{
   border: none;
   cursor: pointer;
 
+  /* mesma identidade do botão "Adicionar" (roxo) */
   background: linear-gradient(
     135deg,
-    rgb(244, 158, 71),
-    rgb(251, 147, 77)
+    rgb(119, 59, 246),
+    rgb(100, 102, 251)
   ) !important;
 
-  box-shadow: 0 2px 6px rgba(251, 147, 77, 0.25);
+  box-shadow: 0 2px 6px rgba(119, 59, 246, 0.22);
   transition: all 0.2s ease;
 }
 
-.btn-edit svg {
-  width: 16px;
-  height: 16px;
-  fill: white;
-}
+.btn-edit svg { width: 16px; height: 16px; }
+.btn-edit svg *{ stroke: #fff; fill: none; }
 
 /* HOVER CORRIGIDO */
 .btn-edit:hover {
   background: linear-gradient(
     135deg,
-    rgb(255, 170, 90),
-    rgb(255, 160, 100)
+    rgb(132, 79, 255),
+    rgb(112, 120, 255)
   ) !important;
 
   transform: translateY(-2px);
-  box-shadow: 0 8px 18px rgba(251, 147, 77, 0.45);
+  box-shadow: 0 8px 18px rgba(119, 59, 246, 0.35);
 }
 
-.btn-edit svg {
-  width: 16px;
-  height: 16px;
-  fill: white; /* força o ícone branco */
-}
 
 
 /* Status pill: ativo verde / inativo vermelho */
