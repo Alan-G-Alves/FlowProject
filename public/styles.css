@@ -2065,7 +2065,50 @@ input[type="file"].hidden-file{
   color: #fff;
 }
 
-.btn-edit-orange:hover{ opacity: .95; transform: translateY(-1px); }
+.btn-edit {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 10px;
+  border: none;
+  cursor: pointer;
+
+  background: linear-gradient(
+    135deg,
+    rgb(244, 158, 71),
+    rgb(251, 147, 77)
+  ) !important;
+
+  box-shadow: 0 2px 6px rgba(251, 147, 77, 0.25);
+  transition: all 0.2s ease;
+}
+
+.btn-edit svg {
+  width: 16px;
+  height: 16px;
+  fill: white;
+}
+
+/* HOVER CORRIGIDO */
+.btn-edit:hover {
+  background: linear-gradient(
+    135deg,
+    rgb(255, 170, 90),
+    rgb(255, 160, 100)
+  ) !important;
+
+  transform: translateY(-2px);
+  box-shadow: 0 8px 18px rgba(251, 147, 77, 0.45);
+}
+
+.btn-edit svg {
+  width: 16px;
+  height: 16px;
+  fill: white; /* força o ícone branco */
+}
+
 
 /* Status pill: ativo verde / inativo vermelho */
 .status-pill{
