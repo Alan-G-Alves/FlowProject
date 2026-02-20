@@ -1888,6 +1888,26 @@ a{ color: inherit; }
 .chip-hard:hover{
   background: rgba(59, 130, 246, 0.2);
 }
+
+/* +N / ver menos (expandir skills) */
+.chip-more{
+  cursor: pointer;
+  font-weight: 700;
+  border-style: dashed !important;
+  opacity: .95;
+  background: rgba(255,255,255,.55);
+}
+.chip-more:hover{
+  opacity: 1;
+  transform: translateY(-1px);
+}
+/* remove estilo default de button */
+button.chip-more{
+  -webkit-appearance: none;
+  appearance: none;
+  padding: 6px 10px;
+  line-height: 1;
+}
 /* =========================
    TÉCNICOS — AVATAR (lista + modal)
    ========================= */

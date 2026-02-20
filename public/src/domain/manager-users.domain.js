@@ -699,26 +699,39 @@ export async function loadManagerUsers(deps) {
     const renderMiniChips = (wrap, arr, type) => {
       if (!wrap) return;
       wrap.innerHTML = "";
+      const limit = 6;
+      const expanded = (wrap.dataset.expanded === "1");
       if (!arr.length){
         const em = document.createElement("span");
         em.className = "muted";
         em.style.fontSize = "12px";
         em.textContent = "—";
         wrap.appendChild(em);
+        wrap.dataset.expanded = "0";
         return;
       }
-      for (const v of arr.slice(0,6)){
+
+      const visible = expanded ? arr : arr.slice(0, limit);
+      for (const v of visible){
         const chip = document.createElement("span");
         chip.className = `chip mini ${(type === "hard") ? "chip-hard" : "chip-soft"}`;
         chip.textContent = v;
         wrap.appendChild(chip);
       }
-      if (arr.length > 6){
-        const more = document.createElement("span");
-        more.className = "muted";
-        more.style.fontSize = "12px";
-        more.textContent = `+${arr.length-6}`;
-        wrap.appendChild(more);
+
+      if (arr.length > limit){
+        const moreBtn = document.createElement("button");
+        moreBtn.type = "button";
+        moreBtn.className = `chip mini chip-more ${(type === "hard") ? "chip-hard" : "chip-soft"}`;
+        moreBtn.textContent = expanded ? "ver menos" : `+${arr.length - limit}`;
+        moreBtn.title = expanded ? "Recolher" : "Ver todas";
+        moreBtn.addEventListener("click", (ev) => {
+          ev.preventDefault();
+          ev.stopPropagation();
+          wrap.dataset.expanded = (wrap.dataset.expanded === "1") ? "0" : "1";
+          renderMiniChips(wrap, arr, type);
+        });
+        wrap.appendChild(moreBtn);
       }
     };
 
