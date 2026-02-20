@@ -151,20 +151,150 @@ function setCreateTechModalMode(deps, mode, tech){
   const titleEl = modal.querySelector(".modal-header h2");
   const subEl = modal.querySelector(".modal-header p");
   const isEdit = mode === "edit";
+  const isView = mode === "view";
 
-  if (titleEl) titleEl.textContent = isEdit ? "Editar Técnico" : "Novo Técnico";
-  if (subEl) subEl.textContent = isEdit
-    ? "Edite os dados do técnico. O e-mail não pode ser alterado."
-    : "O técnico será vinculado automaticamente a todas as equipes do seu escopo.";
+  if (titleEl) titleEl.textContent = isView ? "Visualizar Técnico" : (isEdit ? "Editar Técnico" : "Novo Técnico");
+  if (subEl) subEl.textContent = isView
+    ? "Apenas visualização. Para alterar, use o botão Editar."
+    : (isEdit
+      ? "Edite os dados do técnico. O e-mail não pode ser alterado."
+      : "O técnico será vinculado automaticamente a todas as equipes do seu escopo.");
 
   // Email não pode ser editado
-  if (refs.techEmailEl) refs.techEmailEl.disabled = !!isEdit;
+  if (refs.techEmailEl) refs.techEmailEl.disabled = !!isEdit || !!isView;
+
+  // View mode: todos os campos readonly + esconde botão salvar
+  const disableAll = !!isView;
+  if (refs.techNameEl) refs.techNameEl.disabled = disableAll;
+  if (refs.techPhoneEl) refs.techPhoneEl.disabled = disableAll;
+  if (refs.techActiveEl) refs.techActiveEl.disabled = disableAll;
+  if (refs.techSoftSkillInputEl) refs.techSoftSkillInputEl.disabled = disableAll;
+  if (refs.techHardSkillInputEl) refs.techHardSkillInputEl.disabled = disableAll;
+  if (refs.techAvatarFileEl) refs.techAvatarFileEl.disabled = disableAll;
+  // chips removíveis ficam desativados via pointer-events no wrapper
+  if (refs.techSoftSkillChips) refs.techSoftSkillChips.classList.toggle("readonly", disableAll);
+  if (refs.techHardSkillChips) refs.techHardSkillChips.classList.toggle("readonly", disableAll);
 
   // UID continua oculto (mas armazenamos no state)
-  state._mgrEditingTechUid = isEdit ? (tech?.uid || "") : null;
+  state._mgrEditingTechUid = (isEdit || isView) ? (tech?.uid || "") : null;
 
   // Label do botão
-  if (refs.btnCreateTech) refs.btnCreateTech.textContent = isEdit ? "Salvar alterações" : "Salvar";
+  if (refs.btnCreateTech) refs.btnCreateTech.textContent = isView ? "" : (isEdit ? "Salvar alterações" : "Salvar");
+  if (refs.btnCreateTech) refs.btnCreateTech.style.display = isView ? "none" : "";
+}
+
+export function openViewTechModal(deps, techUser){
+  const { refs, state } = deps;
+  if (!refs.modalCreateTech) {
+    console.warn("[manager-users] modalCreateTech não encontrado no DOM");
+    return;
+  }
+
+  clearAlert(refs.createTechAlert);
+  setCreateTechModalMode(deps, "view", techUser);
+
+  refs.techUidEl.value = techUser?.uid || "";
+  refs.techNameEl.value = techUser?.name || "";
+  refs.techEmailEl.value = techUser?.email || "";
+  refs.techPhoneEl.value = techUser?.phone || "";
+  refs.techActiveEl.value = (techUser?.active === false) ? "false" : "true";
+
+  // chips (somente leitura)
+  state._techSoftSkillsDraft = Array.isArray(techUser?.softSkills) ? [...techUser.softSkills] : [];
+  state._techHardSkillsDraft = Array.isArray(techUser?.hardSkills) ? [...techUser.hardSkills] : [];
+  setupChipInput(refs.techSoftSkillInputEl, refs.techSoftSkillChips, deps.state, "_techSoftSkillsDraft", "soft");
+  setupChipInput(refs.techHardSkillInputEl, refs.techHardSkillChips, deps.state, "_techHardSkillsDraft", "hard");
+
+  // avatar
+  state._techAvatarFile = null;
+  state._techTempAvatarPath = "";
+  state._techTempAvatarURL = "";
+  if (refs.techAvatarFileEl) refs.techAvatarFileEl.value = "";
+  const url = (techUser?.photoURL || "").toString().trim();
+  if (refs.techAvatarPreviewImg && refs.techAvatarPreviewFallback){
+    if (url){
+      refs.techAvatarPreviewImg.src = url;
+      refs.techAvatarPreviewImg.style.display = "block";
+      refs.techAvatarPreviewFallback.textContent = "";
+    } else {
+      refs.techAvatarPreviewImg.style.display = "none";
+      refs.techAvatarPreviewImg.src = "";
+      refs.techAvatarPreviewFallback.textContent = initialsFromName(techUser?.name || "");
+    }
+  }
+
+  const modal = refs.modalCreateTech;
+  modal.hidden = false;
+  modal.removeAttribute("hidden");
+  modal.classList.add("open");
+  modal.style.display = "flex";
+  document.body.classList.add("modal-open");
+}
+
+function exportTechniciansToExcel(deps, items){
+  const { state } = deps;
+  const companyId = (state.companyId || "empresa").toString();
+  const now = new Date();
+  const pad = (n) => String(n).padStart(2, "0");
+  const stamp = `${now.getFullYear()}-${pad(now.getMonth()+1)}-${pad(now.getDate())}_${pad(now.getHours())}${pad(now.getMinutes())}`;
+  const filename = `tecnicos_${companyId}_${stamp}.xls`;
+
+  const esc = (v) => escapeHtml((v ?? "").toString());
+  const join = (arr) => (Array.isArray(arr) ? arr.join(", ") : "");
+
+  const rows = items.map(u => {
+    const teamIds = Array.isArray(u.teamIds) ? u.teamIds : (u.teamId ? [u.teamId] : []);
+    const teamsLabel = teamIds.length ? teamIds.map(tid => getTeamNameById(state, tid)).join(", ") : "";
+    const statusLabel = (u.active === false) ? "Inativo" : "Ativo";
+
+    return `
+      <tr>
+        <td>${esc(u.number ?? "")}</td>
+        <td>${esc(u.name || "")}</td>
+        <td>${esc(u.email || "")}</td>
+        <td>${esc(u.phone || "")}</td>
+        <td>${esc(teamsLabel)}</td>
+        <td>${esc(join(u.softSkills))}</td>
+        <td>${esc(join(u.hardSkills))}</td>
+        <td>${esc(u.feedbackCount ?? 0)}</td>
+        <td>${esc(statusLabel)}</td>
+      </tr>
+    `;
+  }).join("");
+
+  const html = `
+    <html>
+      <head><meta charset="utf-8" /></head>
+      <body>
+        <table border="1">
+          <thead>
+            <tr>
+              <th>ID</th>
+              <th>Nome</th>
+              <th>E-mail</th>
+              <th>Telefone</th>
+              <th>Equipes</th>
+              <th>Soft Skills</th>
+              <th>Hard Skills</th>
+              <th>Feedback</th>
+              <th>Status</th>
+            </tr>
+          </thead>
+          <tbody>${rows}</tbody>
+        </table>
+      </body>
+    </html>
+  `;
+
+  const blob = new Blob([html], { type: "application/vnd.ms-excel;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
 }
 
 export function openEditTechModal(deps, techUser){
@@ -579,9 +709,6 @@ export async function loadManagerUsers(deps) {
   const pageItems = filtered.slice(startIdx, endIdx);
 
   if (refs.mgrUsersPagination) {
-    if (totalPages <= 1) {
-      refs.mgrUsersPagination.innerHTML = "";
-    } else {
     // Render de botões (compacto)
     const cur = state._mgrUsersPage;
     const windowSize = 7;
@@ -597,7 +724,16 @@ export async function loadManagerUsers(deps) {
       return `<button class="page-btn ${cls}" data-page="${page}" ${dis}>${label}</button>`;
     };
 
-    parts.push(`<div class="page-meta">Mostrando <b>${Math.min(endIdx, filtered.length)}</b> de <b>${filtered.length}</b></div>`);
+    parts.push(`<div class="page-meta">
+      <span>Mostrando <b>${Math.min(endIdx, filtered.length)}</b> de <b>${filtered.length}</b></span>
+      <button class="icon-btn xs btn-download" data-act="export" title="Baixar Excel" aria-label="Baixar Excel">
+        <svg viewBox="0 0 24 24" width="18" height="18" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <path d="M12 3v10" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+          <path d="M8 11l4 4 4-4" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+          <path d="M4 20h16" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+        </svg>
+      </button>
+    </div>`);
     parts.push(`<div class="page-controls">`);
     parts.push(mkBtn("‹", cur - 1, cur <= 1, "nav"));
 
@@ -627,6 +763,20 @@ export async function loadManagerUsers(deps) {
         loadManagerUsers(deps);
       });
     });
+
+    // Exporta lista filtrada (respeita busca)
+    const exportBtn = refs.mgrUsersPagination.querySelector('[data-act="export"]');
+    if (exportBtn){
+      exportBtn.addEventListener("click", (ev) => {
+        ev.preventDefault();
+        ev.stopPropagation();
+        try{
+          exportTechniciansToExcel(deps, filtered);
+        }catch(err){
+          console.error(err);
+          alert("Não foi possível exportar.");
+        }
+      });
     }
   }
 
@@ -666,6 +816,12 @@ export async function loadManagerUsers(deps) {
               <path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L8 18l-4 1 1-4 11.5-11.5Z" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/>
             </svg>
           </button>
+          <button class="icon-btn xs btn-view" data-act="view" title="Visualizar" aria-label="Visualizar">
+            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <path d="M1.5 12s3.5-7 10.5-7 10.5 7 10.5 7-3.5 7-10.5 7S1.5 12 1.5 12Z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+              <path d="M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6Z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+          </button>
           <button class="icon-btn xs ${isActive ? "btn-block" : "btn-activate"}" data-act="toggle" title="${isActive ? "Bloquear" : "Ativar"}" aria-label="${isActive ? "Bloquear" : "Ativar"}">
             <svg viewBox="0 0 24 24" width="18" height="18" fill="none" xmlns="http://www.w3.org/2000/svg">
               <path d="M12 2v10" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
@@ -684,6 +840,16 @@ export async function loadManagerUsers(deps) {
         openEditTechModal(deps, u);
       }catch(err){
         console.error("[manager-users] failed to open edit modal", err);
+      }
+    });
+
+    tr.querySelector('[data-act="view"]').addEventListener("click", (ev) => {
+      ev.preventDefault();
+      ev.stopPropagation();
+      try{
+        openViewTechModal(deps, u);
+      }catch(err){
+        console.error("[manager-users] failed to open view modal", err);
       }
     });
 
