@@ -567,7 +567,7 @@ async function getFeedbackCount(db, companyId, uid){
   }
 }
 
-import { collection, getDocs, doc, setDoc, updateDoc, serverTimestamp, query, where, limit, orderBy, increment, getDoc } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore.js";
+import { collection, getDocs, doc, setDoc, updateDoc, serverTimestamp, query, where, limit , orderBy, increment, getDoc} from "https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore.js";
 import { ref as storageRef, uploadBytes, getDownloadURL, deleteObject } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-storage.js";
 import { setAlert, clearAlert } from "../ui/alerts.js";
 import { humanizeRole } from "../utils/roles.js";
@@ -666,26 +666,6 @@ export async function loadManagerUsers(deps) {
   refs.mgrUsersTbody.innerHTML = "";
   hide(refs.mgrUsersEmpty);
 
-// Clique no contador de feedback (delegação) — robusto contra re-render/paginação
-if (!state._mgrUsersFeedbackClickBound) {
-  refs.mgrUsersTbody.addEventListener("click", async (ev) => {
-    const btn = ev.target?.closest?.('[data-act="feedbackCount"]');
-    if (!btn) return;
-    ev.preventDefault();
-    ev.stopPropagation();
-    const uid = btn.dataset.techUid || btn.closest("tr")?.dataset?.uid || "";
-    if (!uid) return;
-    const tech = state._mgrUsersByUid?.[uid] || {
-      uid,
-      name: btn.dataset.techName || "",
-      email: btn.dataset.techEmail || ""
-    };
-    await openTechFeedbackModal(deps, tech);
-  });
-  state._mgrUsersFeedbackClickBound = true;
-}
-
-
   // Filtro por equipe removido na UI (mantemos a lista global por empresa)
 
   const snap = await getDocs(collection(db, "companies", state.companyId, "users"));
@@ -753,9 +733,6 @@ if (!state._mgrUsersFeedbackClickBound) {
 
     return true;
   }).sort((a,b)=> (a.name||"").localeCompare(b.name||""));
-
-  // cache por UID para ações (feedback, editar, etc.)
-  state._mgrUsersByUid = Object.fromEntries(filtered.map(u => [u.uid, u]));
 
   if (mySeq !== state._mgrUsersLoadSeq) return; // evita render duplicado
 
@@ -847,7 +824,6 @@ if (!state._mgrUsersFeedbackClickBound) {
 
   for (const u of pageItems){
     const tr = document.createElement("tr");
-    tr.dataset.uid = u.uid;
     const teamIds = Array.isArray(u.teamIds) ? u.teamIds : (u.teamId ? [u.teamId] : []);
     const teamsLabel = teamIds.length ? teamIds.map(tid => getTeamNameById(state, tid)).join(", ") : "—";
     const isActive = (u.active !== false);
@@ -869,7 +845,7 @@ if (!state._mgrUsersFeedbackClickBound) {
       <td><span data-soft></span></td>
       <td><span data-hard></span></td>
       <td>
-        <button type="button" class="btn sm feedback-badge" data-act="feedbackCount" data-tech-uid="${escapeHtml(u.uid)}" data-tech-name="${escapeHtml(u.name||"")}" data-tech-email="${escapeHtml(u.email||"")}">
+        <button class="btn sm feedback-badge" data-act="feedbackCount">
           ${(u.feedbackCount||0)}
         </button>
       </td>
@@ -975,7 +951,9 @@ if (!state._mgrUsersFeedbackClickBound) {
     renderMiniChips(softWrap, softArr, "soft");
     renderMiniChips(hardWrap, hardArr, "hard");
 
-    // clique no contador de feedback é tratado por delegação no <tbody>
+    tr.querySelector('[data-act="feedbackCount"]').addEventListener("click", async () => {
+      await openTechFeedbackModal(deps, u);
+    });
 
     refs.mgrUsersTbody.appendChild(tr);
   }
@@ -1012,6 +990,25 @@ export function closeTechFeedbackModal(refs) {
   if (refs.modalTechFeedback) refs.modalTechFeedback.hidden = true;
 }
 
+
+function formatDateBR(dateStr){
+  if (!dateStr) return "";
+  const s = String(dateStr).trim();
+  if (!s) return "";
+  if (s.includes("/")) return s;
+  const m = s.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (!m) return s;
+  return `${m[3]}/${m[2]}/${m[1]}`;
+}
+
+function getScoreClass(score){
+  const n = Number(score);
+  if (!Number.isFinite(n)) return "chip-score-neutral";
+  if (n >= 7) return "chip-score-good";
+  if (n <= 4) return "chip-score-bad";
+  return "chip-score-warn"; // 5-6
+}
+
 async function loadTechFeedbackList(deps) {
   const { refs, state, db } = deps;
   if (!refs.techFeedbackList || !state._techFeedbackUid) return;
@@ -1045,7 +1042,7 @@ async function loadTechFeedbackList(deps) {
 
       div.innerHTML = `
         <div style="display:flex; justify-content:space-between; gap:10px;">
-          <div><b>${escapeHtml(date || "—")}</b> <span class="badge small" style="margin-left:6px;">${escapeHtml(String(score || "—"))}</span></div>
+          <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap;"><b>${escapeHtml(`Data: ${formatDateBR(date)}` || "—")}</b><span class="chip-score ${getScoreClass(score)}">${escapeHtml(`Nota: ${String(score || "—")}`)}</span></div>
           <div class="muted" style="font-size:12px;">${escapeHtml(by)}</div>
         </div>
         <div style="margin-top:6px; white-space:pre-wrap;">${escapeHtml(note || "—")}</div>
@@ -1082,17 +1079,17 @@ export async function saveTechFeedback(deps) {
     const meSnap = await getDoc(doc(db, "companies", state.companyId, "users", createdBy));
     const meName = meSnap.exists() ? (meSnap.data().name || "") : "";
 
-const feedbackRef = doc(collection(db, "companies", state.companyId, "users", state._techFeedbackUid, "feedbacks"));
-await setDoc(feedbackRef, {
-  id: feedbackRef.id,
-  date,
-  score,
-  note,
-  createdBy,
-  createdByEmail,
-  createdByName: meName,
-  createdAt: serverTimestamp()
-});
+    const fbRef = doc(collection(db, "companies", state.companyId, "users", state._techFeedbackUid, "feedbacks"));
+    await setDoc(fbRef, {
+      id: fbRef.id,
+      date,
+      score,
+      note,
+      createdBy,
+      createdByEmail,
+      createdByName: meName,
+      createdAt: serverTimestamp()
+    });
 
     // Atualiza contador no técnico (best effort)
     await updateDoc(doc(db, "companies", state.companyId, "users", state._techFeedbackUid), {

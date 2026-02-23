@@ -802,33 +802,6 @@
 </div>
 </div>
 </div>
-<script>
-  // Toggle senha (somente UI)
-  document.addEventListener("click", function(e){
-    const btn = e.target && e.target.id === "btnTogglePwd" ? e.target : null;
-    if(!btn) return;
-    const input = document.getElementById("password");
-    if(!input) return;
-    input.type = (input.type === "password") ? "text" : "password";
-    btn.textContent = (input.type === "password") ? "👁" : "🙈";
-  });
-</script>
-<script>
-  // Esconde a topbar na tela de login (sem depender do app.js)
-  (function(){
-    function sync(){
-      const v = document.getElementById("viewLogin");
-      const isLogin = v && v.hidden === false;
-      document.body.classList.toggle("is-login", !!isLogin);
-    }
-    sync();
-    const obs = new MutationObserver(sync);
-    const v = document.getElementById("viewLogin");
-    if (v) obs.observe(v, { attributes:true, attributeFilter:["hidden"] });
-    setInterval(sync, 800);
-  })();
-</script>
-
 <!-- MODAL: EDITAR PERFIL -->
 <div class="modal" hidden id="profileModal">
   <div class="modal-backdrop" data-close="profile"></div>
@@ -1310,10 +1283,6 @@
   </div>
 </div>
 
-  <script src="./app.js?v=1770332282" type="module"></script>
-
-</body>
-</html>
 
 <!-- MODAL FEEDBACK TÉCNICO -->
 <section class="modal" hidden id="modalTechFeedback">
@@ -1352,8 +1321,7 @@
           <div class="alert" hidden id="techFeedbackAlert"></div>
 
           <div style="display:flex; gap:10px; justify-content:flex-end; margin-top:10px;">
-            <button class="btn" id="btnCancelTechFeedback">Fechar</button>
-            <button class="btn primary" id="btnSaveTechFeedback">Salvar feedback</button>
+<button class="btn primary" id="btnSaveTechFeedback">Salvar feedback</button>
           </div>
         </div>
 
@@ -1368,3 +1336,35 @@
   </div>
 </section>
 
+
+<script src="./app.js?v=1770332282" type="module"></script>
+<script>
+  // Toggle senha (somente UI)
+  document.addEventListener("click", function(e){
+    const btn = e.target && e.target.id === "btnTogglePwd" ? e.target : null;
+    if(!btn) return;
+    const input = document.getElementById("password");
+    if(!input) return;
+    input.type = (input.type === "password") ? "text" : "password";
+    btn.textContent = (input.type === "password") ? "👁" : "🙈";
+  });
+</script>
+<script>
+  // Esconde a topbar na tela de login (sem depender do app.js)
+  (function(){
+    function sync(){
+      const v = document.getElementById("viewLogin");
+      const isLogin = v && v.hidden === false;
+      document.body.classList.toggle("is-login", !!isLogin);
+    }
+    sync();
+    const obs = new MutationObserver(sync);
+    const v = document.getElementById("viewLogin");
+    if (v) obs.observe(v, { attributes:true, attributeFilter:["hidden"] });
+    setInterval(sync, 800);
+  })();
+</script>
+
+
+</body>
+</html>
