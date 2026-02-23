@@ -72,8 +72,7 @@ service cloud.firestore {
 
     function userFieldsAllowed() {
       return request.resource.data.keys().hasOnly([
-        "name","role","teamId","teamIds","managedTeamIds","email","emailLower","phone","active","softSkills","hardSkills","feedbackCount","number","createdAt","createdBy","photoURL"
-      ]);
+        "name","role","teamId","teamIds","managedTeamIds","email","emailLower","phone","active","softSkills","hardSkills","feedbackCount","number","createdAt","createdBy","photoURL","hourlyRate"]);
     }
 
     function roleValid() {
@@ -94,6 +93,12 @@ service cloud.firestore {
 
     function activeValid() {
       return request.resource.data.active is bool;
+    }
+
+
+    function hourlyRateOptionalValid() {
+      return !("hourlyRate" in request.resource.data)
+        || request.resource.data.hourlyRate is number;
     }
 
     function createdAtOptionalValid() {
@@ -257,6 +262,7 @@ match /counters/{counterId} {
             && roleValid()
             && emailValid()
             && phoneValid()
+            && hourlyRateOptionalValid()
             && activeValid()
             && createdAtOptionalValid()
             && createdByOptionalValid()
@@ -275,10 +281,11 @@ match /counters/{counterId} {
         allow update: if isSignedIn()
           && uid == myUid()
           && companyId == myCompanyId()
-          && request.resource.data.diff(resource.data).changedKeys().hasOnly(["name","phone","photoURL"])
+          && request.resource.data.diff(resource.data).changedKeys().hasOnly(["name","phone","photoURL","hourlyRate"])
           && userFieldsAllowed()
           && nameValid()
-          && phoneValid();
+          && phoneValid()
+            && hourlyRateOptionalValid();
 
         // gestor: pode criar/atualizar técnico (técnico pertence à empresa, não ao escopo do gestor)
         allow create, update: if isManager(companyId)
