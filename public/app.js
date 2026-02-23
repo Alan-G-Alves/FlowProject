@@ -1108,6 +1108,29 @@ onOnce(refs.btnClearMgrUserSearch, "click", (e) => {
   loadManagerUsers();
 }, "btnClearMgrUserSearch");
 refs.mgrTeamFilter?.addEventListener("change", () => loadManagerUsers());
+
+// Feedback do Técnico (modal)
+onOnce(refs.btnCloseTechFeedback, "click", (e) => {
+  try { e?.preventDefault?.(); e?.stopPropagation?.(); } catch (_) {}
+  closeTechFeedbackModal();
+}, "btnCloseTechFeedback");
+
+onOnce(refs.btnCancelTechFeedback, "click", (e) => {
+  try { e?.preventDefault?.(); e?.stopPropagation?.(); } catch (_) {}
+  closeTechFeedbackModal();
+}, "btnCancelTechFeedback");
+
+onOnce(refs.btnSaveTechFeedback, "click", async (e) => {
+  try { e?.preventDefault?.(); e?.stopPropagation?.(); } catch (_) {}
+  await saveTechFeedback();
+}, "btnSaveTechFeedback");
+
+// Fecha modal de feedback no ESC
+onOnce(document, "keydown", (e) => {
+  if (e.key !== "Escape") return;
+  if (!refs.modalTechFeedback || refs.modalTechFeedback.hidden) return;
+  closeTechFeedbackModal();
+}, "escTechFeedback");
 onOnce(refs.btnOpenCreateTech, "click", async (e) => {
   // Abre o modal mesmo que loadTeams falhe (não bloqueia o clique)
   try { e?.preventDefault?.(); e?.stopPropagation?.(); } catch (_) {}

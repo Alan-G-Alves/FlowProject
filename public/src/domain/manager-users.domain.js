@@ -567,7 +567,7 @@ async function getFeedbackCount(db, companyId, uid){
   }
 }
 
-import { collection, getDocs, doc, setDoc, updateDoc, serverTimestamp, query, where, limit } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore.js";
+import { collection, getDocs, doc, setDoc, updateDoc, serverTimestamp, query, where, limit, orderBy, increment, getDoc } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore.js";
 import { ref as storageRef, uploadBytes, getDownloadURL, deleteObject } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-storage.js";
 import { setAlert, clearAlert } from "../ui/alerts.js";
 import { humanizeRole } from "../utils/roles.js";
@@ -666,6 +666,26 @@ export async function loadManagerUsers(deps) {
   refs.mgrUsersTbody.innerHTML = "";
   hide(refs.mgrUsersEmpty);
 
+// Clique no contador de feedback (delegação) — robusto contra re-render/paginação
+if (!state._mgrUsersFeedbackClickBound) {
+  refs.mgrUsersTbody.addEventListener("click", async (ev) => {
+    const btn = ev.target?.closest?.('[data-act="feedbackCount"]');
+    if (!btn) return;
+    ev.preventDefault();
+    ev.stopPropagation();
+    const uid = btn.dataset.techUid || btn.closest("tr")?.dataset?.uid || "";
+    if (!uid) return;
+    const tech = state._mgrUsersByUid?.[uid] || {
+      uid,
+      name: btn.dataset.techName || "",
+      email: btn.dataset.techEmail || ""
+    };
+    await openTechFeedbackModal(deps, tech);
+  });
+  state._mgrUsersFeedbackClickBound = true;
+}
+
+
   // Filtro por equipe removido na UI (mantemos a lista global por empresa)
 
   const snap = await getDocs(collection(db, "companies", state.companyId, "users"));
@@ -733,6 +753,9 @@ export async function loadManagerUsers(deps) {
 
     return true;
   }).sort((a,b)=> (a.name||"").localeCompare(b.name||""));
+
+  // cache por UID para ações (feedback, editar, etc.)
+  state._mgrUsersByUid = Object.fromEntries(filtered.map(u => [u.uid, u]));
 
   if (mySeq !== state._mgrUsersLoadSeq) return; // evita render duplicado
 
@@ -824,6 +847,7 @@ export async function loadManagerUsers(deps) {
 
   for (const u of pageItems){
     const tr = document.createElement("tr");
+    tr.dataset.uid = u.uid;
     const teamIds = Array.isArray(u.teamIds) ? u.teamIds : (u.teamId ? [u.teamId] : []);
     const teamsLabel = teamIds.length ? teamIds.map(tid => getTeamNameById(state, tid)).join(", ") : "—";
     const isActive = (u.active !== false);
@@ -845,7 +869,7 @@ export async function loadManagerUsers(deps) {
       <td><span data-soft></span></td>
       <td><span data-hard></span></td>
       <td>
-        <button class="btn sm feedback-badge" data-act="feedbackCount">
+        <button type="button" class="btn sm feedback-badge" data-act="feedbackCount" data-tech-uid="${escapeHtml(u.uid)}" data-tech-name="${escapeHtml(u.name||"")}" data-tech-email="${escapeHtml(u.email||"")}">
           ${(u.feedbackCount||0)}
         </button>
       </td>
@@ -951,9 +975,7 @@ export async function loadManagerUsers(deps) {
     renderMiniChips(softWrap, softArr, "soft");
     renderMiniChips(hardWrap, hardArr, "hard");
 
-    tr.querySelector('[data-act="feedbackCount"]').addEventListener("click", async () => {
-      await openTechFeedbackModal(deps, u);
-    });
+    // clique no contador de feedback é tratado por delegação no <tbody>
 
     refs.mgrUsersTbody.appendChild(tr);
   }
@@ -1060,15 +1082,17 @@ export async function saveTechFeedback(deps) {
     const meSnap = await getDoc(doc(db, "companies", state.companyId, "users", createdBy));
     const meName = meSnap.exists() ? (meSnap.data().name || "") : "";
 
-    await addDoc(collection(db, "companies", state.companyId, "users", state._techFeedbackUid, "feedbacks"), {
-      date,
-      score,
-      note,
-      createdBy,
-      createdByEmail,
-      createdByName: meName,
-      createdAt: serverTimestamp()
-    });
+const feedbackRef = doc(collection(db, "companies", state.companyId, "users", state._techFeedbackUid, "feedbacks"));
+await setDoc(feedbackRef, {
+  id: feedbackRef.id,
+  date,
+  score,
+  note,
+  createdBy,
+  createdByEmail,
+  createdByName: meName,
+  createdAt: serverTimestamp()
+});
 
     // Atualiza contador no técnico (best effort)
     await updateDoc(doc(db, "companies", state.companyId, "users", state._techFeedbackUid), {
