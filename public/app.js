@@ -90,6 +90,10 @@ async function createUserWithAuthAndResetLink(payload){
     role: payload?.role || "tecnico",
     teamIds: Array.isArray(payload?.teamIds) ? payload.teamIds : [],
     tempAvatarPath: (payload?.tempAvatarPath || "").trim(),
+    // Campos extras do técnico (persistidos pela Cloud Function)
+    softSkills: Array.isArray(payload?.softSkills) ? payload.softSkills : [],
+    hardSkills: Array.isArray(payload?.hardSkills) ? payload.hardSkills : [],
+    hourlyRate: (payload?.hourlyRate ?? null),
   };
 
   // ✅ Preferir HTTP direto para perfis da empresa (evita ruído 401 do callable em alguns ambientes)

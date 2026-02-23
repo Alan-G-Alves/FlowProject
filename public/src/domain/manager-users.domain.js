@@ -1,3 +1,36 @@
+function formatDecimalInput(value){
+  if (value === null || value === undefined || value === "") return "";
+  const n = Number(value);
+  if (!Number.isFinite(n)) return "";
+  // mostra em pt-BR sem símbolo, mantendo 2 casas quando necessário
+  return n.toLocaleString("pt-BR", { minimumFractionDigits: 0, maximumFractionDigits: 2 });
+}
+
+function parseBRDecimalToNumber(raw){
+  // Aceita valores com máscara/label (ex.: "R$ 120,00", "120,00/h")
+  const s = (raw ?? "").toString().trim().replace(/[^0-9,.-]/g, "");
+  if (!s) return null;
+  // aceita "120", "120,5", "120,50", "1.200,50"
+  const normalized = s.replace(/\./g, "").replace(/,/g, ".");
+  const n = Number(normalized);
+  return Number.isFinite(n) ? n : null;
+}
+
+function readChipsText(chipsEl){
+  if (!chipsEl) return [];
+  const nodes = Array.from(chipsEl.querySelectorAll(".chip"));
+  return nodes
+    .map(n => (n.textContent || "").trim())
+    .filter(Boolean);
+}
+
+function formatHourlyRate(value){
+  const n = Number(value);
+  if (!Number.isFinite(n)) return "—";
+  const brl = new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(n);
+  return `${brl}/h`;
+}
+
 /**
  * manager-users.domain.js
  * Módulo de domínio para gestão de técnicos (Gestor)
@@ -197,7 +230,8 @@ export function openViewTechModal(deps, techUser){
   refs.techNameEl.value = techUser?.name || "";
   refs.techEmailEl.value = techUser?.email || "";
   refs.techPhoneEl.value = techUser?.phone || "";
-  refs.techActiveEl.value = (techUser?.active === false) ? "false" : "true";
+  
+  if (refs.techHourlyRateEl) refs.techHourlyRateEl.value = formatDecimalInput(techUser?.hourlyRate);refs.techActiveEl.value = (techUser?.active === false) ? "false" : "true";
 
   // chips (somente leitura)
   state._techSoftSkillsDraft = Array.isArray(techUser?.softSkills) ? [...techUser.softSkills] : [];
@@ -252,7 +286,7 @@ function exportTechniciansToExcel(deps, items){
         <td>${esc(u.number ?? "")}</td>
         <td>${esc(u.name || "")}</td>
         <td>${esc(u.email || "")}</td>
-        <td>${esc(u.phone || "")}</td>
+        <td>${esc(formatHourlyRate(u.hourlyRate))}</td>
         <td>${esc(teamsLabel)}</td>
         <td>${esc(join(u.softSkills))}</td>
         <td>${esc(join(u.hardSkills))}</td>
@@ -272,7 +306,7 @@ function exportTechniciansToExcel(deps, items){
               <th>ID</th>
               <th>Nome</th>
               <th>E-mail</th>
-              <th>Telefone</th>
+              <th>Valor/Hora</th>
               <th>Equipes</th>
               <th>Soft Skills</th>
               <th>Hard Skills</th>
@@ -314,7 +348,8 @@ export function openEditTechModal(deps, techUser){
   refs.techNameEl.value = techUser?.name || "";
   refs.techEmailEl.value = techUser?.email || "";
   refs.techPhoneEl.value = techUser?.phone || "";
-  refs.techActiveEl.value = (techUser?.active === false) ? "false" : "true";
+  
+  if (refs.techHourlyRateEl) refs.techHourlyRateEl.value = formatDecimalInput(techUser?.hourlyRate);refs.techActiveEl.value = (techUser?.active === false) ? "false" : "true";
 
   // chips
   state._techSoftSkillsDraft = Array.isArray(techUser?.softSkills) ? [...techUser.softSkills] : [];
@@ -393,9 +428,15 @@ export async function updateTech(deps){
 
   const name = (refs.techNameEl.value || "").trim();
   const phone = normalizePhone(refs.techPhoneEl.value || "");
-  const active = (refs.techActiveEl.value || "true") === "true";
-  const softSkills = uniqClean(state._techSoftSkillsDraft || []);
-  const hardSkills = uniqClean(state._techHardSkillsDraft || []);
+  
+  const hourlyRate = refs.techHourlyRateEl ? parseBRDecimalToNumber(refs.techHourlyRateEl.value) : null;
+const active = (refs.techActiveEl.value || "true") === "true";
+  const softSkills = uniqClean((state._techSoftSkillsDraft && state._techSoftSkillsDraft.length)
+    ? state._techSoftSkillsDraft
+    : readChipsText(refs.techSoftSkillChips));
+  const hardSkills = uniqClean((state._techHardSkillsDraft && state._techHardSkillsDraft.length)
+    ? state._techHardSkillsDraft
+    : readChipsText(refs.techHardSkillChips));
 
   if (!name) return setAlert(refs.createTechAlert, "Informe o nome do técnico.");
 
@@ -438,6 +479,7 @@ export async function updateTech(deps){
   const patch = {
     name,
     phone,
+    ...(refs.techHourlyRateEl ? { hourlyRate } : {}),
     active,
     softSkills,
     hardSkills,
@@ -664,7 +706,7 @@ export async function loadManagerUsers(deps) {
     const hard = hardArr.join(" ");
     const status = (u.active === false) ? "bloqueado inativo" : "ativo";
     const teamsTxt = teamIds.map(tid => getTeamNameById(state, tid)).join(" ");
-    const text = normalizeText(`${u.uid} ${u.name||""} ${u.email||""} ${u.phone||""} ${status} ${teamsTxt} ${soft} ${hard} ${u.feedbackCount||0}`);
+    const text = normalizeText(`${u.uid} ${u.name||""} ${u.email||""} ${u.phone||""} ${formatHourlyRate(u.hourlyRate)} ${status} ${teamsTxt} ${soft} ${hard} ${u.feedbackCount||0}`);
     for (const t of terms){
       if (!text.includes(t)) return false;
     }
@@ -798,7 +840,7 @@ export async function loadManagerUsers(deps) {
         </div>
       </td>
       <td>${escapeHtml(u.email || "—")}</td>
-      <td>${escapeHtml(u.phone || "—")}</td>
+      <td>${escapeHtml(formatHourlyRate(u.hourlyRate))}</td>
       <td>${escapeHtml(teamsLabel)}</td>
       <td><span data-soft></span></td>
       <td><span data-hard></span></td>
@@ -1088,7 +1130,9 @@ export function openCreateTechModal(deps) {
   refs.techNameEl.value = "";
   refs.techEmailEl.value = "";
   refs.techPhoneEl.value = "";
-  refs.techActiveEl.value = "true";
+  
+  if (refs.techHourlyRateEl) refs.techHourlyRateEl.value = "";
+refs.techActiveEl.value = "true";
 
   // atualiza fallback com base no nome enquanto digita
   if (refs.techNameEl && refs.techAvatarPreviewFallback){
@@ -1245,10 +1289,16 @@ async function createTech(deps) {
   const name = (refs.techNameEl.value || "").trim();
   const email = (refs.techEmailEl.value || "").trim();
   const phone = normalizePhone(refs.techPhoneEl.value || "");
+  const hourlyRate = refs.techHourlyRateEl ? parseBRDecimalToNumber(refs.techHourlyRateEl.value) : null;
+
   const active = (refs.techActiveEl.value || "true") === "true";
 
-  const softSkills = uniqClean(state._techSoftSkillsDraft || []);
-  const hardSkills = uniqClean(state._techHardSkillsDraft || []);
+  const softSkills = uniqClean((state._techSoftSkillsDraft && state._techSoftSkillsDraft.length)
+    ? state._techSoftSkillsDraft
+    : readChipsText(refs.techSoftSkillChips));
+  const hardSkills = uniqClean((state._techHardSkillsDraft && state._techHardSkillsDraft.length)
+    ? state._techHardSkillsDraft
+    : readChipsText(refs.techHardSkillChips));
 
   // UID agora é opcional (se vazio, criamos automaticamente no Auth via Cloud Function)
   const wantsAutoAuth = !uid;
@@ -1279,6 +1329,7 @@ async function createTech(deps) {
     email,
     emailLower: normalizeText(email),
     phone,
+    ...(hourlyRate === null ? {} : { hourlyRate }),
     active,
     teamIds: assignableTeamIds,
     teamId: assignableTeamIds[0] || "",
@@ -1296,7 +1347,10 @@ async function createTech(deps) {
         phone,
         role: "tecnico",
         teamIds: assignableTeamIds,
-        tempAvatarPath: (state._techTempAvatarPath || "").trim()
+        tempAvatarPath: (state._techTempAvatarPath || "").trim(),
+        softSkills,
+        hardSkills,
+        hourlyRate
       });
 
       uid = data.uid;

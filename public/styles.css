@@ -2211,13 +2211,3 @@ input[type="file"].hidden-file{
 
 .btn-activate:hover{ opacity:.95; transform: translateY(-1px); }
 
-.btn-export-excel {
-  background: linear-gradient(135deg, #1D6F42, #21A366);
-  color: #fff;
-  border: none;
-}
-
-.btn-export-excel:hover {
-  background: linear-gradient(135deg, #21A366, #1D6F42);
-  transform: translateY(-1px);
-}

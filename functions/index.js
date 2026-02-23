@@ -66,6 +66,23 @@ function uniqueStrings(arr) {
   return out;
 }
 
+function sanitizeSkillArray(arr) {
+  const raw = Array.isArray(arr) ? arr : [];
+  const cleaned = raw
+    .map((v) => String(v ?? "").trim())
+    .filter(Boolean)
+    .map((v) => v.slice(0, 40));
+  return cleaned.slice(0, 50);
+}
+
+function sanitizeHourlyRate(v) {
+  if (v === null || v === undefined || v === "") return null;
+  const n = Number(v);
+  if (!Number.isFinite(n) || n < 0) return null;
+  if (n > 1000000) return null;
+  return n;
+}
+
 /**
  * Regras de permissão (alinhadas ao seu projeto)
  * - Admin da empresa: pode criar admin/gestor/coordenador/tecnico
@@ -177,7 +194,7 @@ exports.createUserInTenant = functions.https.onCall(async (data, context) => {
   }
 
   const callerUid = context.auth.uid;
-  const { companyId, name, email, phone, role, tempAvatarPath } = data || {};
+  const { companyId, name, email, phone, role, tempAvatarPath, softSkills, hardSkills, hourlyRate } = data || {};
 
   const safeCompanyId = normalizeString(companyId);
   const safeName = normalizeString(name);
@@ -213,6 +230,11 @@ exports.createUserInTenant = functions.https.onCall(async (data, context) => {
     teamIds = uniqueStrings(teamIds);
   }
 
+  // 4b) Campos extras do técnico (skills e valor/hora)
+  const safeSoftSkills = sanitizeSkillArray(softSkills);
+  const safeHardSkills = sanitizeSkillArray(hardSkills);
+  const safeHourlyRate = sanitizeHourlyRate(hourlyRate);
+
   // 5) Número sequencial por empresa para técnico
   let techNumber = null;
   if (safeRole === "tecnico") {
@@ -247,7 +269,15 @@ exports.createUserInTenant = functions.https.onCall(async (data, context) => {
     active: true,
     teamIds,
     teamId: teamIds[0] || "",
-    ...(safeRole === "tecnico" ? { number: techNumber, feedbackCount: 0, softSkills: [], hardSkills: [] } : {}),
+    ...(safeRole === "tecnico"
+      ? {
+          number: techNumber,
+          feedbackCount: 0,
+          softSkills: safeSoftSkills,
+          hardSkills: safeHardSkills,
+          ...(safeHourlyRate === null ? {} : { hourlyRate: safeHourlyRate }),
+        }
+      : {}),
   };
 
   await db.doc(`companies/${safeCompanyId}/users/${uid}`).set(userDoc);
@@ -301,6 +331,9 @@ exports.createUserInTenantHttp = functions.https.onRequest(async (req, res) => {
     const safeRole = normalizeString(body.role);
     const safePhone = normalizeString(body.phone);
     const tempAvatarPath = normalizeString(body.tempAvatarPath);
+    const safeSoftSkills = sanitizeSkillArray(body.softSkills);
+    const safeHardSkills = sanitizeSkillArray(body.hardSkills);
+    const safeHourlyRate = sanitizeHourlyRate(body.hourlyRate);
 
     if (!safeCompanyId) return res.status(400).json({ error: { message: "companyId inválido." } });
     if (!safeName) return res.status(400).json({ error: { message: "Nome inválido." } });
@@ -375,7 +408,15 @@ exports.createUserInTenantHttp = functions.https.onRequest(async (req, res) => {
       active: true,
       teamIds,
       teamId: teamIds[0] || "",
-      ...(safeRole === "tecnico" ? { number: techNumber, feedbackCount: 0, softSkills: [], hardSkills: [] } : {}),
+      ...(safeRole === "tecnico"
+        ? {
+            number: techNumber,
+            feedbackCount: 0,
+            softSkills: safeSoftSkills,
+            hardSkills: safeHardSkills,
+            ...(safeHourlyRate === null ? {} : { hourlyRate: safeHourlyRate }),
+          }
+        : {}),
     };
 
     await db.doc(`companies/${safeCompanyId}/users/${uid}`).set(userDoc);

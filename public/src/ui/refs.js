@@ -184,6 +184,7 @@ export const techUidEl = byId("techUid");
 export const techNameEl = byId("techName");
 export const techEmailEl = byId("techEmail");
 export const techPhoneEl = byId("techPhone");
+export const techHourlyRateEl = byId("techHourlyRate");
 export const techActiveEl = byId("techActive");
 export const mgrTeamChipsEl = byId("mgrTeamChips");
 export const createTechAlert = byId("createTechAlert");
