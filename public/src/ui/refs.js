@@ -177,6 +177,49 @@ export const mgrUsersTbody = byId("mgrUsersTbody");
 export const mgrUsersEmpty = byId("mgrUsersEmpty");
 export const mgrUsersPagination = byId("mgrUsersPagination");
 
+// Clients (Cadastro de Clientes)
+export const btnOpenCreateClient = byId("btnOpenCreateClient");
+export const clientsSearch = byId("clientsSearch");
+export const btnClearClientsSearch = byId("btnClearClientsSearch");
+export const btnReloadClients = byId("btnReloadClients");
+export const clientsTbody = byId("clientsTbody");
+export const clientsEmpty = byId("clientsEmpty");
+export const clientsPagination = byId("clientsPagination");
+
+// Create client modal
+export const modalCreateClient = byId("modalCreateClient");
+export const btnCloseCreateClient = byId("btnCloseCreateClient");
+export const btnCancelCreateClient = byId("btnCancelCreateClient");
+export const btnCreateClient = byId("btnCreateClient");
+export const createClientAlert = byId("createClientAlert");
+export const createClientSuccess = byId("createClientSuccess");
+
+export const clientPhotoPreview = byId("clientPhotoPreview");
+export const clientPhotoImg = byId("clientPhotoImg");
+export const clientPhotoFallback = byId("clientPhotoFallback");
+export const clientPhotoFile = byId("clientPhotoFile");
+export const clientPhotoUrl = byId("clientPhotoUrl");
+export const btnClientRemovePhoto = byId("btnClientRemovePhoto");
+
+export const clientIdEl = byId("clientId");
+export const clientNameEl = byId("clientName");
+export const clientCpfCnpjEl = byId("clientCpfCnpj");
+export const clientAddressEl = byId("clientAddress");
+export const clientPhoneEl = byId("clientPhone");
+export const clientEmailEl = byId("clientEmail");
+export const clientActiveEl = byId("clientActive");
+export const clientKeyUserNameEl = byId("clientKeyUserName");
+export const clientKeyUserEmailEl = byId("clientKeyUserEmail");
+export const clientKeyUserPhoneEl = byId("clientKeyUserPhone");
+
+// Client projects modal
+export const modalClientProjects = byId("modalClientProjects");
+export const btnCloseClientProjects = byId("btnCloseClientProjects");
+export const btnCancelClientProjects = byId("btnCancelClientProjects");
+export const clientProjectsTitle = byId("clientProjectsTitle");
+export const clientProjectsTbody = byId("clientProjectsTbody");
+export const clientProjectsEmpty = byId("clientProjectsEmpty");
+
 // Create tech modal
 export const modalCreateTech = byId("modalCreateTech");
 export const btnCloseCreateTech = byId("btnCloseCreateTech");
