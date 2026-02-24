@@ -9,6 +9,7 @@ export const viewDashboard = byId("viewDashboard");
 export const viewAdmin = byId("viewAdmin");
 export const viewCompanies = byId("viewCompanies");
 export const viewManagerUsers = byId("viewManagerUsers");
+export const viewClients = byId("viewClients");
 
 // Sidebar
 export const sidebar = byId("sidebar");
@@ -17,6 +18,7 @@ export const navHome = byId("navHome");
 export const navAddProject = byId("navAddProject");
 export const navMyProjects = byId("navMyProjects");
 export const navAddTech = byId("navAddTech");
+export const navClients = byId("navClients");
 export const navReports = byId("navReports");
 export const navConfig = byId("navConfig");
 export const navLogout = byId("navLogout");

@@ -534,6 +534,7 @@ export function openCreateProjectModal(deps) {
   if (refs.projectManagerEl) refs.projectManagerEl.value = "";
   if (refs.projectCoordinatorEl) refs.projectCoordinatorEl.value = "";
   if (refs.projectTeamEl) refs.projectTeamEl.value = "";
+  if (refs.projectClientEl) refs.projectClientEl.value = "";
   // billing/status antigos (inputs removidos do HTML) — mantemos compatibilidade via refs opcionais
   if (refs.projectBillingValueEl) refs.projectBillingValueEl.checked = true;
   if (refs.projectBillingHoursEl) refs.projectBillingHoursEl.checked = false;
@@ -557,6 +558,9 @@ export function openCreateProjectModal(deps) {
 
   // Preenche select de coordenadores (apenas role='coordenador')
   populateCoordinatorSelectNew(refs.projectCoordinatorEl, state._usersCache);
+
+  // Preenche select de clientes (opcional)
+  populateClientSelect(refs.projectClientEl, state._clientsCache || []);
 
   // UI do modal (chips + máscara + técnicos)
   _ensureCreateProjectUi(refs, state);
@@ -604,6 +608,9 @@ export async function createProject(deps) {
   const managerUid = refs.projectManagerEl?.value || "";
   const coordinatorUid = refs.projectCoordinatorEl?.value || "";
   const teamId = refs.projectTeamEl?.value || "";
+  const clientId = refs.projectClientEl?.value || "";
+  const clientName = clientId ? ((state._clientsCache||[]).find(c=>c.id===clientId)?.name || "") : "";
+  const clientNumber = clientId ? ((state._clientsCache||[]).find(c=>c.id===clientId)?.number ?? "") : "";
   // Cobrança (inputs atuais do modal)
   const billingValue = _parseBRLToNumber(refs.projectBillingValueAmountEl?.value || "");
   const billingHours = _parseHoursToNumber(refs.projectBillingHoursAmountEl?.value || "");
@@ -757,6 +764,20 @@ function populateCoordinatorSelectNew(selectEl, users) {
     opt.textContent = user.name || user.email;
     selectEl.appendChild(opt);
   }
+}
+
+function populateClientSelect(selectEl, clients){
+  if (!selectEl) return;
+  const list = Array.isArray(clients) ? clients.slice() : [];
+  // placeholder
+  const opts = ['<option value="">— Selecione um cliente (opcional) —</option>'];
+  list
+    .filter(c => c && c.active !== false)
+    .sort((a,b)=> (a.name||"").localeCompare(b.name||""))
+    .forEach(c => {
+      opts.push(`<option value="${c.id}">${(c.number ?? "")} - ${escapeHtml(c.name || "")}</option>`);
+    });
+  selectEl.innerHTML = opts.join("");
 }
 
 /**

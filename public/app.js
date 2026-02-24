@@ -48,6 +48,7 @@ import * as companiesDomain from "./src/domain/companies.domain.js?v=1770332251"
 import * as teamsDomain from "./src/domain/teams.domain.js?v=1770332251";
 import * as usersDomain from "./src/domain/users.domain.js?v=1770332251";
 import * as managerUsersDomain from "./src/domain/manager-users.domain.js?v=1770332252";
+import * as clientsDomain from "./src/domain/clients.domain.js?v=1770332252";
 import * as projectsDomain from "./src/domain/projects.domain.js?v=1770332251";
 import * as profileModal from "./src/ui/modals/profile.modal.js?v=1770332251";
 import * as topbar from "./src/ui/topbar.js?v=1770332251";
@@ -281,7 +282,7 @@ async function callHttpFunctionWithAuth(functionName, payload){
 }
 
 function setActiveNav(activeId){
-  const items = [refs.navHome, refs.navAddTech, refs.navReports, refs.navConfig].filter(Boolean);
+  const items = [refs.navHome, refs.navAddTech, refs.navClients, refs.navReports, refs.navConfig].filter(Boolean);
   for (const el of items){
     const isActive = el.id === activeId;
     el.classList.toggle("active", isActive);
@@ -342,6 +343,14 @@ function initSidebar(){
     if (state.profile?.role === "gestor") openManagerUsersView();
     else alert("Acesso restrito: somente Gestor");
   });
+
+  refs.navClients?.addEventListener("click", () => {
+    setActiveNav("navClients");
+    // mesmos perfis que podem criar tecnicos podem criar clientes
+    if (state.profile?.role === "gestor") openClientsView();
+    else alert("Acesso restrito: somente Gestor");
+  });
+
   refs.navConfig?.addEventListener("click", () => {
     setActiveNav("navConfig");
     alert("Em breve: Configurações");
@@ -848,6 +857,26 @@ async function loadManagerUsers() {
   await managerUsersDomain.loadManagerUsers(getManagerUsersDeps());
 }
 
+
+function getClientsDeps(){
+  return {
+    db,
+    storage,
+    auth,
+    refs,
+    state,
+    setView,
+  };
+}
+
+function openClientsView(){
+  clientsDomain.openClientsView(getClientsDeps());
+}
+
+async function loadClients(){
+  await clientsDomain.loadClients(getClientsDeps());
+}
+
 function openCreateTechModal() {
   managerUsersDomain.openCreateTechModal(getManagerUsersDeps());
 }
@@ -1255,6 +1284,8 @@ refs.userRoleFilter?.addEventListener("change", () => { loadUsers(); });
 refs.btnOpenCreateUser?.addEventListener("click", async () => {
   // garante que as equipes estão carregadas antes de abrir
   await loadTeams();
+  // Preload clients cache (para seleção no modal de projeto)
+  try { await loadClients(); } catch(e) { console.warn("[clients] preload falhou", e); }
   openCreateUserModal();
 });
 

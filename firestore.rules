@@ -317,6 +317,36 @@ match /counters/{counterId} {
 allow delete: if false;
       }
 
+
+      // clients
+      match /clients/{clientId} {
+        allow read: if isSuperAdmin() || isCompanyMember(companyId);
+
+        // Perfis que gerenciam clientes (mesmo grupo que gerencia técnicos)
+        allow create, update, delete: if isSuperAdmin()
+          || isCompanyAdmin(companyId)
+          || isManager(companyId)
+          || isCoordinator(companyId);
+
+        // (validação leve) — evita campos inesperados
+        function clientFieldsAllowed(){
+          return request.resource.data.keys().hasOnly([
+            "number","name","nameLower","cpfCnpj","address","phone","email",
+            "keyUserName","keyUserEmail","keyUserPhone",
+            "photoURL","active","createdAt","createdBy","updatedAt","updatedBy"
+          ]);
+        }
+
+        allow create, update: if (isSuperAdmin()
+          || isCompanyAdmin(companyId)
+          || isManager(companyId)
+          || isCoordinator(companyId))
+          && clientFieldsAllowed()
+          && request.resource.data.name is string
+          && request.resource.data.name.size() > 0
+          && request.resource.data.active is bool;
+      }
+
       // projects (NOVO)
       match /projects/{projectId} {
         allow read: if isSuperAdmin() || isCompanyMember(companyId);

@@ -111,6 +111,10 @@
 <img alt="" class="nav-ico" src="adicionar-tecnico.png"/>
 <span class="nav-label">Adicionar técnico</span>
 </button>
+<button class="nav-item" data-tooltip="Clientes" id="navClients">
+<img alt="" class="nav-ico" src="clientes.png"/>
+<span class="nav-label">Clientes</span>
+</button>
 <button class="nav-item" data-tooltip="Relatórios e indicadores" id="navReports">
 <img alt="" class="nav-ico" src="relatorio.png"/>
 <span class="nav-label">Relatórios</span>
@@ -357,7 +361,77 @@
 </section>
 
 <!-- MY PROJECTS VIEW (KANBAN) -->
-<section class="view" hidden id="viewMyProjects">
+<section class="view" hidden 
+<section class="view" hidden="" id="viewClients">
+<div class="container">
+<div class="page-header">
+<div>
+<h1>Clientes</h1>
+<p class="muted">Cadastre clientes e vincule projetos a eles.</p>
+</div>
+<div class="chips">
+<button class="icon-btn" id="btnOpenCreateClient" title="Adicionar cliente" aria-label="Adicionar cliente">
+  <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+    <defs>
+      <linearGradient id="fpGradAddClient" x1="0" y1="0" x2="24" y2="24" gradientUnits="userSpaceOnUse">
+        <stop stop-color="rgb(119, 59, 246)"/>
+        <stop offset="1" stop-color="rgb(100, 102, 251)"/>
+      </linearGradient>
+    </defs>
+    <circle cx="12" cy="12" r="9" stroke="url(#fpGradAddClient)" stroke-width="2"></circle>
+    <path d="M12 8v8M8 12h8" stroke="url(#fpGradAddClient)" stroke-width="2" stroke-linecap="round"></path>
+  </svg>
+</button>
+
+<div class="saas-search" id="clientsSearchWrap" aria-label="Filtro de clientes">
+  <svg class="saas-search-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+    <circle cx="11" cy="11" r="7"></circle>
+    <path d="M20 20l-3.5-3.5"></path>
+  </svg>
+  <input id="clientsSearch" placeholder="Buscar por nome, CNPJ/CPF, e-mail, telefone, key user..." autocomplete="off" />
+  <button class="saas-clear" id="btnClearClientsSearch" title="Limpar" aria-label="Limpar">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+      <path d="M18 6L6 18"></path>
+      <path d="M6 6l12 12"></path>
+    </svg>
+  </button>
+</div>
+</div>
+</div>
+
+<div class="panel" style="margin-bottom:12px;">
+<div style="display:flex; justify-content:flex-end;">
+<button class="btn sm" id="btnReloadClients" type="button">Recarregar</button>
+</div>
+
+<div id="clientsPagination" class="table-pagination" aria-label="Paginação de clientes" style="margin-top:12px;"></div>
+
+<div class="table" style="margin-top:12px; overflow:auto;">
+<table>
+<thead>
+<tr>
+<th style="width:70px;">ID</th>
+<th>Nome</th>
+<th>Key user</th>
+<th style="width:110px;">Projetos</th>
+<th style="width:110px;">Status</th>
+<th style="width:110px;">Ações</th>
+</tr>
+</thead>
+<tbody id="clientsTbody"></tbody>
+</table>
+</div>
+
+<div class="panel subtle" hidden="" id="clientsEmpty" style="margin-top:12px;">
+<h3>Nenhum cliente encontrado</h3>
+<p class="muted">Tente ajustar a busca ou cadastre um novo cliente.</p>
+</div>
+</div>
+</div>
+</section>
+
+<!-- MEUS PROJETOS (KANBAN) -->
+<section class="view" hidden="" id="viewMyProjects">
   <div class="container">
     <div class="page-header">
       <div>
@@ -1366,5 +1440,144 @@
 </script>
 
 
+
+<!-- MODAL: Criar/Editar Cliente -->
+<div class="modal" hidden="" id="modalCreateClient">
+  <div class="modal-backdrop" data-close="true"></div>
+  <div class="modal-card modal-xl">
+    <div class="modal-header">
+      <div>
+        <h2 id="createClientTitle">Cliente</h2>
+        <p class="muted">Preencha os dados do cliente.</p>
+      </div>
+      <button class="btn ghost" id="btnCloseCreateClient" data-close="true" type="button">✕</button>
+    </div>
+
+    <div class="modal-body">
+      <div class="alert" hidden="" id="createClientAlert"></div>
+
+      <div class="form-sections">
+        <div class="form-section">
+          <h3>Informações do Cliente</h3>
+
+          <div class="tech-photo-row" style="margin-bottom:14px;">
+            <div class="tech-avatar-preview" id="clientPhotoPreview">
+              <img id="clientPhotoImg" alt="" hidden=""/>
+              <span id="clientPhotoFallback">?</span>
+            </div>
+            <div class="profile-photo-actions">
+              <input id="clientPhotoFile" type="file" accept="image/png,image/jpeg,image/jpg,image/webp"/>
+              <input type="hidden" id="clientPhotoUrl"/>
+              <button class="btn sm" id="btnClientRemovePhoto" type="button">Remover</button>
+              <div class="muted" style="font-size:12px;">PNG/JPG/WebP até 2MB.</div>
+            </div>
+          </div>
+
+          <div class="form-grid">
+            <div class="form-field">
+              <label for="clientId">ID</label>
+              <input id="clientId" placeholder="(gerado ao salvar)" readonly />
+            </div>
+
+            <div class="form-field">
+              <label for="clientName">Nome do cliente</label>
+              <input id="clientName" placeholder="Ex.: Empresa XPTO" />
+            </div>
+
+            <div class="form-field">
+              <label for="clientCpfCnpj">CNPJ/CPF</label>
+              <input id="clientCpfCnpj" placeholder="00.000.000/0000-00" />
+            </div>
+
+            <div class="form-field" style="grid-column: 1 / -1;">
+              <label for="clientAddress">Endereço</label>
+              <input id="clientAddress" placeholder="Rua, número, bairro, cidade - UF" />
+            </div>
+
+            <div class="form-field">
+              <label for="clientPhone">Telefone</label>
+              <input id="clientPhone" placeholder="(00) 00000-0000" />
+            </div>
+
+            <div class="form-field">
+              <label for="clientEmail">Email</label>
+              <input id="clientEmail" placeholder="cliente@empresa.com" />
+            </div>
+
+            <div class="form-field" style="display:flex; align-items:flex-end;">
+              <label style="display:flex; align-items:center; gap:10px; margin:0;">
+                <input type="checkbox" id="clientActive" checked />
+                <span>Ativo</span>
+              </label>
+            </div>
+          </div>
+        </div>
+
+        <div class="form-section">
+          <h3>Key user</h3>
+
+          <div class="form-grid">
+            <div class="form-field">
+              <label for="clientKeyUserName">Key user</label>
+              <input id="clientKeyUserName" placeholder="Nome do key user" />
+            </div>
+            <div class="form-field">
+              <label for="clientKeyUserEmail">Email do key user</label>
+              <input id="clientKeyUserEmail" placeholder="email@empresa.com" />
+            </div>
+            <div class="form-field">
+              <label for="clientKeyUserPhone">Telefone do key user</label>
+              <input id="clientKeyUserPhone" placeholder="(00) 00000-0000" />
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="modal-footer">
+      <button class="btn ghost" id="btnCancelCreateClient" data-close="true" type="button">Cancelar</button>
+      <button class="btn primary" id="btnCreateClient" type="button">Salvar</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL: Projetos do Cliente -->
+<div class="modal" hidden="" id="modalClientProjects">
+  <div class="modal-backdrop" data-close="true"></div>
+  <div class="modal-card modal-xl">
+    <div class="modal-header">
+      <div>
+        <h2 id="clientProjectsTitle">Projetos</h2>
+        <p class="muted">Projetos vinculados ao cliente.</p>
+      </div>
+      <button class="btn ghost" id="btnCloseClientProjects" data-close="true" type="button">✕</button>
+    </div>
+
+    <div class="modal-body">
+      <div class="table" style="overflow:auto;">
+        <table>
+          <thead>
+            <tr>
+              <th>Projeto</th>
+              <th style="width:120px;">Horas</th>
+              <th style="width:140px;">Valor</th>
+              <th style="width:140px;">Status</th>
+            </tr>
+          </thead>
+          <tbody id="clientProjectsTbody"></tbody>
+        </table>
+      </div>
+
+      <div class="panel subtle" hidden="" id="clientProjectsEmpty" style="margin-top:12px;">
+        <h3>Nenhum projeto vinculado</h3>
+        <p class="muted">Quando um projeto for criado com este cliente, ele aparecerá aqui.</p>
+      </div>
+    </div>
+
+    <div class="modal-footer">
+      <button class="btn ghost" id="btnCancelClientProjects" data-close="true" type="button">Fechar</button>
+    </div>
+  </div>
+</div>
 </body>
 </html>

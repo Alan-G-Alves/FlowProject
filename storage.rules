@@ -41,7 +41,19 @@ service firebase.storage {
         && request.resource.contentType.matches('image/.*');
     }
 
-    // Upload temporário de avatar enquanto o usuário ainda NÃO existe em companies/{companyId}/users/{uid}
+    
+    // Fotos de Clientes (SEM extensão): clientPhotos/{companyId}/{clientId}
+    match /clientPhotos/{companyId}/{clientId} {
+      allow read: if signedIn() && companyId == myCompanyId();
+
+      allow write: if signedIn()
+        && companyId == myCompanyId()
+        && canManageUsers()
+        && request.resource.size < 2 * 1024 * 1024
+        && request.resource.contentType.matches('image/.*');
+    }
+
+// Upload temporário de avatar enquanto o usuário ainda NÃO existe em companies/{companyId}/users/{uid}
     // Caminho: tempAvatars/{companyId}/{uploaderUid}/{tempId}
     match /tempAvatars/{companyId}/{uploaderUid}/{tempId} {
       // TEMP upload: permite apenas o próprio uploader (evita depender de Firestore get() aqui)

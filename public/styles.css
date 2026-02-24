@@ -1635,6 +1635,34 @@ a{ color: inherit; }
   margin-top: 0;
 }
 
+
+
+/* Clientes – usar o mesmo padrão visual do Kanban/Técnicos */
+#viewClients .container{
+  max-width: none;
+  padding-top: 56px;
+}
+
+#viewClients .page-header{
+  border-top: 2px solid var(--border);
+  padding-top: 18px;
+  margin-top: 0;
+}
+
+/* Botão Adicionar Cliente – mesmo tamanho do Kanban */
+#btnOpenCreateClient{
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+  width: 44px;
+  height: 44px;
+  padding: 0;
+}
+
+#btnOpenCreateClient svg{
+  width: 42px;
+  height: 42px;
+}
 /* =========================
    Botão Adicionar Projeto (Kanban)
    ========================= */
