@@ -106,6 +106,43 @@ async function uploadClientPhoto(deps, companyId, clientId, file){
 // =====================
 // View entry points
 // =====================
+
+/**
+ * Garante que o cache de clientes esteja carregado (sem acoplar com UI).
+ * Útil para outras telas, como "Criar Projeto", que precisam listar clientes.
+ */
+export async function ensureClientsCache(deps, { force = false } = {}) {
+  const { state, db } = deps || {};
+  const companyId = state?.companyId;
+  if (!db || !companyId) return [];
+
+  // Se já carregou uma vez (mesmo vazio), não refaz chamada a menos que force=true
+  if (!force && state._clientsCacheLoaded) {
+    return Array.isArray(state._clientsCache) ? state._clientsCache : [];
+  }
+  if (!force && Array.isArray(state._clientsCache) && state._clientsCache.length) {
+    state._clientsCacheLoaded = true;
+    return state._clientsCache;
+  }
+
+  try {
+    const snap = await getDocs(collection(db, "companies", companyId, "clients"));
+    const all = [];
+    snap.forEach((d) => all.push({ id: d.id, ...d.data() }));
+    state._clientsCache = all;
+    const byId = {};
+    for (const c of all) byId[c.id] = c;
+    state._clientsById = byId;
+    state._clientsCacheLoaded = true;
+    return all;
+  } catch (e) {
+    console.warn("[clients] ensureClientsCache falhou:", e);
+    state._clientsCacheLoaded = true; // evita loop infinito de tentativas em modais
+    state._clientsCache = state._clientsCache || [];
+    return state._clientsCache;
+  }
+}
+
 export function openClientsView(deps){
   const { setView } = deps;
   setView?.("clients");
@@ -144,6 +181,10 @@ export async function loadClients(deps){
 
   // cache
   state._clientsCache = all;
+  state._clientsCacheLoaded = true;
+  const byId = {};
+  for (const c of all) byId[c.id] = c;
+  state._clientsById = byId;
 
   renderClientsTable(deps);
 }

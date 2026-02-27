@@ -951,8 +951,8 @@ async function loadProjects() {
   await projectsDomain.loadProjects(getProjectsDeps());
 }
 
-function openCreateProjectModal() {
-  projectsDomain.openCreateProjectModal(getProjectsDeps());
+async function openCreateProjectModal() {
+  await projectsDomain.openCreateProjectModal(getProjectsDeps());
 }
 
 function closeCreateProjectModal() {

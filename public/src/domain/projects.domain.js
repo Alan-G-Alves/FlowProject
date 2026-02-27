@@ -24,6 +24,7 @@ import { setView } from "../ui/router.js";
 import { slugify } from "../utils/format.js";
 import { escapeHtml } from "../utils/dom.js";
 import { getTeamNameById, initialFromName } from "../utils/helpers.js";
+import { ensureClientsCache } from "./clients.domain.js";
 
 /**
  * Listener realtime do Kanban (Meus Projetos)
@@ -521,7 +522,7 @@ function getPriorityBadge(priority) {
 /**
  * Abre modal de criar projeto
  */
-export function openCreateProjectModal(deps) {
+export async function openCreateProjectModal(deps) {
   const { refs, state } = deps;
 
   if (!refs.modalCreateProject) return;
@@ -560,6 +561,10 @@ export function openCreateProjectModal(deps) {
   populateCoordinatorSelectNew(refs.projectCoordinatorEl, state._usersCache);
 
   // Preenche select de clientes (opcional)
+  // - Garante que o cache esteja carregado, mesmo que o usuário não tenha aberto a tela de Clientes antes.
+  // - O select pode ter vindo "disabled" por HTML de versões antigas.
+  if (refs.projectClientEl) refs.projectClientEl.disabled = false;
+  await ensureClientsCache(deps);
   populateClientSelect(refs.projectClientEl, state._clientsCache || []);
 
   // UI do modal (chips + máscara + técnicos)
