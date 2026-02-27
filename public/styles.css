@@ -1540,6 +1540,13 @@ a{ color: inherit; }
   white-space: nowrap;
 }
 
+.kanban-mini-text{
+  max-width: 140px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .mini-ic{
   width: 14px;
   height: 14px;

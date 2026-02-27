@@ -24,7 +24,6 @@ import { setView } from "../ui/router.js";
 import { slugify } from "../utils/format.js";
 import { escapeHtml } from "../utils/dom.js";
 import { getTeamNameById, initialFromName } from "../utils/helpers.js";
-import { ensureClientsCache } from "./clients.domain.js";
 
 /**
  * Listener realtime do Kanban (Meus Projetos)
@@ -522,7 +521,7 @@ function getPriorityBadge(priority) {
 /**
  * Abre modal de criar projeto
  */
-export async function openCreateProjectModal(deps) {
+export function openCreateProjectModal(deps) {
   const { refs, state } = deps;
 
   if (!refs.modalCreateProject) return;
@@ -561,10 +560,6 @@ export async function openCreateProjectModal(deps) {
   populateCoordinatorSelectNew(refs.projectCoordinatorEl, state._usersCache);
 
   // Preenche select de clientes (opcional)
-  // - Garante que o cache esteja carregado, mesmo que o usuário não tenha aberto a tela de Clientes antes.
-  // - O select pode ter vindo "disabled" por HTML de versões antigas.
-  if (refs.projectClientEl) refs.projectClientEl.disabled = false;
-  await ensureClientsCache(deps);
   populateClientSelect(refs.projectClientEl, state._clientsCache || []);
 
   // UI do modal (chips + máscara + técnicos)
@@ -683,6 +678,9 @@ export async function createProject(deps) {
       managerUid,
       coordinatorUid: coordinatorUid || "",
       teamId: teamId || "",
+      clientId: clientId || "",
+      clientName: clientName || "",
+      clientNumber: clientNumber ?? "",
       billingType,
       billingValue: billingValue ?? null,
       billingHours: billingHours ?? null,
@@ -1282,6 +1280,7 @@ function renderKanbanCards(container, projects, deps) {
 
     const displayId = _projectDisplayId(project);
     const endBR = _fmtDateBR(project.endDate || project.endAt || project.dateEnd);
+    const clientName = (project.clientName || project.client?.name || project.customerName || "").toString();
     const valueBRL = _fmtBRL(project.billingValue ?? project.value ?? project.billing?.value ?? project.cobrancaValor);
     const hoursTxt = _fmtHours(project.billingHours ?? project.hours ?? project.billing?.hours ?? project.cobrancaHoras);
 
@@ -1296,6 +1295,13 @@ function renderKanbanCards(container, projects, deps) {
       <path d="M17 7.5c0-1.93-2.24-3.5-5-3.5s-5 1.57-5 3.5S9.24 11 12 11s5 1.57 5 3.5S14.76 18 12 18s-5-1.57-5-3.5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
     </svg>`;
 
+    const icBuilding = `<svg class="mini-ic" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <path d="M4 21V3h10v18" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/>
+      <path d="M14 9h6v12" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/>
+      <path d="M8 7h2M8 11h2M8 15h2" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+      <path d="M16 13h2M16 17h2" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+    </svg>`;
+
     const icClock = `<svg class="mini-ic" viewBox="0 0 24 24" fill="none" aria-hidden="true">
       <path d="M12 8v5l3 2" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
       <path d="M12 22c5.523 0 10-4.477 10-10S17.523 2 12 2 2 6.477 2 12s4.477 10 10 10Z" stroke="currentColor" stroke-width="2"/>
@@ -1308,6 +1314,7 @@ function renderKanbanCards(container, projects, deps) {
       </div>
 
       <div class="kanban-card-meta kanban-card-meta--row">
+        ${clientName ? `<span class="kanban-mini kanban-mini--client" title="Cliente">${icBuilding}<span class="kanban-mini-text">${escapeHtml(clientName)}</span></span>` : ""}
         ${endBR ? `<span class="kanban-mini" title="Data final">${icCalendar}<span>${escapeHtml(endBR)}</span></span>` : ""}
         ${valueBRL ? `<span class="kanban-mini" title="Valor">${icMoney}<span>${escapeHtml(valueBRL)}</span></span>` : ""}
         ${hoursTxt ? `<span class="kanban-mini" title="Horas">${icClock}<span>${escapeHtml(hoursTxt)}h</span></span>` : ""}
