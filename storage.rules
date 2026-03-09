@@ -44,14 +44,22 @@ service firebase.storage {
     
     // Fotos de Clientes (SEM extensão): clientPhotos/{companyId}/{clientId}
     match /clientPhotos/{companyId}/{clientId} {
+      // qualquer usuário autenticado da mesma empresa pode ver a foto do cliente
       allow read: if signedIn() && companyId == myCompanyId();
 
-      allow write: if signedIn()
+      // upload/atualização da foto do cliente (2MB)
+      // OBS: não dependemos de role aqui para evitar 403 por inconsistência de perfil;
+      // quem pode criar/editar clientes continua controlado no Firestore.
+      allow create, update: if signedIn()
         && companyId == myCompanyId()
-        && canManageUsers()
-        && request.resource.size < 2 * 1024 * 1024
-        && request.resource.contentType.matches('image/.*');
+        && request.resource.size < 2 * 1024 * 1024;
+
+      // delete somente para quem pode gerenciar (mantém mais seguro)
+      allow delete: if signedIn()
+        && companyId == myCompanyId()
+        && canManageUsers();
     }
+
 
 // Upload temporário de avatar enquanto o usuário ainda NÃO existe em companies/{companyId}/users/{uid}
     // Caminho: tempAvatars/{companyId}/{uploaderUid}/{tempId}

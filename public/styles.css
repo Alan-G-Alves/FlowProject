@@ -1670,6 +1670,11 @@ a{ color: inherit; }
   width: 42px;
   height: 42px;
 }
+
+#btnOpenCreateClient:hover{
+  background: transparent !important;
+  transform: scale(1.08);
+}
 /* =========================
    Botão Adicionar Projeto (Kanban)
    ========================= */

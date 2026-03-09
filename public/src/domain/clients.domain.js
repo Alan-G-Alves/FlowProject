@@ -199,11 +199,6 @@ function bindClientsUiOnce(deps){
     openCreateClientModal(deps);
   });
 
-  refs.btnReloadClients?.addEventListener("click", (e) => {
-    e.preventDefault();
-    loadClients(deps);
-  });
-
   refs.clientsSearch?.addEventListener("input", () => {
     state._clientsPage = 1;
     renderClientsTable(deps);
@@ -320,33 +315,33 @@ function renderClientsTable(deps){
     from = Math.max(1, to - windowSize + 1);
 
     const parts = [];
-    const btn = (p, label = p, disabled=false, active=false) => {
-      return `<button class="btn sm ${active ? "primary" : ""}" data-page="${p}" ${disabled ? "disabled" : ""}>${label}</button>`;
+    const mkBtn = (label, page, disabled, cls = "") => {
+      const dis = disabled ? "disabled" : "";
+      return `<button class="page-btn ${cls}" data-page="${page}" ${dis}>${label}</button>`;
     };
 
-    parts.push(btn(Math.max(1, cur-1), "‹", cur===1, false));
+    parts.push(`<div class="page-meta"><span>Mostrando <b>${Math.min(startIdx + pageItems.length, filtered.length)}</b> de <b>${filtered.length}</b></span></div>`);
+    parts.push(`<div class="page-controls">`);
+    parts.push(mkBtn("‹", cur - 1, cur <= 1, "nav"));
 
-    if (from > 1){
-      parts.push(btn(1, "1", false, cur===1));
-      if (from > 2) parts.push(`<span class="muted" style="padding:0 6px;">…</span>`);
+    if (from > 1) {
+      parts.push(mkBtn("1", 1, false, (cur === 1 ? "active" : "")));
+      if (from > 2) parts.push(`<span class="page-ellipsis">…</span>`);
     }
 
-    for (let p=from; p<=to; p++){
-      parts.push(btn(p, String(p), false, p===cur));
+    for (let p = from; p <= to; p++) {
+      parts.push(mkBtn(String(p), p, false, (p === cur ? "active" : "")));
     }
 
-    if (to < totalPages){
-      if (to < totalPages-1) parts.push(`<span class="muted" style="padding:0 6px;">…</span>`);
-      parts.push(btn(totalPages, String(totalPages), false, cur===totalPages));
+    if (to < totalPages) {
+      if (to < totalPages - 1) parts.push(`<span class="page-ellipsis">…</span>`);
+      parts.push(mkBtn(String(totalPages), totalPages, false, (cur === totalPages ? "active" : "")));
     }
 
-    parts.push(btn(Math.min(totalPages, cur+1), "›", cur===totalPages, false));
+    parts.push(mkBtn("›", cur + 1, cur >= totalPages, "nav"));
+    parts.push(`</div>`);
 
-    refs.clientsPagination.innerHTML = `
-      <div style="display:flex; gap:6px; align-items:center; flex-wrap:wrap;">
-        ${parts.join("")}
-      </div>
-    `;
+    refs.clientsPagination.innerHTML = parts.join("");
 
     // bind page buttons
     refs.clientsPagination.querySelectorAll("button[data-page]").forEach(b => {
@@ -519,22 +514,49 @@ function syncClientPhotoPreview(deps, { clear=false } = {}){
   const imgEl = refs.clientPhotoImg;
   const fallbackEl = refs.clientPhotoFallback;
 
+  // Helper: show/hide
+  const showImg = (src) => {
+    if (imgEl){
+      imgEl.src = src;
+      imgEl.hidden = false;
+      // CSS do projeto escondia a imagem (display:none); força inline para garantir preview
+      imgEl.style.display = "block";
+    }
+    if (fallbackEl){
+      fallbackEl.hidden = true;
+      fallbackEl.style.display = "none";
+    }
+  };
+
+  const showFallback = () => {
+    if (imgEl){
+      imgEl.src = "";
+      imgEl.hidden = true;
+      imgEl.style.display = "none";
+    }
+    if (fallbackEl){
+      fallbackEl.hidden = false;
+      fallbackEl.style.display = "flex";
+    }
+  };
+
   // Prefer file preview
   if (file){
     const tmp = URL.createObjectURL(file);
-    if (imgEl) { imgEl.src = tmp; imgEl.hidden = false; }
-    if (fallbackEl) { fallbackEl.textContent = initials(refs.clientNameEl?.value || ""); fallbackEl.hidden = true; }
+    showImg(tmp);
+    // não revoga imediatamente; o browser usa enquanto a img carrega
+    setTimeout(() => { try { URL.revokeObjectURL(tmp); } catch(_){} }, 30000);
     return;
   }
 
+  // Else URL preview (if any)
   if (url){
-    if (imgEl) { imgEl.src = url; imgEl.hidden = false; }
-    if (fallbackEl) { fallbackEl.textContent = initials(refs.clientNameEl?.value || ""); fallbackEl.hidden = true; }
+    showImg(url);
     return;
   }
 
-  if (imgEl) { imgEl.src = ""; imgEl.hidden = true; }
-  if (fallbackEl) { fallbackEl.textContent = initials(refs.clientNameEl?.value || ""); fallbackEl.hidden = false; }
+  // Nothing selected
+  showFallback();
 }
 
 async function saveClientFromModal(deps){

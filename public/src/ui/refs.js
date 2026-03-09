@@ -181,7 +181,6 @@ export const mgrUsersPagination = byId("mgrUsersPagination");
 export const btnOpenCreateClient = byId("btnOpenCreateClient");
 export const clientsSearch = byId("clientsSearch");
 export const btnClearClientsSearch = byId("btnClearClientsSearch");
-export const btnReloadClients = byId("btnReloadClients");
 export const clientsTbody = byId("clientsTbody");
 export const clientsEmpty = byId("clientsEmpty");
 export const clientsPagination = byId("clientsPagination");
