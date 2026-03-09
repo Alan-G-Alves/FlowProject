@@ -71,6 +71,102 @@ function initials(name){
   return (a + b).toUpperCase();
 }
 
+function normalizeKeyUserEntry(item){
+  const x = item || {};
+  return {
+    name: (x.name || "").toString().trim(),
+    email: (x.email || "").toString().trim(),
+    phone: (x.phone || "").toString().trim()
+  };
+}
+
+function normalizeKeyUsers(items){
+  const arr = Array.isArray(items) ? items : [];
+  const out = [];
+  const seen = new Set();
+  for (const raw of arr){
+    const ku = normalizeKeyUserEntry(raw);
+    if (!ku.name && !ku.email && !ku.phone) continue;
+    const key = normalizeText(`${ku.name}|${ku.email}|${ku.phone}`);
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push(ku);
+  }
+  return out;
+}
+
+function getClientKeyUsers(client){
+  const many = normalizeKeyUsers(client?.keyUsers);
+  if (many.length) return many;
+
+  const legacy = normalizeKeyUserEntry({
+    name: client?.keyUserName,
+    email: client?.keyUserEmail,
+    phone: client?.keyUserPhone
+  });
+  if (legacy.name || legacy.email || legacy.phone) return [legacy];
+  return [];
+}
+
+function getClientKeyUserLabel(ku){
+  return ku?.name || ku?.email || ku?.phone || "—";
+}
+
+function exportClientsToExcel(deps, items){
+  const { state } = deps;
+  const companyId = (state.companyId || "empresa").toString();
+  const now = new Date();
+  const pad = (n) => String(n).padStart(2, "0");
+  const stamp = `${now.getFullYear()}-${pad(now.getMonth()+1)}-${pad(now.getDate())}_${pad(now.getHours())}${pad(now.getMinutes())}`;
+  const filename = `clientes_${companyId}_${stamp}.xls`;
+
+  const rows = items.map(c => {
+    const statusLabel = (c.active === false) ? "Inativo" : "Ativo";
+    const keyUsersLabel = getClientKeyUsers(c).map(getClientKeyUserLabel).join(" | ");
+    return `
+      <tr>
+        <td>${esc(c.number ?? "")}</td>
+        <td>${esc(c.name || "")}</td>
+        <td>${esc(c.cpfCnpj || "")}</td>
+        <td>${esc(keyUsersLabel)}</td>
+        <td>${esc(c.projectsCount ?? 0)}</td>
+        <td>${esc(statusLabel)}</td>
+      </tr>
+    `;
+  }).join("");
+
+  const html = `
+    <html>
+      <head><meta charset="utf-8" /></head>
+      <body>
+        <table border="1">
+          <thead>
+            <tr>
+              <th>ID</th>
+              <th>Nome</th>
+              <th>CNPJ/CPF</th>
+              <th>Key user</th>
+              <th>Projetos</th>
+              <th>Status</th>
+            </tr>
+          </thead>
+          <tbody>${rows}</tbody>
+        </table>
+      </body>
+    </html>
+  `;
+
+  const blob = new Blob([html], { type: "application/vnd.ms-excel;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+}
+
 async function computeNextClientNumber(db, companyId){
   // Estratégia simples (igual projects.domain): busca o maior "number" e soma +1.
   let next = 1;
@@ -189,6 +285,60 @@ export async function loadClients(deps){
   renderClientsTable(deps);
 }
 
+function setClientKeyUsersDraftFromClient(deps, client){
+  const { state } = deps;
+  state._clientKeyUsersDraft = getClientKeyUsers(client);
+}
+
+function clearClientKeyUserInputs(refs){
+  if (refs.clientKeyUserNameEl) refs.clientKeyUserNameEl.value = "";
+  if (refs.clientKeyUserEmailEl) refs.clientKeyUserEmailEl.value = "";
+  if (refs.clientKeyUserPhoneEl) refs.clientKeyUserPhoneEl.value = "";
+}
+
+function renderClientKeyUsersDraft(deps){
+  const { refs, state } = deps;
+  if (!refs.clientKeyUsersList) return;
+  const list = normalizeKeyUsers(state._clientKeyUsersDraft);
+  state._clientKeyUsersDraft = list;
+
+  if (!list.length){
+    refs.clientKeyUsersList.innerHTML = "";
+    show(refs.clientKeyUsersEmpty);
+    return;
+  }
+
+  hide(refs.clientKeyUsersEmpty);
+  const isView = state._clientsModalMode === "view";
+  const rows = list.map((ku, idx) => `
+    <div class="client-keyuser-item">
+      <div class="client-keyuser-main">${esc(getClientKeyUserLabel(ku))}</div>
+      <div class="client-keyuser-sub">${esc([ku.email, ku.phone].filter(Boolean).join(" • ") || "Sem e-mail/telefone")}</div>
+      ${isView ? "" : `<button class="icon-btn xs btn-block" data-remove-key-user="${idx}" title="Remover" aria-label="Remover">×</button>`}
+    </div>
+  `).join("");
+  refs.clientKeyUsersList.innerHTML = rows;
+}
+
+function addClientKeyUserFromInputs(deps){
+  const { refs, state } = deps;
+  const entry = normalizeKeyUserEntry({
+    name: refs.clientKeyUserNameEl?.value || "",
+    email: refs.clientKeyUserEmailEl?.value || "",
+    phone: refs.clientKeyUserPhoneEl?.value || ""
+  });
+
+  if (!entry.name && !entry.email && !entry.phone){
+    setAlert(refs.createClientAlert, "Preencha ao menos nome, email ou telefone do key user.", "error");
+    return;
+  }
+
+  clearAlert(refs.createClientAlert);
+  state._clientKeyUsersDraft = normalizeKeyUsers([...(state._clientKeyUsersDraft || []), entry]);
+  clearClientKeyUserInputs(refs);
+  renderClientKeyUsersDraft(deps);
+}
+
 function bindClientsUiOnce(deps){
   const { refs, state } = deps;
   if (state._clientsUiBound) return;
@@ -209,6 +359,31 @@ function bindClientsUiOnce(deps){
     if (refs.clientsSearch) refs.clientsSearch.value = "";
     state._clientsPage = 1;
     renderClientsTable(deps);
+  });
+
+  refs.btnAddClientKeyUser?.addEventListener("click", (e) => {
+    e.preventDefault();
+    addClientKeyUserFromInputs(deps);
+  });
+
+  [refs.clientKeyUserNameEl, refs.clientKeyUserEmailEl, refs.clientKeyUserPhoneEl].forEach((el) => {
+    el?.addEventListener("keydown", (e) => {
+      if (e.key !== "Enter") return;
+      e.preventDefault();
+      addClientKeyUserFromInputs(deps);
+    });
+  });
+
+  refs.clientKeyUsersList?.addEventListener("click", (ev) => {
+    const btn = ev.target?.closest?.("[data-remove-key-user]");
+    if (!btn) return;
+    if (state._clientsModalMode === "view") return;
+    const idx = Number(btn.getAttribute("data-remove-key-user") || "-1");
+    if (idx < 0) return;
+    const list = Array.isArray(state._clientKeyUsersDraft) ? state._clientKeyUsersDraft : [];
+    list.splice(idx, 1);
+    state._clientKeyUsersDraft = list;
+    renderClientKeyUsersDraft(deps);
   });
 
   // Ações por delegação
@@ -243,6 +418,11 @@ function bindClientsUiOnce(deps){
       await openClientProjectsModal(deps, client);
       return;
     }
+
+    if (act === "keyUsers"){
+      openClientKeyUsersModal(deps, client);
+      return;
+    }
   });
 
   // modal create client close/cancel
@@ -268,6 +448,8 @@ function bindClientsUiOnce(deps){
   // modal projects close
   refs.btnCloseClientProjects?.addEventListener("click", (e) => { e.preventDefault(); closeClientProjectsModal(deps); });
   refs.btnCancelClientProjects?.addEventListener("click", (e) => { e.preventDefault(); closeClientProjectsModal(deps); });
+  refs.btnCloseClientKeyUsers?.addEventListener("click", (e) => { e.preventDefault(); closeClientKeyUsersModal(deps); });
+  refs.btnCancelClientKeyUsers?.addEventListener("click", (e) => { e.preventDefault(); closeClientKeyUsersModal(deps); });
 }
 
 function renderClientsTable(deps){
@@ -279,9 +461,11 @@ function renderClientsTable(deps){
 
   const filtered = list.filter(c => {
     if (!terms.length) return true;
+    const keyUsers = getClientKeyUsers(c);
+    const keyUsersText = keyUsers.map(ku => `${ku.name} ${ku.email} ${ku.phone}`).join(" ");
     const hay = normalizeText([
       c.number, c.name, c.cpfCnpj, c.email, c.phone, c.address,
-      c.keyUserName, c.keyUserEmail, c.keyUserPhone
+      c.keyUserName, c.keyUserEmail, c.keyUserPhone, keyUsersText
     ].filter(Boolean).join(" "));
     return terms.every(t => hay.includes(t));
   });
@@ -320,7 +504,16 @@ function renderClientsTable(deps){
       return `<button class="page-btn ${cls}" data-page="${page}" ${dis}>${label}</button>`;
     };
 
-    parts.push(`<div class="page-meta"><span>Mostrando <b>${Math.min(startIdx + pageItems.length, filtered.length)}</b> de <b>${filtered.length}</b></span></div>`);
+    parts.push(`<div class="page-meta">
+      <span>Mostrando <b>${Math.min(startIdx + pageItems.length, filtered.length)}</b> de <b>${filtered.length}</b></span>
+      <button class="icon-btn xs btn-download" data-act="export" title="Baixar Excel" aria-label="Baixar Excel">
+        <svg viewBox="0 0 24 24" width="18" height="18" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <path d="M12 3v10" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+          <path d="M8 11l4 4 4-4" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+          <path d="M4 20h16" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+        </svg>
+      </button>
+    </div>`);
     parts.push(`<div class="page-controls">`);
     parts.push(mkBtn("‹", cur - 1, cur <= 1, "nav"));
 
@@ -352,6 +545,20 @@ function renderClientsTable(deps){
         renderClientsTable(deps);
       });
     });
+
+    const exportBtn = refs.clientsPagination.querySelector('[data-act="export"]');
+    if (exportBtn){
+      exportBtn.addEventListener("click", (ev) => {
+        ev.preventDefault();
+        ev.stopPropagation();
+        try{
+          exportClientsToExcel(deps, filtered);
+        }catch(err){
+          console.error(err);
+          alert("Não foi possível exportar.");
+        }
+      });
+    }
   }
 
   // Render rows
@@ -364,7 +571,12 @@ function renderClientRow(c){
   const statusLabel = isActive ? "Ativo" : "Bloqueado";
   const photo = (c.photoURL || "").trim();
   const name = c.name || "";
-  const keyUser = c.keyUserName || "—";
+  const keyUsers = getClientKeyUsers(c);
+  const keyUser = keyUsers.length > 1
+    ? `${getClientKeyUserLabel(keyUsers[0])} +${keyUsers.length - 1}`
+    : (keyUsers.length ? getClientKeyUserLabel(keyUsers[0]) : "—");
+  const keyUserTitle = keyUsers.map(getClientKeyUserLabel).join(" | ");
+  const hasManyKeyUsers = keyUsers.length > 1;
   const projectsCount = Number(c.projectsCount || 0); // (opcional) cache futuro
 
   return `
@@ -377,11 +589,15 @@ function renderClientRow(c){
           </div>
           <div class="cell-user-meta">
             <div class="cell-user-name">${esc(name)}</div>
-            <div class="cell-user-sub muted">${esc(c.cpfCnpj || "")}</div>
           </div>
         </div>
       </td>
-      <td>${esc(keyUser)}</td>
+      <td>${esc(c.cpfCnpj || "—")}</td>
+      <td title="${esc(keyUserTitle)}">
+        ${hasManyKeyUsers
+          ? `<button class="keyusers-more-btn" data-act="keyUsers" title="Ver key users">${esc(keyUser)}</button>`
+          : esc(keyUser)}
+      </td>
       <td>
         <button class="btn sm feedback-badge" data-act="projects" title="Ver projetos">
           ${projectsCount}
@@ -458,14 +674,12 @@ function setClientModalMode(deps, mode, client){
   setDisabled(refs.clientKeyUserNameEl, disableAll);
   setDisabled(refs.clientKeyUserEmailEl, disableAll);
   setDisabled(refs.clientKeyUserPhoneEl, disableAll);
+  setDisabled(refs.btnAddClientKeyUser, disableAll);
   setDisabled(refs.clientActiveEl, disableAll);
   setDisabled(refs.clientPhotoFile, disableAll);
   if (refs.btnClientRemovePhoto) refs.btnClientRemovePhoto.style.display = isView ? "none" : "";
 
-  // ID sempre readonly
-  if (refs.clientIdEl){
-    refs.clientIdEl.readOnly = true;
-  }
+  renderClientKeyUsersDraft(deps);
 }
 
 export function openCreateClientModal(deps, opts = {}){
@@ -479,15 +693,14 @@ export function openCreateClientModal(deps, opts = {}){
 
   setClientModalMode(deps, mode, client);
 
-  if (refs.clientIdEl) refs.clientIdEl.value = client?.number ? String(client.number) : "";
   if (refs.clientNameEl) refs.clientNameEl.value = client?.name || "";
   if (refs.clientCpfCnpjEl) refs.clientCpfCnpjEl.value = client?.cpfCnpj || "";
   if (refs.clientAddressEl) refs.clientAddressEl.value = client?.address || "";
   if (refs.clientPhoneEl) refs.clientPhoneEl.value = client?.phone || "";
   if (refs.clientEmailEl) refs.clientEmailEl.value = client?.email || "";
-  if (refs.clientKeyUserNameEl) refs.clientKeyUserNameEl.value = client?.keyUserName || "";
-  if (refs.clientKeyUserEmailEl) refs.clientKeyUserEmailEl.value = client?.keyUserEmail || "";
-  if (refs.clientKeyUserPhoneEl) refs.clientKeyUserPhoneEl.value = client?.keyUserPhone || "";
+  clearClientKeyUserInputs(refs);
+  setClientKeyUsersDraftFromClient(deps, client);
+  renderClientKeyUsersDraft(deps);
   if (refs.clientActiveEl) refs.clientActiveEl.checked = client ? (client.active !== false) : true;
 
   if (refs.clientPhotoUrl) refs.clientPhotoUrl.value = client?.photoURL || "";
@@ -513,6 +726,7 @@ function syncClientPhotoPreview(deps, { clear=false } = {}){
 
   const imgEl = refs.clientPhotoImg;
   const fallbackEl = refs.clientPhotoFallback;
+  const fileNameEl = refs.clientPhotoFileName;
 
   // Helper: show/hide
   const showImg = (src) => {
@@ -542,6 +756,7 @@ function syncClientPhotoPreview(deps, { clear=false } = {}){
 
   // Prefer file preview
   if (file){
+    if (fileNameEl) fileNameEl.textContent = file.name || "Arquivo selecionado";
     const tmp = URL.createObjectURL(file);
     showImg(tmp);
     // não revoga imediatamente; o browser usa enquanto a img carrega
@@ -551,11 +766,13 @@ function syncClientPhotoPreview(deps, { clear=false } = {}){
 
   // Else URL preview (if any)
   if (url){
+    if (fileNameEl) fileNameEl.textContent = "Foto atual";
     showImg(url);
     return;
   }
 
   // Nothing selected
+  if (fileNameEl) fileNameEl.textContent = "Nenhum arquivo selecionado";
   showFallback();
 }
 
@@ -586,6 +803,18 @@ async function saveClientFromModal(deps){
     return;
   }
 
+  const draftKeyUsers = normalizeKeyUsers(state._clientKeyUsersDraft);
+  const pendingKeyUser = normalizeKeyUserEntry({
+    name: refs.clientKeyUserNameEl?.value || "",
+    email: refs.clientKeyUserEmailEl?.value || "",
+    phone: refs.clientKeyUserPhoneEl?.value || ""
+  });
+  const allKeyUsers = normalizeKeyUsers([
+    ...draftKeyUsers,
+    pendingKeyUser
+  ]);
+  const primaryKeyUser = allKeyUsers[0] || { name: "", email: "", phone: "" };
+
   const data = {
     name,
     nameLower: normalizeText(name),
@@ -593,9 +822,10 @@ async function saveClientFromModal(deps){
     address: (refs.clientAddressEl?.value || "").trim(),
     phone: (refs.clientPhoneEl?.value || "").trim(),
     email: (refs.clientEmailEl?.value || "").trim(),
-    keyUserName: (refs.clientKeyUserNameEl?.value || "").trim(),
-    keyUserEmail: (refs.clientKeyUserEmailEl?.value || "").trim(),
-    keyUserPhone: (refs.clientKeyUserPhoneEl?.value || "").trim(),
+    keyUsers: allKeyUsers,
+    keyUserName: primaryKeyUser.name,
+    keyUserEmail: primaryKeyUser.email,
+    keyUserPhone: primaryKeyUser.phone,
     active: !!refs.clientActiveEl?.checked,
     updatedAt: serverTimestamp(),
     updatedBy: auth?.currentUser?.uid || ""
@@ -620,8 +850,6 @@ async function saveClientFromModal(deps){
         photoURL: "" // pode atualizar depois
       });
 
-      // mostra number no campo ID
-      if (refs.clientIdEl) refs.clientIdEl.value = String(number);
     } else {
       ref = doc(db, "companies", companyId, "clients", clientId);
       await updateDoc(ref, data);
@@ -631,17 +859,28 @@ async function saveClientFromModal(deps){
     const file = refs.clientPhotoFile?.files?.[0] || null;
     let photoURL = (refs.clientPhotoUrl?.value || "").trim();
 
+    let photoWarning = "";
     if (file){
-      photoURL = await uploadClientPhoto(deps, companyId, finalId, file);
-      await updateDoc(doc(db, "companies", companyId, "clients", finalId), {
-        photoURL,
-        updatedAt: serverTimestamp(),
-        updatedBy: auth?.currentUser?.uid || ""
-      });
+      try{
+        photoURL = await uploadClientPhoto(deps, companyId, finalId, file);
+        await updateDoc(doc(db, "companies", companyId, "clients", finalId), {
+          photoURL,
+          updatedAt: serverTimestamp(),
+          updatedBy: auth?.currentUser?.uid || ""
+        });
+      }catch(photoErr){
+        console.error("[clients] uploadClientPhoto error:", photoErr);
+        photoWarning = "Cliente salvo, mas não foi possível enviar a foto.";
+      }
     }
 
     // atualiza cache local
     await loadClients(deps);
+
+    if (photoWarning){
+      setAlert(refs.createClientAlert, `${photoWarning} Verifique as permissões do Storage e tente novamente.`, "error");
+      return;
+    }
 
     closeCreateClientModal(deps);
   }catch(err){
@@ -707,4 +946,39 @@ function closeClientProjectsModal(deps){
   const { refs } = deps;
   if (!refs.modalClientProjects) return;
   refs.modalClientProjects.hidden = true;
+}
+
+function openClientKeyUsersModal(deps, client){
+  const { refs } = deps;
+  if (!refs.modalClientKeyUsers) return;
+
+  const keyUsers = getClientKeyUsers(client);
+  if (refs.clientKeyUsersTitle){
+    refs.clientKeyUsersTitle.textContent = `Key users — ${client?.name || ""}`;
+  }
+
+  if (!keyUsers.length){
+    if (refs.clientKeyUsersTbody) refs.clientKeyUsersTbody.innerHTML = "";
+    show(refs.clientKeyUsersModalEmpty);
+    refs.modalClientKeyUsers.hidden = false;
+    return;
+  }
+
+  hide(refs.clientKeyUsersModalEmpty);
+  const rows = keyUsers.map(ku => `
+    <tr>
+      <td>${esc(ku.name || "—")}</td>
+      <td>${esc(ku.email || "—")}</td>
+      <td>${esc(ku.phone || "—")}</td>
+    </tr>
+  `).join("");
+
+  if (refs.clientKeyUsersTbody) refs.clientKeyUsersTbody.innerHTML = rows;
+  refs.modalClientKeyUsers.hidden = false;
+}
+
+function closeClientKeyUsersModal(deps){
+  const { refs } = deps;
+  if (!refs.modalClientKeyUsers) return;
+  refs.modalClientKeyUsers.hidden = true;
 }

@@ -100,6 +100,11 @@ function initialsFromName(name){
   return (a + b).toUpperCase();
 }
 
+function setTechPhotoFileName(refs, label){
+  if (!refs?.techPhotoFileName) return;
+  refs.techPhotoFileName.textContent = label || "Nenhum arquivo selecionado";
+}
+
 function renderTechAvatarHtml(user){
   const url = (user?.photoURL || "").toString().trim();
   const initials = initialsFromName(user?.name);
@@ -245,6 +250,7 @@ export function openViewTechModal(deps, techUser){
   state._techTempAvatarURL = "";
   if (refs.techAvatarFileEl) refs.techAvatarFileEl.value = "";
   const url = (techUser?.photoURL || "").toString().trim();
+  setTechPhotoFileName(refs, url ? "Foto atual" : "Nenhum arquivo selecionado");
   if (refs.techAvatarPreviewImg && refs.techAvatarPreviewFallback){
     if (url){
       refs.techAvatarPreviewImg.src = url;
@@ -363,6 +369,7 @@ export function openEditTechModal(deps, techUser){
   state._techTempAvatarURL = "";
   if (refs.techAvatarFileEl) refs.techAvatarFileEl.value = "";
   const url = (techUser?.photoURL || "").toString().trim();
+  setTechPhotoFileName(refs, url ? "Foto atual" : "Nenhum arquivo selecionado");
   if (refs.techAvatarPreviewImg && refs.techAvatarPreviewFallback){
     if (url){
       refs.techAvatarPreviewImg.src = url;
@@ -1133,6 +1140,7 @@ export function openCreateTechModal(deps) {
   state._techTempAvatarPath = "";
   state._techTempAvatarURL = "";
   if (refs.techAvatarFileEl) refs.techAvatarFileEl.value = "";
+  setTechPhotoFileName(refs, "Nenhum arquivo selecionado");
   if (refs.techAvatarPreviewImg && refs.techAvatarPreviewFallback){
     refs.techAvatarPreviewImg.style.display = "none";
     refs.techAvatarPreviewImg.src = "";
@@ -1173,6 +1181,7 @@ refs.techActiveEl.value = "true";
       refs.techAvatarFileEl.addEventListener("change", async (e) => {
         const file = e.target.files && e.target.files[0];
         if (!file) return;
+        setTechPhotoFileName(refs, file.name || "Arquivo selecionado");
 
         // limpa temp anterior (se houver)
         await deleteTempAvatarIfAny(deps);
@@ -1209,6 +1218,7 @@ refs.techActiveEl.value = "true";
       refs.btnTechRemovePhoto.addEventListener("click", () => {
         state._techAvatarFile = null;
         deleteTempAvatarIfAny(deps);
+        setTechPhotoFileName(refs, "Nenhum arquivo selecionado");
         refs.techAvatarPreviewImg.style.display = "none";
         refs.techAvatarPreviewImg.src = "";
         refs.techAvatarPreviewFallback.textContent = initialsFromName(refs.techNameEl?.value || "");

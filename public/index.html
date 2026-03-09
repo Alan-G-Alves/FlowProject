@@ -408,6 +408,7 @@
 <tr>
 <th style="width:70px;">ID</th>
 <th>Nome</th>
+<th>CNPJ/CPF</th>
 <th>Key user</th>
 <th style="width:110px;">Projetos</th>
 <th style="width:110px;">Status</th>
@@ -429,6 +430,7 @@
 <!-- MEUS PROJETOS (KANBAN) -->
 <section class="view" hidden="" id="viewMyProjects">
   <div class="container">
+    <div id="projectWorkspaceTabs" class="project-workspace-tabs"></div>
     <div class="page-header">
       <div>
         <h1>Meus Projetos</h1>
@@ -533,6 +535,53 @@
         </div>
       </div>
     </div>
+
+    <aside class="project-workspace-panel" id="projectWorkspacePanel" hidden>
+      <div class="project-workspace-head">
+        <div>
+          <h2 id="projectWorkspaceTitle">Projeto</h2>
+          <p class="muted" id="projectWorkspaceSubtitle">Workspace do projeto</p>
+        </div>
+        <button class="btn ghost" id="btnCloseProjectWorkspace" type="button">✕</button>
+      </div>
+
+      <div class="project-workspace-body">
+        <section class="project-cover" id="projectWorkspaceCover"></section>
+
+        <section class="project-block">
+          <div class="project-block-head">
+            <h3>Tarefas</h3>
+            <button class="btn primary sm" id="btnOpenTaskForm" type="button">+ Nova tarefa</button>
+          </div>
+          <div class="panel subtle" id="projectTaskFormWrap" hidden>
+            <div class="project-form-grid">
+              <label class="field">
+                <span>Nome da tarefa</span>
+                <input id="taskNameInput" maxlength="80" placeholder="Ex.: Levantamento e diagnóstico" />
+              </label>
+              <label class="field">
+                <span>Período inicial</span>
+                <input type="date" id="taskStartDateInput" />
+              </label>
+              <label class="field">
+                <span>Período final</span>
+                <input type="date" id="taskEndDateInput" />
+              </label>
+              <label class="field">
+                <span>Horas orçadas</span>
+                <input id="taskPlannedHoursInput" type="number" min="0" step="0.5" placeholder="0" />
+              </label>
+            </div>
+            <div class="project-form-actions">
+              <button class="btn ghost sm" id="btnCancelTaskForm" type="button">Cancelar</button>
+              <button class="btn primary sm" id="btnSaveTask" type="button">Salvar tarefa</button>
+            </div>
+          </div>
+          <div class="alert" hidden id="projectTaskAlert"></div>
+          <div id="projectTaskList"></div>
+        </section>
+      </div>
+    </aside>
   </div>
 </section>
 
@@ -760,11 +809,12 @@
             <img id="techAvatarPreviewImg" alt="" />
             <span id="techAvatarPreviewFallback">?</span>
           </div>
-          <div class="tech-photo-actions">
-            <input id="techAvatarFile" type="file" accept="image/png,image/jpeg,image/jpg,image/webp" style="display:none" />
-            <button class="btn" type="button" onclick="document.getElementById('techAvatarFile').click()">Adicionar/alterar foto</button>
-            <button class="btn ghost" id="btnTechRemovePhoto" type="button">Remover foto</button>
-            <div class="muted" style="font-size:12px;">PNG/JPG/WEBP • até 2MB</div>
+          <div class="tech-photo-actions photo-upload-actions">
+            <input id="techAvatarFile" class="hidden-file" type="file" accept="image/png,image/jpeg,image/jpg,image/webp" />
+            <label class="btn sm" for="techAvatarFile">Selecionar foto</label>
+            <span class="photo-file-name" id="techPhotoFileName">Nenhum arquivo selecionado</span>
+            <button class="btn ghost sm" id="btnTechRemovePhoto" type="button">Remover foto</button>
+            <div class="muted photo-help">PNG/JPG/WebP até 2MB.</div>
           </div>
         </div>
         <div class="grid" style="grid-template-columns: repeat(12, 1fr); gap:12px;">
@@ -1093,7 +1143,7 @@
 <div class="modal" hidden id="modalCreateProject">
   <div class="modal-backdrop" data-close="true"></div>
   <div class="modal-card modal-xl">
-    <div class="modal-header">
+    <div class="modal-header project-modal-head">
       <div>
         <h2>Criar Projeto</h2>
         <p class="muted">Preencha as informações abaixo para criar um novo projeto.</p>
@@ -1106,7 +1156,7 @@
 
         <!-- Seção: Básico -->
         <div class="form-section span-12">
-          <h3>Informações do Projeto </h3>
+          <h3 class="project-section-title">Informações do Projeto</h3>
           <div class="grid-2">
             <label class="field span-12">
               <span>Nome do projeto <span style="color:red;">*</span></span>
@@ -1120,6 +1170,22 @@
                 style="width:100%; border-radius:14px; border:1px solid var(--border); padding:10px; font-family:inherit; resize:vertical;"></textarea>
               <div class="help">Máximo 1000 caracteres.</div>
             </label>
+
+            <div class="field span-12">
+              <span>Contrato (PDF)</span>
+              <div class="project-contract-row">
+                <input id="projectContractFile" class="hidden-file" type="file" accept="application/pdf" />
+                <label class="btn sm project-contract-btn" for="projectContractFile">
+                  <svg viewBox="0 0 24 24" width="16" height="16" fill="none" aria-hidden="true">
+                    <path d="M21.44 11.05l-8.49 8.49a5.5 5.5 0 1 1-7.78-7.78l9.19-9.19a3.5 3.5 0 0 1 4.95 4.95L9.88 16.95a1.5 1.5 0 1 1-2.12-2.12l8.49-8.49" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                  </svg>
+                  <span>Anexar contrato</span>
+                </label>
+                <span class="project-contract-file" id="projectContractFileName">Nenhum PDF selecionado</span>
+                <button class="btn ghost sm" id="btnRemoveProjectContract" type="button">Remover</button>
+              </div>
+              <div class="help">Aceita apenas PDF (até 10MB).</div>
+            </div>
 
             <label class="field span-6">
               <span>Cliente</span>
@@ -1139,7 +1205,7 @@
 
         <!-- Seção: Responsáveis -->
         <div class="form-section span-12">
-          <h3>Responsáveis</h3>
+          <h3 class="project-section-title">Responsáveis</h3>
           <div class="grid-2">
             <label class="field span-6">
               <span>Gestor do projeto (GP) <span style="color:red;">*</span></span>
@@ -1161,7 +1227,7 @@
 
         <!-- Seção: Técnicos -->
         <div class="form-section span-12">
-          <h3>Técnicos</h3>
+          <h3 class="project-section-title">Técnicos</h3>
           <div class="grid-2">
             <label class="field span-6">
               <span>Adicionar técnico</span>
@@ -1173,7 +1239,7 @@
 
             <div class="field span-6">
               <span>Selecionados</span>
-              <div id="projectTechChips" class="chips" style="min-height:42px;"></div>
+              <div id="projectTechChips" class="chips project-tech-chips" style="min-height:42px;"></div>
               <div class="help">Clique no “x” para remover.</div>
             </div>
           </div>
@@ -1181,7 +1247,7 @@
 
         <!-- Seção: Datas e Prioridade -->
         <div class="form-section span-12">
-          <h3>Planejamento</h3>
+          <h3 class="project-section-title">Planejamento</h3>
           <div class="grid-2">
             <div class="field span-6">
               <span>Prioridade</span>
@@ -1207,7 +1273,7 @@
 
         <!-- Seção: Cobrança -->
         <div class="form-section span-12">
-          <h3>Cobrança</h3>
+          <h3 class="project-section-title">Cobrança</h3>
           <div class="grid-2">
             <label class="field span-6">
               <span>Valor (R$)</span>
@@ -1407,7 +1473,7 @@
 </section>
 
 
-<script src="./app.js?v=1770332282" type="module"></script>
+<script src="./app.js?v=1770332285" type="module"></script>
 <script>
   // Toggle senha (somente UI)
   document.addEventListener("click", function(e){
@@ -1441,7 +1507,7 @@
 <div class="modal" hidden="" id="modalCreateClient">
   <div class="modal-backdrop" data-close="true"></div>
   <div class="modal-card modal-xl">
-    <div class="modal-header">
+    <div class="modal-header client-modal-head">
       <div>
         <h2 id="createClientTitle">Cliente</h2>
         <p class="muted">Preencha os dados do cliente.</p>
@@ -1454,27 +1520,24 @@
 
       <div class="form-sections">
         <div class="form-section">
-          <h3>Informações do Cliente</h3>
+          <h3 class="client-section-title">Informações do Cliente</h3>
 
-          <div class="tech-photo-row" style="margin-bottom:14px;">
+          <div class="tech-photo-row client-photo-row">
             <div class="tech-avatar-preview" id="clientPhotoPreview">
               <img id="clientPhotoImg" alt="" hidden=""/>
               <span id="clientPhotoFallback">?</span>
             </div>
-            <div class="profile-photo-actions">
-              <input id="clientPhotoFile" type="file" accept="image/png,image/jpeg,image/jpg,image/webp"/>
+            <div class="profile-photo-actions photo-upload-actions">
+              <input id="clientPhotoFile" class="hidden-file" type="file" accept="image/png,image/jpeg,image/jpg,image/webp"/>
+              <label class="btn sm" for="clientPhotoFile">Selecionar foto</label>
+              <span class="photo-file-name" id="clientPhotoFileName">Nenhum arquivo selecionado</span>
               <input type="hidden" id="clientPhotoUrl"/>
-              <button class="btn sm" id="btnClientRemovePhoto" type="button">Remover</button>
-              <div class="muted" style="font-size:12px;">PNG/JPG/WebP até 2MB.</div>
+              <button class="btn ghost sm" id="btnClientRemovePhoto" type="button">Remover foto</button>
+              <div class="muted photo-help">PNG/JPG/WebP até 2MB.</div>
             </div>
           </div>
 
-          <div class="form-grid">
-            <div class="form-field">
-              <label for="clientId">ID</label>
-              <input id="clientId" placeholder="(gerado ao salvar)" readonly />
-            </div>
-
+          <div class="client-form-grid">
             <div class="form-field">
               <label for="clientName">Nome do cliente</label>
               <input id="clientName" placeholder="Ex.: Empresa XPTO" />
@@ -1485,7 +1548,7 @@
               <input id="clientCpfCnpj" placeholder="00.000.000/0000-00" />
             </div>
 
-            <div class="form-field" style="grid-column: 1 / -1;">
+            <div class="form-field span-2">
               <label for="clientAddress">Endereço</label>
               <input id="clientAddress" placeholder="Rua, número, bairro, cidade - UF" />
             </div>
@@ -1500,7 +1563,7 @@
               <input id="clientEmail" placeholder="cliente@empresa.com" />
             </div>
 
-            <div class="form-field" style="display:flex; align-items:flex-end;">
+            <div class="form-field field-check">
               <label style="display:flex; align-items:center; gap:10px; margin:0;">
                 <input type="checkbox" id="clientActive" checked />
                 <span>Ativo</span>
@@ -1510,11 +1573,11 @@
         </div>
 
         <div class="form-section">
-          <h3>Key user</h3>
+          <h3 class="client-section-title">Key users</h3>
 
-          <div class="form-grid">
+          <div class="client-form-grid keyuser-grid">
             <div class="form-field">
-              <label for="clientKeyUserName">Key user</label>
+              <label for="clientKeyUserName">Nome do key user</label>
               <input id="clientKeyUserName" placeholder="Nome do key user" />
             </div>
             <div class="form-field">
@@ -1524,6 +1587,17 @@
             <div class="form-field">
               <label for="clientKeyUserPhone">Telefone do key user</label>
               <input id="clientKeyUserPhone" placeholder="(00) 00000-0000" />
+            </div>
+            <div class="form-field span-2 field-actions">
+              <button class="btn primary sm" id="btnAddClientKeyUser" type="button">+ Adicionar key user</button>
+            </div>
+          </div>
+
+          <div class="client-keyusers-box" style="margin-top:10px;">
+            <div class="client-keyusers-head">Key users adicionados</div>
+            <div class="client-keyusers-list" id="clientKeyUsersList"></div>
+            <div class="muted" id="clientKeyUsersEmpty" style="font-size:12px; margin-top:6px;">
+              Nenhum key user adicionado.
             </div>
           </div>
         </div>
@@ -1572,6 +1646,44 @@
 
     <div class="modal-footer">
       <button class="btn ghost" id="btnCancelClientProjects" data-close="true" type="button">Fechar</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL: Key users do Cliente -->
+<div class="modal" hidden="" id="modalClientKeyUsers">
+  <div class="modal-backdrop" data-close="true"></div>
+  <div class="modal-card">
+    <div class="modal-header">
+      <div>
+        <h2 id="clientKeyUsersTitle">Key users</h2>
+        <p class="muted">Lista de key users vinculados ao cliente.</p>
+      </div>
+      <button class="btn ghost" id="btnCloseClientKeyUsers" data-close="true" type="button">✕</button>
+    </div>
+
+    <div class="modal-body">
+      <div class="table" style="overflow:auto;">
+        <table>
+          <thead>
+            <tr>
+              <th>Nome</th>
+              <th>E-mail</th>
+              <th>Telefone</th>
+            </tr>
+          </thead>
+          <tbody id="clientKeyUsersTbody"></tbody>
+        </table>
+      </div>
+
+      <div class="panel subtle" hidden="" id="clientKeyUsersModalEmpty" style="margin-top:12px;">
+        <h3>Nenhum key user cadastrado</h3>
+        <p class="muted">Este cliente ainda não possui key users.</p>
+      </div>
+    </div>
+
+    <div class="modal-footer">
+      <button class="btn ghost" id="btnCancelClientKeyUsers" data-close="true" type="button">Fechar</button>
     </div>
   </div>
 </div>

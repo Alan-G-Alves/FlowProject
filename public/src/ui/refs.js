@@ -199,8 +199,8 @@ export const clientPhotoFallback = byId("clientPhotoFallback");
 export const clientPhotoFile = byId("clientPhotoFile");
 export const clientPhotoUrl = byId("clientPhotoUrl");
 export const btnClientRemovePhoto = byId("btnClientRemovePhoto");
+export const clientPhotoFileName = byId("clientPhotoFileName");
 
-export const clientIdEl = byId("clientId");
 export const clientNameEl = byId("clientName");
 export const clientCpfCnpjEl = byId("clientCpfCnpj");
 export const clientAddressEl = byId("clientAddress");
@@ -210,6 +210,9 @@ export const clientActiveEl = byId("clientActive");
 export const clientKeyUserNameEl = byId("clientKeyUserName");
 export const clientKeyUserEmailEl = byId("clientKeyUserEmail");
 export const clientKeyUserPhoneEl = byId("clientKeyUserPhone");
+export const btnAddClientKeyUser = byId("btnAddClientKeyUser");
+export const clientKeyUsersList = byId("clientKeyUsersList");
+export const clientKeyUsersEmpty = byId("clientKeyUsersEmpty");
 
 // Client projects modal
 export const modalClientProjects = byId("modalClientProjects");
@@ -218,6 +221,12 @@ export const btnCancelClientProjects = byId("btnCancelClientProjects");
 export const clientProjectsTitle = byId("clientProjectsTitle");
 export const clientProjectsTbody = byId("clientProjectsTbody");
 export const clientProjectsEmpty = byId("clientProjectsEmpty");
+export const modalClientKeyUsers = byId("modalClientKeyUsers");
+export const btnCloseClientKeyUsers = byId("btnCloseClientKeyUsers");
+export const btnCancelClientKeyUsers = byId("btnCancelClientKeyUsers");
+export const clientKeyUsersTitle = byId("clientKeyUsersTitle");
+export const clientKeyUsersTbody = byId("clientKeyUsersTbody");
+export const clientKeyUsersModalEmpty = byId("clientKeyUsersModalEmpty");
 
 // Create tech modal
 export const modalCreateTech = byId("modalCreateTech");
@@ -244,6 +253,7 @@ export const techAvatarPreviewImg = byId("techAvatarPreviewImg");
 export const techAvatarPreviewFallback = byId("techAvatarPreviewFallback");
 export const techAvatarFileEl = byId("techAvatarFile");
 export const btnTechRemovePhoto = byId("btnTechRemovePhoto");
+export const techPhotoFileName = byId("techPhotoFileName");
 
 // Managed teams modal
 export const modalManagedTeams = byId("modalManagedTeams");
@@ -298,6 +308,9 @@ export const projectTechSelectEl = byId("projectTechSelect");
 export const projectTechChipsEl = byId("projectTechChips");
 export const projectBillingValueAmountEl = byId("projectBillingValueAmount");
 export const projectBillingHoursAmountEl = byId("projectBillingHoursAmount");
+export const projectContractFileEl = byId("projectContractFile");
+export const projectContractFileNameEl = byId("projectContractFileName");
+export const btnRemoveProjectContract = byId("btnRemoveProjectContract");
 export const projectIdPreviewEl = byId("projectIdPreview");
 export const createProjectAlert = byId("createProjectAlert");
 
@@ -315,6 +328,22 @@ export const projectDetailPriority = byId("projectDetailPriority");
 export const projectDetailStartDate = byId("projectDetailStartDate");
 export const projectDetailEndDate = byId("projectDetailEndDate");
 export const projectDetailAlert = byId("projectDetailAlert");
+export const projectWorkspaceTabs = byId("projectWorkspaceTabs");
+export const projectWorkspacePanel = byId("projectWorkspacePanel");
+export const btnCloseProjectWorkspace = byId("btnCloseProjectWorkspace");
+export const projectWorkspaceTitle = byId("projectWorkspaceTitle");
+export const projectWorkspaceSubtitle = byId("projectWorkspaceSubtitle");
+export const projectWorkspaceCover = byId("projectWorkspaceCover");
+export const btnOpenTaskForm = byId("btnOpenTaskForm");
+export const projectTaskFormWrap = byId("projectTaskFormWrap");
+export const taskNameInput = byId("taskNameInput");
+export const taskStartDateInput = byId("taskStartDateInput");
+export const taskEndDateInput = byId("taskEndDateInput");
+export const taskPlannedHoursInput = byId("taskPlannedHoursInput");
+export const btnCancelTaskForm = byId("btnCancelTaskForm");
+export const btnSaveTask = byId("btnSaveTask");
+export const projectTaskAlert = byId("projectTaskAlert");
+export const projectTaskList = byId("projectTaskList");
 export const btnEditProject = byId("btnEditProject");
 export const btnDeleteProject = byId("btnDeleteProject");
 

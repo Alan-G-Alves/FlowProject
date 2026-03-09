@@ -18,6 +18,11 @@ import {
   serverTimestamp,
   onSnapshot
 } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore.js";
+import {
+  ref as storageRef,
+  uploadBytes,
+  getDownloadURL
+} from "https://www.gstatic.com/firebasejs/10.12.5/firebase-storage.js";
 
 import { setAlert, clearAlert } from "../ui/alerts.js";
 import { setView } from "../ui/router.js";
@@ -43,6 +48,7 @@ let _myProjectsSearchInitialized = false;
 // Create Project Modal state
 let _createProjectUiInitialized = false;
 let _selectedTechUids = [];
+let _selectedProjectContractFile = null;
 let _isCreatingProjectLocal = false;
 
 function _normText(v){
@@ -209,6 +215,34 @@ function _parseHoursToNumber(input){
   return num;
 }
 
+function _setProjectContractFileLabel(refs, text){
+  if (!refs?.projectContractFileNameEl) return;
+  refs.projectContractFileNameEl.textContent = text || "Nenhum PDF selecionado";
+}
+
+async function _uploadProjectContract(deps, companyId, projectId, file){
+  const { storage } = deps || {};
+  if (!storage || !file) return null;
+
+  const isPdf = (file.type || "").toLowerCase() === "application/pdf" || /\.pdf$/i.test(file.name || "");
+  if (!isPdf) throw new Error("Anexo inválido. Envie um arquivo PDF.");
+  if (file.size > 10 * 1024 * 1024) throw new Error("O contrato deve ter no máximo 10MB.");
+
+  const safeName = (file.name || "contrato.pdf").replace(/[^\w.\-]+/g, "_");
+  const path = `projectContracts/${companyId}/${projectId}/${Date.now()}_${safeName}`;
+  const ref = storageRef(storage, path);
+  await uploadBytes(ref, file, { contentType: "application/pdf" });
+  const url = await getDownloadURL(ref);
+
+  return {
+    name: file.name || "contrato.pdf",
+    path,
+    url,
+    size: Number(file.size || 0),
+    contentType: "application/pdf"
+  };
+}
+
 function _ensureCreateProjectUi(refs, state){
   if (_createProjectUiInitialized) return;
   _createProjectUiInitialized = true;
@@ -265,6 +299,25 @@ function _ensureCreateProjectUi(refs, state){
       _renderSelectedTechChips(refs, state);
     });
   }
+
+  const contractInput = refs?.projectContractFileEl || document.getElementById("projectContractFile");
+  const removeContractBtn = refs?.btnRemoveProjectContract || document.getElementById("btnRemoveProjectContract");
+  if (contractInput && !contractInput.dataset.bound) {
+    contractInput.dataset.bound = "1";
+    contractInput.addEventListener("change", () => {
+      const file = contractInput.files?.[0] || null;
+      _selectedProjectContractFile = file;
+      _setProjectContractFileLabel(refs, file ? file.name : "Nenhum PDF selecionado");
+    });
+  }
+  if (removeContractBtn && !removeContractBtn.dataset.bound) {
+    removeContractBtn.dataset.bound = "1";
+    removeContractBtn.addEventListener("click", () => {
+      _selectedProjectContractFile = null;
+      if (contractInput) contractInput.value = "";
+      _setProjectContractFileLabel(refs, "Nenhum PDF selecionado");
+    });
+  }
 }
 
 function _listActiveTechs(state, teamId){
@@ -308,20 +361,18 @@ function _renderSelectedTechChips(refs, state){
   const byUid = new Map(users.map(u => [u.uid, u]));
 
   chipsEl.innerHTML = "";
-  for (const uid of _selectedTechUids) {
+  const colorClasses = ["t1", "t2", "t3", "t4", "t5", "t6"];
+  _selectedTechUids.forEach((uid, idx) => {
     const u = byUid.get(uid);
     const name = (u?.name || u?.email || uid);
     const chip = document.createElement("span");
-    chip.className = "chip";
-    chip.style.display = "inline-flex";
-    chip.style.alignItems = "center";
-    chip.style.gap = "8px";
+    chip.className = `chip project-tech-chip ${colorClasses[idx % colorClasses.length]}`;
     chip.innerHTML = `
       <span>${escapeHtml(name)}</span>
-      <button type="button" class="btn ghost sm" data-tech-uid="${escapeHtml(uid)}" aria-label="Remover técnico" style="padding:2px 8px;">✕</button>
+      <button type="button" class="project-tech-chip-remove" data-tech-uid="${escapeHtml(uid)}" aria-label="Remover técnico">×</button>
     `;
     chipsEl.appendChild(chip);
-  }
+  });
 
   // re-popula select para esconder os já escolhidos
   const teamId = (refs?.projectTeamEl?.value || document.getElementById("projectTeam")?.value || "");
@@ -545,6 +596,9 @@ export async function openCreateProjectModal(deps) {
   if (refs.projectEndDateEl) refs.projectEndDateEl.value = "";
   if (refs.projectBillingValueAmountEl) refs.projectBillingValueAmountEl.value = "";
   if (refs.projectBillingHoursAmountEl) refs.projectBillingHoursAmountEl.value = "";
+  _selectedProjectContractFile = null;
+  if (refs.projectContractFileEl) refs.projectContractFileEl.value = "";
+  _setProjectContractFileLabel(refs, "Nenhum PDF selecionado");
 
   // reset técnicos
   _selectedTechUids = [];
@@ -697,6 +751,17 @@ export async function createProject(deps) {
       updatedAt: serverTimestamp(),
       updatedBy: user.uid
     };
+
+    if (_selectedProjectContractFile){
+      const contract = await _uploadProjectContract(deps, companyId, projectId, _selectedProjectContractFile);
+      if (contract){
+        payload.contract = {
+          ...contract,
+          uploadedAt: serverTimestamp(),
+          uploadedBy: user.uid
+        };
+      }
+    }
 
     await setDoc(doc(db, `companies/${companyId}/projects`, projectId), payload);
 
@@ -1198,7 +1263,7 @@ function renderMyProjectsKanban(projects, deps) {
  * Renderiza cards no Kanban
  */
 function renderKanbanCards(container, projects, deps) {
-  const { openEditProjectModal, openProjectDetailModal, state, db, auth } = deps || {};
+  const { openEditProjectModal, openProjectDetailModal, openProjectWorkspace, openProjectTab, state, db, auth } = deps || {};
 
   // Sempre prepara a dropzone (inclusive coluna vazia)
   setupDropZone(container, state, db, auth, deps);
@@ -1261,6 +1326,40 @@ function renderKanbanCards(container, projects, deps) {
     return `${num}`;
   };
 
+  const _toDateOnly = (v) => {
+    if (!v) return null;
+    try {
+      if (typeof v === "string") {
+        const s = v.trim();
+        // yyyy-mm-dd
+        const iso = s.match(/^(\d{4})-(\d{2})-(\d{2})/);
+        if (iso) return new Date(Number(iso[1]), Number(iso[2]) - 1, Number(iso[3]));
+        // dd/mm/yyyy
+        const br = s.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+        if (br) return new Date(Number(br[3]), Number(br[2]) - 1, Number(br[1]));
+        return null;
+      }
+      if (v?.toDate) {
+        const dt = v.toDate();
+        return new Date(dt.getFullYear(), dt.getMonth(), dt.getDate());
+      }
+      if (typeof v?.seconds === "number") {
+        const dt = new Date(v.seconds * 1000);
+        return new Date(dt.getFullYear(), dt.getMonth(), dt.getDate());
+      }
+    } catch {}
+    return null;
+  };
+
+  const _isDeadlineCritical = (v) => {
+    const due = _toDateOnly(v);
+    if (!due) return false;
+    const now = new Date();
+    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const diffDays = Math.floor((due.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+    return diffDays <= 7;
+  };
+
   if (!projects || projects.length === 0) {
     container.innerHTML = '<p class="muted" style="padding:12px;">Nenhum projeto</p>';
     return;
@@ -1282,15 +1381,17 @@ function renderKanbanCards(container, projects, deps) {
     }[project.priority] || "Média";
 
     const displayId = _projectDisplayId(project);
-    const endBR = _fmtDateBR(project.endDate || project.endAt || project.dateEnd);
+    const endRaw = (project.endDate || project.endAt || project.dateEnd);
+    const endBR = _fmtDateBR(endRaw);
+    const deadlineCritical = _isDeadlineCritical(endRaw);
     const clientName = (project.clientName || project.client?.name || project.customerName || "").toString();
     const valueBRL = _fmtBRL(project.billingValue ?? project.value ?? project.billing?.value ?? project.cobrancaValor);
     const hoursTxt = _fmtHours(project.billingHours ?? project.hours ?? project.billing?.hours ?? project.cobrancaHoras);
 
-    const icCalendar = `<svg class="mini-ic" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-      <path d="M7 3v3M17 3v3" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
-      <path d="M4 8h16" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
-      <path d="M6 21h12a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2Z" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/>
+    const icCalendar = `<svg class="mini-ic ${deadlineCritical ? "mini-ic--danger" : ""}" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <path d="M7 3h10M7 21h10" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+      <path d="M8 3c0 4 3 4.5 4 6 1 1.5 1 2.5 0 4-1 1.5-4 2-4 8" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+      <path d="M16 3c0 4-3 4.5-4 6-1 1.5-1 2.5 0 4 1 1.5 4 2 4 8" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
     </svg>`;
 
     const icMoney = `<svg class="mini-ic" viewBox="0 0 24 24" fill="none" aria-hidden="true">
@@ -1318,7 +1419,7 @@ function renderKanbanCards(container, projects, deps) {
 
       <div class="kanban-card-meta kanban-card-meta--row">
         ${clientName ? `<span class="kanban-mini kanban-mini--client" title="Cliente">${icBuilding}<span class="kanban-mini-text">${escapeHtml(clientName)}</span></span>` : ""}
-        ${endBR ? `<span class="kanban-mini" title="Data final">${icCalendar}<span>${escapeHtml(endBR)}</span></span>` : ""}
+        ${endBR ? `<span class="kanban-mini" title="Prazo">${icCalendar}<span>${escapeHtml(endBR)}</span></span>` : ""}
         ${valueBRL ? `<span class="kanban-mini" title="Valor">${icMoney}<span>${escapeHtml(valueBRL)}</span></span>` : ""}
         ${hoursTxt ? `<span class="kanban-mini" title="Horas">${icClock}<span>${escapeHtml(hoursTxt)}h</span></span>` : ""}
         <span class="kanban-card-priority ${project.priority || "media"}">${priorityText}</span>
@@ -1338,8 +1439,13 @@ function renderKanbanCards(container, projects, deps) {
     card.addEventListener("click", () => {
       if (card.classList.contains("dragging")) return;
 
-      if (typeof openProjectDetailModal === "function") {
-        openProjectDetailModal(project.id, deps);
+      if (typeof openProjectTab === "function") {
+        openProjectTab(project.id, deps);
+        return;
+      }
+
+      if (typeof openProjectWorkspace === "function") {
+        openProjectWorkspace(project.id, deps);
         return;
       }
 

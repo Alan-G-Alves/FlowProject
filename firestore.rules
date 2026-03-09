@@ -393,6 +393,31 @@ allow delete: if false;
           || isCoordenador(companyId);
       }
 
+      // activities (workspace de projetos)
+      match /activities/{activityId} {
+        allow read: if isSuperAdmin() || isCompanyMember(companyId);
+
+        allow create: if isSuperAdmin()
+          || isCompanyAdmin(companyId)
+          || isManager(companyId)
+          || isCoordinator(companyId)
+          || isCoordenador(companyId)
+          || (isSignedIn() && companyId == myCompanyId()); // tecnico tambem pode incluir (dia unico)
+
+        allow update: if isSuperAdmin()
+          || isCompanyAdmin(companyId)
+          || isManager(companyId)
+          || isCoordinator(companyId)
+          || isCoordenador(companyId)
+          || (isSignedIn() && companyId == myCompanyId()); // tecnico pode preencher inicio/fim/obs
+
+        allow delete: if isSuperAdmin()
+          || isCompanyAdmin(companyId)
+          || isManager(companyId)
+          || isCoordinator(companyId)
+          || isCoordenador(companyId);
+      }
+
       match /{document=**} {
         allow read, write: if false;
       }

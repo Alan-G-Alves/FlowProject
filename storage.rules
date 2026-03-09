@@ -10,6 +10,14 @@ service firebase.storage {
       return get(/databases/(default)/documents/userCompanies/$(request.auth.uid)).data.companyId;
     }
 
+    function isMemberOfCompany(companyId) {
+      return exists(/databases/(default)/documents/companies/$(companyId)/users/$(request.auth.uid));
+    }
+
+    function sameCompany(companyId) {
+      return companyId == myCompanyId() || isMemberOfCompany(companyId);
+    }
+
     function myRole() {
       // role do usuário logado dentro da empresa
       return get(/databases/(default)/documents/companies/$(myCompanyId())/users/$(request.auth.uid)).data.role;
@@ -45,18 +53,21 @@ service firebase.storage {
     // Fotos de Clientes (SEM extensão): clientPhotos/{companyId}/{clientId}
     match /clientPhotos/{companyId}/{clientId} {
       // qualquer usuário autenticado da mesma empresa pode ver a foto do cliente
-      allow read: if signedIn() && companyId == myCompanyId();
+      allow read: if signedIn();
 
       // upload/atualização da foto do cliente (2MB)
       // OBS: não dependemos de role aqui para evitar 403 por inconsistência de perfil;
       // quem pode criar/editar clientes continua controlado no Firestore.
       allow create, update: if signedIn()
-        && companyId == myCompanyId()
-        && request.resource.size < 2 * 1024 * 1024;
+        && companyId.size() > 0
+        && clientId.size() > 0
+        && request.resource.size < 2 * 1024 * 1024
+        && request.resource.contentType.matches('image/.*');
 
       // delete somente para quem pode gerenciar (mantém mais seguro)
       allow delete: if signedIn()
-        && companyId == myCompanyId()
+        && companyId.size() > 0
+        && clientId.size() > 0
         && canManageUsers();
     }
 
@@ -75,6 +86,22 @@ service firebase.storage {
 
       // Remover o temp avatar (ex.: cancelar modal)
       allow delete: if signedIn() && uploaderUid == request.auth.uid;
+    }
+
+    // Contratos de Projetos (PDF): projectContracts/{companyId}/{projectId}/{fileName}
+    match /projectContracts/{companyId}/{projectId}/{fileName} {
+      allow read: if signedIn();
+
+      allow create, update: if signedIn()
+        && companyId.size() > 0
+        && projectId.size() > 0
+        && request.resource.size < 10 * 1024 * 1024
+        && request.resource.contentType == 'application/pdf';
+
+      allow delete: if signedIn()
+        && companyId.size() > 0
+        && projectId.size() > 0
+        && canManageUsers();
     }
 
 
