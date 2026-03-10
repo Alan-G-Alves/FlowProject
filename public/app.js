@@ -50,7 +50,7 @@ import * as usersDomain from "./src/domain/users.domain.js?v=1770332251";
 import * as managerUsersDomain from "./src/domain/manager-users.domain.js?v=1770332252";
 import * as clientsDomain from "./src/domain/clients.domain.js?v=1770332252";
 import * as projectsDomain from "./src/domain/projects.domain.js?v=1770332259";
-import * as projectWorkspaceDomain from "./src/domain/project-workspace.domain.js?v=1770332267";
+import * as projectWorkspaceDomain from "./src/domain/project-workspace.domain.js?v=1770332277";
 import * as profileModal from "./src/ui/modals/profile.modal.js?v=1770332251";
 import * as topbar from "./src/ui/topbar.js?v=1770332251";
 import * as sidebar from "./src/ui/sidebar.js?v=1770332251";
@@ -1535,5 +1535,15 @@ refs.btnCloseCompanyDetail?.addEventListener("click", () => closeCompanyDetailMo
 
 // Sidebar + tooltips
 try{ initSidebar(); }catch(e){ console.warn("initSidebar falhou", e); }
+
+
+
+
+
+
+
+
+
+
 
 

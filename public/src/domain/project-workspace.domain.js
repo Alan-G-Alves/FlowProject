@@ -454,13 +454,14 @@ function renderCover(refs, project, state){
   refs.projectWorkspaceCover.innerHTML = `
     <div class="project-cover-hero">
       <div>
-        <div class="project-cover-eyebrow">Projeto</div>
+        <div class="project-cover-eyebrow"><span class="project-cover-id">#${escapeHtml(String(project.projectNumber || project.id || "-"))}</span><span class="project-cover-eyebrow-text">PROJETO</span></div>
         <div class="project-cover-title">${escapeHtml(project.name || "Projeto")}</div>
         <div class="project-cover-subtitle">Workspace central do projeto com tarefas e atividades vinculadas.</div>
       </div>
       <div class="project-cover-badges">
         <span class="badge small">Status: ${escapeHtml(status)}</span>
         <span class="badge small">Prazo: ${escapeHtml(endDate)}</span>
+        <div class="project-cover-actions" id="projectCoverActionsSlot"></div>
       </div>
     </div>
     <div class="project-cover-grid">
@@ -489,14 +490,14 @@ function renderCover(refs, project, state){
         <strong>${escapeHtml(billingValue)}</strong>
       </div>
     </div>
-    <div class="project-cover-flow">
-      <span>Projeto</span>
-      <span class="project-cover-flow-sep">-></span>
-      <span>Tarefas</span>
-      <span class="project-cover-flow-sep">-></span>
-      <span>Atividades</span>
-    </div>
   `;
+
+  const actionsSlot = document.getElementById("projectCoverActionsSlot");
+  if (actionsSlot){
+    [refs.btnOpenWorkspaceView, refs.btnOpenWorkspaceEdit, refs.btnDeleteWorkspaceProject].forEach((btn) => {
+      if (btn) actionsSlot.appendChild(btn);
+    });
+  }
 }
 
 function renderBreadcrumb(refs, project){
@@ -513,6 +514,11 @@ function renderTasks(deps){
   const { refs, state } = deps;
   if (!refs.projectTaskList) return;
   const isUserTech = isTech(state);
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const iconPending = '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" aria-hidden="true"><path d="M12 8v5l3 3" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="2"/></svg>';
+  const iconDone = '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" aria-hidden="true"><path d="M5 12l4 4L19 6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+  const iconOverdue = '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" aria-hidden="true"><path d="M12 8v5m0 4h.01M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0Z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>';
   const keyUsers = keyUsersFromProjectClient(state, _activeProject);
   const projectTechs = techsFromProject(state, _activeProject);
   const byTask = new Map();
@@ -532,31 +538,95 @@ function renderTasks(deps){
     const worked = taskActs.reduce((acc, a) => acc + asNumber(a.hoursWorked), 0);
     const planned = asNumber(t.plannedHours);
     const balance = Math.max(0, planned - worked);
+    const statusCounters = taskActs.reduce((acc, a) => {
+      const workDate = parseDateOnly(a.workDate);
+      const isOverdue = Boolean(workDate && workDate < today && a.status !== "os_gerada");
+      if (a.status === "os_gerada") acc.done += 1;
+      else acc.pending += 1;
+      if (isOverdue) acc.overdue += 1;
+      return acc;
+    }, { pending: 0, done: 0, overdue: 0 });
     const groupedActs = new Map();
     taskActs.forEach((a) => {
+      const activityName = (a.name || "Atividade").trim();
       const names = Array.isArray(a.techNames) && a.techNames.length ? a.techNames : ["Sem tecnico"];
-      const groupKey = names.join(" | ");
-      const current = groupedActs.get(groupKey) || { label: names.join(", "), activities: [] };
+      const techKey = names.join(" | ");
+      const workDate = parseDateOnly(a.workDate);
+      const isOverdue = Boolean(workDate && workDate < today && a.status !== "os_gerada");
+
+      const current = groupedActs.get(activityName) || {
+        label: activityName,
+        techGroups: new Map(),
+        activities: [],
+        overdue: 0,
+        pending: 0,
+        earliestDate: null
+      };
+
+      const techGroup = current.techGroups.get(techKey) || {
+        label: names.join(", "),
+        activities: [],
+        overdue: 0,
+        pending: 0,
+        earliestDate: null
+      };
+
+      techGroup.activities.push(a);
       current.activities.push(a);
-      groupedActs.set(groupKey, current);
+      if (a.status !== "os_gerada") {
+        techGroup.pending += 1;
+        current.pending += 1;
+      }
+      if (isOverdue) {
+        techGroup.overdue += 1;
+        current.overdue += 1;
+      }
+      if (workDate && (!techGroup.earliestDate || workDate < techGroup.earliestDate)) techGroup.earliestDate = workDate;
+      if (workDate && (!current.earliestDate || workDate < current.earliestDate)) current.earliestDate = workDate;
+
+      current.techGroups.set(techKey, techGroup);
+      groupedActs.set(activityName, current);
     });
-    const activityRows = Array.from(groupedActs.values()).map((group, groupIdx) => {
+    const activityRows = Array.from(groupedActs.values())
+      .sort((a, b) => {
+        if (b.overdue !== a.overdue) return b.overdue - a.overdue;
+        if (b.pending !== a.pending) return b.pending - a.pending;
+        if (a.earliestDate && b.earliestDate) return a.earliestDate - b.earliestDate;
+        if (a.earliestDate) return -1;
+        if (b.earliestDate) return 1;
+        return a.label.localeCompare(b.label);
+      })
+      .map((group, groupIdx) => {
       const groupHours = group.activities.reduce((acc, a) => acc + asNumber(a.hoursWorked), 0);
-      const activityCards = group.activities.map(a => {
+      const techGroupRows = Array.from(group.techGroups.values())
+        .sort((a, b) => {
+          if (b.overdue !== a.overdue) return b.overdue - a.overdue;
+          if (b.pending !== a.pending) return b.pending - a.pending;
+          if (a.earliestDate && b.earliestDate) return a.earliestDate - b.earliestDate;
+          if (a.earliestDate) return -1;
+          if (b.earliestDate) return 1;
+          return a.label.localeCompare(b.label);
+        })
+        .map((techGroup, techIdx) => {
+        const techGroupHours = techGroup.activities.reduce((acc, a) => acc + asNumber(a.hoursWorked), 0);
+        const activityCards = techGroup.activities.map(a => {
       const canTechFill = isUserTech && ["admin","gestor","coordenador"].includes((a.createdByRole || "").toLowerCase());
       const assignedTechs = Array.isArray(a.techNames) && a.techNames.length ? a.techNames.join(", ") : "Sem tecnico";
+      const workDate = parseDateOnly(a.workDate);
+      const isOverdue = Boolean(workDate && workDate < today && a.status !== "os_gerada");
       return `
-        <div class="activity-item ${a.status === "os_gerada" ? "ok" : "pending"}">
+        <div class="activity-item ${isOverdue ? "overdue" : (a.status === "os_gerada" ? "ok" : "pending")}">
           <div class="activity-main">
             <div>
               <b>${escapeHtml(a.name || "Atividade")}</b>
               <div class="activity-meta-line">${escapeHtml(fmtDate(a.workDate))} | ${escapeHtml(String(a.hoursWorked || 0))}h</div>
             </div>
-            <span class="activity-status ${a.status === "os_gerada" ? "green" : "red"}">${a.status === "os_gerada" ? "OS Gerada" : "Sem Ordem de Servico"}</span>
+            <span class="activity-status ${isOverdue ? "orange" : (a.status === "os_gerada" ? "green" : "red")}">${isOverdue ? "Atrasada" : (a.status === "os_gerada" ? "OS Gerada" : "Sem Ordem de Servico")}</span>
           </div>
           <div class="activity-tags">
             <span class="activity-tag">Tecnicos: ${escapeHtml(assignedTechs)}</span>
             <span class="activity-tag">Key users: ${escapeHtml(Array.isArray(a.keyUsers) && a.keyUsers.length ? a.keyUsers.join(", ") : "-")}</span>
+            ${isOverdue ? `<span class="activity-tag activity-tag--warn">Acao necessaria</span>` : ""}
           </div>
           ${canTechFill ? `
             <div class="activity-tech-fill">
@@ -570,16 +640,32 @@ function renderTasks(deps){
       `;
       }).join("");
       return `
-        <details class="activity-group" ${groupIdx === 0 ? "open" : ""}>
+        <details class="activity-group activity-group--nested" ${techIdx === 0 ? "open" : ""}>
           <summary class="activity-group-summary">
             <div>
-              <div class="activity-group-title">${escapeHtml(group.label)}</div>
-              <div class="activity-group-subtitle">${escapeHtml(String(group.activities.length))} atividade(s) | ${escapeHtml(String(groupHours))}h</div>
+              <div class="activity-group-title">${escapeHtml(techGroup.label)}</div>
+              <div class="activity-group-subtitle">${escapeHtml(String(techGroup.activities.length))} atividade(s) | ${escapeHtml(String(techGroupHours))}h | Pendentes: ${escapeHtml(String(techGroup.pending))}</div>
             </div>
             <span class="activity-group-toggle">Expandir</span>
           </summary>
           <div class="activity-group-list">
             ${activityCards}
+          </div>
+        </details>
+      `;
+      }).join("");
+      return `
+        <details class="activity-group" ${groupIdx === 0 ? "open" : ""}>
+          <summary class="activity-group-summary">
+            <div>
+              <div class="activity-group-title">${escapeHtml(group.label)}</div>
+              <div class="activity-group-subtitle">${escapeHtml(String(group.activities.length))} atividade(s) | ${escapeHtml(String(groupHours))}h | Tecnicos: ${escapeHtml(String(group.techGroups.size))} | Pendentes: ${escapeHtml(String(group.pending))}</div>
+            </div>
+            <span class="activity-group-toggle">Expandir</span>
+          </summary>
+          <div class="activity-group-list">
+            <div class="activity-subsection-title">Tecnicos com esta atividade</div>
+            ${techGroupRows}
           </div>
         </details>
       `;
@@ -595,23 +681,39 @@ function renderTasks(deps){
     )).join("");
 
     return `
-      <article class="task-card">
-        <div class="task-head">
-          <div class="task-head-main">
-            <div class="task-step">Tarefa</div>
-            <h4>#${escapeHtml(String(t.taskNumber || "-"))} ${escapeHtml(t.name || "")}</h4>
-            <p class="muted">Validade: ${escapeHtml(fmtDate(t.startDate))} ate ${escapeHtml(fmtDate(t.endDate))}</p>
+      <details class="task-card task-tree ${statusCounters.overdue ? "task-card--overdue" : ""}" ${statusCounters.overdue || !_tasks.indexOf(t) ? "open" : ""}>
+        <summary class="task-summary">
+          <div class="task-summary-main">
+            <div class="task-head-main">
+              <div class="task-step">Tarefa</div>
+              <div class="task-title-row">
+                <h4>#${escapeHtml(String(t.taskNumber || "-"))} ${escapeHtml(t.name || "")}</h4>
+                <span class="task-validity-inline">Validade: ${escapeHtml(fmtDate(t.startDate))} ate ${escapeHtml(fmtDate(t.endDate))}</span>
+              </div>
+            </div>
+            <div class="task-summary-statuses">
+              <div class="task-top-metrics">
+                <div class="task-kpis">
+                ${isUserTech ? `<span class="kpi">Horas orcadas: <b>-</b></span>` : `<span class="kpi">Horas orcadas: <b>${escapeHtml(String(planned))}h</b></span>`}
+                <span class="kpi">Horas trabalhadas: <b>${escapeHtml(String(worked))}h</b></span>
+                <span class="kpi">Saldo disponivel: <b>${escapeHtml(String(balance))}h</b></span>
+                <span class="kpi">Atividades: <b>${escapeHtml(String(taskActs.length))}</b></span>
+                </div>
+                <div class="task-status-strip">
+                  <span class="task-status-pill task-status-pill--pending">${iconPending} Sem OS: <b>${escapeHtml(String(statusCounters.pending))}</b></span>
+                  <span class="task-status-pill task-status-pill--done">${iconDone} OS Gerada: <b>${escapeHtml(String(statusCounters.done))}</b></span>
+                  <span class="task-status-pill task-status-pill--overdue">${iconOverdue} Atrasadas: <b>${escapeHtml(String(statusCounters.overdue))}</b></span>
+                </div>
+              </div>
+            </div>
           </div>
-          <button class="btn sm" data-open-activity-form="${escapeHtml(t.id)}" type="button">+ Atividade</button>
-        </div>
-        <div class="task-kpis">
-          ${isUserTech ? `<span class="kpi">Horas orcadas: <b>-</b></span>` : `<span class="kpi">Horas orcadas: <b>${escapeHtml(String(planned))}h</b></span>`}
-          <span class="kpi">Horas trabalhadas: <b>${escapeHtml(String(worked))}h</b></span>
-          <span class="kpi">Saldo disponivel: <b>${escapeHtml(String(balance))}h</b></span>
-          <span class="kpi">Atividades: <b>${escapeHtml(String(taskActs.length))}</b></span>
-        </div>
-
-        <div class="panel subtle" id="activityFormWrap-${escapeHtml(t.id)}" hidden>
+          <div class="task-summary-right">
+            <button class="btn sm" data-open-activity-form="${escapeHtml(t.id)}" type="button">+ Atividade</button>
+            <span class="task-toggle-label">Expandir</span>
+          </div>
+        </summary>
+        <div class="task-body">
+          <div class="panel subtle" id="activityFormWrap-${escapeHtml(t.id)}" hidden>
           <div class="project-form-grid">
             <label class="field">
               <span>Nome da atividade</span>
@@ -672,18 +774,20 @@ function renderTasks(deps){
             <button class="btn ghost sm" data-cancel-activity-form="${escapeHtml(t.id)}" type="button">Cancelar</button>
             <button class="btn primary sm" data-save-activity="${escapeHtml(t.id)}" type="button">Salvar atividade</button>
           </div>
-        </div>
-
-        <div class="activity-tree">
-          <div class="activity-tree-head">
-            <div>
-              <div class="task-step">Atividades</div>
-              <div class="muted">Agrupadas por tecnico dentro desta tarefa.</div>
-            </div>
           </div>
-          <div class="activity-list">${activityRows || `<p class="muted">Sem atividades.</p>`}</div>
+
+          <div class="activity-tree">
+            <div class="activity-tree-head">
+              <div>
+                <div class="task-step">Atividades</div>
+                <div class="muted">Agrupadas por nome da atividade e expandidas por tecnicos.</div>
+              </div>
+              <span class="activity-tree-hint">Clique nos grupos para expandir</span>
+            </div>
+            <div class="activity-list">${activityRows || `<p class="muted">Sem atividades.</p>`}</div>
+          </div>
         </div>
-      </article>
+      </details>
     `;
   }).join("");
 }
@@ -974,8 +1078,8 @@ export async function openProjectWorkspace(projectId, deps){
     await loadProjectData(deps, projectId);
     const label = `${_activeProject?.projectNumber || ""} ${_activeProject?.name || "Projeto"}`.trim();
     _tabs = _tabs.map(t => t.id === projectId ? { ...t, label } : t);
-    if (refs.projectWorkspaceTitle) refs.projectWorkspaceTitle.textContent = _activeProject?.name || "Projeto";
-    if (refs.projectWorkspaceSubtitle) refs.projectWorkspaceSubtitle.textContent = `Projeto #${_activeProject?.projectNumber || "—"}`;
+    if (refs.projectWorkspaceTitle) refs.projectWorkspaceTitle.textContent = "";
+    if (refs.projectWorkspaceSubtitle) refs.projectWorkspaceSubtitle.textContent = "";
     if (refs.btnOpenWorkspaceView) refs.btnOpenWorkspaceView.style.display = "";
     if (refs.btnOpenWorkspaceEdit) refs.btnOpenWorkspaceEdit.style.display = isTech(deps.state) ? "none" : "";
     if (refs.btnDeleteWorkspaceProject) refs.btnDeleteWorkspaceProject.style.display = isTech(deps.state) ? "none" : "";
@@ -985,7 +1089,7 @@ export async function openProjectWorkspace(projectId, deps){
     clearTaskForm(refs);
 
     renderTabs(refs);
-    renderBreadcrumb(refs, _activeProject);
+    if (refs.projectWorkspaceBreadcrumb) refs.projectWorkspaceBreadcrumb.innerHTML = "";
     renderCover(refs, _activeProject, deps.state);
     renderTasks(deps);
   }catch(err){
