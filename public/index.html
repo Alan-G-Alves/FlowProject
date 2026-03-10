@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 
 <html data-theme="light" lang="pt-br">
 <head>
@@ -544,7 +544,26 @@
           <p class="muted" id="projectWorkspaceSubtitle">Workspace do projeto</p>
         </div>
         <div class="workspace-head-actions">
-          <button class="btn ghost" id="btnOpenWorkspaceEdit" type="button" title="Editar projeto">Editar</button>
+          <button class="icon-btn xs btn-view" id="btnOpenWorkspaceView" type="button" title="Visualizar projeto" aria-label="Visualizar projeto">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6-10-6-10-6Z" stroke-width="2" stroke-linejoin="round"></path>
+              <circle cx="12" cy="12" r="3" stroke-width="2"></circle>
+            </svg>
+          </button>
+          <button class="icon-btn xs btn-edit" id="btnOpenWorkspaceEdit" type="button" title="Editar projeto" aria-label="Editar projeto">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M4 20h4l10-10-4-4L4 16v4Z" stroke-width="2" stroke-linejoin="round"></path>
+              <path d="M12 6l4 4" stroke-width="2" stroke-linecap="round"></path>
+            </svg>
+          </button>
+          <button class="icon-btn xs btn-block" id="btnDeleteWorkspaceProject" type="button" title="Excluir projeto" aria-label="Excluir projeto">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M4 7h16" stroke-width="2" stroke-linecap="round"></path>
+              <path d="M9 7V5h6v2" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"></path>
+              <path d="M7 7l1 12h8l1-12" stroke-width="2" stroke-linejoin="round"></path>
+              <path d="M10 11v5M14 11v5" stroke-width="2" stroke-linecap="round"></path>
+            </svg>
+          </button>
           <button class="btn ghost" id="btnCloseProjectWorkspace" type="button">X</button>
         </div>
       </div>
@@ -1323,8 +1342,16 @@
       </div>
       <div class="grid" style="grid-template-columns: repeat(2, 1fr); gap:12px;">
         <div class="field">
+          <span>Cliente</span>
+          <div style="padding:10px; background:rgba(255,255,255,.7); border:1px solid var(--border); border-radius:14px;" id="projectDetailClient">-</div>
+        </div>
+        <div class="field">
           <span>Equipe</span>
           <div style="padding:10px; background:rgba(255,255,255,.7); border:1px solid var(--border); border-radius:14px;" id="projectDetailTeam">-</div>
+        </div>
+        <div class="field">
+          <span>Gestor</span>
+          <div style="padding:10px; background:rgba(255,255,255,.7); border:1px solid var(--border); border-radius:14px;" id="projectDetailManager">-</div>
         </div>
         <div class="field">
           <span>Coordenador</span>
@@ -1342,13 +1369,28 @@
           <span>Data de termino</span>
           <div style="padding:10px; background:rgba(255,255,255,.7); border:1px solid var(--border); border-radius:14px;" id="projectDetailEndDate">-</div>
         </div>
+        <div class="field">
+          <span>Valor (R$)</span>
+          <div style="padding:10px; background:rgba(255,255,255,.7); border:1px solid var(--border); border-radius:14px;" id="projectDetailBillingValue">-</div>
+        </div>
+        <div class="field">
+          <span>Horas</span>
+          <div style="padding:10px; background:rgba(255,255,255,.7); border:1px solid var(--border); border-radius:14px;" id="projectDetailBillingHours">-</div>
+        </div>
+        <div class="field" style="grid-column: 1 / -1;">
+          <span>Tecnicos</span>
+          <div style="padding:10px; background:rgba(255,255,255,.7); border:1px solid var(--border); border-radius:14px;" id="projectDetailTechs">-</div>
+        </div>
+        <div class="field" style="grid-column: 1 / -1;">
+          <span>Key users</span>
+          <div style="padding:10px; background:rgba(255,255,255,.7); border:1px solid var(--border); border-radius:14px;" id="projectDetailKeyUsers">-</div>
+        </div>
+        <div class="field" style="grid-column: 1 / -1;">
+          <span>Contrato</span>
+          <div style="padding:10px; background:rgba(255,255,255,.7); border:1px solid var(--border); border-radius:14px;" id="projectDetailContract">-</div>
+        </div>
       </div>
       <div class="alert" hidden id="projectDetailAlert" style="margin-top:12px;"></div>
-    </div>
-    <div class="modal-footer">
-      <button class="btn" id="btnEditProject">Editar</button>
-      <button class="btn danger" id="btnDeleteProject">Excluir</button>
-      <button class="btn ghost" id="btnCancelProjectDetail">Fechar</button>
     </div>
   </div>
 </div>
@@ -1360,7 +1402,7 @@
     <div class="modal-header project-modal-head">
       <div>
         <h2>Editar Projeto</h2>
-        <p class="muted">Atualize todas as informa&ccedil;&otilde;es do projeto e ajuste t&eacute;cnicos e key users vinculados.</p>
+        <p class="muted">Atualize as informa&ccedil;&otilde;es do projeto e ajuste os t&eacute;cnicos vinculados.</p>
       </div>
       <button class="btn ghost" id="btnCloseEditProject">&times;</button>
     </div>
@@ -1443,16 +1485,6 @@
           </div>
         </div>
         <div class="form-section span-12">
-          <h3 class="project-section-title">Key Users</h3>
-          <div class="grid-2">
-            <label class="field span-12">
-              <span>Key users vinculados ao projeto</span>
-              <select id="editProjectKeyUsers" multiple style="min-height:120px;"></select>
-              <div class="help">Segure Ctrl para selecionar v&aacute;rios key users do cliente escolhido.</div>
-            </label>
-          </div>
-        </div>
-        <div class="form-section span-12">
           <h3 class="project-section-title">Planejamento</h3>
           <div class="grid-2">
             <label class="field span-6">
@@ -1506,10 +1538,6 @@
     <div class="modal-footer">
       <button class="btn" id="btnCancelEditProject">Cancelar</button>
       <button class="btn primary" id="btnUpdateProject">Salvar Altera&ccedil;&otilde;es</button>
-    </div>
-  </div>
-</div>
-      <button class="btn primary" id="btnUpdateProject">Salvar Alterações</button>
     </div>
   </div>
 </div>
@@ -1568,7 +1596,7 @@
 </section>
 
 
-<script src="./app.js?v=1770332292" type="module"></script>
+<script src="./app.js?v=1770332302" type="module"></script>
 <script>
   // Toggle senha (somente UI)
   document.addEventListener("click", function(e){
@@ -1784,4 +1812,5 @@
 </div>
 </body>
 </html>
+
 

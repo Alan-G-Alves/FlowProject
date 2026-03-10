@@ -1,5 +1,6 @@
 import {
   collection,
+  deleteDoc,
   doc,
   getDoc,
   getDocs,
@@ -20,6 +21,7 @@ let _activeProject = null;
 let _tabs = [];
 let _tasks = [];
 let _activities = [];
+const ACTIVITY_CHIP_COLORS = ["t1", "t2", "t3", "t4", "t5", "t6"];
 
 function setWorkspaceOpenUI(deps, isOpen){
   const refs = _wsRefs(deps);
@@ -37,7 +39,9 @@ function _wsRefs(deps){
     projectWorkspaceTabs: r.projectWorkspaceTabs || byId("projectWorkspaceTabs"),
     projectWorkspacePanel: r.projectWorkspacePanel || byId("projectWorkspacePanel"),
     btnCloseProjectWorkspace: r.btnCloseProjectWorkspace || byId("btnCloseProjectWorkspace"),
+    btnOpenWorkspaceView: r.btnOpenWorkspaceView || byId("btnOpenWorkspaceView"),
     btnOpenWorkspaceEdit: r.btnOpenWorkspaceEdit || byId("btnOpenWorkspaceEdit"),
+    btnDeleteWorkspaceProject: r.btnDeleteWorkspaceProject || byId("btnDeleteWorkspaceProject"),
     projectWorkspaceTitle: r.projectWorkspaceTitle || byId("projectWorkspaceTitle"),
     projectWorkspaceSubtitle: r.projectWorkspaceSubtitle || byId("projectWorkspaceSubtitle"),
     projectWorkspaceBreadcrumb: r.projectWorkspaceBreadcrumb || byId("projectWorkspaceBreadcrumb"),
@@ -116,16 +120,6 @@ function asNumber(v){
 }
 
 function keyUsersFromProjectClient(state, project){
-  if (Array.isArray(project?.projectKeyUsers) && project.projectKeyUsers.length){
-    return project.projectKeyUsers
-      .filter(Boolean)
-      .map((ku) => ({
-        name: ku?.name || "",
-        email: ku?.email || "",
-        phone: ku?.phone || ""
-      }))
-      .filter((ku) => ku.name || ku.email || ku.phone);
-  }
   const clientId = project?.clientId || "";
   if (!clientId) return [];
   const clients = Array.isArray(state?._clientsCache) ? state._clientsCache : [];
@@ -181,6 +175,83 @@ function datesForRangeByWeekdays(start, end, weekdaysSet){
   return out;
 }
 
+async function ensureWorkspaceContext(deps){
+  const { db, state } = deps || {};
+  const companyId = state?.companyId;
+  if (!db || !companyId) return;
+
+  if (!Array.isArray(state.teams) || !state.teams.length){
+    const teamsSnap = await getDocs(collection(db, `companies/${companyId}/teams`));
+    state.teams = teamsSnap.docs.map((d) => ({ id: d.id, ...d.data() }));
+  }
+
+  if (!Array.isArray(state._usersCache) || !state._usersCache.length){
+    const usersSnap = await getDocs(collection(db, `companies/${companyId}/users`));
+    state._usersCache = usersSnap.docs.map((d) => {
+      const data = d.data() || {};
+      return { uid: data.uid || d.id, ...data };
+    });
+  }
+}
+
+function getActivitySelectionInput(taskId, kind){
+  return document.getElementById(`actSelected${kind}-${taskId}`);
+}
+
+function getActivitySelectionValues(taskId, kind){
+  const input = getActivitySelectionInput(taskId, kind);
+  if (!input?.value) return [];
+  try {
+    const parsed = JSON.parse(input.value);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch (_) {
+    return [];
+  }
+}
+
+function setActivitySelectionValues(taskId, kind, values){
+  const input = getActivitySelectionInput(taskId, kind);
+  if (!input) return;
+  input.value = JSON.stringify(Array.isArray(values) ? values : []);
+}
+
+function renderActivitySelectionChips(taskId, kind, items){
+  const wrap = document.getElementById(`act${kind}Chips-${taskId}`);
+  if (!wrap) return;
+  const list = Array.isArray(items) ? items : [];
+  if (!list.length){
+    wrap.innerHTML = `<span class="muted">Nenhum selecionado.</span>`;
+    return;
+  }
+  wrap.innerHTML = list.map((item, idx) => `
+    <span class="chip project-tech-chip ${ACTIVITY_CHIP_COLORS[idx % ACTIVITY_CHIP_COLORS.length]}">
+      <span>${escapeHtml(item.label)}</span>
+      <button
+        type="button"
+        class="project-tech-chip-remove"
+        data-remove-activity-${kind.toLowerCase()}="${escapeHtml(taskId)}"
+        data-remove-value="${escapeHtml(item.value)}"
+        aria-label="Remover ${kind.toLowerCase()}"
+      >x</button>
+    </span>
+  `).join("");
+}
+
+function addActivitySelection(taskId, kind, value, label){
+  if (!taskId || !value) return;
+  const current = getActivitySelectionValues(taskId, kind);
+  if (current.some(item => item?.value === value)) return;
+  const next = [...current, { value, label: label || value }];
+  setActivitySelectionValues(taskId, kind, next);
+  renderActivitySelectionChips(taskId, kind, next);
+}
+
+function removeActivitySelection(taskId, kind, value){
+  const next = getActivitySelectionValues(taskId, kind).filter(item => item?.value !== value);
+  setActivitySelectionValues(taskId, kind, next);
+  renderActivitySelectionChips(taskId, kind, next);
+}
+
 function bindOnce(deps){
   if (_bound) return;
   _bound = true;
@@ -195,6 +266,17 @@ function bindOnce(deps){
     if (typeof deps.openEditProjectModal === "function"){
       await deps.openEditProjectModal(_activeProjectId);
     }
+  });
+
+  refs.btnOpenWorkspaceView?.addEventListener("click", async () => {
+    if (!_activeProjectId) return;
+    if (typeof deps.openProjectDetailModal === "function"){
+      await deps.openProjectDetailModal(_activeProjectId);
+    }
+  });
+
+  refs.btnDeleteWorkspaceProject?.addEventListener("click", async () => {
+    await deleteActiveProject(deps);
   });
 
   refs.btnOpenTaskForm?.addEventListener("click", () => {
@@ -273,6 +355,47 @@ function bindOnce(deps){
       await saveTechFill(activityId, deps);
       return;
     }
+
+    const removeTechBtn = ev.target?.closest?.("[data-remove-activity-techs]");
+    if (removeTechBtn){
+      removeActivitySelection(
+        removeTechBtn.getAttribute("data-remove-activity-techs"),
+        "Techs",
+        removeTechBtn.getAttribute("data-remove-value")
+      );
+      return;
+    }
+
+    const removeKeyUserBtn = ev.target?.closest?.("[data-remove-activity-keyusers]");
+    if (removeKeyUserBtn){
+      removeActivitySelection(
+        removeKeyUserBtn.getAttribute("data-remove-activity-keyusers"),
+        "KeyUsers",
+        removeKeyUserBtn.getAttribute("data-remove-value")
+      );
+      return;
+    }
+  });
+
+  refs.projectTaskList?.addEventListener("change", (ev) => {
+    const techSelect = ev.target?.closest?.("[data-activity-tech-select]");
+    if (techSelect){
+      const taskId = techSelect.getAttribute("data-activity-tech-select");
+      const value = techSelect.value || "";
+      const label = techSelect.options?.[techSelect.selectedIndex]?.textContent?.trim() || value;
+      if (value) addActivitySelection(taskId, "Techs", value, label);
+      techSelect.value = "";
+      return;
+    }
+
+    const keyUserSelect = ev.target?.closest?.("[data-activity-keyuser-select]");
+    if (keyUserSelect){
+      const taskId = keyUserSelect.getAttribute("data-activity-keyuser-select");
+      const value = keyUserSelect.value || "";
+      const label = keyUserSelect.options?.[keyUserSelect.selectedIndex]?.textContent?.trim() || value;
+      if (value) addActivitySelection(taskId, "KeyUsers", value, label);
+      keyUserSelect.value = "";
+    }
   });
 }
 
@@ -324,15 +447,54 @@ function renderCover(refs, project, state){
   const status = project.status || "a-fazer";
   const client = project.clientName || "-";
   const manager = (state._usersCache || []).find(u => u.uid === project.managerUid)?.name || "-";
+  const coordinator = (state._usersCache || []).find(u => u.uid === project.coordinatorUid)?.name || "-";
+  const endDate = fmtDate(project.endDate);
+  const billingValue = project.billingValue ? Number(project.billingValue).toLocaleString("pt-BR", { style: "currency", currency: "BRL" }) : "-";
 
   refs.projectWorkspaceCover.innerHTML = `
-    <div class="project-cover-title">${escapeHtml(project.name || "Projeto")}</div>
-    <div class="project-cover-meta">
-      <span class="badge small">Status: ${escapeHtml(status)}</span>
-      <span class="badge small">Equipe: ${escapeHtml(teamName)}</span>
-      <span class="badge small">Cliente: ${escapeHtml(client)}</span>
-      <span class="badge small">Gestor: ${escapeHtml(manager)}</span>
-      <span class="badge small">Horas projeto: ${escapeHtml(String(project.billingHours ?? "-"))}</span>
+    <div class="project-cover-hero">
+      <div>
+        <div class="project-cover-eyebrow">Projeto</div>
+        <div class="project-cover-title">${escapeHtml(project.name || "Projeto")}</div>
+        <div class="project-cover-subtitle">Workspace central do projeto com tarefas e atividades vinculadas.</div>
+      </div>
+      <div class="project-cover-badges">
+        <span class="badge small">Status: ${escapeHtml(status)}</span>
+        <span class="badge small">Prazo: ${escapeHtml(endDate)}</span>
+      </div>
+    </div>
+    <div class="project-cover-grid">
+      <div class="project-cover-card">
+        <span class="project-cover-label">Cliente</span>
+        <strong>${escapeHtml(client)}</strong>
+      </div>
+      <div class="project-cover-card">
+        <span class="project-cover-label">Equipe</span>
+        <strong>${escapeHtml(teamName)}</strong>
+      </div>
+      <div class="project-cover-card">
+        <span class="project-cover-label">Gestor</span>
+        <strong>${escapeHtml(manager)}</strong>
+      </div>
+      <div class="project-cover-card">
+        <span class="project-cover-label">Coordenador</span>
+        <strong>${escapeHtml(coordinator)}</strong>
+      </div>
+      <div class="project-cover-card">
+        <span class="project-cover-label">Horas do projeto</span>
+        <strong>${escapeHtml(String(project.billingHours ?? "-"))}h</strong>
+      </div>
+      <div class="project-cover-card">
+        <span class="project-cover-label">Valor do projeto</span>
+        <strong>${escapeHtml(billingValue)}</strong>
+      </div>
+    </div>
+    <div class="project-cover-flow">
+      <span>Projeto</span>
+      <span class="project-cover-flow-sep">-></span>
+      <span>Tarefas</span>
+      <span class="project-cover-flow-sep">-></span>
+      <span>Atividades</span>
     </div>
   `;
 }
@@ -370,17 +532,32 @@ function renderTasks(deps){
     const worked = taskActs.reduce((acc, a) => acc + asNumber(a.hoursWorked), 0);
     const planned = asNumber(t.plannedHours);
     const balance = Math.max(0, planned - worked);
-    const activityRows = taskActs.map(a => {
+    const groupedActs = new Map();
+    taskActs.forEach((a) => {
+      const names = Array.isArray(a.techNames) && a.techNames.length ? a.techNames : ["Sem tecnico"];
+      const groupKey = names.join(" | ");
+      const current = groupedActs.get(groupKey) || { label: names.join(", "), activities: [] };
+      current.activities.push(a);
+      groupedActs.set(groupKey, current);
+    });
+    const activityRows = Array.from(groupedActs.values()).map((group, groupIdx) => {
+      const groupHours = group.activities.reduce((acc, a) => acc + asNumber(a.hoursWorked), 0);
+      const activityCards = group.activities.map(a => {
       const canTechFill = isUserTech && ["admin","gestor","coordenador"].includes((a.createdByRole || "").toLowerCase());
       const assignedTechs = Array.isArray(a.techNames) && a.techNames.length ? a.techNames.join(", ") : "Sem tecnico";
       return `
         <div class="activity-item ${a.status === "os_gerada" ? "ok" : "pending"}">
           <div class="activity-main">
-            <b>${escapeHtml(a.name || "Atividade")}</b>
-            <span class="muted">${escapeHtml(fmtDate(a.workDate))} | ${escapeHtml(String(a.hoursWorked || 0))}h</span>
+            <div>
+              <b>${escapeHtml(a.name || "Atividade")}</b>
+              <div class="activity-meta-line">${escapeHtml(fmtDate(a.workDate))} | ${escapeHtml(String(a.hoursWorked || 0))}h</div>
+            </div>
+            <span class="activity-status ${a.status === "os_gerada" ? "green" : "red"}">${a.status === "os_gerada" ? "OS Gerada" : "Sem Ordem de Servico"}</span>
           </div>
-          <div class="muted">Tecnicos: ${escapeHtml(assignedTechs)}</div>
-          <div class="activity-status ${a.status === "os_gerada" ? "green" : "red"}">${a.status === "os_gerada" ? "OS Gerada" : "Sem Ordem de Servico"}</div>
+          <div class="activity-tags">
+            <span class="activity-tag">Tecnicos: ${escapeHtml(assignedTechs)}</span>
+            <span class="activity-tag">Key users: ${escapeHtml(Array.isArray(a.keyUsers) && a.keyUsers.length ? a.keyUsers.join(", ") : "-")}</span>
+          </div>
           ${canTechFill ? `
             <div class="activity-tech-fill">
               <input type="time" id="actStart-${escapeHtml(a.id)}" />
@@ -390,6 +567,21 @@ function renderTasks(deps){
             </div>
           ` : ""}
         </div>
+      `;
+      }).join("");
+      return `
+        <details class="activity-group" ${groupIdx === 0 ? "open" : ""}>
+          <summary class="activity-group-summary">
+            <div>
+              <div class="activity-group-title">${escapeHtml(group.label)}</div>
+              <div class="activity-group-subtitle">${escapeHtml(String(group.activities.length))} atividade(s) | ${escapeHtml(String(groupHours))}h</div>
+            </div>
+            <span class="activity-group-toggle">Expandir</span>
+          </summary>
+          <div class="activity-group-list">
+            ${activityCards}
+          </div>
+        </details>
       `;
     }).join("");
 
@@ -405,7 +597,8 @@ function renderTasks(deps){
     return `
       <article class="task-card">
         <div class="task-head">
-          <div>
+          <div class="task-head-main">
+            <div class="task-step">Tarefa</div>
             <h4>#${escapeHtml(String(t.taskNumber || "-"))} ${escapeHtml(t.name || "")}</h4>
             <p class="muted">Validade: ${escapeHtml(fmtDate(t.startDate))} ate ${escapeHtml(fmtDate(t.endDate))}</p>
           </div>
@@ -415,6 +608,7 @@ function renderTasks(deps){
           ${isUserTech ? `<span class="kpi">Horas orcadas: <b>-</b></span>` : `<span class="kpi">Horas orcadas: <b>${escapeHtml(String(planned))}h</b></span>`}
           <span class="kpi">Horas trabalhadas: <b>${escapeHtml(String(worked))}h</b></span>
           <span class="kpi">Saldo disponivel: <b>${escapeHtml(String(balance))}h</b></span>
+          <span class="kpi">Atividades: <b>${escapeHtml(String(taskActs.length))}</b></span>
         </div>
 
         <div class="panel subtle" id="activityFormWrap-${escapeHtml(t.id)}" hidden>
@@ -446,18 +640,26 @@ function renderTasks(deps){
               <span>Horas (1 a 12)</span>
               <input type="number" id="actHours-${escapeHtml(t.id)}" min="1" max="12" step="0.5" placeholder="8" />
             </label>
-            <label class="field">
+            <div class="field">
               <span>Key users</span>
-              <select id="actKeyUsers-${escapeHtml(t.id)}" multiple>
+              <select id="actKeyUsers-${escapeHtml(t.id)}" data-activity-keyuser-select="${escapeHtml(t.id)}">
+                <option value="">Selecione um key user</option>
                 ${keyUserOptions || `<option value="" disabled>Nenhum key user vinculado ao cliente do projeto</option>`}
               </select>
-            </label>
-            <label class="field">
+              <div class="help">Selecao multipla em chips coloridos.</div>
+              <input type="hidden" id="actSelectedKeyUsers-${escapeHtml(t.id)}" value="[]" />
+              <div id="actKeyUsersChips-${escapeHtml(t.id)}" class="chips project-tech-chips activity-selection-chips"><span class="muted">Nenhum selecionado.</span></div>
+            </div>
+            <div class="field">
               <span>Tecnicos do projeto</span>
-              <select id="actTechs-${escapeHtml(t.id)}" multiple>
+              <select id="actTechs-${escapeHtml(t.id)}" data-activity-tech-select="${escapeHtml(t.id)}">
+                <option value="">Selecione um tecnico</option>
                 ${techOptions || `<option value="" disabled>Nenhum tecnico vinculado ao projeto</option>`}
               </select>
-            </label>
+              <div class="help">Selecao multipla em chips coloridos.</div>
+              <input type="hidden" id="actSelectedTechs-${escapeHtml(t.id)}" value="[]" />
+              <div id="actTechsChips-${escapeHtml(t.id)}" class="chips project-tech-chips activity-selection-chips"><span class="muted">Nenhum selecionado.</span></div>
+            </div>
             <label class="field span-2">
               <span>Observacao</span>
               <textarea id="actObsInput-${escapeHtml(t.id)}" rows="2" placeholder="Observacao da atividade"></textarea>
@@ -472,7 +674,15 @@ function renderTasks(deps){
           </div>
         </div>
 
-        <div class="activity-list">${activityRows || `<p class="muted">Sem atividades.</p>`}</div>
+        <div class="activity-tree">
+          <div class="activity-tree-head">
+            <div>
+              <div class="task-step">Atividades</div>
+              <div class="muted">Agrupadas por tecnico dentro desta tarefa.</div>
+            </div>
+          </div>
+          <div class="activity-list">${activityRows || `<p class="muted">Sem atividades.</p>`}</div>
+        </div>
       </article>
     `;
   }).join("");
@@ -483,6 +693,7 @@ async function loadProjectData(deps, projectId){
   const companyId = state.companyId;
   if (!companyId) throw new Error("Empresa não identificada.");
 
+  await ensureWorkspaceContext(deps);
   try { await ensureClientsCache(deps); } catch (_) {}
 
   const pSnap = await getDoc(doc(db, `companies/${companyId}/projects`, projectId));
@@ -567,8 +778,8 @@ async function saveActivity(taskId, deps){
   const rangeEnd = document.getElementById(`actRangeEnd-${taskId}`)?.value || "";
   const hoursWorked = asNumber(document.getElementById(`actHours-${taskId}`)?.value || 0);
   const note = (document.getElementById(`actObsInput-${taskId}`)?.value || "").trim();
-  const keyUsers = Array.from(document.getElementById(`actKeyUsers-${taskId}`)?.selectedOptions || []).map(o => o.value);
-  const techUids = Array.from(document.getElementById(`actTechs-${taskId}`)?.selectedOptions || []).map(o => o.value).filter(Boolean);
+  const keyUsers = getActivitySelectionValues(taskId, "KeyUsers").map(item => item?.value).filter(Boolean);
+  const techUids = getActivitySelectionValues(taskId, "Techs").map(item => item?.value).filter(Boolean);
 
   if (!name || hoursWorked <= 0){
     setAlert(refs.projectTaskAlert, "Preencha nome e horas da atividade.", "error");
@@ -708,6 +919,31 @@ async function refreshWorkspace(deps){
   renderTasks(deps);
 }
 
+async function deleteActiveProject(deps){
+  const { state, db } = deps;
+  const refs = _wsRefs(deps);
+  if (!_activeProjectId || !state?.companyId) return;
+
+  if (_tasks.length || _activities.length){
+    setAlert(refs.projectTaskAlert, "Nao e permitido excluir um projeto com tarefas ou atividades vinculadas.", "error");
+    return;
+  }
+
+  const tasksSnap = await getDocs(query(collection(db, `companies/${state.companyId}/tasks`), where("projectId", "==", _activeProjectId)));
+  const actsSnap = await getDocs(query(collection(db, `companies/${state.companyId}/activities`), where("projectId", "==", _activeProjectId)));
+  if (!tasksSnap.empty || !actsSnap.empty){
+    setAlert(refs.projectTaskAlert, "Nao e permitido excluir um projeto com tarefas ou atividades vinculadas.", "error");
+    return;
+  }
+
+  const projectName = _activeProject?.name || "este projeto";
+  if (!confirm(`Deseja realmente excluir ${projectName}?`)) return;
+
+  await deleteDoc(doc(db, `companies/${state.companyId}/projects`, _activeProjectId));
+  _tabs = _tabs.filter(t => t.id !== _activeProjectId);
+  closeProjectWorkspace(deps);
+}
+
 export async function openProjectTab(projectId, deps){
   bindOnce(deps);
   const refs = _wsRefs(deps);
@@ -740,7 +976,9 @@ export async function openProjectWorkspace(projectId, deps){
     _tabs = _tabs.map(t => t.id === projectId ? { ...t, label } : t);
     if (refs.projectWorkspaceTitle) refs.projectWorkspaceTitle.textContent = _activeProject?.name || "Projeto";
     if (refs.projectWorkspaceSubtitle) refs.projectWorkspaceSubtitle.textContent = `Projeto #${_activeProject?.projectNumber || "—"}`;
+    if (refs.btnOpenWorkspaceView) refs.btnOpenWorkspaceView.style.display = "";
     if (refs.btnOpenWorkspaceEdit) refs.btnOpenWorkspaceEdit.style.display = isTech(deps.state) ? "none" : "";
+    if (refs.btnDeleteWorkspaceProject) refs.btnDeleteWorkspaceProject.style.display = isTech(deps.state) ? "none" : "";
     if (refs.btnOpenTaskForm) refs.btnOpenTaskForm.style.display = canManageTasks(deps.state) ? "" : "none";
     if (refs.projectTaskFormWrap) refs.projectTaskFormWrap.hidden = true;
     clearAlert(refs.projectTaskAlert);
@@ -767,4 +1005,6 @@ export function closeProjectWorkspace(deps){
   if (refs.projectWorkspaceBreadcrumb) refs.projectWorkspaceBreadcrumb.innerHTML = "";
   renderTabs(refs);
 }
+
+
 

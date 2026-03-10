@@ -1,6 +1,6 @@
-/**
+﻿/**
  * projects.domain.js
- * Lógica de negócio para gestão de projetos
+ * LÃ³gica de negÃ³cio para gestÃ£o de projetos
  */
 
 import {
@@ -37,7 +37,7 @@ import { ensureClientsCache } from "./clients.domain.js";
 let unsubscribeMyProjectsListener = null;
 
 // Guarda o deps mais recente do Kanban para que busca/filters e re-renders
-// não percam state/db/auth (evita "Erro: não autenticado" no drag&drop).
+// nÃ£o percam state/db/auth (evita "Erro: nÃ£o autenticado" no drag&drop).
 let _myProjectsDeps = null;
 
 /* My Projects Kanban Search */
@@ -54,6 +54,7 @@ let _editProjectUiInitialized = false;
 let _editSelectedTechUids = [];
 let _selectedEditProjectContractFile = null;
 let _removeEditProjectContract = false;
+let _editTechNamesByUid = new Map();
 
 function _normText(v){
   return (v ?? "")
@@ -68,7 +69,7 @@ function _formatBRLAlias(num){
   if (num === null || num === undefined || num === "") return "";
   const n = Number(num);
   if (Number.isNaN(n)) return "";
-  // inclui variações úteis para busca: "1500", "1500.5", "1500,50", "1.500,50", "r$ 1.500,50"
+  // inclui variaÃ§Ãµes Ãºteis para busca: "1500", "1500.5", "1500,50", "1.500,50", "r$ 1.500,50"
   const brl = n.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
   const plain = String(n);
   const noSep = brl.replace(/[^0-9,]/g, "").replace(/\./g, "");
@@ -97,11 +98,11 @@ function _buildProjectSearchHaystack(p){
   parts.push(p?.description || "");
   // prioridade (inclui alias com acento)
   const pri = String(p?.priority || "");
-  if (pri) parts.push(pri, pri === "media" ? "média" : "", pri === "alta" ? "alta" : "", pri === "baixa" ? "baixa" : "");
+  if (pri) parts.push(pri, pri === "media" ? "mÃ©dia" : "", pri === "alta" ? "alta" : "", pri === "baixa" ? "baixa" : "");
   // datas
   parts.push(_dateAliases(p?.startDate));
   parts.push(_dateAliases(p?.endDate));
-  // cobrança
+  // cobranÃ§a
   parts.push(_formatBRLAlias(p?.billingValue));
   if (p?.billingHours !== undefined && p?.billingHours !== null) parts.push(String(p.billingHours), `${p.billingHours}h`, `${p.billingHours}horas`);
   // status
@@ -131,15 +132,15 @@ function _applyMyProjectsSearch(list){
 
 
 function _renderMyProjectsWithFilter(refs){
-  // ⚠️ Importante: ao re-renderizar (ex.: busca), precisamos manter state/db/auth.
-  // Caso contrário, o drag&drop cai no alert "Erro: não autenticado".
+  // âš ï¸ Importante: ao re-renderizar (ex.: busca), precisamos manter state/db/auth.
+  // Caso contrÃ¡rio, o drag&drop cai no alert "Erro: nÃ£o autenticado".
   const deps = _myProjectsDeps || {};
   renderMyProjectsKanban(_applyMyProjectsSearch(_myProjectsLast), { ...deps, refs });
 }
 
 function initMyProjectsSearchUI(refs){
   // Busca "Meus Projetos" (Kanban)
-  // Observação: o HTML atual não tem botão toggle; o campo fica sempre visível.
+  // ObservaÃ§Ã£o: o HTML atual nÃ£o tem botÃ£o toggle; o campo fica sempre visÃ­vel.
   if (_myProjectsSearchInitialized) return;
   _myProjectsSearchInitialized = true;
 
@@ -189,7 +190,7 @@ function initMyProjectsSearchUI(refs){
 function _parseBRLToNumber(input){
   const raw = (input ?? "").toString().trim();
   if (!raw) return null;
-  // remove R$, espaços e qualquer coisa que não seja número, ponto, vírgula, sinal
+  // remove R$, espaÃ§os e qualquer coisa que nÃ£o seja nÃºmero, ponto, vÃ­rgula, sinal
   const cleaned = raw
     .replace(/\s/g, "")
     .replace(/R\$/gi, "")
@@ -234,8 +235,8 @@ async function _uploadProjectContract(deps, companyId, projectId, file){
   if (!storage || !file) return null;
 
   const isPdf = (file.type || "").toLowerCase() === "application/pdf" || /\.pdf$/i.test(file.name || "");
-  if (!isPdf) throw new Error("Anexo inválido. Envie um arquivo PDF.");
-  if (file.size > 10 * 1024 * 1024) throw new Error("O contrato deve ter no máximo 10MB.");
+  if (!isPdf) throw new Error("Anexo invÃ¡lido. Envie um arquivo PDF.");
+  if (file.size > 10 * 1024 * 1024) throw new Error("O contrato deve ter no mÃ¡ximo 10MB.");
 
   const safeName = (file.name || "contrato.pdf").replace(/[^\w.\-]+/g, "_");
   const path = `projectContracts/${companyId}/${projectId}/${Date.now()}_${safeName}`;
@@ -278,15 +279,15 @@ function _ensureCreateProjectUi(refs, state){
       const f = _formatBRL(valueEl.value);
       valueEl.value = f || "";
     });
-    // Se o usuário começar a digitar "R$" etc, não atrapalhar: apenas limpa no focus
+    // Se o usuÃ¡rio comeÃ§ar a digitar "R$" etc, nÃ£o atrapalhar: apenas limpa no focus
     valueEl.addEventListener("focus", () => {
-      // mantém números (pra facilitar edição)
+      // mantÃ©m nÃºmeros (pra facilitar ediÃ§Ã£o)
       const n = _parseBRLToNumber(valueEl.value);
       valueEl.value = n === null ? "" : String(n).replace(/\./g, ",");
     });
   }
 
-  // Técnicos (select + chips)
+  // TÃ©cnicos (select + chips)
   const techSelect = refs?.projectTechSelectEl || document.getElementById("projectTechSelect");
   if (techSelect) {
     techSelect.addEventListener("change", () => {
@@ -434,13 +435,13 @@ function _listActiveTechs(state, teamId){
 
 function _populateTechSelect(selectEl, state, teamId){
   if (!selectEl) return;
-  selectEl.innerHTML = '<option value="">Selecione um técnico</option>';
+  selectEl.innerHTML = '<option value="">Selecione um tÃ©cnico</option>';
 
   const techs = _listActiveTechs(state, teamId);
   techs.sort((a, b) => (a.name || "").localeCompare(b.name || ""));
 
   for (const t of techs) {
-    // não listar os já selecionados
+    // nÃ£o listar os jÃ¡ selecionados
     if (_selectedTechUids.includes(t.uid)) continue;
     const opt = document.createElement("option");
     opt.value = t.uid;
@@ -461,24 +462,24 @@ function _renderSelectedTechChips(refs, state){
   const colorClasses = ["t1", "t2", "t3", "t4", "t5", "t6"];
   _selectedTechUids.forEach((uid, idx) => {
     const u = byUid.get(uid);
-    const name = (u?.name || u?.email || uid);
+    const name = (_editTechNamesByUid.get(uid) || u?.name || u?.email || uid);
     const chip = document.createElement("span");
     chip.className = `chip project-tech-chip ${colorClasses[idx % colorClasses.length]}`;
     chip.innerHTML = `
       <span>${escapeHtml(name)}</span>
-      <button type="button" class="project-tech-chip-remove" data-tech-uid="${escapeHtml(uid)}" aria-label="Remover técnico">×</button>
+      <button type="button" class="project-tech-chip-remove" data-tech-uid="${escapeHtml(uid)}" aria-label="Remover tÃ©cnico">Ã—</button>
     `;
     chipsEl.appendChild(chip);
   });
 
-  // re-popula select para esconder os já escolhidos
+  // re-popula select para esconder os jÃ¡ escolhidos
   const teamId = (refs?.projectTeamEl?.value || document.getElementById("projectTeam")?.value || "");
   _populateTechSelect(techSelect, state, teamId);
 }
 
 function _populateEditTechSelect(selectEl, state, teamId){
   if (!selectEl) return;
-  selectEl.innerHTML = '<option value="">Selecione um técnico</option>';
+  selectEl.innerHTML = '<option value="">Selecione um tÃ©cnico</option>';
   const techs = _listActiveTechs(state, teamId);
   techs.sort((a, b) => (a.name || "").localeCompare(b.name || ""));
   for (const t of techs){
@@ -501,12 +502,12 @@ function _renderEditSelectedTechChips(refs, state){
   const colorClasses = ["t1", "t2", "t3", "t4", "t5", "t6"];
   _editSelectedTechUids.forEach((uid, idx) => {
     const u = byUid.get(uid);
-    const name = (u?.name || u?.email || uid);
+    const name = (_editTechNamesByUid.get(uid) || u?.name || u?.email || uid);
     const chip = document.createElement("span");
     chip.className = `chip project-tech-chip ${colorClasses[idx % colorClasses.length]}`;
     chip.innerHTML = `
       <span>${escapeHtml(name)}</span>
-      <button type="button" class="project-tech-chip-remove" data-edit-tech-uid="${escapeHtml(uid)}" aria-label="Remover técnico">x</button>
+      <button type="button" class="project-tech-chip-remove" data-edit-tech-uid="${escapeHtml(uid)}" aria-label="Remover tÃ©cnico">x</button>
     `;
     chipsEl.appendChild(chip);
   });
@@ -538,36 +539,30 @@ function _keyUserId(ku){
   return `${(ku?.name || "").trim()}|${(ku?.email || "").trim()}|${(ku?.phone || "").trim()}`;
 }
 
-function _renderEditProjectKeyUsers(refs, state, clientId, selectedKeyUsers = []){
-  const selectEl = refs?.editProjectKeyUsersEl || document.getElementById("editProjectKeyUsers");
-  if (!selectEl) return;
-
-  const clientKeyUsers = _clientKeyUsersByClientId(state, clientId || "");
-  if (!clientKeyUsers.length){
-    selectEl.innerHTML = '<option value="" disabled>Nenhum key user disponível no cliente</option>';
-    return;
+async function _ensureEditProjectContext(state, db, companyId){
+  if (!Array.isArray(state.teams) || !state.teams.length){
+    const teamsSnap = await getDocs(collection(db, `companies/${companyId}/teams`));
+    state.teams = teamsSnap.docs.map(d => ({ id: d.id, ...d.data() }));
   }
 
-  const selectedIds = new Set((Array.isArray(selectedKeyUsers) ? selectedKeyUsers : []).map(_keyUserId));
-  const opts = clientKeyUsers.map((ku) => {
-    const id = _keyUserId(ku);
-    const label = ku.name || ku.email || ku.phone || "Key user";
-    const selected = selectedIds.has(id) ? "selected" : "";
-    return `<option value="${escapeHtml(id)}" ${selected}>${escapeHtml(label)}</option>`;
-  });
-  selectEl.innerHTML = opts.join("");
+  if (!Array.isArray(state._usersCache) || !state._usersCache.length){
+    const usersSnap = await getDocs(collection(db, `companies/${companyId}/users`));
+    state._usersCache = usersSnap.docs.map(d => {
+      const data = d.data() || {};
+      return { uid: data.uid || d.id, ...data };
+    });
+  }
 }
 
-
 /**
- * Helper: garante refs do Kanban mesmo quando deps/refs não são passados
+ * Helper: garante refs do Kanban mesmo quando deps/refs nÃ£o sÃ£o passados
  */
 function getKanbanRefsSafe(deps) {
   const refs = deps?.refs || {};
   const dom = (id) => document.getElementById(id);
 
   return {
-    // containers kanban (ordem: A Fazer, Em Andamento, Go Live, Concluído, Parado, Backlog)
+    // containers kanban (ordem: A Fazer, Em Andamento, Go Live, ConcluÃ­do, Parado, Backlog)
     kanbanTodo: refs.kanbanTodo || dom("kanbanTodo"),
     kanbanInProgress: refs.kanbanInProgress || dom("kanbanInProgress"),
     kanbanGoLive: refs.kanbanGoLive || dom("kanbanGoLive"),
@@ -613,7 +608,7 @@ export async function loadProjects(deps) {
 
   try {
     const companyId = state.companyId;
-    if (!companyId) throw new Error("companyId não encontrado");
+    if (!companyId) throw new Error("companyId nÃ£o encontrado");
 
     // Query base
     let q = query(
@@ -687,7 +682,7 @@ function renderProjectCard(proj, deps) {
       <h3 class="title" style="margin:0;">${escapeHtml(proj.name || "Sem nome")}</h3>
       ${statusBadge}
     </div>
-    <p class="desc" style="margin:6px 0 12px 0;">${escapeHtml(proj.description || "Sem descrição")}</p>
+    <p class="desc" style="margin:6px 0 12px 0;">${escapeHtml(proj.description || "Sem descriÃ§Ã£o")}</p>
     <div class="meta" style="display:flex; gap:8px; flex-wrap:wrap;">
       ${priorityBadge}
       <span class="badge small">${escapeHtml(teamName)}</span>
@@ -705,14 +700,14 @@ function renderProjectCard(proj, deps) {
 
 /**
  * Meta (UI) por status do projeto
- * - Use as mesmas cores das colunas do Kanban, para manter consistência visual.
- * - Tons "leves" (não saturados) para não poluir a tela.
+ * - Use as mesmas cores das colunas do Kanban, para manter consistÃªncia visual.
+ * - Tons "leves" (nÃ£o saturados) para nÃ£o poluir a tela.
  */
 const PROJECT_STATUS_META = {
   "a-fazer":      { label: "A Fazer",       color: "#3b82f6" }, // azul leve
-  "em-andamento": { label: "Em andamento",  color: "#f59e0b" }, // âmbar/laranja leve
+  "em-andamento": { label: "Em andamento",  color: "#f59e0b" }, // Ã¢mbar/laranja leve
   "go-live":      { label: "Go Live",       color: "#22c55e" }, // verde leve
-  "concluido":    { label: "Concluído",     color: "#94a3b8" }, // cinza/neutral
+  "concluido":    { label: "ConcluÃ­do",     color: "#94a3b8" }, // cinza/neutral
   "parado":       { label: "Parado",        color: "#ef4444" }, // vermelho leve
   "backlog":      { label: "Backlog",       color: "#8b5cf6" }, // roxo leve
 };
@@ -727,9 +722,9 @@ function getStatusBadge(status) {
     "a-fazer":    { label: "A Fazer",      cls: "badge info"    }, // azul leve
     "em-andamento": { label: "Em Andamento", cls: "badge warn"    }, // laranja leve
     "go-live":    { label: "Go Live",      cls: "badge success" }, // verde leve
-    "concluido":  { label: "Concluído",    cls: "badge"         }, // neutro/cinza
+    "concluido":  { label: "ConcluÃ­do",    cls: "badge"         }, // neutro/cinza
     "parado":     { label: "Parado",       cls: "badge danger"  }, // vermelho/alarme
-    "backlog":    { label: "Backlog",      cls: "badge info"    }, // roxo leve (se não existir, cai no badge padrão)
+    "backlog":    { label: "Backlog",      cls: "badge info"    }, // roxo leve (se nÃ£o existir, cai no badge padrÃ£o)
   };
 
   const st = (status || "a-fazer").toLowerCase();
@@ -743,10 +738,10 @@ function getStatusBadge(status) {
 function getPriorityBadge(priority) {
   const map = {
     "baixa": '<span class="badge small" style="background:rgba(148,163,184,.10); border-color:rgba(148,163,184,.25);">Baixa</span>',
-    "media": '<span class="badge small" style="background:rgba(249,115,22,.10); border-color:rgba(249,115,22,.25);">Média</span>',
+    "media": '<span class="badge small" style="background:rgba(249,115,22,.10); border-color:rgba(249,115,22,.25);">MÃ©dia</span>',
     "alta": '<span class="badge small" style="background:rgba(239,68,68,.10); border-color:rgba(239,68,68,.25); color:#b91c1c;">Alta</span>'
   };
-  return map[priority] || '<span class="badge small">—</span>';
+  return map[priority] || '<span class="badge small">â€”</span>';
 }
 
 /**
@@ -766,7 +761,7 @@ export async function openCreateProjectModal(deps) {
   if (refs.projectCoordinatorEl) refs.projectCoordinatorEl.value = "";
   if (refs.projectTeamEl) refs.projectTeamEl.value = "";
   if (refs.projectClientEl) refs.projectClientEl.value = "";
-  // billing/status antigos (inputs removidos do HTML) — mantemos compatibilidade via refs opcionais
+  // billing/status antigos (inputs removidos do HTML) â€” mantemos compatibilidade via refs opcionais
   if (refs.projectBillingValueEl) refs.projectBillingValueEl.checked = true;
   if (refs.projectBillingHoursEl) refs.projectBillingHoursEl.checked = false;
   if (refs.projectStatusEl) refs.projectStatusEl.value = "a-fazer";
@@ -779,7 +774,7 @@ export async function openCreateProjectModal(deps) {
   if (refs.projectContractFileEl) refs.projectContractFileEl.value = "";
   _setProjectContractFileLabel(refs, "Nenhum PDF selecionado");
 
-  // reset técnicos
+  // reset tÃ©cnicos
   _selectedTechUids = [];
   if (refs.projectTechSelectEl) refs.projectTechSelectEl.value = "";
   if (refs.projectTechChipsEl) refs.projectTechChipsEl.innerHTML = "";
@@ -798,10 +793,10 @@ export async function openCreateProjectModal(deps) {
   await ensureClientsCache(deps);
   populateClientSelect(refs.projectClientEl, state._clientsCache || []);
 
-  // UI do modal (chips + máscara + técnicos)
+  // UI do modal (chips + mÃ¡scara + tÃ©cnicos)
   _ensureCreateProjectUi(refs, state);
 
-  // Reseta visual dos chips de prioridade para o padrão (média)
+  // Reseta visual dos chips de prioridade para o padrÃ£o (mÃ©dia)
   const chipsWrap = document.getElementById("projectPriorityChips");
   if (chipsWrap) {
     chipsWrap.querySelectorAll(".chip").forEach(b => b.classList.remove("selected"));
@@ -810,7 +805,7 @@ export async function openCreateProjectModal(deps) {
   }
   _populateTechSelect(refs.projectTechSelectEl, state, refs.projectTeamEl?.value || "");
 
-  // Quando troca equipe, filtra técnicos
+  // Quando troca equipe, filtra tÃ©cnicos
   if (refs.projectTeamEl) {
     refs.projectTeamEl.onchange = () => {
       _populateTechSelect(refs.projectTechSelectEl, state, refs.projectTeamEl.value || "");
@@ -847,7 +842,7 @@ export async function createProject(deps) {
   const clientId = refs.projectClientEl?.value || "";
   const clientName = clientId ? ((state._clientsCache||[]).find(c=>c.id===clientId)?.name || "") : "";
   const clientNumber = clientId ? ((state._clientsCache||[]).find(c=>c.id===clientId)?.number ?? "") : "";
-  // Cobrança (inputs atuais do modal)
+  // CobranÃ§a (inputs atuais do modal)
   const billingValue = _parseBRLToNumber(refs.projectBillingValueAmountEl?.value || "");
   const billingHours = _parseHoursToNumber(refs.projectBillingHoursAmountEl?.value || "");
 
@@ -862,10 +857,10 @@ export async function createProject(deps) {
   const startDate = refs.projectStartDateEl?.value || "";
   const endDate = refs.projectEndDateEl?.value || "";
 
-  // Técnicos selecionados (chips)
+  // TÃ©cnicos selecionados (chips)
   const techUids = Array.isArray(_selectedTechUids) ? [..._selectedTechUids] : [];
 
-  // Validações
+  // ValidaÃ§Ãµes
   if (!name) {
     setAlert(refs.createProjectAlert, "Informe o nome do projeto.");
     return;
@@ -884,13 +879,13 @@ export async function createProject(deps) {
     const companyId = state.companyId;
     const user = auth.currentUser;
 
-    if (!companyId || !user) throw new Error("Não autenticado ou empresa não encontrada");
+    if (!companyId || !user) throw new Error("NÃ£o autenticado ou empresa nÃ£o encontrada");
 
     const projectId = `proj-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 
-    // ✅ Sequência numérica do projeto (compatível com o formato antigo do card)
-    // Estratégia simples (sem criar coleção extra): busca o maior projectNumber e soma +1.
-    // (Assunção) Volume por empresa é baixo a médio.
+    // âœ… SequÃªncia numÃ©rica do projeto (compatÃ­vel com o formato antigo do card)
+    // EstratÃ©gia simples (sem criar coleÃ§Ã£o extra): busca o maior projectNumber e soma +1.
+    // (AssunÃ§Ã£o) Volume por empresa Ã© baixo a mÃ©dio.
     let nextProjectNumber = 1;
     try {
       const snapAll = await getDocs(collection(db, `companies/${companyId}/projects`));
@@ -903,8 +898,8 @@ export async function createProject(deps) {
       });
       nextProjectNumber = maxNum + 1;
     } catch (e) {
-      // fallback: mantém 1
-      console.warn("Não consegui calcular projectNumber, usando 1.", e);
+      // fallback: mantÃ©m 1
+      console.warn("NÃ£o consegui calcular projectNumber, usando 1.", e);
     }
 
     const payload = {
@@ -948,9 +943,9 @@ export async function createProject(deps) {
 
     setTimeout(() => {
       closeCreateProjectModal(refs);
-      // ✅ grid: recarrega usando deps
+      // âœ… grid: recarrega usando deps
       if (typeof deps.loadProjects === "function") deps.loadProjects(deps);
-      // ✅ kanban realtime já vai refletir via onSnapshot se estiver aberto
+      // âœ… kanban realtime jÃ¡ vai refletir via onSnapshot se estiver aberto
     }, 600);
 
   } catch (err) {
@@ -1020,7 +1015,7 @@ function populateClientSelect(selectEl, clients){
   if (!selectEl) return;
   const list = Array.isArray(clients) ? clients.slice() : [];
   // placeholder
-  const opts = ['<option value="">— Selecione um cliente (opcional) —</option>'];
+  const opts = ['<option value="">â€” Selecione um cliente (opcional) â€”</option>'];
   list
     .filter(c => c && c.active !== false)
     .sort((a,b)=> (a.name||"").localeCompare(b.name||""))
@@ -1083,65 +1078,99 @@ export async function openProjectDetailModal(projectId, deps) {
 
   try {
     const companyId = state.companyId;
-    if (!companyId) throw new Error("companyId não encontrado");
+    if (!companyId) throw new Error("companyId nÃ£o encontrado");
+
+    await _ensureEditProjectContext(state, db, companyId);
 
     const docSnap = await getDoc(doc(db, `companies/${companyId}/projects`, projectId));
 
     if (!docSnap.exists()) {
-      throw new Error("Projeto não encontrado");
+      throw new Error("Projeto nÃ£o encontrado");
     }
 
     const proj = { id: docSnap.id, ...docSnap.data() };
 
+    _editTechNamesByUid = new Map(
+      (Array.isArray(state?._usersCache) ? state._usersCache : []).map(u => [u.uid, u.name || u.email || u.uid])
+    );
+    const missingTechUids = (Array.isArray(proj.techUids) ? proj.techUids : []).filter(uid => !_editTechNamesByUid.has(uid));
+    if (missingTechUids.length) {
+      const usersSnap = await getDocs(collection(db, `companies/${companyId}/users`));
+      usersSnap.forEach((userDoc) => {
+        const userData = userDoc.data() || {};
+        const uid = userData.uid || userDoc.id;
+        if (missingTechUids.includes(uid)) {
+          _editTechNamesByUid.set(uid, userData.name || userData.email || uid);
+        }
+      });
+    }
+
+    const teamObj = (state.teams || []).find(t => t.id === proj.teamId);
+    const teamName = (
+      teamObj?.name
+      || proj.teamName
+      || proj.team?.name
+      || (typeof proj.teamId === "string" ? proj.teamId : "")
+    ) || "-";
+    const managerObj = (state._usersCache || []).find(u => u.uid === proj.managerUid);
+    const managerName = (
+      managerObj?.name
+      || managerObj?.email
+      || proj.managerName
+      || proj.manager?.name
+      || "Nenhum"
+    );
+    const techNames = (Array.isArray(proj.techUids) ? proj.techUids : []).map(uid => _editTechNamesByUid.get(uid) || uid);
+    const keyUsers = _clientKeyUsersByClientId(state, proj.clientId || "");
+    const keyUserNames = keyUsers
+      .map((ku) => {
+        if (typeof ku === "string") return ku;
+        return ku?.name || ku?.email || ku?.phone || "";
+      })
+      .filter(Boolean);
+
     // Preenche dados do modal
     if (refs.projectDetailTitle) refs.projectDetailTitle.textContent = proj.name || "Projeto";
-    if (refs.projectDetailDescription) refs.projectDetailDescription.textContent = proj.description || "Sem descrição";
-    if (refs.projectDetailTeam) refs.projectDetailTeam.textContent = getTeamNameById(proj.teamId, state.teams);
+    if (refs.projectDetailDescription) refs.projectDetailDescription.textContent = proj.description || "Sem descricao";
+    if (refs.projectDetailClient) refs.projectDetailClient.textContent = proj.clientName || "Nenhum";
+    if (refs.projectDetailTeam) refs.projectDetailTeam.textContent = teamName;
+    if (refs.projectDetailManager) refs.projectDetailManager.textContent = managerName;
     if (refs.projectDetailStatus) refs.projectDetailStatus.innerHTML = getStatusBadge(proj.status);
     if (refs.projectDetailPriority) refs.projectDetailPriority.innerHTML = getPriorityBadge(proj.priority);
 
     // Coordenador
     if (refs.projectDetailCoordinator) {
       if (proj.coordinatorUid) {
-        const coordSnap = await getDoc(doc(db, `companies/${companyId}/users`, proj.coordinatorUid));
-        const coordName = coordSnap.exists() ? (coordSnap.data().name || "Sem nome") : "Não encontrado";
-        refs.projectDetailCoordinator.textContent = coordName;
+        const coordFromCache = (state._usersCache || []).find(u => u.uid === proj.coordinatorUid);
+        if (coordFromCache?.name || coordFromCache?.email) {
+          refs.projectDetailCoordinator.textContent = coordFromCache.name || coordFromCache.email;
+        } else {
+          const coordSnap = await getDoc(doc(db, `companies/${companyId}/users`, proj.coordinatorUid));
+          const coordName = coordSnap.exists()
+            ? (coordSnap.data().name || coordSnap.data().email || "Sem nome")
+            : "Nao encontrado";
+          refs.projectDetailCoordinator.textContent = coordName;
+        }
       } else {
-        refs.projectDetailCoordinator.textContent = "Nenhum";
+        refs.projectDetailCoordinator.textContent = proj.coordinatorName || proj.coordinator?.name || "Nenhum";
       }
     }
 
     // Datas
     if (refs.projectDetailStartDate) {
-      refs.projectDetailStartDate.textContent = proj.startDate || "—";
+      refs.projectDetailStartDate.textContent = proj.startDate || "-";
     }
     if (refs.projectDetailEndDate) {
-      refs.projectDetailEndDate.textContent = proj.endDate || "—";
+      refs.projectDetailEndDate.textContent = proj.endDate || "-";
     }
-
-    // Botões de ação
-    if (refs.btnEditProject) {
-      refs.btnEditProject.onclick = () => {
-        closeProjectDetailModal(refs);
-        openEditProjectModal(projectId, deps);
-      };
-    }
-
-    if (refs.btnDeleteProject) {
-      refs.btnDeleteProject.onclick = async () => {
-        if (!confirm(`Deseja realmente deletar o projeto "${proj.name}"?`)) return;
-
-        try {
-          await deleteDoc(doc(db, `companies/${companyId}/projects`, projectId));
-          closeProjectDetailModal(refs);
-          if (typeof deps.loadProjects === "function") deps.loadProjects(deps);
-          alert("Projeto deletado com sucesso!");
-          // ✅ Kanban realtime reflete automaticamente
-        } catch (err) {
-          console.error("deleteProject error", err);
-          setAlert(refs.projectDetailAlert, "Erro ao deletar projeto.");
-        }
-      };
+    if (refs.projectDetailBillingValue) refs.projectDetailBillingValue.textContent = proj.billingValue ? _formatBRL(proj.billingValue) : "-";
+    if (refs.projectDetailBillingHours) refs.projectDetailBillingHours.textContent = proj.billingHours ? `${proj.billingHours}h` : "-";
+    if (refs.projectDetailTechs) refs.projectDetailTechs.textContent = techNames.length ? techNames.join(", ") : "Nenhum tecnico vinculado";
+    if (refs.projectDetailKeyUsers) refs.projectDetailKeyUsers.textContent = keyUserNames.length ? keyUserNames.join(", ") : "Nenhum key user vinculado";
+    if (refs.projectDetailContract) {
+      refs.projectDetailContract.innerHTML = proj?.contract?.url
+        ? `<a href="${escapeHtml(proj.contract.url)}" target="_blank" rel="noopener">${escapeHtml(proj.contract.name || "Abrir contrato")}</a>`
+        : "-";
     }
 
     refs.modalProjectDetail.hidden = false;
@@ -1174,15 +1203,32 @@ export async function openEditProjectModal(projectId, deps) {
 
   try {
     const companyId = state.companyId;
-    if (!companyId) throw new Error("companyId n�o encontrado");
+    if (!companyId) throw new Error("companyId não encontrado");
+
+    await _ensureEditProjectContext(state, db, companyId);
 
     const docSnap = await getDoc(doc(db, `companies/${companyId}/projects`, projectId));
 
     if (!docSnap.exists()) {
-      throw new Error("Projeto n�o encontrado");
+      throw new Error("Projeto não encontrado");
     }
 
     const proj = { id: docSnap.id, ...docSnap.data() };
+
+    _editTechNamesByUid = new Map(
+      (Array.isArray(state?._usersCache) ? state._usersCache : []).map(u => [u.uid, u.name || u.email || u.uid])
+    );
+    const missingTechUids = (Array.isArray(proj.techUids) ? proj.techUids : []).filter(uid => !_editTechNamesByUid.has(uid));
+    if (missingTechUids.length) {
+      const usersSnap = await getDocs(collection(db, `companies/${companyId}/users`));
+      usersSnap.forEach((userDoc) => {
+        const userData = userDoc.data() || {};
+        const uid = userData.uid || userDoc.id;
+        if (missingTechUids.includes(uid)) {
+          _editTechNamesByUid.set(uid, userData.name || userData.email || uid);
+        }
+      });
+    }
 
     await ensureClientsCache(deps);
     _ensureEditProjectUi(refs, state);
@@ -1218,8 +1264,6 @@ export async function openEditProjectModal(projectId, deps) {
 
     _editSelectedTechUids = Array.isArray(proj.techUids) ? [...proj.techUids] : [];
     _renderEditSelectedTechChips(refs, state);
-    _renderEditProjectKeyUsers(refs, state, proj.clientId || "", Array.isArray(proj.projectKeyUsers) ? proj.projectKeyUsers : []);
-
     refs.modalEditProject.dataset.projectId = projectId;
     refs.modalEditProject.hidden = false;
     document.body.classList.add("modal-open");
@@ -1239,6 +1283,7 @@ export function closeEditProjectModal(refs) {
   _editSelectedTechUids = [];
   _selectedEditProjectContractFile = null;
   _removeEditProjectContract = false;
+  _editTechNamesByUid = new Map();
   if (refs.editProjectTechChipsEl) refs.editProjectTechChipsEl.innerHTML = "";
   if (refs.editProjectContractFileEl) refs.editProjectContractFileEl.value = "";
   _setEditProjectContractFileLabel(refs, "Nenhum PDF selecionado");
@@ -1255,7 +1300,7 @@ export async function updateProject(deps) {
 
   const projectId = refs.modalEditProject?.dataset?.projectId;
   if (!projectId) {
-    setAlert(refs.editProjectAlert, "ID do projeto n�o encontrado.");
+    setAlert(refs.editProjectAlert, "ID do projeto não encontrado.");
     return;
   }
 
@@ -1287,7 +1332,7 @@ export async function updateProject(deps) {
     return;
   }
   if (startDate && endDate && endDate < startDate) {
-    setAlert(refs.editProjectAlert, "A data final n�o pode ser menor que a inicial.");
+    setAlert(refs.editProjectAlert, "A data final não pode ser menor que a inicial.");
     return;
   }
 
@@ -1297,16 +1342,11 @@ export async function updateProject(deps) {
     const companyId = state.companyId;
     const user = auth.currentUser;
 
-    if (!companyId || !user) throw new Error("N�o autenticado ou empresa n�o encontrada");
+    if (!companyId || !user) throw new Error("Não autenticado ou empresa não encontrada");
 
     const currentSnap = await getDoc(doc(db, `companies/${companyId}/projects`, projectId));
-    if (!currentSnap.exists()) throw new Error("Projeto n�o encontrado.");
+    if (!currentSnap.exists()) throw new Error("Projeto não encontrado.");
     const current = currentSnap.data() || {};
-
-    const clientKeyUsers = _clientKeyUsersByClientId(state, clientId || "");
-    const byId = new Map(clientKeyUsers.map(ku => [_keyUserId(ku), ku]));
-    const selectedKeyIds = Array.from(refs.editProjectKeyUsersEl?.selectedOptions || []).map(o => o.value).filter(Boolean);
-    const projectKeyUsers = selectedKeyIds.map(id => byId.get(id)).filter(Boolean);
 
     const payload = {
       name,
@@ -1325,7 +1365,6 @@ export async function updateProject(deps) {
       billingHours: billingHours ?? null,
       billingType: (billingValue !== null && billingValue > 0) ? "valor" : ((billingHours !== null && billingHours > 0) ? "horas" : ""),
       techUids,
-      projectKeyUsers,
       updatedAt: serverTimestamp(),
       updatedBy: user.uid
     };
@@ -1377,15 +1416,15 @@ export function subscribeMyProjects(deps) {
   const state = safeDeps.state || {};
   const db = safeDeps.db;
 
-  // Mantém o deps da view para re-renders (busca, snapshot, etc.)
+  // MantÃ©m o deps da view para re-renders (busca, snapshot, etc.)
   _myProjectsDeps = safeDeps;
 
   const refs = getKanbanRefsSafe(safeDeps);
   initMyProjectsSearchUI(refs);
 
-  // Se não temos os containers do Kanban, não tem o que renderizar
+  // Se nÃ£o temos os containers do Kanban, nÃ£o tem o que renderizar
   if (!refs.kanbanTodo || !refs.kanbanInProgress || !refs.kanbanDone) {
-    console.warn("subscribeMyProjects: containers do Kanban não encontrados no DOM/refs.");
+    console.warn("subscribeMyProjects: containers do Kanban nÃ£o encontrados no DOM/refs.");
     return;
   }
 
@@ -1396,15 +1435,15 @@ export function subscribeMyProjects(deps) {
 
   const companyId = state.companyId;
   if (!companyId) {
-    console.error("subscribeMyProjects: companyId não encontrado");
-    refs.kanbanTodo.innerHTML = '<p class="muted" style="padding:12px;">Empresa não encontrada.</p>';
-    refs.kanbanInProgress.innerHTML = '<p class="muted" style="padding:12px;">Empresa não encontrada.</p>';
-    refs.kanbanDone.innerHTML = '<p class="muted" style="padding:12px;">Empresa não encontrada.</p>';
+    console.error("subscribeMyProjects: companyId nÃ£o encontrado");
+    refs.kanbanTodo.innerHTML = '<p class="muted" style="padding:12px;">Empresa nÃ£o encontrada.</p>';
+    refs.kanbanInProgress.innerHTML = '<p class="muted" style="padding:12px;">Empresa nÃ£o encontrada.</p>';
+    refs.kanbanDone.innerHTML = '<p class="muted" style="padding:12px;">Empresa nÃ£o encontrada.</p>';
     return;
   }
 
   if (!db) {
-    console.error("subscribeMyProjects: db não encontrado em deps");
+    console.error("subscribeMyProjects: db nÃ£o encontrado em deps");
     refs.kanbanTodo.innerHTML = '<p class="muted" style="padding:12px;">Erro interno (db).</p>';
     refs.kanbanInProgress.innerHTML = '<p class="muted" style="padding:12px;">Erro interno (db).</p>';
     refs.kanbanDone.innerHTML = '<p class="muted" style="padding:12px;">Erro interno (db).</p>';
@@ -1426,7 +1465,7 @@ export function subscribeMyProjects(deps) {
     q,
     (snapshot) => {
       const projects = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
-      // Usa refs safe para não depender de deps.refs
+      // Usa refs safe para nÃ£o depender de deps.refs
       _myProjectsLast = projects;
       _renderMyProjectsWithFilter(refs);
     },
@@ -1459,7 +1498,7 @@ export async function loadMyProjects(deps) {
 }
 
 /**
- * Renderiza Kanban a partir de uma lista de projetos (já carregada)
+ * Renderiza Kanban a partir de uma lista de projetos (jÃ¡ carregada)
  */
 function renderMyProjectsKanban(projects, deps) {
   const k = getKanbanRefsSafe(deps);
@@ -1516,13 +1555,13 @@ function renderKanbanCards(container, projects, deps) {
 
   container.innerHTML = "";
 
-  // Helpers de apresentação (kanban card)
+  // Helpers de apresentaÃ§Ã£o (kanban card)
   const _fmtDateBR = (v) => {
     if (!v) return "";
     try {
       // v pode ser 'YYYY-MM-DD' ou Timestamp serializado
       if (typeof v === "string") {
-        // mantém apenas a parte de data
+        // mantÃ©m apenas a parte de data
         const s = v.slice(0, 10);
         const [y, m, d] = s.split("-");
         if (y && m && d) return `${d}/${m}/${y}`;
@@ -1543,7 +1582,7 @@ function renderKanbanCards(container, projects, deps) {
     const n = p?.projectNumber ?? p?.number ?? p?.seq ?? p?.codeNumber;
     if (typeof n === "number") return `${n}`;
     if (typeof n === "string" && n.trim()) {
-      // se já veio com # ou é numérico
+      // se jÃ¡ veio com # ou Ã© numÃ©rico
       const s = n.trim();
       if (/^#?\d+$/.test(s)) return s.replace(/^#/, "");
       return s.replace(/^#/, "");
@@ -1622,9 +1661,9 @@ function renderKanbanCards(container, projects, deps) {
 
     const priorityText = {
       baixa: "Baixa",
-      media: "Média",
+      media: "MÃ©dia",
       alta: "Alta"
-    }[project.priority] || "Média";
+    }[project.priority] || "MÃ©dia";
 
     const displayId = _projectDisplayId(project);
     const endRaw = (project.endDate || project.endAt || project.dateEnd);
@@ -1695,7 +1734,7 @@ function renderKanbanCards(container, projects, deps) {
         return;
       }
 
-      // fallback: abre edição se o modal de detalhes não existir
+      // fallback: abre ediÃ§Ã£o se o modal de detalhes nÃ£o existir
       if (typeof openEditProjectModal === "function") {
         openEditProjectModal(project.id, deps);
       }
@@ -1741,13 +1780,13 @@ function setupDropZone(container, state, db, auth, deps) {
     const draggedCard = document.querySelector(`[data-project-id="${projectId}"]`);
     const currentStatus = draggedCard?.dataset?.currentStatus;
 
-    // Se já está no status correto, não fazer nada
+    // Se jÃ¡ estÃ¡ no status correto, nÃ£o fazer nada
     if (currentStatus === targetStatus) return;
 
     try {
       const companyId = state?.companyId;
       if (!companyId || !auth?.currentUser) {
-        alert("Erro: não autenticado");
+        alert("Erro: nÃ£o autenticado");
         return;
       }
 
@@ -1760,7 +1799,7 @@ function setupDropZone(container, state, db, auth, deps) {
         }
       );
 
-      // ✅ Não precisa recarregar: onSnapshot atualiza automaticamente
+      // âœ… NÃ£o precisa recarregar: onSnapshot atualiza automaticamente
 
     } catch (err) {
       console.error("Erro ao mover projeto:", err);
@@ -1768,3 +1807,4 @@ function setupDropZone(container, state, db, auth, deps) {
     }
   });
 }
+
