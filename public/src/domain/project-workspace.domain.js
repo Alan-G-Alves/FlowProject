@@ -23,7 +23,9 @@ let _activities = [];
 
 function setWorkspaceOpenUI(deps, isOpen){
   const refs = _wsRefs(deps);
-  if (refs.projectWorkspacePanel) refs.projectWorkspacePanel.hidden = !isOpen;
+  if (refs.projectWorkspacePanel){
+    refs.projectWorkspacePanel.classList.toggle("is-open", Boolean(isOpen));
+  }
   refs.viewMyProjects?.classList.toggle("workspace-open", Boolean(isOpen));
 }
 
@@ -35,8 +37,10 @@ function _wsRefs(deps){
     projectWorkspaceTabs: r.projectWorkspaceTabs || byId("projectWorkspaceTabs"),
     projectWorkspacePanel: r.projectWorkspacePanel || byId("projectWorkspacePanel"),
     btnCloseProjectWorkspace: r.btnCloseProjectWorkspace || byId("btnCloseProjectWorkspace"),
+    btnOpenWorkspaceEdit: r.btnOpenWorkspaceEdit || byId("btnOpenWorkspaceEdit"),
     projectWorkspaceTitle: r.projectWorkspaceTitle || byId("projectWorkspaceTitle"),
     projectWorkspaceSubtitle: r.projectWorkspaceSubtitle || byId("projectWorkspaceSubtitle"),
+    projectWorkspaceBreadcrumb: r.projectWorkspaceBreadcrumb || byId("projectWorkspaceBreadcrumb"),
     projectWorkspaceCover: r.projectWorkspaceCover || byId("projectWorkspaceCover"),
     btnOpenTaskForm: r.btnOpenTaskForm || byId("btnOpenTaskForm"),
     projectTaskFormWrap: r.projectTaskFormWrap || byId("projectTaskFormWrap"),
@@ -69,7 +73,7 @@ function canUseRangeForActivities(state){
 }
 
 function fmtDate(v){
-  if (!v) return "—";
+  if (!v) return "-";
   if (typeof v === "string" && v.length >= 10){
     const s = v.slice(0, 10);
     const [y, m, d] = s.split("-");
@@ -112,6 +116,16 @@ function asNumber(v){
 }
 
 function keyUsersFromProjectClient(state, project){
+  if (Array.isArray(project?.projectKeyUsers) && project.projectKeyUsers.length){
+    return project.projectKeyUsers
+      .filter(Boolean)
+      .map((ku) => ({
+        name: ku?.name || "",
+        email: ku?.email || "",
+        phone: ku?.phone || ""
+      }))
+      .filter((ku) => ku.name || ku.email || ku.phone);
+  }
   const clientId = project?.clientId || "";
   if (!clientId) return [];
   const clients = Array.isArray(state?._clientsCache) ? state._clientsCache : [];
@@ -130,6 +144,19 @@ function keyUsersFromProjectClient(state, project){
     phone: c.keyUserPhone || ""
   };
   return (legacy.name || legacy.email || legacy.phone) ? [legacy] : [];
+}
+
+function techsFromProject(state, project){
+  const users = Array.isArray(state?._usersCache) ? state._usersCache : [];
+  const techUids = Array.isArray(project?.techUids) ? project.techUids.filter(Boolean) : [];
+  if (!techUids.length) return [];
+  return techUids
+    .map(uid => users.find(u => u && u.uid === uid && (u.role || "").toLowerCase() === "tecnico"))
+    .filter(Boolean)
+    .map(u => ({
+      uid: u.uid,
+      name: u.name || u.email || u.uid
+    }));
 }
 
 function weekdayName(idx){
@@ -161,6 +188,13 @@ function bindOnce(deps){
 
   refs.btnCloseProjectWorkspace?.addEventListener("click", () => {
     closeProjectWorkspace(deps);
+  });
+
+  refs.btnOpenWorkspaceEdit?.addEventListener("click", async () => {
+    if (!_activeProjectId) return;
+    if (typeof deps.openEditProjectModal === "function"){
+      await deps.openEditProjectModal(_activeProjectId);
+    }
   });
 
   refs.btnOpenTaskForm?.addEventListener("click", () => {
@@ -201,6 +235,12 @@ function bindOnce(deps){
     const pid = tab.getAttribute("data-open-tab");
     if (!pid) return;
     await openProjectWorkspace(pid, deps);
+  });
+
+  refs.projectWorkspaceBreadcrumb?.addEventListener("click", (ev) => {
+    const backBtn = ev.target?.closest?.("[data-back-kanban]");
+    if (!backBtn) return;
+    closeProjectWorkspace(deps);
   });
 
   refs.projectTaskList?.addEventListener("click", async (ev) => {
@@ -280,10 +320,10 @@ async function ensureTab(projectId, deps){
 
 function renderCover(refs, project, state){
   if (!refs.projectWorkspaceCover) return;
-  const teamName = (state.teams || []).find(t => t.id === project.teamId)?.name || "—";
+  const teamName = (state.teams || []).find(t => t.id === project.teamId)?.name || "-";
   const status = project.status || "a-fazer";
-  const client = project.clientName || "—";
-  const manager = (state._usersCache || []).find(u => u.uid === project.managerUid)?.name || "—";
+  const client = project.clientName || "-";
+  const manager = (state._usersCache || []).find(u => u.uid === project.managerUid)?.name || "-";
 
   refs.projectWorkspaceCover.innerHTML = `
     <div class="project-cover-title">${escapeHtml(project.name || "Projeto")}</div>
@@ -292,8 +332,18 @@ function renderCover(refs, project, state){
       <span class="badge small">Equipe: ${escapeHtml(teamName)}</span>
       <span class="badge small">Cliente: ${escapeHtml(client)}</span>
       <span class="badge small">Gestor: ${escapeHtml(manager)}</span>
-      <span class="badge small">Horas projeto: ${escapeHtml(String(project.billingHours ?? "—"))}</span>
+      <span class="badge small">Horas projeto: ${escapeHtml(String(project.billingHours ?? "-"))}</span>
     </div>
+  `;
+}
+
+function renderBreadcrumb(refs, project){
+  if (!refs.projectWorkspaceBreadcrumb) return;
+  const name = project?.name || "Projeto";
+  refs.projectWorkspaceBreadcrumb.innerHTML = `
+    <button class="crumb-link" data-back-kanban="1" type="button">Meus Projetos</button>
+    <span class="crumb-sep">/</span>
+    <span class="crumb-current">${escapeHtml(name)}</span>
   `;
 }
 
@@ -302,6 +352,7 @@ function renderTasks(deps){
   if (!refs.projectTaskList) return;
   const isUserTech = isTech(state);
   const keyUsers = keyUsersFromProjectClient(state, _activeProject);
+  const projectTechs = techsFromProject(state, _activeProject);
   const byTask = new Map();
   _activities.forEach(a => {
     const arr = byTask.get(a.taskId) || [];
@@ -321,18 +372,20 @@ function renderTasks(deps){
     const balance = Math.max(0, planned - worked);
     const activityRows = taskActs.map(a => {
       const canTechFill = isUserTech && ["admin","gestor","coordenador"].includes((a.createdByRole || "").toLowerCase());
+      const assignedTechs = Array.isArray(a.techNames) && a.techNames.length ? a.techNames.join(", ") : "Sem tecnico";
       return `
         <div class="activity-item ${a.status === "os_gerada" ? "ok" : "pending"}">
           <div class="activity-main">
             <b>${escapeHtml(a.name || "Atividade")}</b>
-            <span class="muted">${escapeHtml(fmtDate(a.workDate))} • ${escapeHtml(String(a.hoursWorked || 0))}h</span>
+            <span class="muted">${escapeHtml(fmtDate(a.workDate))} | ${escapeHtml(String(a.hoursWorked || 0))}h</span>
           </div>
-          <div class="activity-status ${a.status === "os_gerada" ? "green" : "red"}">${a.status === "os_gerada" ? "OS Gerada" : "Sem Ordem de Serviço"}</div>
+          <div class="muted">Tecnicos: ${escapeHtml(assignedTechs)}</div>
+          <div class="activity-status ${a.status === "os_gerada" ? "green" : "red"}">${a.status === "os_gerada" ? "OS Gerada" : "Sem Ordem de Servico"}</div>
           ${canTechFill ? `
             <div class="activity-tech-fill">
               <input type="time" id="actStart-${escapeHtml(a.id)}" />
               <input type="time" id="actEnd-${escapeHtml(a.id)}" />
-              <textarea id="actObs-${escapeHtml(a.id)}" rows="2" placeholder="Observação do técnico (mínimo 50 caracteres)">${escapeHtml(a.note || "")}</textarea>
+              <textarea id="actObs-${escapeHtml(a.id)}" rows="2" placeholder="Observacao do tecnico (minimo 50 caracteres)">${escapeHtml(a.note || "")}</textarea>
               <button class="btn primary sm" data-save-tech-fill="${escapeHtml(a.id)}" type="button">Salvar preenchimento</button>
             </div>
           ` : ""}
@@ -345,32 +398,35 @@ function renderTasks(deps){
       const label = ku.name || ku.email || ku.phone || `Key user ${idx + 1}`;
       return `<option value="${escapeHtml(label)}">${escapeHtml(label)}</option>`;
     }).join("");
+    const techOptions = projectTechs.map((t) => (
+      `<option value="${escapeHtml(t.uid)}">${escapeHtml(t.name)}</option>`
+    )).join("");
 
     return `
       <article class="task-card">
         <div class="task-head">
           <div>
-            <h4>#${escapeHtml(String(t.taskNumber || "—"))} ${escapeHtml(t.name || "")}</h4>
-            <p class="muted">Validade: ${escapeHtml(fmtDate(t.startDate))} até ${escapeHtml(fmtDate(t.endDate))}</p>
+            <h4>#${escapeHtml(String(t.taskNumber || "-"))} ${escapeHtml(t.name || "")}</h4>
+            <p class="muted">Validade: ${escapeHtml(fmtDate(t.startDate))} ate ${escapeHtml(fmtDate(t.endDate))}</p>
           </div>
           <button class="btn sm" data-open-activity-form="${escapeHtml(t.id)}" type="button">+ Atividade</button>
         </div>
         <div class="task-kpis">
-          ${isUserTech ? `<span class="kpi">Horas orçadas: <b>—</b></span>` : `<span class="kpi">Horas orçadas: <b>${escapeHtml(String(planned))}h</b></span>`}
+          ${isUserTech ? `<span class="kpi">Horas orcadas: <b>-</b></span>` : `<span class="kpi">Horas orcadas: <b>${escapeHtml(String(planned))}h</b></span>`}
           <span class="kpi">Horas trabalhadas: <b>${escapeHtml(String(worked))}h</b></span>
-          <span class="kpi">Saldo disponível: <b>${escapeHtml(String(balance))}h</b></span>
+          <span class="kpi">Saldo disponivel: <b>${escapeHtml(String(balance))}h</b></span>
         </div>
 
         <div class="panel subtle" id="activityFormWrap-${escapeHtml(t.id)}" hidden>
           <div class="project-form-grid">
             <label class="field">
               <span>Nome da atividade</span>
-              <input id="actName-${escapeHtml(t.id)}" maxlength="100" placeholder="Ex.: Reunião com cliente" />
+              <input id="actName-${escapeHtml(t.id)}" maxlength="100" placeholder="Ex.: Reuniao com cliente" />
             </label>
             <label class="field">
               <span>Modo de data</span>
               <select id="actMode-${escapeHtml(t.id)}">
-                <option value="single">Dia único</option>
+                <option value="single">Dia unico</option>
                 <option value="range" ${rangeDisabled}>Range de dias</option>
               </select>
             </label>
@@ -379,7 +435,7 @@ function renderTasks(deps){
               <input type="date" id="actDate-${escapeHtml(t.id)}" />
             </label>
             <label class="field">
-              <span>Range início</span>
+              <span>Range inicio</span>
               <input type="date" id="actRangeStart-${escapeHtml(t.id)}" />
             </label>
             <label class="field">
@@ -392,11 +448,19 @@ function renderTasks(deps){
             </label>
             <label class="field">
               <span>Key users</span>
-              <select id="actKeyUsers-${escapeHtml(t.id)}" multiple>${keyUserOptions}</select>
+              <select id="actKeyUsers-${escapeHtml(t.id)}" multiple>
+                ${keyUserOptions || `<option value="" disabled>Nenhum key user vinculado ao cliente do projeto</option>`}
+              </select>
+            </label>
+            <label class="field">
+              <span>Tecnicos do projeto</span>
+              <select id="actTechs-${escapeHtml(t.id)}" multiple>
+                ${techOptions || `<option value="" disabled>Nenhum tecnico vinculado ao projeto</option>`}
+              </select>
             </label>
             <label class="field span-2">
-              <span>Observação</span>
-              <textarea id="actObsInput-${escapeHtml(t.id)}" rows="2" placeholder="Observação da atividade"></textarea>
+              <span>Observacao</span>
+              <textarea id="actObsInput-${escapeHtml(t.id)}" rows="2" placeholder="Observacao da atividade"></textarea>
             </label>
           </div>
           <div class="weekdays-pills" id="actWeekdays-${escapeHtml(t.id)}">
@@ -494,6 +558,7 @@ async function saveActivity(taskId, deps){
   const { refs, state, db, auth } = deps;
   const task = _tasks.find(t => t.id === taskId);
   if (!task) return;
+  const projectKeyUsers = keyUsersFromProjectClient(state, _activeProject);
 
   const name = (document.getElementById(`actName-${taskId}`)?.value || "").trim();
   const mode = (document.getElementById(`actMode-${taskId}`)?.value || "single").trim();
@@ -503,13 +568,26 @@ async function saveActivity(taskId, deps){
   const hoursWorked = asNumber(document.getElementById(`actHours-${taskId}`)?.value || 0);
   const note = (document.getElementById(`actObsInput-${taskId}`)?.value || "").trim();
   const keyUsers = Array.from(document.getElementById(`actKeyUsers-${taskId}`)?.selectedOptions || []).map(o => o.value);
+  const techUids = Array.from(document.getElementById(`actTechs-${taskId}`)?.selectedOptions || []).map(o => o.value).filter(Boolean);
 
   if (!name || hoursWorked <= 0){
     setAlert(refs.projectTaskAlert, "Preencha nome e horas da atividade.", "error");
     return;
   }
+  if (!projectKeyUsers.length){
+    setAlert(refs.projectTaskAlert, "Nao ha key user vinculado ao cliente deste projeto. Cadastre key user no cliente para incluir atividades.", "error");
+    return;
+  }
+  if (!keyUsers.length){
+    setAlert(refs.projectTaskAlert, "Selecione ao menos um key user para a atividade.", "error");
+    return;
+  }
   if (hoursWorked > 12){
     setAlert(refs.projectTaskAlert, "A atividade aceita no máximo 12 horas por dia.", "error");
+    return;
+  }
+  if (!techUids.length){
+    setAlert(refs.projectTaskAlert, "Selecione ao menos um tecnico do projeto para a atividade.", "error");
     return;
   }
 
@@ -521,6 +599,9 @@ async function saveActivity(taskId, deps){
   const companyId = state.companyId;
   const uid = auth?.currentUser?.uid || "";
   const creatorRole = roleOf(state);
+  const techNames = techsFromProject(state, _activeProject)
+    .filter(t => techUids.includes(t.uid))
+    .map(t => t.name);
   let dates = [];
   if (mode === "single"){
     if (!singleDate){
@@ -563,6 +644,8 @@ async function saveActivity(taskId, deps){
       name,
       workDate: d,
       hoursWorked,
+      techUids,
+      techNames,
       keyUsers,
       note,
       status: "sem_os",
@@ -641,6 +724,9 @@ export async function openProjectWorkspace(projectId, deps){
   setWorkspaceOpenUI(deps, true);
   if (refs.projectWorkspaceTitle) refs.projectWorkspaceTitle.textContent = "Carregando projeto...";
   if (refs.projectWorkspaceSubtitle) refs.projectWorkspaceSubtitle.textContent = `ID: ${projectId}`;
+  if (refs.projectWorkspaceBreadcrumb) {
+    refs.projectWorkspaceBreadcrumb.innerHTML = `<span class="crumb-current">Carregando projeto...</span>`;
+  }
   if (refs.projectWorkspaceCover) {
     refs.projectWorkspaceCover.innerHTML = `<p class="muted">Carregando dados do projeto...</p>`;
   }
@@ -654,12 +740,14 @@ export async function openProjectWorkspace(projectId, deps){
     _tabs = _tabs.map(t => t.id === projectId ? { ...t, label } : t);
     if (refs.projectWorkspaceTitle) refs.projectWorkspaceTitle.textContent = _activeProject?.name || "Projeto";
     if (refs.projectWorkspaceSubtitle) refs.projectWorkspaceSubtitle.textContent = `Projeto #${_activeProject?.projectNumber || "—"}`;
+    if (refs.btnOpenWorkspaceEdit) refs.btnOpenWorkspaceEdit.style.display = isTech(deps.state) ? "none" : "";
     if (refs.btnOpenTaskForm) refs.btnOpenTaskForm.style.display = canManageTasks(deps.state) ? "" : "none";
     if (refs.projectTaskFormWrap) refs.projectTaskFormWrap.hidden = true;
     clearAlert(refs.projectTaskAlert);
     clearTaskForm(refs);
 
     renderTabs(refs);
+    renderBreadcrumb(refs, _activeProject);
     renderCover(refs, _activeProject, deps.state);
     renderTasks(deps);
   }catch(err){
@@ -676,6 +764,7 @@ export function closeProjectWorkspace(deps){
   setWorkspaceOpenUI(deps, false);
   _activeProjectId = "";
   _activeProject = null;
+  if (refs.projectWorkspaceBreadcrumb) refs.projectWorkspaceBreadcrumb.innerHTML = "";
   renderTabs(refs);
 }
 

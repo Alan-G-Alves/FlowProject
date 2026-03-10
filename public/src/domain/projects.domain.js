@@ -50,6 +50,10 @@ let _createProjectUiInitialized = false;
 let _selectedTechUids = [];
 let _selectedProjectContractFile = null;
 let _isCreatingProjectLocal = false;
+let _editProjectUiInitialized = false;
+let _editSelectedTechUids = [];
+let _selectedEditProjectContractFile = null;
+let _removeEditProjectContract = false;
 
 function _normText(v){
   return (v ?? "")
@@ -220,6 +224,11 @@ function _setProjectContractFileLabel(refs, text){
   refs.projectContractFileNameEl.textContent = text || "Nenhum PDF selecionado";
 }
 
+function _setEditProjectContractFileLabel(refs, text){
+  if (!refs?.editProjectContractFileNameEl) return;
+  refs.editProjectContractFileNameEl.textContent = text || "Nenhum PDF selecionado";
+}
+
 async function _uploadProjectContract(deps, companyId, projectId, file){
   const { storage } = deps || {};
   if (!storage || !file) return null;
@@ -320,6 +329,94 @@ function _ensureCreateProjectUi(refs, state){
   }
 }
 
+function _ensureEditProjectUi(refs, state){
+  if (_editProjectUiInitialized) return;
+  _editProjectUiInitialized = true;
+
+  const chipsWrap = document.getElementById("editProjectPriorityChips");
+  const hidden = refs?.editProjectPriorityEl || document.getElementById("editProjectPriority");
+  if (chipsWrap && hidden) {
+    chipsWrap.addEventListener("click", (e) => {
+      const btn = e.target?.closest?.(".chip[data-priority]");
+      if (!btn) return;
+      const val = btn.getAttribute("data-priority") || "media";
+
+      chipsWrap.querySelectorAll(".chip").forEach(b => b.classList.remove("selected"));
+      btn.classList.add("selected");
+      hidden.value = val;
+    });
+  }
+
+  const techSelect = refs?.editProjectTechSelectEl || document.getElementById("editProjectTechSelect");
+  if (techSelect){
+    techSelect.addEventListener("change", () => {
+      const uid = techSelect.value || "";
+      if (!uid) return;
+      if (!_editSelectedTechUids.includes(uid)) _editSelectedTechUids.push(uid);
+      techSelect.value = "";
+      _renderEditSelectedTechChips(refs, state);
+    });
+  }
+
+  const chipsEl = refs?.editProjectTechChipsEl || document.getElementById("editProjectTechChips");
+  if (chipsEl){
+    chipsEl.addEventListener("click", (e) => {
+      const btn = e.target?.closest?.("button[data-edit-tech-uid]");
+      if (!btn) return;
+      const uid = btn.getAttribute("data-edit-tech-uid");
+      _editSelectedTechUids = _editSelectedTechUids.filter(x => x !== uid);
+      _renderEditSelectedTechChips(refs, state);
+    });
+  }
+
+  const teamEl = refs?.editProjectTeamEl || document.getElementById("editProjectTeam");
+  if (teamEl){
+    teamEl.addEventListener("change", () => {
+      _renderEditSelectedTechChips(refs, state);
+    });
+  }
+
+  const clientEl = refs?.editProjectClientEl || document.getElementById("editProjectClient");
+  if (clientEl){
+    clientEl.addEventListener("change", () => {
+      _renderEditProjectKeyUsers(refs, state, clientEl.value || "", []);
+    });
+  }
+
+  const valueEl = refs?.editProjectBillingValueAmountEl || document.getElementById("editProjectBillingValueAmount");
+  if (valueEl){
+    valueEl.addEventListener("blur", () => {
+      const f = _formatBRL(valueEl.value);
+      valueEl.value = f || "";
+    });
+    valueEl.addEventListener("focus", () => {
+      const n = _parseBRLToNumber(valueEl.value);
+      valueEl.value = n === null ? "" : String(n).replace(/\./g, ",");
+    });
+  }
+
+  const contractInput = refs?.editProjectContractFileEl || document.getElementById("editProjectContractFile");
+  const removeContractBtn = refs?.btnRemoveEditProjectContract || document.getElementById("btnRemoveEditProjectContract");
+  if (contractInput && !contractInput.dataset.bound) {
+    contractInput.dataset.bound = "1";
+    contractInput.addEventListener("change", () => {
+      const file = contractInput.files?.[0] || null;
+      _selectedEditProjectContractFile = file;
+      _removeEditProjectContract = false;
+      _setEditProjectContractFileLabel(refs, file ? file.name : "Nenhum PDF selecionado");
+    });
+  }
+  if (removeContractBtn && !removeContractBtn.dataset.bound) {
+    removeContractBtn.dataset.bound = "1";
+    removeContractBtn.addEventListener("click", () => {
+      _selectedEditProjectContractFile = null;
+      _removeEditProjectContract = true;
+      if (contractInput) contractInput.value = "";
+      _setEditProjectContractFileLabel(refs, "Nenhum PDF selecionado");
+    });
+  }
+}
+
 function _listActiveTechs(state, teamId){
   const users = Array.isArray(state?._usersCache) ? state._usersCache : [];
   const techs = users
@@ -377,6 +474,88 @@ function _renderSelectedTechChips(refs, state){
   // re-popula select para esconder os j√° escolhidos
   const teamId = (refs?.projectTeamEl?.value || document.getElementById("projectTeam")?.value || "");
   _populateTechSelect(techSelect, state, teamId);
+}
+
+function _populateEditTechSelect(selectEl, state, teamId){
+  if (!selectEl) return;
+  selectEl.innerHTML = '<option value="">Selecione um t√©cnico</option>';
+  const techs = _listActiveTechs(state, teamId);
+  techs.sort((a, b) => (a.name || "").localeCompare(b.name || ""));
+  for (const t of techs){
+    if (_editSelectedTechUids.includes(t.uid)) continue;
+    const opt = document.createElement("option");
+    opt.value = t.uid;
+    opt.textContent = t.name || t.email || t.uid;
+    selectEl.appendChild(opt);
+  }
+}
+
+function _renderEditSelectedTechChips(refs, state){
+  const chipsEl = refs?.editProjectTechChipsEl || document.getElementById("editProjectTechChips");
+  const techSelect = refs?.editProjectTechSelectEl || document.getElementById("editProjectTechSelect");
+  if (!chipsEl) return;
+
+  const users = Array.isArray(state?._usersCache) ? state._usersCache : [];
+  const byUid = new Map(users.map(u => [u.uid, u]));
+  chipsEl.innerHTML = "";
+  const colorClasses = ["t1", "t2", "t3", "t4", "t5", "t6"];
+  _editSelectedTechUids.forEach((uid, idx) => {
+    const u = byUid.get(uid);
+    const name = (u?.name || u?.email || uid);
+    const chip = document.createElement("span");
+    chip.className = `chip project-tech-chip ${colorClasses[idx % colorClasses.length]}`;
+    chip.innerHTML = `
+      <span>${escapeHtml(name)}</span>
+      <button type="button" class="project-tech-chip-remove" data-edit-tech-uid="${escapeHtml(uid)}" aria-label="Remover t√©cnico">x</button>
+    `;
+    chipsEl.appendChild(chip);
+  });
+
+  const teamId = (refs?.editProjectTeamEl?.value || document.getElementById("editProjectTeam")?.value || "");
+  _populateEditTechSelect(techSelect, state, teamId);
+}
+
+function _clientKeyUsersByClientId(state, clientId){
+  const clients = Array.isArray(state?._clientsCache) ? state._clientsCache : [];
+  const client = clients.find(c => c.id === clientId);
+  if (!client) return [];
+  if (Array.isArray(client.keyUsers) && client.keyUsers.length){
+    return client.keyUsers.filter(Boolean).map(ku => ({
+      name: ku?.name || "",
+      email: ku?.email || "",
+      phone: ku?.phone || ""
+    })).filter(ku => ku.name || ku.email || ku.phone);
+  }
+  const legacy = {
+    name: client.keyUserName || "",
+    email: client.keyUserEmail || "",
+    phone: client.keyUserPhone || ""
+  };
+  return (legacy.name || legacy.email || legacy.phone) ? [legacy] : [];
+}
+
+function _keyUserId(ku){
+  return `${(ku?.name || "").trim()}|${(ku?.email || "").trim()}|${(ku?.phone || "").trim()}`;
+}
+
+function _renderEditProjectKeyUsers(refs, state, clientId, selectedKeyUsers = []){
+  const selectEl = refs?.editProjectKeyUsersEl || document.getElementById("editProjectKeyUsers");
+  if (!selectEl) return;
+
+  const clientKeyUsers = _clientKeyUsersByClientId(state, clientId || "");
+  if (!clientKeyUsers.length){
+    selectEl.innerHTML = '<option value="" disabled>Nenhum key user dispon√≠vel no cliente</option>';
+    return;
+  }
+
+  const selectedIds = new Set((Array.isArray(selectedKeyUsers) ? selectedKeyUsers : []).map(_keyUserId));
+  const opts = clientKeyUsers.map((ku) => {
+    const id = _keyUserId(ku);
+    const label = ku.name || ku.email || ku.phone || "Key user";
+    const selected = selectedIds.has(id) ? "selected" : "";
+    return `<option value="${escapeHtml(id)}" ${selected}>${escapeHtml(label)}</option>`;
+  });
+  selectEl.innerHTML = opts.join("");
 }
 
 
@@ -995,37 +1174,53 @@ export async function openEditProjectModal(projectId, deps) {
 
   try {
     const companyId = state.companyId;
-    if (!companyId) throw new Error("companyId n√£o encontrado");
+    if (!companyId) throw new Error("companyId n„o encontrado");
 
     const docSnap = await getDoc(doc(db, `companies/${companyId}/projects`, projectId));
 
     if (!docSnap.exists()) {
-      throw new Error("Projeto n√£o encontrado");
+      throw new Error("Projeto n„o encontrado");
     }
 
     const proj = { id: docSnap.id, ...docSnap.data() };
 
-    // Preenche campos
+    await ensureClientsCache(deps);
+    _ensureEditProjectUi(refs, state);
+
+    _selectedEditProjectContractFile = null;
+    _removeEditProjectContract = false;
+    if (refs.editProjectContractFileEl) refs.editProjectContractFileEl.value = "";
+
+    populateTeamSelect(refs.editProjectTeamEl, state.teams);
+    populateManagerSelect(refs.editProjectManagerEl, state._usersCache);
+    populateCoordinatorSelectNew(refs.editProjectCoordinatorEl, state._usersCache);
+    populateClientSelect(refs.editProjectClientEl, state._clientsCache || []);
+
     if (refs.editProjectNameEl) refs.editProjectNameEl.value = proj.name || "";
     if (refs.editProjectDescriptionEl) refs.editProjectDescriptionEl.value = proj.description || "";
+    if (refs.editProjectClientEl) refs.editProjectClientEl.value = proj.clientId || "";
     if (refs.editProjectTeamEl) refs.editProjectTeamEl.value = proj.teamId || "";
+    if (refs.editProjectManagerEl) refs.editProjectManagerEl.value = proj.managerUid || "";
     if (refs.editProjectCoordinatorEl) refs.editProjectCoordinatorEl.value = proj.coordinatorUid || "";
     if (refs.editProjectStatusEl) refs.editProjectStatusEl.value = proj.status || "a-fazer";
     if (refs.editProjectPriorityEl) refs.editProjectPriorityEl.value = proj.priority || "media";
     if (refs.editProjectStartDateEl) refs.editProjectStartDateEl.value = proj.startDate || "";
     if (refs.editProjectEndDateEl) refs.editProjectEndDateEl.value = proj.endDate || "";
+    if (refs.editProjectBillingValueAmountEl) refs.editProjectBillingValueAmountEl.value = _formatBRL(proj.billingValue ?? "");
+    if (refs.editProjectBillingHoursAmountEl) refs.editProjectBillingHoursAmountEl.value = (proj.billingHours ?? "");
+    _setEditProjectContractFileLabel(refs, proj?.contract?.name || "Nenhum PDF selecionado");
 
-    // Preenche selects
-    populateTeamSelect(refs.editProjectTeamEl, state.teams);
-    await populateCoordinatorSelect(refs.editProjectCoordinatorEl, deps);
+    const priorityWrap = document.getElementById("editProjectPriorityChips");
+    if (priorityWrap) {
+      priorityWrap.querySelectorAll(".chip").forEach(b => b.classList.remove("selected"));
+      priorityWrap.querySelector(`.chip[data-priority="${proj.priority || "media"}"]`)?.classList.add("selected");
+    }
 
-    // Define valores depois de preencher options
-    if (refs.editProjectTeamEl) refs.editProjectTeamEl.value = proj.teamId || "";
-    if (refs.editProjectCoordinatorEl) refs.editProjectCoordinatorEl.value = proj.coordinatorUid || "";
+    _editSelectedTechUids = Array.isArray(proj.techUids) ? [...proj.techUids] : [];
+    _renderEditSelectedTechChips(refs, state);
+    _renderEditProjectKeyUsers(refs, state, proj.clientId || "", Array.isArray(proj.projectKeyUsers) ? proj.projectKeyUsers : []);
 
-    // Salva ID do projeto no modal (para update)
     refs.modalEditProject.dataset.projectId = projectId;
-
     refs.modalEditProject.hidden = false;
     document.body.classList.add("modal-open");
 
@@ -1041,6 +1236,12 @@ export async function openEditProjectModal(projectId, deps) {
 export function closeEditProjectModal(refs) {
   if (!refs.modalEditProject) return;
   refs.modalEditProject.hidden = true;
+  _editSelectedTechUids = [];
+  _selectedEditProjectContractFile = null;
+  _removeEditProjectContract = false;
+  if (refs.editProjectTechChipsEl) refs.editProjectTechChipsEl.innerHTML = "";
+  if (refs.editProjectContractFileEl) refs.editProjectContractFileEl.value = "";
+  _setEditProjectContractFileLabel(refs, "Nenhum PDF selecionado");
   document.body.classList.remove("modal-open");
 }
 
@@ -1054,26 +1255,39 @@ export async function updateProject(deps) {
 
   const projectId = refs.modalEditProject?.dataset?.projectId;
   if (!projectId) {
-    setAlert(refs.editProjectAlert, "ID do projeto n√£o encontrado.");
+    setAlert(refs.editProjectAlert, "ID do projeto n„o encontrado.");
     return;
   }
 
   const name = (refs.editProjectNameEl?.value || "").trim();
   const description = (refs.editProjectDescriptionEl?.value || "").trim();
+  const clientId = refs.editProjectClientEl?.value || "";
   const teamId = refs.editProjectTeamEl?.value || "";
+  const managerUid = refs.editProjectManagerEl?.value || "";
   const coordinatorUid = refs.editProjectCoordinatorEl?.value || "";
   const status = refs.editProjectStatusEl?.value || "a-fazer";
   const priority = refs.editProjectPriorityEl?.value || "media";
   const startDate = refs.editProjectStartDateEl?.value || "";
   const endDate = refs.editProjectEndDateEl?.value || "";
+  const billingValue = _parseBRLToNumber(refs.editProjectBillingValueAmountEl?.value || "");
+  const billingHours = _parseHoursToNumber(refs.editProjectBillingHoursAmountEl?.value || "");
+  const techUids = Array.isArray(_editSelectedTechUids) ? [..._editSelectedTechUids] : [];
+  const client = clientId ? (state._clientsCache || []).find(c => c.id === clientId) : null;
 
   if (!name) {
     setAlert(refs.editProjectAlert, "Informe o nome do projeto.");
     return;
   }
-
+  if (!managerUid) {
+    setAlert(refs.editProjectAlert, "Selecione um gestor.");
+    return;
+  }
   if (!teamId) {
     setAlert(refs.editProjectAlert, "Selecione uma equipe.");
+    return;
+  }
+  if (startDate && endDate && endDate < startDate) {
+    setAlert(refs.editProjectAlert, "A data final n„o pode ser menor que a inicial.");
     return;
   }
 
@@ -1083,20 +1297,53 @@ export async function updateProject(deps) {
     const companyId = state.companyId;
     const user = auth.currentUser;
 
-    if (!companyId || !user) throw new Error("N√£o autenticado ou empresa n√£o encontrada");
+    if (!companyId || !user) throw new Error("N„o autenticado ou empresa n„o encontrada");
+
+    const currentSnap = await getDoc(doc(db, `companies/${companyId}/projects`, projectId));
+    if (!currentSnap.exists()) throw new Error("Projeto n„o encontrado.");
+    const current = currentSnap.data() || {};
+
+    const clientKeyUsers = _clientKeyUsersByClientId(state, clientId || "");
+    const byId = new Map(clientKeyUsers.map(ku => [_keyUserId(ku), ku]));
+    const selectedKeyIds = Array.from(refs.editProjectKeyUsersEl?.selectedOptions || []).map(o => o.value).filter(Boolean);
+    const projectKeyUsers = selectedKeyIds.map(id => byId.get(id)).filter(Boolean);
 
     const payload = {
       name,
       description,
+      clientId: clientId || "",
+      clientName: client?.name || "",
+      clientNumber: client?.number ?? "",
       teamId,
+      managerUid,
       coordinatorUid: coordinatorUid || "",
       status,
       priority,
       startDate: startDate || null,
       endDate: endDate || null,
+      billingValue: billingValue ?? null,
+      billingHours: billingHours ?? null,
+      billingType: (billingValue !== null && billingValue > 0) ? "valor" : ((billingHours !== null && billingHours > 0) ? "horas" : ""),
+      techUids,
+      projectKeyUsers,
       updatedAt: serverTimestamp(),
       updatedBy: user.uid
     };
+
+    if (_selectedEditProjectContractFile) {
+      const contract = await _uploadProjectContract(deps, companyId, projectId, _selectedEditProjectContractFile);
+      if (contract) {
+        payload.contract = {
+          ...contract,
+          uploadedAt: serverTimestamp(),
+          uploadedBy: user.uid
+        };
+      }
+    } else if (_removeEditProjectContract) {
+      payload.contract = null;
+    } else if (current.contract) {
+      payload.contract = current.contract;
+    }
 
     await updateDoc(doc(db, `companies/${companyId}/projects`, projectId), payload);
 
@@ -1104,7 +1351,6 @@ export async function updateProject(deps) {
 
     setTimeout(() => {
       closeEditProjectModal(refs);
-      // ‚úÖ grid atualiza por getDocs, kanban atualiza por realtime
       if (typeof loadProjects === "function") loadProjects(deps);
     }, 600);
 

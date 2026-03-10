@@ -2179,7 +2179,7 @@ a{ color: inherit; }
   width: 100%;
   min-height: 620px;
   height: calc(100vh - 190px);
-  margin-top: 8px;
+  margin-top: 0;
   border:1px solid rgba(12,18,32,.12);
   border-radius: 18px;
   background: rgba(248,250,252,.98);
@@ -2187,11 +2187,45 @@ a{ color: inherit; }
   display:flex;
   flex-direction:column;
   overflow:hidden;
+  opacity: 0;
+  transform: translateY(10px);
+  max-height: 0;
+  pointer-events: none;
+  transition: opacity .22s ease, transform .22s ease, max-height .22s ease, margin .22s ease;
+}
+
+.project-workspace-panel.is-open{
+  opacity: 1;
+  transform: translateY(0);
+  max-height: 2000px;
+  pointer-events: auto;
+  margin-top: 8px;
+}
+
+#viewMyProjects .page-header,
+#viewMyProjects .kanban-board{
+  opacity: 1;
+  transform: translateY(0);
+  pointer-events: auto;
+  transition: opacity .22s ease, transform .22s ease, max-height .22s ease, margin .22s ease;
+}
+
+#viewMyProjects .page-header{
+  max-height: 220px;
+}
+
+#viewMyProjects .kanban-board{
+  max-height: 2600px;
 }
 
 #viewMyProjects.workspace-open .page-header,
 #viewMyProjects.workspace-open .kanban-board{
-  display: none;
+  opacity: 0;
+  transform: translateY(8px);
+  pointer-events: none;
+  max-height: 0;
+  margin: 0;
+  overflow: hidden;
 }
 
 .project-workspace-head{
@@ -2201,6 +2235,42 @@ a{ color: inherit; }
   gap:10px;
   padding: 14px 16px;
   border-bottom:1px solid rgba(12,18,32,.08);
+}
+
+.workspace-head-actions{
+  display:flex;
+  align-items:center;
+  gap:8px;
+}
+
+.project-workspace-breadcrumb{
+  display:flex;
+  align-items:center;
+  gap:8px;
+  margin-bottom: 6px;
+  font-size: 12px;
+}
+
+.crumb-link{
+  border:none;
+  background: transparent;
+  color: rgba(37,99,235,.95);
+  font-weight: 700;
+  padding:0;
+  cursor:pointer;
+}
+
+.crumb-link:hover{
+  text-decoration: underline;
+}
+
+.crumb-sep{
+  color: rgba(12,18,32,.45);
+}
+
+.crumb-current{
+  color: rgba(12,18,32,.7);
+  font-weight: 600;
 }
 
 .project-workspace-head h2{

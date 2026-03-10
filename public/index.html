@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 
 <html data-theme="light" lang="pt-br">
 <head>
@@ -57,14 +57,14 @@
 <div class="topbar-right">
   <div class="user-menu" id="userMenu">
     <button class="avatar-btn" id="avatarBtn" aria-haspopup="menu" aria-expanded="false">
-      <img id="userAvatarImg" class="avatar-img" alt="Avatar do usuário" />
+      <img id="userAvatarImg" class="avatar-img" alt="Avatar do usuario" />
       <span id="userAvatarFallback" class="avatar-fallback">U</span>
     </button>
 
-    <div class="dropdown" id="avatarDropdown" role="menu" aria-label="Menu do usuário">
+    <div class="dropdown" id="avatarDropdown" role="menu" aria-label="Menu do usuario">
       <button class="dropdown-item" id="btnEditProfile" role="menuitem" type="button">
         <span class="dropdown-ico" aria-hidden="true">
-          <!-- Ícone Perfil -->
+          <!-- Icone Perfil -->
           <svg viewBox="0 0 24 24" width="18" height="18" fill="none">
             <path d="M12 12a4 4 0 1 0-4-4 4 4 0 0 0 4 4Z" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
             <path d="M20 20a8 8 0 1 0-16 0" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
@@ -77,7 +77,7 @@
 
       <button class="dropdown-item danger" id="btnUserLogout" role="menuitem" type="button">
         <span class="dropdown-ico" aria-hidden="true">
-          <!-- Ícone Sair -->
+          <!-- Icone Sair -->
           <svg viewBox="0 0 24 24" width="18" height="18" fill="none">
             <path d="M10 7V6a2 2 0 0 1 2-2h7a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-7a2 2 0 0 1-2-2v-1" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
             <path d="M3 12h10" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
@@ -102,27 +102,27 @@
 </div>
 </div>
 </div>
-<nav aria-label="Navegação principal" class="sidebar-nav">
-<button class="nav-item active" data-tooltip="Página inicial" id="navHome">
+<nav aria-label="Navegacao principal" class="sidebar-nav">
+<button class="nav-item active" data-tooltip="Pagina inicial" id="navHome">
 <img alt="" class="nav-ico" src="home.png"/>
-<span class="nav-label">Página inicial</span>
+<span class="nav-label">Pagina inicial</span>
 </button>
-<button class="nav-item" data-tooltip="Adicionar técnico" id="navAddTech">
+<button class="nav-item" data-tooltip="Adicionar tecnico" id="navAddTech">
 <img alt="" class="nav-ico" src="adicionar-tecnico.png"/>
-<span class="nav-label">Adicionar técnico</span>
+<span class="nav-label">Adicionar tecnico</span>
 </button>
 <button class="nav-item" data-tooltip="Clientes" id="navClients">
 <img alt="" class="nav-ico" src="clientes.png"/>
 <span class="nav-label">Clientes</span>
 </button>
-<button class="nav-item" data-tooltip="Relatórios e indicadores" id="navReports">
+<button class="nav-item" data-tooltip="Relatorios e indicadores" id="navReports">
 <img alt="" class="nav-ico" src="relatorio.png"/>
-<span class="nav-label">Relatórios</span>
+<span class="nav-label">Relatorios</span>
 </button>
 <div class="sidebar-sep"></div>
-<button class="nav-item" data-tooltip="Configurações" id="navConfig">
+<button class="nav-item" data-tooltip="Configuracoes" id="navConfig">
 <img alt="" class="nav-ico" src="config.png"/>
-<span class="nav-label">Configurações</span>
+<span class="nav-label">Configuracoes</span>
 </button>
 
 
@@ -137,7 +137,7 @@
 <img alt="FlowProject" class="login-logo-img" src="logo-e-nome.png"/>
 </div>
 <div class="login-head">
-<h1>Faça seu login</h1>
+<h1>Faca seu login</h1>
 <p class="muted">Acesse sua conta com seu e-mail e senha.</p>
 </div>
 <div class="login-card">
@@ -150,7 +150,7 @@
 <span>Senha</span>
 <div class="pwd-wrap">
 <input autocomplete="current-password" id="password" placeholder="sua senha" type="password"/>
-<button aria-label="Mostrar/ocultar senha" class="pwd-toggle" id="btnTogglePwd" type="button">👁</button>
+<button aria-label="Mostrar ou ocultar senha" class="pwd-toggle" id="btnTogglePwd" type="button">Ver</button>
 </div>
 </label>
 <div class="login-row">
@@ -168,11 +168,11 @@
 <!-- Right -->
 <div aria-hidden="true" class="login-right">
 <div class="login-illustration">
-<img alt="Ilustração FlowProject" src="kanbanlogin.jpg"/>
+<img alt="Ilustracao FlowProject" src="kanbanlogin.jpg"/>
 </div>
 <div class="login-right-text">
 <div class="login-right-title">Organize projetos com leveza.</div>
-<div class="login-right-sub">Kanban, equipes e tarefas em um só lugar.</div>
+<div class="login-right-sub">Kanban, equipes e tarefas em um so lugar.</div>
 </div>
 </div>
 </div>
@@ -181,7 +181,7 @@
 <div class="page-header">
 <div>
 <h1 id="dashTitle">Painel de Projetos</h1>
-<p class="muted" id="dashSubtitle">Seus projetos em um só lugar!</p>
+<p class="muted" id="dashSubtitle">Seus projetos em um so lugar!</p>
 </div>
 </div>
 <div class="grid" id="dashCards"></div>
@@ -190,8 +190,8 @@
 <div class="container">
 <div class="page-header">
 <div>
-<h1>Administração</h1>
-<p class="muted">Equipes e usuários da sua empresa.</p>
+<h1>Administracao</h1>
+<p class="muted">Equipes e usuarios da sua empresa.</p>
 </div>
 <div class="chips">
 <button class="btn ghost" id="btnBackFromAdmin">Voltar</button>
@@ -214,66 +214,66 @@
 <div class="grid" id="teamsGrid" style="margin-top:12px;"></div>
 <div class="panel subtle" hidden="" id="teamsEmpty" style="margin-top:12px;">
 <h3>Nenhuma equipe criada</h3>
-<p class="muted">Crie a primeira equipe para começar a cadastrar usuários.</p>
+<p class="muted">Crie a primeira equipe para comecar a cadastrar usuarios.</p>
 </div>
 </div>
-<!-- USUÁRIOS -->
+<!-- USUARIOS -->
 <div class="panel">
 <div class="row" style="display:flex; gap:10px; align-items:flex-end; flex-wrap:wrap;">
 <div style="flex:1; min-width:220px;">
-<h3 style="margin:0;">Usuários</h3>
-<p class="muted" style="margin:4px 0 0 0;">Cadastre usuários e vincule equipes via chips.</p>
+<h3 style="margin:0;">Usuarios</h3>
+<p class="muted" style="margin:4px 0 0 0;">Cadastre usuarios e vincule equipes via chips.</p>
 </div>
 <label class="field" style="min-width:240px;">
-<span>Buscar usuário</span>
+<span>Buscar usuario</span>
 <input id="userSearch" placeholder="Nome, e-mail, telefone ou UID"/>
 </label>
 <label class="field" style="min-width:200px;">
-<span>Filtrar função</span>
+<span>Filtrar funcao</span>
 <select id="userRoleFilter">
 <option value="">Todas</option>
 <option value="admin">Admin</option>
 <option value="gestor">Gestor</option>
 <option value="coordenador">Coordenador</option>
-<option value="tecnico">Técnico</option>
+<option value="tecnico">Tecnico</option>
 </select>
 </label>
 <button class="btn" id="btnReloadUsers">Atualizar</button>
-<button class="btn primary" id="btnOpenCreateUser">+ Novo Usuário</button>
+<button class="btn primary" id="btnOpenCreateUser">+ Novo Usuario</button>
 </div>
 <div class="table" style="margin-top:12px; overflow:auto;">
 <table>
 <thead>
 <tr>
 <th>Nome</th>
-<th>Função</th>
+<th>Funcao</th>
 <th>E-mail</th>
 <th>Telefone</th>
 <th>Equipes</th>
 <th>Status</th>
-<th style="width:110px;">Ações</th>
+<th style="width:110px;">Acoes</th>
 </tr>
 </thead>
 <tbody id="usersTbody"></tbody>
 </table>
 </div>
 <div class="panel subtle" hidden="" id="usersEmpty" style="margin-top:12px;">
-<h3>Nenhum usuário cadastrado</h3>
-<p class="muted">Clique em “Novo Usuário” para cadastrar o primeiro.</p>
+<h3>Nenhum usuario cadastrado</h3>
+<p class="muted">Clique em "Novo Usuario" para cadastrar o primeiro.</p>
 </div>
 </div>
 </div>
-</section><!-- GESTOR: USUÁRIOS (TÉCNICOS) --><section class="view" hidden="" id="viewManagerUsers">
+</section><!-- GESTOR: USUARIOS (TECNICOS) --><section class="view" hidden="" id="viewManagerUsers">
 <div class="container">
 <div class="page-header">
 <div>
-<h1>Usuários (Técnicos)</h1>
-<p class="muted">Cadastre técnicos e vincule às equipes que você administra.</p>
+<h1>Usuarios (Tecnicos)</h1>
+<p class="muted">Cadastre tecnicos e vincule as equipes que voce administra.</p>
 </div>
 <div class="chips">
-<!-- Removido botão Voltar (UX pedido) -->
-<!-- Botão Novo Técnico como ícone + (mesmo padrão do Adicionar Projeto) -->
-<button class="icon-btn" id="btnOpenCreateTech" title="Adicionar técnico" aria-label="Adicionar técnico">
+<!-- Removido botao Voltar (UX pedido) -->
+<!-- Botao Novo Tecnico como icone + (mesmo padrao do Adicionar Projeto) -->
+<button class="icon-btn" id="btnOpenCreateTech" title="Adicionar tecnico" aria-label="Adicionar tecnico">
   <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
     <defs>
       <linearGradient id="fpGradAddTech" x1="0" y1="0" x2="24" y2="24" gradientUnits="userSpaceOnUse">
@@ -286,8 +286,8 @@
   </svg>
 </button>
 
-<!-- Busca ao lado do botão (mesmo padrão do Kanban) -->
-<div class="saas-search" id="mgrUsersSearchWrap" aria-label="Filtro de técnicos">
+<!-- Busca ao lado do botao (mesmo padrao do Kanban) -->
+<div class="saas-search" id="mgrUsersSearchWrap" aria-label="Filtro de tecnicos">
   <svg class="saas-search-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
     <circle cx="11" cy="11" r="7"></circle>
     <path d="M20 20l-3.5-3.5"></path>
@@ -303,9 +303,9 @@
 </div>
 </div>
 <div class="panel" style="margin-bottom:12px;">
-<!-- Removido bloco de busca aqui (agora fica no header ao lado do botão Adicionar técnico) -->
-<!-- Paginação (20 por página) -->
-<div id="mgrUsersPagination" class="table-pagination" aria-label="Paginação de técnicos"></div>
+<!-- Removido bloco de busca aqui (agora fica no header ao lado do botao Adicionar tecnico) -->
+<!-- Paginacao (20 por pagina) -->
+<div id="mgrUsersPagination" class="table-pagination" aria-label="Paginacao de tecnicos"></div>
 <div class="table" style="margin-top:12px; overflow:auto;">
 <table>
 <thead>
@@ -319,15 +319,15 @@
 <th>Hard Skills</th>
 <th style="width:110px;">Feedback</th>
 <th>Status</th>
-<th style="width:110px;">Ações</th>
+<th style="width:110px;">Acoes</th>
 </tr>
 </thead>
 <tbody id="mgrUsersTbody"></tbody>
 </table>
 </div>
 <div class="panel subtle" hidden="" id="mgrUsersEmpty" style="margin-top:12px;">
-<h3>Nenhum técnico encontrado</h3>
-<p class="muted">Cadastre o primeiro técnico clicando em “Novo Técnico”.</p>
+<h3>Nenhum tecnico encontrado</h3>
+<p class="muted">Cadastre o primeiro tecnico clicando em "Novo Tecnico".</p>
 </div>
 </div>
 </div>
@@ -355,7 +355,7 @@
 <div class="grid" id="companiesGrid"></div>
 <div class="panel subtle" hidden="" id="companiesEmpty" style="margin-top:12px;">
 <h3>Nenhuma empresa cadastrada</h3>
-<p class="muted">Clique em “Criar Empresa” para começar.</p>
+<p class="muted">Clique em "Criar Empresa" para comecar.</p>
 </div>
 </div>
 </section>
@@ -400,7 +400,7 @@
 </div>
 
 <div class="panel" style="margin-bottom:12px;">
-<div id="clientsPagination" class="table-pagination" aria-label="Paginação de clientes" style="margin-top:12px;"></div>
+<div id="clientsPagination" class="table-pagination" aria-label="Paginacao de clientes" style="margin-top:12px;"></div>
 
 <div class="table" style="margin-top:12px; overflow:auto;">
 <table>
@@ -412,7 +412,7 @@
 <th>Key user</th>
 <th style="width:110px;">Projetos</th>
 <th style="width:110px;">Status</th>
-<th style="width:110px;">Ações</th>
+<th style="width:110px;">Acoes</th>
 </tr>
 </thead>
 <tbody id="clientsTbody"></tbody>
@@ -502,10 +502,10 @@
         </div>
       </div>
 
-      <!-- Coluna Concluído -->
+      <!-- Coluna Concluido -->
       <div class="kanban-column" data-status="concluido" style="--col:#A5A5A5; border-top:4px solid #A5A5A5;">
         <div class="kanban-header">
-          <h3>Concluído</h3>
+          <h3>Concluido</h3>
           <span class="kanban-count" id="kanbanCountDone">0</span>
         </div>
         <div class="kanban-cards" id="kanbanDone">
@@ -536,13 +536,17 @@
       </div>
     </div>
 
-    <aside class="project-workspace-panel" id="projectWorkspacePanel" hidden>
+    <aside class="project-workspace-panel" id="projectWorkspacePanel">
       <div class="project-workspace-head">
         <div>
+          <nav class="project-workspace-breadcrumb" id="projectWorkspaceBreadcrumb" aria-label="Breadcrumb"></nav>
           <h2 id="projectWorkspaceTitle">Projeto</h2>
           <p class="muted" id="projectWorkspaceSubtitle">Workspace do projeto</p>
         </div>
-        <button class="btn ghost" id="btnCloseProjectWorkspace" type="button">✕</button>
+        <div class="workspace-head-actions">
+          <button class="btn ghost" id="btnOpenWorkspaceEdit" type="button" title="Editar projeto">Editar</button>
+          <button class="btn ghost" id="btnCloseProjectWorkspace" type="button">X</button>
+        </div>
       </div>
 
       <div class="project-workspace-body">
@@ -557,18 +561,18 @@
             <div class="project-form-grid">
               <label class="field">
                 <span>Nome da tarefa</span>
-                <input id="taskNameInput" maxlength="80" placeholder="Ex.: Levantamento e diagnóstico" />
+                <input id="taskNameInput" maxlength="80" placeholder="Ex.: Levantamento e diagnostico" />
               </label>
               <label class="field">
-                <span>Período inicial</span>
+                <span>Periodo inicial</span>
                 <input type="date" id="taskStartDateInput" />
               </label>
               <label class="field">
-                <span>Período final</span>
+                <span>Periodo final</span>
                 <input type="date" id="taskEndDateInput" />
               </label>
               <label class="field">
-                <span>Horas orçadas</span>
+                <span>Horas orcadas</span>
                 <input id="taskPlannedHoursInput" type="number" min="0" step="0.5" placeholder="0" />
               </label>
             </div>
@@ -616,7 +620,7 @@
 <option value="a-fazer">A Fazer</option>
 <option value="em-andamento">Em Andamento</option>
 <option value="go-live">Go Live</option>
-<option value="concluido">Concluído</option>
+<option value="concluido">Concluido</option>
 <option value="parado">Parado</option>
 <option value="backlog">Backlog</option>
 </select>
@@ -633,7 +637,7 @@
 <div class="grid" id="projectsGrid"></div>
 <div class="panel subtle" hidden="" id="projectsEmpty" style="margin-top:12px;">
 <h3>Nenhum projeto cadastrado</h3>
-<p class="muted">Clique em "Criar Projeto" para começar.</p>
+<p class="muted">Clique em "Criar Projeto" para comecar.</p>
 </div>
 </div>
 </section></div></main>
@@ -645,9 +649,9 @@
 <div class="modal-header">
 <div>
 <h2>Criar Empresa</h2>
-<p class="muted">Crie a empresa e vincule o Admin (sem equipe obrigatória nesta etapa).</p>
+<p class="muted">Crie a empresa e vincule o Admin (sem equipe obrigatoria nesta etapa).</p>
 </div>
-<button class="btn ghost" id="btnCloseCreateCompany">✕</button>
+<button class="btn ghost" id="btnCloseCreateCompany">X</button>
 </div>
 <div class="modal-body">
 <div class="grid" style="grid-template-columns: repeat(12, 1fr); gap:12px;">
@@ -687,7 +691,7 @@
 </label>
 </div>
 <p class="muted" style="margin:10px 0 0 0; font-size:12px;">
-              Observação: equipes são criadas pelo <b>Admin da empresa</b> na tela Administração.
+              Observacao: equipes sao criadas pelo <b>Admin da empresa</b> na tela Administracao.
             </p>
 </div>
 </div>
@@ -707,9 +711,9 @@
 <div class="modal-header">
 <div>
 <h2>Criar Equipe</h2>
-<p class="muted">Crie uma equipe para usar nos usuários e projetos.</p>
+<p class="muted">Crie uma equipe para usar nos usuarios e projetos.</p>
 </div>
-<button class="btn ghost" id="btnCloseCreateTeam">✕</button>
+<button class="btn ghost" id="btnCloseCreateTeam">X</button>
 </div>
 <div class="modal-body">
 <label class="field">
@@ -728,31 +732,31 @@
 </div>
 </div>
 </div>
-<!-- MODAL CRIAR USUÁRIO (Admin empresa) -->
+<!-- MODAL CRIAR USUARIO (Admin empresa) -->
 <div class="modal" hidden="" id="modalCreateUser">
 <div class="modal-backdrop" data-close="true"></div>
 <div class="modal-card">
 <div class="modal-header">
 <div>
-<h2>Novo Usuário</h2>
-<p class="muted">Cadastre um usuário e selecione equipes via chips.</p>
+<h2>Novo Usuario</h2>
+<p class="muted">Cadastre um usuario e selecione equipes via chips.</p>
 </div>
-<button class="btn ghost" id="btnCloseCreateUser">✕</button>
+<button class="btn ghost" id="btnCloseCreateUser">X</button>
 </div>
 <div class="modal-body">
 <div class="grid" style="grid-template-columns: repeat(12, 1fr); gap:12px;">
 <label class="field" style="grid-column: span 12;">
 <span>UID (do Authentication)</span>
-<input id="newUserUid" placeholder="Cole o UID do usuário"/>
+<input id="newUserUid" placeholder="Cole o UID do usuario"/>
 </label>
 <label class="field" style="grid-column: span 6;">
 <span>Nome</span>
-<input id="newUserName" placeholder="Nome do usuário"/>
+<input id="newUserName" placeholder="Nome do usuario"/>
 </label>
 <label class="field" style="grid-column: span 6;">
-<span>Função</span>
+<span>Funcao</span>
 <select id="newUserRole">
-<option selected="" value="tecnico">Técnico</option>
+<option selected="" value="tecnico">Tecnico</option>
 <option value="coordenador">Coordenador</option>
 <option value="gestor">Gestor</option>
 <option value="admin">Admin</option>
@@ -777,7 +781,7 @@
 <span>Equipes (chips)</span>
 <div class="chips-select" id="teamChips"></div>
 <div class="muted" id="teamChipsHint" style="font-size:12px; margin-top:6px;">
-              Técnicos também podem participar de mais de uma equipe.
+              Tecnicos tambem podem participar de mais de uma equipe.
             </div>
 </div>
 </div>
@@ -788,22 +792,22 @@
 <button class="btn primary" id="btnCreateUser">Salvar</button>
 </div>
 </div>
-<!-- MODAL CRIAR TÉCNICO (Gestor) -->
+<!-- MODAL CRIAR TECNICO (Gestor) -->
 <div class="modal" hidden="" id="modalCreateTech">
 <div class="modal-backdrop" data-close="true"></div>
 <div class="modal-card modal-xl">
   <div class="modal-header">
     <div>
-      <h2>Novo Técnico</h2>
-      <p class="muted">O técnico será vinculado automaticamente a todas as equipes do seu escopo.</p>
+      <h2>Novo Tecnico</h2>
+      <p class="muted">O tecnico sera vinculado automaticamente a todas as equipes do seu escopo.</p>
     </div>
-    <button class="btn ghost" id="btnCloseCreateTech" data-close="true" type="button">✕</button>
+    <button class="btn ghost" id="btnCloseCreateTech" data-close="true" type="button">X</button>
   </div>
 
   <div class="modal-body">
     <div class="form-sections">
       <div class="form-section">
-        <div class="section-title">Dados básicos</div>
+        <div class="section-title">Dados basicos</div>
         <div class="tech-photo-row">
           <div class="tech-avatar-preview" id="techAvatarPreview">
             <img id="techAvatarPreviewImg" alt="" />
@@ -814,19 +818,19 @@
             <label class="btn sm" for="techAvatarFile">Selecionar foto</label>
             <span class="photo-file-name" id="techPhotoFileName">Nenhum arquivo selecionado</span>
             <button class="btn ghost sm" id="btnTechRemovePhoto" type="button">Remover foto</button>
-            <div class="muted photo-help">PNG/JPG/WebP até 2MB.</div>
+            <div class="muted photo-help">PNG/JPG/WebP ate 2MB.</div>
           </div>
         </div>
         <div class="grid" style="grid-template-columns: repeat(12, 1fr); gap:12px;">
           <label class="field" style="grid-column: span 12;">
             <span>UID (opcional)</span>
             <input id="techUid" placeholder="Deixe vazio para criar automaticamente via Auth"/>
-            <small class="muted">Se vazio, o sistema cria o usuário no Authentication e gera link de redefinição de senha.</small>
+            <small class="muted">Se vazio, o sistema cria o usuario no Authentication e gera link de redefinicao de senha.</small>
           </label>
 
           <label class="field" style="grid-column: span 6;">
             <span>Nome</span>
-            <input id="techName" placeholder="Nome do técnico"/>
+            <input id="techName" placeholder="Nome do tecnico"/>
           </label>
 
           <label class="field" style="grid-column: span 6;">
@@ -862,10 +866,10 @@
           <div class="field" style="grid-column: span 12;">
             <span>Soft skills</span>
             <div class="chip-input">
-              <input id="techSoftSkillInput" placeholder="Digite e pressione Enter (ex.: comunicação, liderança)"/>
+              <input id="techSoftSkillInput" placeholder="Digite e pressione Enter (ex.: comunicacao, lideranca)"/>
             </div>
             <div class="chips-select chips-mini" id="techSoftSkillChips"></div>
-            <small class="muted">Dica: Enter ou vírgula para criar o chip. Clique no chip para remover.</small>
+            <small class="muted">Dica: Enter ou virgula para criar o chip. Clique no chip para remover.</small>
           </div>
 
           <div class="field" style="grid-column: span 12;">
@@ -874,13 +878,13 @@
               <input id="techHardSkillInput" placeholder="Digite e pressione Enter (ex.: Protheus, SQL, ADVPL)"/>
             </div>
             <div class="chips-select chips-mini" id="techHardSkillChips"></div>
-            <small class="muted">Dica: Enter ou vírgula para criar o chip. Clique no chip para remover.</small>
+            <small class="muted">Dica: Enter ou virgula para criar o chip. Clique no chip para remover.</small>
           </div>
         </div>
       </div>
     </div>
 
-    <!-- Mantido por compatibilidade (não exibido) -->
+    <!-- Mantido por compatibilidade (nao exibido) -->
     <div class="field" style="display:none;">
       <span>Equipes (chips)</span>
       <div class="chips-select" id="mgrTeamChips"></div>
@@ -903,14 +907,14 @@
 <h2>Equipes administradas</h2>
 <p class="muted" id="managedTeamsSubtitle">Defina quais equipes este gestor administra.</p>
 </div>
-<button class="btn ghost" id="btnCloseManagedTeams">✕</button>
+<button class="btn ghost" id="btnCloseManagedTeams">X</button>
 </div>
 <div class="modal-body">
 <div class="field">
 <span>Selecione as equipes (chips)</span>
 <div class="chips-select" id="managedTeamsChips"></div>
 <div class="muted" style="font-size:12px; margin-top:6px;">
-            Isso controla quais equipes o Gestor pode usar ao cadastrar técnicos e (futuramente) projetos/tarefas.
+            Isso controla quais equipes o Gestor pode usar ao cadastrar tecnicos e (futuramente) projetos/tarefas.
           </div>
 </div>
 <div class="alert" hidden="" id="managedTeamsAlert"></div>
@@ -931,7 +935,7 @@
         <h2>Editar perfil</h2>
         <p class="muted">Atualize sua foto, nome e telefone.</p>
       </div>
-      <button class="btn ghost" id="btnCloseProfile" type="button">✕</button>
+      <button class="btn ghost" id="btnCloseProfile" type="button">X</button>
     </div>
 
     <div class="modal-body">
@@ -954,7 +958,7 @@
           <!-- armazenamos a URL final aqui (o app.js usa esse input) -->
           <input id="profilePhotoUrl" type="hidden" />
           <p class="muted" style="font-size:12px; margin:8px 0 0 0;">
-            Recomendado: PNG/JPG até 2MB.
+            Recomendado: PNG/JPG ate 2MB.
           </p>
         </div>
 
@@ -994,12 +998,12 @@
 <div class="modal-header">
 <div>
 <h2 id="companyDetailTitle">Empresa</h2>
-<p class="muted" id="companyDetailMeta">—</p>
-<div style="margin-top:6px;"><span class="badge" id="companyDetailStatus">—</span></div>
+<p class="muted" id="companyDetailMeta">-</p>
+<div style="margin-top:6px;"><span class="badge" id="companyDetailStatus">-</span></div>
 </div>
 <div style="display:flex; gap:10px; align-items:center;">
 <button class="btn danger" id="btnToggleCompanyBlock">Bloquear empresa</button>
-<button class="btn ghost" id="btnCloseCompanyDetail">✕</button>
+<button class="btn ghost" id="btnCloseCompanyDetail">X</button>
 </div>
 </div>
 <div class="modal-body">
@@ -1008,19 +1012,19 @@
 <table>
 <thead>
 <tr>
-<th>Usuário</th>
+<th>Usuario</th>
 <th>E-mail</th>
 <th>Telefone</th>
 <th>Perfil</th>
 <th>Status</th>
-<th style="width:170px;">Ações</th>
+<th style="width:170px;">Acoes</th>
 </tr>
 </thead>
 <tbody id="companyUsersTbody"></tbody>
 </table>
 </div>
 <div class="muted" id="companyUsersEmpty" style="display:none; margin-top: 12px;">
-          Nenhum usuário encontrado para esta empresa.
+          Nenhum usuario encontrado para esta empresa.
         </div>
 </div>
 </div>
@@ -1033,9 +1037,9 @@
     <div class="modal-header">
       <div>
         <h2>Equipe</h2>
-        <p class="muted">Veja os usuários vinculados e gerencie a equipe.</p>
+        <p class="muted">Veja os usuarios vinculados e gerencie a equipe.</p>
       </div>
-      <button class="btn ghost" id="btnCloseTeamDetails">✕</button>
+      <button class="btn ghost" id="btnCloseTeamDetails">X</button>
     </div>
 
     <div class="modal-body">
@@ -1061,13 +1065,13 @@
       </div>
 
       <div class="panel subtle" style="margin-top:12px;">
-        <h3 style="margin:0 0 8px 0;">Usuários vinculados</h3>
-        <div class="muted" id="teamDetailsHint" style="margin-bottom:8px;">Remova usuários desta equipe quando necessário.</div>
+        <h3 style="margin:0 0 8px 0;">Usuarios vinculados</h3>
+        <div class="muted" id="teamDetailsHint" style="margin-bottom:8px;">Remova usuarios desta equipe quando necessario.</div>
 
         <div id="teamDetailsUsers" class="list"></div>
 
         <div class="panel subtle" hidden id="teamDetailsEmpty" style="margin-top:10px;">
-          <p class="muted" style="margin:0;">Nenhum usuário vinculado a esta equipe.</p>
+          <p class="muted" style="margin:0;">Nenhum usuario vinculado a esta equipe.</p>
         </div>
       </div>
 
@@ -1075,8 +1079,8 @@
     </div>
 
     <div class="modal-footer">
-      <button class="btn primary" id="btnAddUsersToTeam" title="Adicionar usuários à equipe">
-        <i class="fas fa-user-plus"></i> Adicionar usuários
+      <button class="btn primary" id="btnAddUsersToTeam" title="Adicionar usuarios a equipe">
+        <i class="fas fa-user-plus"></i> Adicionar usuarios
       </button>
       <button class="btn" id="btnTeamToggleActive">Desativar</button>
       <button class="btn danger" id="btnTeamDelete" disabled>Excluir equipe</button>
@@ -1085,16 +1089,16 @@
   </div>
 </div>
 
-<!-- MODAL: ADICIONAR USUÁRIOS À EQUIPE -->
+<!-- MODAL: ADICIONAR USUARIOS A EQUIPE -->
 <div class="modal" hidden id="modalAddUsersToTeam">
   <div class="modal-backdrop" data-close="true"></div>
   <div class="modal-card">
     <div class="modal-header">
       <div>
-        <h2>Adicionar Usuários</h2>
-        <p class="muted" id="addUsersTeamName">Selecione os usuários para adicionar à equipe.</p>
+        <h2>Adicionar Usuarios</h2>
+        <p class="muted" id="addUsersTeamName">Selecione os usuarios para adicionar a equipe.</p>
       </div>
-      <button class="btn ghost" id="btnCloseAddUsersToTeam">✕</button>
+      <button class="btn ghost" id="btnCloseAddUsersToTeam">X</button>
     </div>
 
     <div class="modal-body">
@@ -1102,10 +1106,10 @@
       
       <div class="panel subtle">
         <p class="muted" style="margin:0 0 12px 0;">
-          Clique nos usuários abaixo para adicionar à equipe:
+          Clique nos usuarios abaixo para adicionar a equipe:
         </p>
         <div id="addUsersToTeamList" class="chips-container">
-          <p class="muted">Carregando usuários...</p>
+          <p class="muted">Carregando usuarios...</p>
         </div>
       </div>
     </div>
@@ -1117,16 +1121,16 @@
   </div>
 </div>
 
-<!-- MODAL: EDITAR EQUIPES DO USUÁRIO -->
+<!-- MODAL: EDITAR EQUIPES DO USUARIO -->
 <div class="modal" hidden id="modalEditUserTeams">
   <div class="modal-backdrop" data-close="true"></div>
   <div class="modal-card">
     <div class="modal-header">
       <div>
         <h2>Gerenciar Equipes</h2>
-        <p class="muted" id="editUserTeamsTitle">Selecione as equipes do usuário.</p>
+        <p class="muted" id="editUserTeamsTitle">Selecione as equipes do usuario.</p>
       </div>
-      <button class="btn ghost" id="btnCloseEditUserTeams">✕</button>
+      <button class="btn ghost" id="btnCloseEditUserTeams">X</button>
     </div>
     <div class="modal-body">
       <div id="editUserTeamsChips" class="chips-container" style="margin-bottom: 16px;"></div>
@@ -1146,29 +1150,29 @@
     <div class="modal-header project-modal-head">
       <div>
         <h2>Criar Projeto</h2>
-        <p class="muted">Preencha as informações abaixo para criar um novo projeto.</p>
+        <p class="muted">Preencha as informacoes abaixo para criar um novo projeto.</p>
       </div>
-      <button class="btn ghost" id="btnCloseCreateProject">✕</button>
+      <button class="btn ghost" id="btnCloseCreateProject">X</button>
     </div>
 
     <div class="modal-body">
       <div class="grid-2">
 
-        <!-- Seção: Básico -->
+        <!-- Secao: Basico -->
         <div class="form-section span-12">
-          <h3 class="project-section-title">Informações do Projeto</h3>
+          <h3 class="project-section-title">Informacoes do Projeto</h3>
           <div class="grid-2">
             <label class="field span-12">
               <span>Nome do projeto <span style="color:red;">*</span></span>
-              <input id="projectName" maxlength="35" placeholder="Ex.: Implantação módulo compras (máx 35 caracteres)"/>
-              <div class="help">Máximo 35 caracteres (inclui espaços).</div>
+              <input id="projectName" maxlength="35" placeholder="Ex.: Implantacao modulo compras (max 35 caracteres)"/>
+              <div class="help">Maximo 35 caracteres (inclui espacos).</div>
             </label>
 
             <label class="field span-12">
-              <span>Descrição</span>
-              <textarea id="projectDescription" maxlength="1000" placeholder="Descreva o projeto (máx 1000 caracteres)" rows="4"
+              <span>Descricao</span>
+              <textarea id="projectDescription" maxlength="1000" placeholder="Descreva o projeto (max 1000 caracteres)" rows="4"
                 style="width:100%; border-radius:14px; border:1px solid var(--border); padding:10px; font-family:inherit; resize:vertical;"></textarea>
-              <div class="help">Máximo 1000 caracteres.</div>
+              <div class="help">Maximo 1000 caracteres.</div>
             </label>
 
             <div class="field span-12">
@@ -1184,13 +1188,13 @@
                 <span class="project-contract-file" id="projectContractFileName">Nenhum PDF selecionado</span>
                 <button class="btn ghost sm" id="btnRemoveProjectContract" type="button">Remover</button>
               </div>
-              <div class="help">Aceita apenas PDF (até 10MB).</div>
+              <div class="help">Aceita apenas PDF (ate 10MB).</div>
             </div>
 
             <label class="field span-6">
               <span>Cliente</span>
               <select id="projectClient">
-                <option value="">— Selecione um cliente (opcional) —</option>
+                <option value="">- Selecione um cliente (opcional) -</option>
               </select>
             </label>
 
@@ -1203,16 +1207,16 @@
           </div>
         </div>
 
-        <!-- Seção: Responsáveis -->
+        <!-- Secao: Responsaveis -->
         <div class="form-section span-12">
-          <h3 class="project-section-title">Responsáveis</h3>
+          <h3 class="project-section-title">Responsaveis</h3>
           <div class="grid-2">
             <label class="field span-6">
               <span>Gestor do projeto (GP) <span style="color:red;">*</span></span>
               <select id="projectManager">
                 <option value="">Selecione um gestor</option>
               </select>
-              <div class="help">Por padrão: gestor logado. Se CP logado, pode selecionar gestores da sua(s) equipe(s).</div>
+              <div class="help">Por padrao: gestor logado. Se CP logado, pode selecionar gestores da sua(s) equipe(s).</div>
             </label>
 
             <label class="field span-6">
@@ -1220,32 +1224,32 @@
               <select id="projectCoordinator">
                 <option value="">Selecione (opcional)</option>
               </select>
-              <div class="help">Opcional. Por padrão: CP logado (se aplicável).</div>
+              <div class="help">Opcional. Por padrao: CP logado (se aplicavel).</div>
             </label>
           </div>
         </div>
 
-        <!-- Seção: Técnicos -->
+        <!-- Secao: Tecnicos -->
         <div class="form-section span-12">
-          <h3 class="project-section-title">Técnicos</h3>
+          <h3 class="project-section-title">Tecnicos</h3>
           <div class="grid-2">
             <label class="field span-6">
-              <span>Adicionar técnico</span>
+              <span>Adicionar tecnico</span>
               <select id="projectTechSelect">
-                <option value="">Selecione um técnico</option>
+                <option value="">Selecione um tecnico</option>
               </select>
-              <div class="help">Seleção múltipla (vira chips abaixo).</div>
+              <div class="help">Selecao multipla (vira chips abaixo).</div>
             </label>
 
             <div class="field span-6">
               <span>Selecionados</span>
               <div id="projectTechChips" class="chips project-tech-chips" style="min-height:42px;"></div>
-              <div class="help">Clique no “x” para remover.</div>
+              <div class="help">Clique no "x" para remover.</div>
             </div>
           </div>
         </div>
 
-        <!-- Seção: Datas e Prioridade -->
+        <!-- Secao: Datas e Prioridade -->
         <div class="form-section span-12">
           <h3 class="project-section-title">Planejamento</h3>
           <div class="grid-2">
@@ -1253,14 +1257,14 @@
               <span>Prioridade</span>
               <div class="chips" id="projectPriorityChips">
                 <button type="button" class="chip chip-prio baixa" data-priority="baixa">Baixa</button>
-                <button type="button" class="chip chip-prio media selected" data-priority="media">Média</button>
+                <button type="button" class="chip chip-prio media selected" data-priority="media">Media</button>
                 <button type="button" class="chip chip-prio alta" data-priority="alta">Alta</button>
               </div>
               <input type="hidden" id="projectPriority" value="media" />
             </div>
 
             <label class="field span-3">
-              <span>Início</span>
+              <span>Inicio</span>
               <input type="date" id="projectStartDate"/>
             </label>
 
@@ -1271,14 +1275,14 @@
           </div>
         </div>
 
-        <!-- Seção: Cobrança -->
+        <!-- Secao: Cobranca -->
         <div class="form-section span-12">
-          <h3 class="project-section-title">Cobrança</h3>
+          <h3 class="project-section-title">Cobranca</h3>
           <div class="grid-2">
             <label class="field span-6">
               <span>Valor (R$)</span>
               <input id="projectBillingValueAmount" inputmode="decimal" placeholder="R$ 0,00"/>
-              <div class="help">Opcional. Digite apenas números; o sistema formata em Real.</div>
+              <div class="help">Opcional. Digite apenas numeros; o sistema formata em Real.</div>
             </label>
 
             <label class="field span-6">
@@ -1310,33 +1314,33 @@
         <h2 id="projectDetailTitle">Projeto</h2>
         <div style="margin-top:8px;" id="projectDetailStatus"></div>
       </div>
-      <button class="btn ghost" id="btnCloseProjectDetail">✕</button>
+      <button class="btn ghost" id="btnCloseProjectDetail">X</button>
     </div>
     <div class="modal-body">
       <div class="panel subtle" style="margin-bottom:12px; padding:14px;">
-        <h4 style="margin:0 0 8px 0;">Descrição</h4>
-        <p style="margin:0;" id="projectDetailDescription">—</p>
+        <h4 style="margin:0 0 8px 0;">Descricao</h4>
+        <p style="margin:0;" id="projectDetailDescription">-</p>
       </div>
       <div class="grid" style="grid-template-columns: repeat(2, 1fr); gap:12px;">
         <div class="field">
           <span>Equipe</span>
-          <div style="padding:10px; background:rgba(255,255,255,.7); border:1px solid var(--border); border-radius:14px;" id="projectDetailTeam">—</div>
+          <div style="padding:10px; background:rgba(255,255,255,.7); border:1px solid var(--border); border-radius:14px;" id="projectDetailTeam">-</div>
         </div>
         <div class="field">
           <span>Coordenador</span>
-          <div style="padding:10px; background:rgba(255,255,255,.7); border:1px solid var(--border); border-radius:14px;" id="projectDetailCoordinator">—</div>
+          <div style="padding:10px; background:rgba(255,255,255,.7); border:1px solid var(--border); border-radius:14px;" id="projectDetailCoordinator">-</div>
         </div>
         <div class="field">
           <span>Prioridade</span>
-          <div id="projectDetailPriority">—</div>
+          <div id="projectDetailPriority">-</div>
         </div>
         <div class="field">
-          <span>Data de início</span>
-          <div style="padding:10px; background:rgba(255,255,255,.7); border:1px solid var(--border); border-radius:14px;" id="projectDetailStartDate">—</div>
+          <span>Data de inicio</span>
+          <div style="padding:10px; background:rgba(255,255,255,.7); border:1px solid var(--border); border-radius:14px;" id="projectDetailStartDate">-</div>
         </div>
         <div class="field">
-          <span>Data de término</span>
-          <div style="padding:10px; background:rgba(255,255,255,.7); border:1px solid var(--border); border-radius:14px;" id="projectDetailEndDate">—</div>
+          <span>Data de termino</span>
+          <div style="padding:10px; background:rgba(255,255,255,.7); border:1px solid var(--border); border-radius:14px;" id="projectDetailEndDate">-</div>
         </div>
       </div>
       <div class="alert" hidden id="projectDetailAlert" style="margin-top:12px;"></div>
@@ -1352,84 +1356,175 @@
 <!-- MODAL: EDITAR PROJETO -->
 <div class="modal" hidden id="modalEditProject">
   <div class="modal-backdrop" data-close="true"></div>
-  <div class="modal-card">
-    <div class="modal-header">
+  <div class="modal-card modal-xl">
+    <div class="modal-header project-modal-head">
       <div>
         <h2>Editar Projeto</h2>
-        <p class="muted">Atualize as informações do projeto.</p>
+        <p class="muted">Atualize todas as informa&ccedil;&otilde;es do projeto e ajuste t&eacute;cnicos e key users vinculados.</p>
       </div>
-      <button class="btn ghost" id="btnCloseEditProject">✕</button>
+      <button class="btn ghost" id="btnCloseEditProject">&times;</button>
     </div>
     <div class="modal-body">
-      <div class="grid" style="grid-template-columns: repeat(12, 1fr); gap:12px;">
-        <label class="field" style="grid-column: span 12;">
-          <span>Nome do projeto</span>
-          <input id="editProjectName" placeholder="Ex.: Projeto de Expansão"/>
-        </label>
-        <label class="field" style="grid-column: span 12;">
-          <span>Descrição</span>
-          <textarea id="editProjectDescription" placeholder="Descreva o projeto" rows="3" style="width:100%; border-radius:14px; border:1px solid var(--border); padding:10px; font-family:inherit; resize:vertical;"></textarea>
-        </label>
-        <label class="field" style="grid-column: span 6;">
-          <span>Equipe</span>
-          <select id="editProjectTeam">
-            <option value="">Selecione uma equipe</option>
-          </select>
-        </label>
-        <label class="field" style="grid-column: span 6;">
-          <span>Coordenador</span>
-          <select id="editProjectCoordinator">
-            <option value="">Selecione (opcional)</option>
-          </select>
-        </label>
-        <label class="field" style="grid-column: span 4;">
-          <span>Status</span>
-          <select id="editProjectStatus">
-<option value="a-fazer">A Fazer</option>
-<option value="em-andamento">Em Andamento</option>
-<option value="go-live">Go Live</option>
-<option value="concluido">Concluído</option>
-<option value="parado">Parado</option>
-<option value="backlog">Backlog</option>
-</select>
-        </label>
-        <label class="field" style="grid-column: span 4;">
-          <span>Prioridade</span>
-          <select id="editProjectPriority">
-            <option value="baixa">Baixa</option>
-            <option value="media">Média</option>
-            <option value="alta">Alta</option>
-          </select>
-        </label>
-        <label class="field" style="grid-column: span 6;">
-          <span>Data de início</span>
-          <input type="date" id="editProjectStartDate"/>
-        </label>
-        <label class="field" style="grid-column: span 6;">
-          <span>Data de término</span>
-          <input type="date" id="editProjectEndDate"/>
-        </label>
+      <div class="grid-2">
+        <div class="form-section span-12">
+          <h3 class="project-section-title">Informa&ccedil;&otilde;es do Projeto</h3>
+          <div class="grid-2">
+            <label class="field span-12">
+              <span>Nome do projeto <span style="color:red;">*</span></span>
+              <input id="editProjectName" maxlength="35" placeholder="Ex.: Implanta&ccedil;&atilde;o m&oacute;dulo compras (m&aacute;x 35 caracteres)"/>
+              <div class="help">M&aacute;ximo 35 caracteres (inclui espa&ccedil;os).</div>
+            </label>
+            <label class="field span-12">
+              <span>Descri&ccedil;&atilde;o</span>
+              <textarea id="editProjectDescription" maxlength="1000" placeholder="Descreva o projeto (m&aacute;x 1000 caracteres)" rows="4" style="width:100%; border-radius:14px; border:1px solid var(--border); padding:10px; font-family:inherit; resize:vertical;"></textarea>
+              <div class="help">M&aacute;ximo 1000 caracteres.</div>
+            </label>
+            <div class="field span-12">
+              <span>Contrato (PDF)</span>
+              <div class="project-contract-row">
+                <input id="editProjectContractFile" class="hidden-file" type="file" accept="application/pdf" />
+                <label class="btn sm project-contract-btn" for="editProjectContractFile">
+                  <svg viewBox="0 0 24 24" width="16" height="16" fill="none" aria-hidden="true">
+                    <path d="M21.44 11.05l-8.49 8.49a5.5 5.5 0 1 1-7.78-7.78l9.19-9.19a3.5 3.5 0 0 1 4.95 4.95L9.88 16.95a1.5 1.5 0 1 1-2.12-2.12l8.49-8.49" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                  </svg>
+                  <span>Trocar contrato</span>
+                </label>
+                <span class="project-contract-file" id="editProjectContractFileName">Nenhum PDF selecionado</span>
+                <button class="btn ghost sm" id="btnRemoveEditProjectContract" type="button">Remover</button>
+              </div>
+              <div class="help">Aceita apenas PDF (at&eacute; 10MB).</div>
+            </div>
+            <label class="field span-6">
+              <span>Cliente</span>
+              <select id="editProjectClient">
+                <option value="">&mdash; Selecione um cliente (opcional) &mdash;</option>
+              </select>
+            </label>
+            <label class="field span-6">
+              <span>Equipe</span>
+              <select id="editProjectTeam">
+                <option value="">Selecione uma equipe</option>
+              </select>
+            </label>
+          </div>
+        </div>
+        <div class="form-section span-12">
+          <h3 class="project-section-title">Respons&aacute;veis</h3>
+          <div class="grid-2">
+            <label class="field span-6">
+              <span>Gestor do projeto (GP) <span style="color:red;">*</span></span>
+              <select id="editProjectManager">
+                <option value="">Selecione um gestor</option>
+              </select>
+            </label>
+            <label class="field span-6">
+              <span>Coordenador do projeto (CP)</span>
+              <select id="editProjectCoordinator">
+                <option value="">Selecione (opcional)</option>
+              </select>
+            </label>
+          </div>
+        </div>
+        <div class="form-section span-12">
+          <h3 class="project-section-title">T&eacute;cnicos</h3>
+          <div class="grid-2">
+            <label class="field span-6">
+              <span>Adicionar t&eacute;cnico</span>
+              <select id="editProjectTechSelect">
+                <option value="">Selecione um t&eacute;cnico</option>
+              </select>
+              <div class="help">Sele&ccedil;&atilde;o m&uacute;ltipla (vira chips abaixo).</div>
+            </label>
+            <div class="field span-6">
+              <span>Selecionados</span>
+              <div id="editProjectTechChips" class="chips project-tech-chips" style="min-height:42px;"></div>
+              <div class="help">Clique no &ldquo;x&rdquo; para remover.</div>
+            </div>
+          </div>
+        </div>
+        <div class="form-section span-12">
+          <h3 class="project-section-title">Key Users</h3>
+          <div class="grid-2">
+            <label class="field span-12">
+              <span>Key users vinculados ao projeto</span>
+              <select id="editProjectKeyUsers" multiple style="min-height:120px;"></select>
+              <div class="help">Segure Ctrl para selecionar v&aacute;rios key users do cliente escolhido.</div>
+            </label>
+          </div>
+        </div>
+        <div class="form-section span-12">
+          <h3 class="project-section-title">Planejamento</h3>
+          <div class="grid-2">
+            <label class="field span-6">
+              <span>Status</span>
+              <select id="editProjectStatus">
+                <option value="a-fazer">A Fazer</option>
+                <option value="em-andamento">Em Andamento</option>
+                <option value="go-live">Go Live</option>
+                <option value="concluido">Conclu&iacute;do</option>
+                <option value="parado">Parado</option>
+                <option value="backlog">Backlog</option>
+              </select>
+            </label>
+            <div class="field span-6">
+              <span>Prioridade</span>
+              <div class="chips" id="editProjectPriorityChips">
+                <button type="button" class="chip chip-prio baixa" data-priority="baixa">Baixa</button>
+                <button type="button" class="chip chip-prio media selected" data-priority="media">M&eacute;dia</button>
+                <button type="button" class="chip chip-prio alta" data-priority="alta">Alta</button>
+              </div>
+              <input type="hidden" id="editProjectPriority" value="media" />
+            </div>
+            <label class="field span-3">
+              <span>In&iacute;cio</span>
+              <input type="date" id="editProjectStartDate"/>
+            </label>
+            <label class="field span-3">
+              <span>Fim</span>
+              <input type="date" id="editProjectEndDate"/>
+            </label>
+          </div>
+        </div>
+        <div class="form-section span-12">
+          <h3 class="project-section-title">Cobran&ccedil;a</h3>
+          <div class="grid-2">
+            <label class="field span-6">
+              <span>Valor (R$)</span>
+              <input id="editProjectBillingValueAmount" inputmode="decimal" placeholder="R$ 0,00"/>
+              <div class="help">Opcional. Digite apenas n&uacute;meros; o sistema formata em Real.</div>
+            </label>
+            <label class="field span-6">
+              <span>Horas</span>
+              <input id="editProjectBillingHoursAmount" type="number" min="0" step="0.5" placeholder="0"/>
+              <div class="help">Opcional. Use 0,5 para meia hora.</div>
+            </label>
+          </div>
+        </div>
       </div>
       <div class="alert" hidden id="editProjectAlert"></div>
     </div>
     <div class="modal-footer">
       <button class="btn" id="btnCancelEditProject">Cancelar</button>
+      <button class="btn primary" id="btnUpdateProject">Salvar Altera&ccedil;&otilde;es</button>
+    </div>
+  </div>
+</div>
       <button class="btn primary" id="btnUpdateProject">Salvar Alterações</button>
     </div>
   </div>
 </div>
 
 
-<!-- MODAL FEEDBACK TÉCNICO -->
+<!-- MODAL FEEDBACK TECNICO -->
 <section class="modal" hidden id="modalTechFeedback">
   <div class="modal-backdrop" data-close="true"></div>
   <div class="modal-card" style="max-width:780px;">
     <div class="modal-header">
       <div>
-        <h2>Feedback do Técnico</h2>
+        <h2>Feedback do Tecnico</h2>
         <p class="muted" id="techFeedbackSubtitle">Registre e acompanhe feedbacks.</p>
       </div>
-      <button class="btn ghost" id="btnCloseTechFeedback">✕</button>
+      <button class="btn ghost" id="btnCloseTechFeedback">X</button>
     </div>
 
     <div class="modal-body">
@@ -1449,8 +1544,8 @@
             </label>
 
             <label class="field" style="grid-column: span 12;">
-              <span>Anotação</span>
-              <textarea id="techFeedbackNote" rows="3" placeholder="Descreva o feedback (pontos fortes, melhorias, próximos passos)"></textarea>
+              <span>Anotacao</span>
+              <textarea id="techFeedbackNote" rows="3" placeholder="Descreva o feedback (pontos fortes, melhorias, proximos passos)"></textarea>
             </label>
           </div>
 
@@ -1462,7 +1557,7 @@
         </div>
 
         <div class="form-section">
-          <div class="section-title">Histórico</div>
+          <div class="section-title">Historico</div>
           <div class="panel subtle" id="techFeedbackList" style="max-height:260px; overflow:auto;">
             <div class="muted" style="padding:10px;">Nenhum feedback ainda.</div>
           </div>
@@ -1473,7 +1568,7 @@
 </section>
 
 
-<script src="./app.js?v=1770332285" type="module"></script>
+<script src="./app.js?v=1770332292" type="module"></script>
 <script>
   // Toggle senha (somente UI)
   document.addEventListener("click", function(e){
@@ -1482,7 +1577,7 @@
     const input = document.getElementById("password");
     if(!input) return;
     input.type = (input.type === "password") ? "text" : "password";
-    btn.textContent = (input.type === "password") ? "👁" : "🙈";
+    btn.textContent = (input.type === "password") ? "Ver" : "Ocultar";
   });
 </script>
 <script>
@@ -1512,7 +1607,7 @@
         <h2 id="createClientTitle">Cliente</h2>
         <p class="muted">Preencha os dados do cliente.</p>
       </div>
-      <button class="btn ghost" id="btnCloseCreateClient" data-close="true" type="button">✕</button>
+      <button class="btn ghost" id="btnCloseCreateClient" data-close="true" type="button">X</button>
     </div>
 
     <div class="modal-body">
@@ -1520,7 +1615,7 @@
 
       <div class="form-sections">
         <div class="form-section">
-          <h3 class="client-section-title">Informações do Cliente</h3>
+          <h3 class="client-section-title">Informacoes do Cliente</h3>
 
           <div class="tech-photo-row client-photo-row">
             <div class="tech-avatar-preview" id="clientPhotoPreview">
@@ -1533,7 +1628,7 @@
               <span class="photo-file-name" id="clientPhotoFileName">Nenhum arquivo selecionado</span>
               <input type="hidden" id="clientPhotoUrl"/>
               <button class="btn ghost sm" id="btnClientRemovePhoto" type="button">Remover foto</button>
-              <div class="muted photo-help">PNG/JPG/WebP até 2MB.</div>
+              <div class="muted photo-help">PNG/JPG/WebP ate 2MB.</div>
             </div>
           </div>
 
@@ -1549,8 +1644,8 @@
             </div>
 
             <div class="form-field span-2">
-              <label for="clientAddress">Endereço</label>
-              <input id="clientAddress" placeholder="Rua, número, bairro, cidade - UF" />
+              <label for="clientAddress">Endereco</label>
+              <input id="clientAddress" placeholder="Rua, numero, bairro, cidade - UF" />
             </div>
 
             <div class="form-field">
@@ -1620,7 +1715,7 @@
         <h2 id="clientProjectsTitle">Projetos</h2>
         <p class="muted">Projetos vinculados ao cliente.</p>
       </div>
-      <button class="btn ghost" id="btnCloseClientProjects" data-close="true" type="button">✕</button>
+      <button class="btn ghost" id="btnCloseClientProjects" data-close="true" type="button">X</button>
     </div>
 
     <div class="modal-body">
@@ -1640,7 +1735,7 @@
 
       <div class="panel subtle" hidden="" id="clientProjectsEmpty" style="margin-top:12px;">
         <h3>Nenhum projeto vinculado</h3>
-        <p class="muted">Quando um projeto for criado com este cliente, ele aparecerá aqui.</p>
+        <p class="muted">Quando um projeto for criado com este cliente, ele aparecera aqui.</p>
       </div>
     </div>
 
@@ -1659,7 +1754,7 @@
         <h2 id="clientKeyUsersTitle">Key users</h2>
         <p class="muted">Lista de key users vinculados ao cliente.</p>
       </div>
-      <button class="btn ghost" id="btnCloseClientKeyUsers" data-close="true" type="button">✕</button>
+      <button class="btn ghost" id="btnCloseClientKeyUsers" data-close="true" type="button">X</button>
     </div>
 
     <div class="modal-body">
@@ -1678,7 +1773,7 @@
 
       <div class="panel subtle" hidden="" id="clientKeyUsersModalEmpty" style="margin-top:12px;">
         <h3>Nenhum key user cadastrado</h3>
-        <p class="muted">Este cliente ainda não possui key users.</p>
+        <p class="muted">Este cliente ainda nao possui key users.</p>
       </div>
     </div>
 
@@ -1689,3 +1784,4 @@
 </div>
 </body>
 </html>
+
