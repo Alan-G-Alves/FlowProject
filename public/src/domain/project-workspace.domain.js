@@ -21,6 +21,9 @@ let _activeProject = null;
 let _tabs = [];
 let _tasks = [];
 let _activities = [];
+let _activityModalBound = false;
+let _activityModalMode = "view";
+let _activityModalActivityId = "";
 const ACTIVITY_CHIP_COLORS = ["t1", "t2", "t3", "t4", "t5", "t6"];
 
 function setWorkspaceOpenUI(deps, isOpen){
@@ -263,10 +266,251 @@ function syncActivityWeekdaysVisibility(taskId){
   wrap.hidden = isSingleDay;
 }
 
+function ensureActivityActionModal(){
+  let modal = document.getElementById("modalWorkspaceActivity");
+  if (modal) return modal;
+
+  document.body.insertAdjacentHTML("beforeend", `
+    <div class="modal" hidden id="modalWorkspaceActivity">
+      <div class="modal-backdrop" data-close-activity-modal="true"></div>
+      <div class="modal-card activity-modal-card">
+        <div class="modal-header">
+          <div>
+            <h2 id="activityModalTitle">Atividade</h2>
+            <p class="muted" id="activityModalSubtitle">Detalhes da atividade.</p>
+          </div>
+          <button class="btn ghost" id="btnCloseWorkspaceActivity" type="button">X</button>
+        </div>
+        <div class="modal-body">
+          <div class="alert" hidden id="activityModalAlert"></div>
+          <div class="activity-modal-grid">
+            <label class="field">
+              <span>Nome da atividade</span>
+              <input id="activityModalName" maxlength="100" />
+            </label>
+            <label class="field">
+              <span>Data</span>
+              <input type="date" id="activityModalDate" />
+            </label>
+            <label class="field">
+              <span>Horas</span>
+              <input type="number" id="activityModalHours" min="1" max="12" step="0.5" />
+            </label>
+            <label class="field">
+              <span>Tecnico</span>
+              <input id="activityModalTech" disabled />
+            </label>
+            <label class="field span-2">
+              <span>Key users</span>
+              <input id="activityModalKeyUsers" placeholder="Separe por virgula" />
+            </label>
+            <label class="field span-2">
+              <span>Observacao</span>
+              <textarea id="activityModalNote" rows="4" placeholder="Observacao da atividade"></textarea>
+            </label>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button class="btn ghost" id="btnCancelWorkspaceActivity" type="button">Fechar</button>
+          <button class="btn danger" id="btnDeleteWorkspaceActivity" type="button">Excluir atividade</button>
+          <button class="btn primary" id="btnSaveWorkspaceActivity" type="button">Salvar alteracoes</button>
+        </div>
+      </div>
+    </div>
+  `);
+
+  return document.getElementById("modalWorkspaceActivity");
+}
+
+function getActivityActionModalRefs(){
+  ensureActivityActionModal();
+  const byId = (id) => document.getElementById(id);
+  return {
+    modal: byId("modalWorkspaceActivity"),
+    title: byId("activityModalTitle"),
+    subtitle: byId("activityModalSubtitle"),
+    alert: byId("activityModalAlert"),
+    name: byId("activityModalName"),
+    date: byId("activityModalDate"),
+    hours: byId("activityModalHours"),
+    tech: byId("activityModalTech"),
+    keyUsers: byId("activityModalKeyUsers"),
+    note: byId("activityModalNote"),
+    btnClose: byId("btnCloseWorkspaceActivity"),
+    btnCancel: byId("btnCancelWorkspaceActivity"),
+    btnSave: byId("btnSaveWorkspaceActivity"),
+    btnDelete: byId("btnDeleteWorkspaceActivity"),
+  };
+}
+
+function normalizeCommaList(raw){
+  const seen = new Set();
+  return String(raw || "")
+    .split(",")
+    .map((item) => item.trim())
+    .filter(Boolean)
+    .filter((item) => {
+      const key = item.toLowerCase();
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+}
+
+function getTaskHoursAvailability(taskId, excludeActivityId = ""){
+  const task = _tasks.find((item) => item.id === taskId);
+  if (!task) return { plannedHours: 0, usedHours: 0, availableHours: 0 };
+
+  const plannedHours = asNumber(task.plannedHours);
+  const usedHours = _activities
+    .filter((activity) => activity.taskId === taskId && activity.id !== excludeActivityId)
+    .reduce((acc, activity) => acc + asNumber(activity.hoursWorked), 0);
+
+  return {
+    plannedHours,
+    usedHours,
+    availableHours: Math.max(0, plannedHours - usedHours),
+  };
+}
+
+function closeActivityActionModal(){
+  const modalRefs = getActivityActionModalRefs();
+  clearAlert(modalRefs.alert);
+  if (modalRefs.modal) modalRefs.modal.hidden = true;
+  _activityModalMode = "view";
+  _activityModalActivityId = "";
+}
+
+function openActivityActionModal(activityId, mode){
+  const modalRefs = getActivityActionModalRefs();
+  const activity = _activities.find((item) => item.id === activityId);
+  if (!activity) return;
+
+  _activityModalMode = mode;
+  _activityModalActivityId = activityId;
+  clearAlert(modalRefs.alert);
+
+  const readOnly = mode !== "edit";
+  modalRefs.title.textContent = mode === "edit" ? "Editar atividade" : (mode === "delete" ? "Excluir atividade" : "Visualizar atividade");
+  modalRefs.subtitle.textContent = mode === "edit"
+    ? "Atualize os dados da atividade."
+    : (mode === "delete" ? "Confira os dados antes de confirmar a exclusao." : "Detalhes completos da atividade.");
+
+  modalRefs.name.value = activity.name || "";
+  modalRefs.date.value = activity.workDate || "";
+  modalRefs.hours.value = String(activity.hoursWorked ?? "");
+  modalRefs.tech.value = Array.isArray(activity.techNames) && activity.techNames.length ? activity.techNames.join(", ") : "Sem tecnico";
+  modalRefs.keyUsers.value = Array.isArray(activity.keyUsers) ? activity.keyUsers.join(", ") : "";
+  modalRefs.note.value = activity.note || "";
+
+  [modalRefs.name, modalRefs.date, modalRefs.hours, modalRefs.keyUsers, modalRefs.note].forEach((field) => {
+    if (field) field.disabled = readOnly;
+  });
+
+  if (modalRefs.btnSave) modalRefs.btnSave.hidden = mode !== "edit";
+  if (modalRefs.btnDelete) modalRefs.btnDelete.hidden = mode === "view";
+  if (modalRefs.btnDelete) modalRefs.btnDelete.textContent = mode === "delete" ? "Confirmar exclusao" : "Excluir atividade";
+  if (modalRefs.btnCancel) modalRefs.btnCancel.textContent = mode === "edit" ? "Cancelar" : "Fechar";
+
+  if (modalRefs.modal) modalRefs.modal.hidden = false;
+}
+
+async function saveActivityModalChanges(deps){
+  const { state, db, auth } = deps;
+  const modalRefs = getActivityActionModalRefs();
+  const activity = _activities.find((item) => item.id === _activityModalActivityId);
+  if (!activity) return;
+
+  clearAlert(modalRefs.alert);
+
+  const nextName = (modalRefs.name?.value || "").trim();
+  const nextDate = modalRefs.date?.value || "";
+  const nextHours = asNumber(modalRefs.hours?.value || 0);
+  const nextKeyUsers = normalizeCommaList(modalRefs.keyUsers?.value || "");
+  const nextNote = (modalRefs.note?.value || "").trim();
+
+  if (!nextName || !nextDate || nextHours <= 0){
+    setAlert(modalRefs.alert, "Preencha nome, data e horas da atividade.", "error");
+    return;
+  }
+  if (nextHours > 12){
+    setAlert(modalRefs.alert, "A atividade aceita no maximo 12 horas por dia.", "error");
+    return;
+  }
+  if (!nextKeyUsers.length){
+    setAlert(modalRefs.alert, "Informe ao menos um key user para a atividade.", "error");
+    return;
+  }
+
+  const task = _tasks.find((item) => item.id === activity.taskId);
+  if (!task) {
+    setAlert(modalRefs.alert, "Tarefa da atividade nao encontrada.", "error");
+    return;
+  }
+  if (!overlap(nextDate, nextDate, task.startDate, task.endDate)){
+    setAlert(modalRefs.alert, `A data ${fmtDate(nextDate)} esta fora do periodo da tarefa.`, "error");
+    return;
+  }
+
+  const hoursInfo = getTaskHoursAvailability(activity.taskId, activity.id);
+  if (hoursInfo.plannedHours > 0 && nextHours > hoursInfo.availableHours){
+    setAlert(
+      modalRefs.alert,
+      `Horas insuficientes nesta tarefa. Disponiveis: ${hoursInfo.availableHours}h. A atividade editada ficaria com ${nextHours}h.`,
+      "error"
+    );
+    return;
+  }
+
+  await updateDoc(doc(db, `companies/${state.companyId}/activities`, activity.id), {
+    name: nextName,
+    workDate: nextDate,
+    hoursWorked: nextHours,
+    keyUsers: nextKeyUsers,
+    note: nextNote,
+    updatedAt: serverTimestamp(),
+    updatedBy: auth?.currentUser?.uid || ""
+  });
+
+  closeActivityActionModal();
+  await refreshWorkspace(deps);
+}
+
+async function deleteActivityModalItem(deps){
+  const { state, db } = deps;
+  const activity = _activities.find((item) => item.id === _activityModalActivityId);
+  if (!activity) return;
+
+  await deleteDoc(doc(db, `companies/${state.companyId}/activities`, activity.id));
+  closeActivityActionModal();
+  await refreshWorkspace(deps);
+}
+
 function bindOnce(deps){
   if (_bound) return;
   _bound = true;
   const refs = _wsRefs(deps);
+  const activityModalRefs = getActivityActionModalRefs();
+
+  if (!_activityModalBound){
+    _activityModalBound = true;
+
+    activityModalRefs.btnClose?.addEventListener("click", closeActivityActionModal);
+    activityModalRefs.btnCancel?.addEventListener("click", closeActivityActionModal);
+    activityModalRefs.modal?.addEventListener("click", (ev) => {
+      if (ev.target?.dataset?.closeActivityModal === "true") closeActivityActionModal();
+    });
+    activityModalRefs.btnSave?.addEventListener("click", async () => {
+      await saveActivityModalChanges(deps);
+    });
+    activityModalRefs.btnDelete?.addEventListener("click", async () => {
+      if (_activityModalMode === "edit"){
+        openActivityActionModal(_activityModalActivityId, "delete");
+        return;
+      }
+      await deleteActivityModalItem(deps);
+    });
+  }
 
   refs.btnCloseProjectWorkspace?.addEventListener("click", () => {
     closeProjectWorkspace(deps);
@@ -339,12 +583,15 @@ function bindOnce(deps){
   refs.projectTaskList?.addEventListener("click", async (ev) => {
     const addActivityBtn = ev.target?.closest?.("[data-open-activity-form]");
     if (addActivityBtn){
+      ev.preventDefault();
       const taskId = addActivityBtn.getAttribute("data-open-activity-form");
       const wrap = document.getElementById(`activityFormWrap-${taskId}`);
+      const taskCard = addActivityBtn.closest(".task-card");
       if (wrap) {
-        wrap.hidden = false;
+        wrap.hidden = !wrap.hidden;
         syncActivityWeekdaysVisibility(taskId);
       }
+      if (taskCard && wrap && !wrap.hidden) taskCard.open = true;
       return;
     }
 
@@ -367,6 +614,24 @@ function bindOnce(deps){
     if (saveTechFillBtn){
       const activityId = saveTechFillBtn.getAttribute("data-save-tech-fill");
       await saveTechFill(activityId, deps);
+      return;
+    }
+
+    const viewActivityBtn = ev.target?.closest?.("[data-view-activity]");
+    if (viewActivityBtn){
+      openActivityActionModal(viewActivityBtn.getAttribute("data-view-activity"), "view");
+      return;
+    }
+
+    const editActivityBtn = ev.target?.closest?.("[data-edit-activity]");
+    if (editActivityBtn){
+      openActivityActionModal(editActivityBtn.getAttribute("data-edit-activity"), "edit");
+      return;
+    }
+
+    const deleteActivityBtn = ev.target?.closest?.("[data-delete-activity]");
+    if (deleteActivityBtn){
+      openActivityActionModal(deleteActivityBtn.getAttribute("data-delete-activity"), "delete");
       return;
     }
 
@@ -639,6 +904,7 @@ function renderTasks(deps){
         const techGroupHours = techGroup.activities.reduce((acc, a) => acc + asNumber(a.hoursWorked), 0);
         const activityCards = techGroup.activities.map(a => {
       const canTechFill = isUserTech && ["admin","gestor","coordenador"].includes((a.createdByRole || "").toLowerCase());
+      const canManageActivity = canManageTasks(state);
       const assignedTechs = Array.isArray(a.techNames) && a.techNames.length ? a.techNames.join(", ") : "Sem tecnico";
       const workDate = parseDateOnly(a.workDate);
       const isOverdue = Boolean(workDate && workDate < today && a.status !== "os_gerada");
@@ -649,7 +915,22 @@ function renderTasks(deps){
               <b>${escapeHtml(a.name || "Atividade")}</b>
               <div class="activity-meta-line">${escapeHtml(fmtDate(a.workDate))} | ${escapeHtml(String(a.hoursWorked || 0))}h</div>
             </div>
-            <span class="activity-status ${isOverdue ? "orange" : (a.status === "os_gerada" ? "green" : "red")}">${isOverdue ? "Atrasada" : (a.status === "os_gerada" ? "OS Gerada" : "Sem Ordem de Servico")}</span>
+            <div class="activity-head-actions">
+              <span class="activity-status ${isOverdue ? "orange" : (a.status === "os_gerada" ? "green" : "red")}">${isOverdue ? "Atrasada" : (a.status === "os_gerada" ? "OS Gerada" : "Sem Ordem de Servico")}</span>
+              ${canManageActivity ? `
+                <div class="activity-action-bar">
+                  <button class="icon-btn xs activity-action activity-action-view" data-view-activity="${escapeHtml(a.id)}" type="button" title="Visualizar atividade" aria-label="Visualizar atividade">
+                    <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M1.5 12s3.8-6.5 10.5-6.5S22.5 12 22.5 12 18.7 18.5 12 18.5 1.5 12 1.5 12Z" stroke="currentColor" stroke-width="1.8"/><circle cx="12" cy="12" r="3.2" stroke="currentColor" stroke-width="1.8"/></svg>
+                  </button>
+                  <button class="icon-btn xs activity-action activity-action-edit" data-edit-activity="${escapeHtml(a.id)}" type="button" title="Editar atividade" aria-label="Editar atividade">
+                    <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 20h4l10-10-4-4L4 16v4Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><path d="m12 6 4 4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+                  </button>
+                  <button class="icon-btn xs activity-action activity-action-delete" data-delete-activity="${escapeHtml(a.id)}" type="button" title="Excluir atividade" aria-label="Excluir atividade">
+                    <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 7h16" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><path d="M10 11v6M14 11v6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><path d="M6 7l1 12a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2l1-12" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><path d="M9 7V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v3" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
+                  </button>
+                </div>
+              ` : ""}
+            </div>
           </div>
           <div class="activity-tags">
             <span class="activity-tag">Tecnicos: ${escapeHtml(assignedTechs)}</span>
@@ -741,6 +1022,10 @@ function renderTasks(deps){
         </summary>
         <div class="task-body">
           <div class="panel subtle" id="activityFormWrap-${escapeHtml(t.id)}" hidden>
+          <div class="activity-form-head">
+            <div class="activity-form-eyebrow">Nova atividade</div>
+            <div class="activity-form-subtitle">Preencha os dados para vincular uma nova atividade a esta tarefa.</div>
+          </div>
           <div class="project-form-grid">
             <label class="field">
               <span>Nome da atividade</span>
@@ -941,7 +1226,6 @@ async function saveActivity(taskId, deps){
   const creatorRole = roleOf(state);
   const selectedTechs = techsFromProject(state, _activeProject)
     .filter(t => techUids.includes(t.uid));
-  const isSingleDay = !!rangeStart && !!rangeEnd && rangeStart === rangeEnd;
   let dates = [];
   if (mode === "single"){
     if (!singleDate){
