@@ -3,6 +3,25 @@
 
 import { show, hide } from "../utils/dom.js";
 
+function revealAlert(el){
+  if (!el) return;
+  el.setAttribute("tabindex", "-1");
+
+  try {
+    el.scrollIntoView({ behavior: "smooth", block: "center", inline: "nearest" });
+  } catch (_) {}
+
+  try {
+    el.focus({ preventScroll: true });
+  } catch (_) {}
+
+  el.style.boxShadow = "0 0 0 4px rgba(37,99,235,.10)";
+  setTimeout(() => {
+    if (!el) return;
+    el.style.boxShadow = "";
+  }, 1800);
+}
+
 export function clearAlert(el){
   if (!el) return;
   el.textContent = "";
@@ -26,6 +45,7 @@ export function setAlert(el, msg, type = "error"){
   }
 
   show(el);
+  revealAlert(el);
 }
 
 
@@ -49,4 +69,6 @@ export function showInlineAlert(el, msg, type="error"){
     el.style.background = "rgba(239,68,68,.08)";
     el.style.color = "#991b1b";
   }
+
+  revealAlert(el);
 }

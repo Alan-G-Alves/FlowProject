@@ -252,6 +252,17 @@ function removeActivitySelection(taskId, kind, value){
   renderActivitySelectionChips(taskId, kind, next);
 }
 
+function syncActivityWeekdaysVisibility(taskId){
+  if (!taskId) return;
+  const wrap = document.getElementById(`actWeekdays-${taskId}`);
+  const start = document.getElementById(`actRangeStart-${taskId}`)?.value || "";
+  const end = document.getElementById(`actRangeEnd-${taskId}`)?.value || "";
+  if (!wrap) return;
+
+  const isSingleDay = !!start && !!end && start === end;
+  wrap.hidden = isSingleDay;
+}
+
 function bindOnce(deps){
   if (_bound) return;
   _bound = true;
@@ -330,7 +341,10 @@ function bindOnce(deps){
     if (addActivityBtn){
       const taskId = addActivityBtn.getAttribute("data-open-activity-form");
       const wrap = document.getElementById(`activityFormWrap-${taskId}`);
-      if (wrap) wrap.hidden = false;
+      if (wrap) {
+        wrap.hidden = false;
+        syncActivityWeekdaysVisibility(taskId);
+      }
       return;
     }
 
@@ -378,6 +392,20 @@ function bindOnce(deps){
   });
 
   refs.projectTaskList?.addEventListener("change", (ev) => {
+    const rangeStartInput = ev.target?.closest?.("[id^='actRangeStart-']");
+    if (rangeStartInput){
+      const taskId = String(rangeStartInput.id || "").replace("actRangeStart-", "");
+      syncActivityWeekdaysVisibility(taskId);
+      return;
+    }
+
+    const rangeEndInput = ev.target?.closest?.("[id^='actRangeEnd-']");
+    if (rangeEndInput){
+      const taskId = String(rangeEndInput.id || "").replace("actRangeEnd-", "");
+      syncActivityWeekdaysVisibility(taskId);
+      return;
+    }
+
     const techSelect = ev.target?.closest?.("[data-activity-tech-select]");
     if (techSelect){
       const taskId = techSelect.getAttribute("data-activity-tech-select");
@@ -671,7 +699,6 @@ function renderTasks(deps){
       `;
     }).join("");
 
-    const rangeDisabled = canUseRangeForActivities(state) ? "" : "disabled";
     const keyUserOptions = keyUsers.map((ku, idx) => {
       const label = ku.name || ku.email || ku.phone || `Key user ${idx + 1}`;
       return `<option value="${escapeHtml(label)}">${escapeHtml(label)}</option>`;
@@ -708,7 +735,7 @@ function renderTasks(deps){
             </div>
           </div>
           <div class="task-summary-right">
-            <button class="btn sm" data-open-activity-form="${escapeHtml(t.id)}" type="button">+ Atividade</button>
+            <button class="btn primary sm" data-open-activity-form="${escapeHtml(t.id)}" type="button">+ Nova atividade</button>
             <span class="task-toggle-label">Expandir</span>
           </div>
         </summary>
@@ -718,17 +745,6 @@ function renderTasks(deps){
             <label class="field">
               <span>Nome da atividade</span>
               <input id="actName-${escapeHtml(t.id)}" maxlength="100" placeholder="Ex.: Reuniao com cliente" />
-            </label>
-            <label class="field">
-              <span>Modo de data</span>
-              <select id="actMode-${escapeHtml(t.id)}">
-                <option value="single">Dia unico</option>
-                <option value="range" ${rangeDisabled}>Range de dias</option>
-              </select>
-            </label>
-            <label class="field">
-              <span>Dia da atividade</span>
-              <input type="date" id="actDate-${escapeHtml(t.id)}" />
             </label>
             <label class="field">
               <span>Range inicio</span>
@@ -876,10 +892,10 @@ async function saveActivity(taskId, deps){
   const projectKeyUsers = keyUsersFromProjectClient(state, _activeProject);
 
   const name = (document.getElementById(`actName-${taskId}`)?.value || "").trim();
-  const mode = (document.getElementById(`actMode-${taskId}`)?.value || "single").trim();
-  const singleDate = document.getElementById(`actDate-${taskId}`)?.value || "";
   const rangeStart = document.getElementById(`actRangeStart-${taskId}`)?.value || "";
   const rangeEnd = document.getElementById(`actRangeEnd-${taskId}`)?.value || "";
+  const mode = (rangeStart && rangeEnd && rangeStart !== rangeEnd) ? "range" : "single";
+  const singleDate = rangeStart;
   const hoursWorked = asNumber(document.getElementById(`actHours-${taskId}`)?.value || 0);
   const note = (document.getElementById(`actObsInput-${taskId}`)?.value || "").trim();
   const keyUsers = getActivitySelectionValues(taskId, "KeyUsers").map(item => item?.value).filter(Boolean);
@@ -906,6 +922,15 @@ async function saveActivity(taskId, deps){
     return;
   }
 
+  if (!rangeStart || !rangeEnd){
+    setAlert(refs.projectTaskAlert, "Informe o periodo da atividade.", "error");
+    return;
+  }
+  if (parseDateOnly(rangeEnd) < parseDateOnly(rangeStart)){
+    setAlert(refs.projectTaskAlert, "A data final da atividade nao pode ser menor que a inicial.", "error");
+    return;
+  }
+
   if (mode === "range" && !canUseRangeForActivities(state)){
     setAlert(refs.projectTaskAlert, "Técnico só pode incluir atividade em dia único.", "error");
     return;
@@ -914,9 +939,9 @@ async function saveActivity(taskId, deps){
   const companyId = state.companyId;
   const uid = auth?.currentUser?.uid || "";
   const creatorRole = roleOf(state);
-  const techNames = techsFromProject(state, _activeProject)
-    .filter(t => techUids.includes(t.uid))
-    .map(t => t.name);
+  const selectedTechs = techsFromProject(state, _activeProject)
+    .filter(t => techUids.includes(t.uid));
+  const isSingleDay = !!rangeStart && !!rangeEnd && rangeStart === rangeEnd;
   let dates = [];
   if (mode === "single"){
     if (!singleDate){
@@ -950,26 +975,44 @@ async function saveActivity(taskId, deps){
     }
   }
 
+  const plannedHours = asNumber(task.plannedHours);
+  const currentWorked = _activities
+    .filter(a => a.taskId === taskId)
+    .reduce((acc, a) => acc + asNumber(a.hoursWorked), 0);
+  const newActivitiesHours = dates.length * selectedTechs.length * hoursWorked;
+  const availableHours = Math.max(0, plannedHours - currentWorked);
+
+  if (plannedHours > 0 && newActivitiesHours > availableHours){
+    setAlert(
+      refs.projectTaskAlert,
+      `Horas insuficientes nesta tarefa. Disponiveis: ${availableHours}h. As novas atividades somam ${newActivitiesHours}h.`,
+      "error"
+    );
+    return;
+  }
+
   for (const d of dates){
-    const actId = `act-${Date.now()}-${Math.random().toString(36).slice(2,7)}`;
-    await setDoc(doc(db, `companies/${companyId}/activities`, actId), {
-      projectId: _activeProject.id,
-      taskId,
-      taskName: task.name || "",
-      name,
-      workDate: d,
-      hoursWorked,
-      techUids,
-      techNames,
-      keyUsers,
-      note,
-      status: "sem_os",
-      createdBy: uid,
-      createdByRole: creatorRole,
-      createdAt: serverTimestamp(),
-      updatedAt: serverTimestamp(),
-      updatedBy: uid
-    });
+    for (const tech of selectedTechs){
+      const actId = `act-${Date.now()}-${Math.random().toString(36).slice(2,7)}`;
+      await setDoc(doc(db, `companies/${companyId}/activities`, actId), {
+        projectId: _activeProject.id,
+        taskId,
+        taskName: task.name || "",
+        name,
+        workDate: d,
+        hoursWorked,
+        techUids: [tech.uid],
+        techNames: [tech.name],
+        keyUsers,
+        note,
+        status: "sem_os",
+        createdBy: uid,
+        createdByRole: creatorRole,
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+        updatedBy: uid
+      });
+    }
   }
 
   await refreshWorkspace(deps);
