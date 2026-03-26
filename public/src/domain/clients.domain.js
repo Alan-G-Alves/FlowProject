@@ -270,10 +270,25 @@ export async function loadClients(deps){
   const companyId = state.companyId;
   if (!companyId) return;
 
-  const snap = await getDocs(collection(db, "companies", companyId, "clients"));
+  const [clientsSnap, projectsSnap] = await Promise.all([
+    getDocs(collection(db, "companies", companyId, "clients")),
+    getDocs(collection(db, "companies", companyId, "projects"))
+  ]);
   if (mySeq !== state._clientsLoadSeq) return;
 
-  const all = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+  const projectsCountByClientId = {};
+  projectsSnap.forEach((docSnap) => {
+    const data = docSnap.data() || {};
+    const clientId = (data.clientId || "").toString().trim();
+    if (!clientId) return;
+    projectsCountByClientId[clientId] = (projectsCountByClientId[clientId] || 0) + 1;
+  });
+
+  const all = clientsSnap.docs.map(d => ({
+    id: d.id,
+    ...d.data(),
+    projectsCount: Number(projectsCountByClientId[d.id] || 0)
+  }));
 
   // cache
   state._clientsCache = all;
