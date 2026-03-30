@@ -2070,6 +2070,46 @@ a{ color: inherit; }
   margin-bottom: 14px;
 }
 
+.reports-card-controls{
+  display:grid;
+  grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+  gap:10px;
+  min-width: min(100%, 720px);
+}
+
+.reports-inline-field{
+  display:flex;
+  flex-direction:column;
+  gap:6px;
+}
+
+.reports-inline-field span{
+  font-size: 10px;
+  letter-spacing: .14em;
+  text-transform: uppercase;
+  font-weight: 800;
+  color: rgba(12,18,32,.48);
+}
+
+.reports-inline-field select{
+  height: 38px;
+  border-radius: 12px;
+  border: 1px solid rgba(12,18,32,.1);
+  background: rgba(255,255,255,.92);
+  padding: 0 12px;
+  color: rgba(12,18,32,.88);
+  outline: none;
+}
+
+.reports-inline-field select:focus{
+  border-color: rgba(119,59,246,.45);
+  box-shadow: 0 0 0 4px rgba(119,59,246,.12);
+}
+
+.reports-inline-field--project{
+  min-width: 180px;
+}
+
 .reports-card-head h3{
   margin: 4px 0 0;
   font-size: 24px;
@@ -2290,6 +2330,10 @@ a{ color: inherit; }
   background: linear-gradient(90deg, rgb(99,102,241), rgb(59,130,246));
 }
 
+.reports-ranking-fill--tech{
+  background: linear-gradient(90deg, rgb(14,165,233), rgb(99,102,241));
+}
+
 .reports-attention-item{
   padding: 14px 16px;
 }
@@ -2361,6 +2405,10 @@ a{ color: inherit; }
   .reports-kpis{
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
+
+  .reports-card-controls{
+    min-width: 100%;
+  }
 }
 
 @media (max-width: 760px){
@@ -2373,6 +2421,10 @@ a{ color: inherit; }
   .reports-status-row,
   .reports-ranking-row,
   .reports-timeline-item{
+    grid-template-columns: 1fr;
+  }
+
+  .reports-card-controls{
     grid-template-columns: 1fr;
   }
 
