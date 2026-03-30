@@ -2006,7 +2006,7 @@ a{ color: inherit; }
 
 /* Reports */
 .reports-filter-bar{
-  display:flex;
+  display:none;
   align-items:flex-end;
   justify-content:space-between;
   gap:14px;
