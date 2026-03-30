@@ -25,6 +25,7 @@ let _activityModalBound = false;
 let _activityModalMode = "view";
 let _activityModalActivityId = "";
 let _workspaceAlertDismissBound = false;
+let _taskSearchTerm = "";
 const ACTIVITY_CHIP_COLORS = ["t1", "t2", "t3", "t4", "t5", "t6"];
 
 function setWorkspaceOpenUI(deps, isOpen){
@@ -60,6 +61,7 @@ function _wsRefs(deps){
     btnSaveTask: r.btnSaveTask || byId("btnSaveTask"),
     projectTaskAlert: r.projectTaskAlert || byId("projectTaskAlert"),
     projectTaskList: r.projectTaskList || byId("projectTaskList"),
+    projectTaskSearchInput: r.projectTaskSearchInput || byId("projectTaskSearchInput"),
   };
 }
 
@@ -121,6 +123,38 @@ function diffHours(startTime, endTime){
 function asNumber(v){
   const n = Number(v);
   return Number.isFinite(n) ? n : 0;
+}
+
+function normalizeSearchText(value){
+  return String(value || "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .trim();
+}
+
+function formatCurrencyBRL(value){
+  const amount = Number(value);
+  if (!Number.isFinite(amount)) return "-";
+  return amount.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
+}
+
+function formatHoursLabel(value){
+  const amount = asNumber(value);
+  return `${amount.toLocaleString("pt-BR")}h`;
+}
+
+function normalizeProjectStatus(status){
+  const raw = String(status || "a-fazer").trim().toLowerCase();
+  const map = {
+    "a-fazer": { label: "A fazer", css: "a-fazer" },
+    "em-andamento": { label: "Em andamento", css: "em-andamento" },
+    "go-live": { label: "Go live", css: "go-live" },
+    "concluido": { label: "Concluido", css: "concluido" },
+    "parado": { label: "Parado", css: "parado" },
+    "backlog": { label: "Backlog", css: "backlog" }
+  };
+  return map[raw] || { label: status || "A fazer", css: "a-fazer" };
 }
 
 function keyUsersFromProjectClient(state, project){
@@ -574,6 +608,11 @@ function bindOnce(deps){
     await saveTask(deps);
   });
 
+  refs.projectTaskSearchInput?.addEventListener("input", () => {
+    _taskSearchTerm = refs.projectTaskSearchInput?.value || "";
+    renderTasks(deps);
+  });
+
   refs.projectWorkspaceTabs?.addEventListener("click", async (ev) => {
     const closeBtn = ev.target?.closest?.("[data-close-tab]");
     if (closeBtn){
@@ -779,24 +818,89 @@ async function ensureTab(projectId, deps){
 function renderCover(refs, project, state){
   if (!refs.projectWorkspaceCover) return;
   const teamName = (state.teams || []).find(t => t.id === project.teamId)?.name || "-";
-  const status = project.status || "a-fazer";
+  const statusInfo = normalizeProjectStatus(project.status);
   const client = project.clientName || "-";
   const manager = (state._usersCache || []).find(u => u.uid === project.managerUid)?.name || "-";
   const coordinator = (state._usersCache || []).find(u => u.uid === project.coordinatorUid)?.name || "-";
   const endDate = fmtDate(project.endDate);
-  const billingValue = project.billingValue ? Number(project.billingValue).toLocaleString("pt-BR", { style: "currency", currency: "BRL" }) : "-";
+  const users = Array.isArray(state?._usersCache) ? state._usersCache : [];
+  const taskCount = _tasks.length;
+  const activityHours = _activities.reduce((acc, activity) => acc + asNumber(activity.hoursWorked), 0);
+  const billingHours = asNumber(project.billingHours);
+  const billingValueNumber = asNumber(project.billingValue);
+  const billingValue = billingValueNumber > 0 ? formatCurrencyBRL(billingValueNumber) : "-";
+  const clientHourlyRate = (billingHours > 0 && billingValueNumber > 0) ? (billingValueNumber / billingHours) : null;
+  const estimatedTechCost = _activities.reduce((acc, activity) => {
+    const techIds = Array.isArray(activity.techUids) ? activity.techUids.filter(Boolean) : [];
+    const activityHoursWorked = asNumber(activity.hoursWorked);
+    if (!activityHoursWorked || !techIds.length) return acc;
+    const activityRate = techIds.reduce((sum, uid) => {
+      const tech = users.find(u => u.uid === uid);
+      return sum + asNumber(tech?.hourlyRate);
+    }, 0);
+    return acc + (activityRate * activityHoursWorked);
+  }, 0);
+  const profitValue = billingValueNumber > 0 ? (billingValueNumber - estimatedTechCost) : null;
+  const profitPercent = (billingValueNumber > 0 && profitValue !== null) ? ((profitValue / billingValueNumber) * 100) : null;
+  const profitTone = profitValue === null ? "neutral" : (profitValue >= 0 ? "positive" : "negative");
+  const projectCompletion = billingHours > 0 ? Math.min(100, Math.round((activityHours / billingHours) * 100)) : 0;
 
   refs.projectWorkspaceCover.innerHTML = `
     <div class="project-cover-hero">
-      <div>
+      <div class="project-cover-main">
         <div class="project-cover-eyebrow"><span class="project-cover-id">#${escapeHtml(String(project.projectNumber || project.id || "-"))}</span><span class="project-cover-eyebrow-text">PROJETO</span></div>
         <div class="project-cover-title">${escapeHtml(project.name || "Projeto")}</div>
         <div class="project-cover-subtitle">Workspace central do projeto com tarefas e atividades vinculadas.</div>
+        <div class="project-cover-kpis">
+          <div class="project-cover-kpi">
+            <span class="project-cover-kpi-label">Qtde de tarefas</span>
+            <strong>${escapeHtml(String(taskCount))}</strong>
+          </div>
+          <div class="project-cover-kpi">
+            <span class="project-cover-kpi-label">Horas de atividade</span>
+            <strong>${escapeHtml(formatHoursLabel(activityHours))}</strong>
+          </div>
+          <div class="project-cover-kpi">
+            <span class="project-cover-kpi-label">Valor hora cliente</span>
+            <strong>${escapeHtml(clientHourlyRate !== null ? formatCurrencyBRL(clientHourlyRate) : "-")}</strong>
+          </div>
+        </div>
       </div>
       <div class="project-cover-badges">
-        <span class="badge small">Status: ${escapeHtml(status)}</span>
-        <span class="badge small">Prazo: ${escapeHtml(endDate)}</span>
+        <div class="project-cover-highlight-row">
+          <div class="project-cover-highlight project-cover-highlight--status project-cover-highlight--${escapeHtml(statusInfo.css)}">
+            <span class="project-cover-highlight-label">Status</span>
+            <strong>${escapeHtml(statusInfo.label)}</strong>
+          </div>
+          <div class="project-cover-highlight project-cover-highlight--profit project-cover-highlight--${escapeHtml(profitTone)}">
+            <span class="project-cover-highlight-label">Margem estimada</span>
+            <strong>${escapeHtml(profitValue !== null ? formatCurrencyBRL(profitValue) : "-")}</strong>
+            <span class="project-cover-highlight-meta">${escapeHtml(profitPercent !== null ? `${profitPercent.toFixed(1).replace(".", ",")}%` : "Sem base suficiente")}</span>
+          </div>
+          <div class="project-cover-highlight project-cover-highlight--deadline">
+            <span class="project-cover-highlight-label">Prazo final</span>
+            <strong>${escapeHtml(endDate)}</strong>
+          </div>
+        </div>
         <div class="project-cover-actions" id="projectCoverActionsSlot"></div>
+      </div>
+    </div>
+    <div class="project-cover-profit-strip">
+      <div class="project-cover-profit-item">
+        <span class="project-cover-label">Horas do projeto</span>
+        <strong>${escapeHtml(formatHoursLabel(billingHours))}</strong>
+      </div>
+      <div class="project-cover-profit-item">
+        <span class="project-cover-label">Valor do projeto</span>
+        <strong>${escapeHtml(billingValue)}</strong>
+      </div>
+      <div class="project-cover-profit-item">
+        <span class="project-cover-label">Custo tecnico estimado</span>
+        <strong>${escapeHtml(estimatedTechCost > 0 ? formatCurrencyBRL(estimatedTechCost) : "-")}</strong>
+      </div>
+      <div class="project-cover-profit-item">
+        <span class="project-cover-label">Consumo das horas</span>
+        <strong>${escapeHtml(`${projectCompletion}%`)}</strong>
       </div>
     </div>
     <div class="project-cover-grid">
@@ -818,7 +922,7 @@ function renderCover(refs, project, state){
       </div>
       <div class="project-cover-card">
         <span class="project-cover-label">Horas do projeto</span>
-        <strong>${escapeHtml(String(project.billingHours ?? "-"))}h</strong>
+        <strong>${escapeHtml(formatHoursLabel(billingHours))}</strong>
       </div>
       <div class="project-cover-card">
         <span class="project-cover-label">Valor do projeto</span>
@@ -849,6 +953,7 @@ function renderTasks(deps){
   const { refs, state } = deps;
   if (!refs.projectTaskList) return;
   const isUserTech = isTech(state);
+  const searchTerm = normalizeSearchText(_taskSearchTerm);
   const today = new Date();
   today.setHours(0, 0, 0, 0);
   const iconPending = '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" aria-hidden="true"><path d="M12 8v5l3 3" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="2"/></svg>';
@@ -868,12 +973,42 @@ function renderTasks(deps){
     return;
   }
 
-  refs.projectTaskList.innerHTML = _tasks.map(t => {
+  const renderedTasks = _tasks.map(t => {
     const taskActs = byTask.get(t.id) || [];
-    const worked = taskActs.reduce((acc, a) => acc + asNumber(a.hoursWorked), 0);
+    const taskSearchText = normalizeSearchText([
+      t.id,
+      t.taskNumber,
+      t.name,
+      t.startDate,
+      t.endDate,
+      fmtDate(t.startDate),
+      fmtDate(t.endDate)
+    ].join(" "));
+    const taskMatches = !searchTerm || taskSearchText.includes(searchTerm);
+    const activityMatchesSearch = (activity) => {
+      if (!searchTerm) return true;
+      const activitySearchText = normalizeSearchText([
+        activity.id,
+        activity.name,
+        activity.taskName,
+        activity.workDate,
+        fmtDate(activity.workDate),
+        ...(Array.isArray(activity.techNames) ? activity.techNames : []),
+        ...(Array.isArray(activity.techUids) ? activity.techUids : []),
+        ...(Array.isArray(activity.keyUsers) ? activity.keyUsers : [])
+      ].join(" "));
+      return activitySearchText.includes(searchTerm);
+    };
+    const visibleTaskActs = searchTerm
+      ? (taskMatches ? taskActs : taskActs.filter(activityMatchesSearch))
+      : taskActs;
+    if (searchTerm && !taskMatches && !visibleTaskActs.length){
+      return "";
+    }
+    const worked = visibleTaskActs.reduce((acc, a) => acc + asNumber(a.hoursWorked), 0);
     const planned = asNumber(t.plannedHours);
     const balance = Math.max(0, planned - worked);
-    const statusCounters = taskActs.reduce((acc, a) => {
+    const statusCounters = visibleTaskActs.reduce((acc, a) => {
       const workDate = parseDateOnly(a.workDate);
       const isOverdue = Boolean(workDate && workDate < today && a.status !== "os_gerada");
       if (a.status === "os_gerada") acc.done += 1;
@@ -882,7 +1017,7 @@ function renderTasks(deps){
       return acc;
     }, { pending: 0, done: 0, overdue: 0 });
     const groupedActs = new Map();
-    taskActs.forEach((a) => {
+    visibleTaskActs.forEach((a) => {
       const activityName = (a.name || "Atividade").trim();
       const names = Array.isArray(a.techNames) && a.techNames.length ? a.techNames : ["Sem tecnico"];
       const techKey = names.join(" | ");
@@ -1047,7 +1182,7 @@ function renderTasks(deps){
                 ${isUserTech ? `<span class="kpi">Horas orcadas: <b>-</b></span>` : `<span class="kpi">Horas orcadas: <b>${escapeHtml(String(planned))}h</b></span>`}
                 <span class="kpi">Horas trabalhadas: <b>${escapeHtml(String(worked))}h</b></span>
                 <span class="kpi">Saldo disponivel: <b>${escapeHtml(String(balance))}h</b></span>
-                <span class="kpi">Atividades: <b>${escapeHtml(String(taskActs.length))}</b></span>
+                <span class="kpi">Atividades: <b>${escapeHtml(String(visibleTaskActs.length))}</b></span>
                 </div>
                 <div class="task-status-strip">
                   <span class="task-status-pill task-status-pill--pending">${iconPending} Sem OS: <b>${escapeHtml(String(statusCounters.pending))}</b></span>
@@ -1132,7 +1267,14 @@ function renderTasks(deps){
         </div>
       </details>
     `;
-  }).join("");
+  }).filter(Boolean).join("");
+
+  if (!renderedTasks){
+    refs.projectTaskList.innerHTML = `<div class="panel subtle workspace-search-empty"><p class="muted">Nenhum resultado encontrado para a busca informada.</p></div>`;
+    return;
+  }
+
+  refs.projectTaskList.innerHTML = renderedTasks;
 }
 
 async function loadProjectData(deps, projectId){
@@ -1456,6 +1598,8 @@ export async function openProjectWorkspace(projectId, deps){
     if (refs.btnDeleteWorkspaceProject) refs.btnDeleteWorkspaceProject.style.display = isTech(deps.state) ? "none" : "";
     if (refs.btnOpenTaskForm) refs.btnOpenTaskForm.style.display = canManageTasks(deps.state) ? "" : "none";
     if (refs.projectTaskFormWrap) refs.projectTaskFormWrap.hidden = true;
+    _taskSearchTerm = "";
+    if (refs.projectTaskSearchInput) refs.projectTaskSearchInput.value = "";
     clearAlert(refs.projectTaskAlert);
     clearTaskForm(refs);
 
@@ -1477,6 +1621,8 @@ export function closeProjectWorkspace(deps){
   setWorkspaceOpenUI(deps, false);
   _activeProjectId = "";
   _activeProject = null;
+  _taskSearchTerm = "";
+  if (refs.projectTaskSearchInput) refs.projectTaskSearchInput.value = "";
   if (refs.projectWorkspaceBreadcrumb) refs.projectWorkspaceBreadcrumb.innerHTML = "";
   renderTabs(refs);
 }
