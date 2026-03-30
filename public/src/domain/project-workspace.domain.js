@@ -751,7 +751,7 @@ function renderTabs(refs){
     return;
   }
   refs.projectWorkspaceTabs.innerHTML = _tabs.map(t => `
-    <button class="workspace-tab ${t.id === _activeProjectId ? "active" : ""}" data-open-tab="${escapeHtml(t.id)}" type="button">
+    <button class="workspace-tab ${t.id === _activeProjectId ? "active" : ""} ${t.needsAttention ? "workspace-tab--attention" : ""}" data-open-tab="${escapeHtml(t.id)}" type="button">
       <span>${escapeHtml(t.label)}</span>
       <span class="workspace-tab-close" data-close-tab="${escapeHtml(t.id)}">x</span>
     </button>
@@ -776,7 +776,7 @@ async function ensureTab(projectId, deps){
     }
   }catch(_){ }
 
-  _tabs.unshift({ id: projectId, label });
+  _tabs.unshift({ id: projectId, label, needsAttention: false });
 }
 
 function renderCover(refs, project, state){
@@ -1424,6 +1424,7 @@ export async function openProjectTab(projectId, deps){
   bindOnce(deps);
   const refs = _wsRefs(deps);
   await ensureTab(projectId, deps);
+  _tabs = _tabs.map((tab) => tab.id === projectId ? { ...tab, needsAttention: true } : tab);
   renderTabs(refs);
 }
 
@@ -1433,6 +1434,7 @@ export async function openProjectWorkspace(projectId, deps){
   if (!refs.projectWorkspacePanel) return;
   await ensureTab(projectId, deps);
   _activeProjectId = projectId;
+  _tabs = _tabs.map((tab) => tab.id === projectId ? { ...tab, needsAttention: false } : tab);
   setWorkspaceOpenUI(deps, true);
   if (refs.projectWorkspaceTitle) refs.projectWorkspaceTitle.textContent = "Carregando projeto...";
   if (refs.projectWorkspaceSubtitle) refs.projectWorkspaceSubtitle.textContent = `ID: ${projectId}`;
