@@ -11,11 +11,6 @@ function formatDate(value){
   return String(value);
 }
 
-function formatCurrency(value){
-  const amount = asNumber(value);
-  return amount.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
-}
-
 function normalizeFileName(value){
   return String(value || "status-report")
     .normalize("NFD")
@@ -50,6 +45,22 @@ function statusLabel(status){
   return map[raw] || (status || "-");
 }
 
+function buildExecutiveSummary(data){
+  const { project, summary } = data;
+  const parts = [
+    `O projeto está em ${project.status.toLowerCase()}.`,
+    `Foram executadas ${summary.totalActivityHours}h de ${project.billingHours}h previstas.`,
+    `Há ${summary.activityCount} atividade(s) registradas em ${summary.taskCount} tarefa(s).`,
+    `${summary.completedCount} atividade(s) estão concluídas e ${summary.pendingCount} seguem pendentes.`
+  ];
+  if (summary.overdueCount > 0){
+    parts.push(`${summary.overdueCount} atividade(s) estão atrasadas e exigem acompanhamento.`);
+  } else {
+    parts.push("Não há atividades atrasadas no momento.");
+  }
+  return parts.join(" ");
+}
+
 function buildStatusReportData({ project, tasks, activities, state }){
   const users = Array.isArray(state?._usersCache) ? state._usersCache : [];
   const teams = Array.isArray(state?.teams) ? state.teams : [];
@@ -60,19 +71,7 @@ function buildStatusReportData({ project, tasks, activities, state }){
     ? [...activities].sort((a, b) => String(a.workDate || "").localeCompare(String(b.workDate || "")))
     : [];
   const billingHours = asNumber(project?.billingHours);
-  const billingValue = asNumber(project?.billingValue);
   const totalActivityHours = sortedActivities.reduce((acc, activity) => acc + asNumber(activity.hoursWorked), 0);
-  const estimatedTechCost = sortedActivities.reduce((acc, activity) => {
-    const techIds = Array.isArray(activity.techUids) ? activity.techUids.filter(Boolean) : [];
-    const totalRate = techIds.reduce((sum, uid) => {
-      const user = users.find(item => item.uid === uid);
-      return sum + asNumber(user?.hourlyRate);
-    }, 0);
-    return acc + (totalRate * asNumber(activity.hoursWorked));
-  }, 0);
-  const clientHourlyRate = (billingHours > 0 && billingValue > 0) ? (billingValue / billingHours) : 0;
-  const estimatedMargin = billingValue - estimatedTechCost;
-  const estimatedMarginPct = billingValue > 0 ? ((estimatedMargin / billingValue) * 100) : 0;
   const completedCount = sortedActivities.filter(activity => String(activity.status || "").toLowerCase() === "os_gerada").length;
   const pendingCount = sortedActivities.length - completedCount;
   const today = new Date();
@@ -93,12 +92,10 @@ function buildStatusReportData({ project, tasks, activities, state }){
     return {
       number: task.taskNumber || "-",
       name: task.name || "-",
-      startDate: formatDate(task.startDate),
-      endDate: formatDate(task.endDate),
+      period: `${formatDate(task.startDate)} a ${formatDate(task.endDate)}`,
       plannedHours: asNumber(task.plannedHours),
-      activityCount: taskActivities.length,
       workedHours: hoursWorked,
-      balanceHours: Math.max(0, asNumber(task.plannedHours) - hoursWorked)
+      activityCount: taskActivities.length
     };
   });
 
@@ -109,15 +106,13 @@ function buildStatusReportData({ project, tasks, activities, state }){
       taskNumber: task?.taskNumber || "-",
       taskName: task?.name || activity.taskName || "-",
       activityName: activity.name || "-",
-      techLabel: Array.isArray(activity.techNames) && activity.techNames.length ? activity.techNames.join(", ") : "Sem tecnico",
-      techIds: Array.isArray(activity.techUids) && activity.techUids.length ? activity.techUids.join(", ") : "-",
       keyUsers: Array.isArray(activity.keyUsers) && activity.keyUsers.length ? activity.keyUsers.join(", ") : "-",
       hours: asNumber(activity.hoursWorked),
       status: statusLabel(activity.status)
     };
   });
 
-  return {
+  const data = {
     generatedAt: new Date(),
     project: {
       id: project?.id || "",
@@ -125,9 +120,7 @@ function buildStatusReportData({ project, tasks, activities, state }){
       name: project?.name || "Projeto",
       status: statusLabel(project?.status),
       endDate: formatDate(project?.endDate),
-      startDate: formatDate(project?.startDate),
-      billingHours,
-      billingValue
+      billingHours
     },
     client: {
       id: client?.id || project?.clientId || "",
@@ -135,7 +128,8 @@ function buildStatusReportData({ project, tasks, activities, state }){
       document: client?.cpfCnpj || "-",
       email: client?.email || "-",
       phone: client?.phone || "-",
-      photoURL: client?.photoURL || ""
+      photoURL: client?.photoURL || "",
+      reportPhotoDataUrl: client?.reportPhotoDataUrl || ""
     },
     summary: {
       teamName,
@@ -147,15 +141,14 @@ function buildStatusReportData({ project, tasks, activities, state }){
       completedCount,
       pendingCount,
       overdueCount,
-      clientHourlyRate,
-      estimatedTechCost,
-      estimatedMargin,
-      estimatedMarginPct,
       projectConsumption: billingHours > 0 ? ((totalActivityHours / billingHours) * 100) : 0
     },
     taskRows,
     activityRows
   };
+
+  data.summary.executiveSummary = buildExecutiveSummary(data);
+  return data;
 }
 
 async function fetchImageAsDataUrl(url){
@@ -186,17 +179,14 @@ async function fetchImageAsDataUrl(url){
 }
 
 function buildReportHtml(data){
-  const summary = data.summary;
-  const project = data.project;
-  const client = data.client;
+  const { project, client, summary } = data;
   const taskRowsHtml = data.taskRows.map((task) => `
     <tr>
       <td>${escapeHtml(String(task.number))}</td>
       <td>${escapeHtml(task.name)}</td>
-      <td>${escapeHtml(`${task.startDate} a ${task.endDate}`)}</td>
+      <td>${escapeHtml(task.period)}</td>
       <td>${escapeHtml(`${task.plannedHours}h`)}</td>
       <td>${escapeHtml(`${task.workedHours}h`)}</td>
-      <td>${escapeHtml(`${task.balanceHours}h`)}</td>
       <td>${escapeHtml(String(task.activityCount))}</td>
     </tr>
   `).join("");
@@ -206,8 +196,6 @@ function buildReportHtml(data){
       <td>#${escapeHtml(String(activity.taskNumber))}</td>
       <td>${escapeHtml(activity.taskName)}</td>
       <td>${escapeHtml(activity.activityName)}</td>
-      <td>${escapeHtml(activity.techLabel)}</td>
-      <td>${escapeHtml(activity.techIds)}</td>
       <td>${escapeHtml(activity.keyUsers)}</td>
       <td>${escapeHtml(`${activity.hours}h`)}</td>
       <td>${escapeHtml(activity.status)}</td>
@@ -237,6 +225,9 @@ function buildReportHtml(data){
           .card .label{font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:#7a8599;font-weight:800}
           .card .value{font-size:24px;font-weight:800;color:#162033;margin-top:8px}
           .card .sub{font-size:12px;color:#5e687b;margin-top:4px}
+          .executive-box{margin:0 30px 24px;padding:16px 18px;border-radius:18px;border:1px solid #dce4f0;background:linear-gradient(135deg,#f7faff,#ffffff)}
+          .executive-box .label{font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:#7a8599;font-weight:800}
+          .executive-box .text{margin-top:8px;font-size:14px;line-height:1.65;color:#24324a}
           .section{padding:0 30px 26px}
           .section h2{margin:0 0 14px;font-size:18px}
           .grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}
@@ -256,7 +247,7 @@ function buildReportHtml(data){
               <div>
                 <div class="eyebrow">Status Report do Projeto</div>
                 <h1>${escapeHtml(project.name)}</h1>
-                <p class="subtitle">Relatorio executivo voltado ao cliente com o panorama atual do projeto, tarefas e atividades.</p>
+                <p class="subtitle">Relatorio executivo voltado ao cliente com o panorama atual do andamento do projeto.</p>
                 <div class="project-meta">
                   <span class="pill">Projeto <strong>#${escapeHtml(String(project.number))}</strong></span>
                   <span class="pill">Status <strong>${escapeHtml(project.status)}</strong></span>
@@ -267,10 +258,14 @@ function buildReportHtml(data){
             </div>
           </div>
           <div class="summary">
-            <div class="card"><div class="label">Valor do projeto</div><div class="value">${escapeHtml(formatCurrency(project.billingValue))}</div><div class="sub">Valor hora cliente: ${escapeHtml(formatCurrency(summary.clientHourlyRate))}</div></div>
-            <div class="card"><div class="label">Margem estimada</div><div class="value">${escapeHtml(formatCurrency(summary.estimatedMargin))}</div><div class="sub">${escapeHtml(summary.estimatedMarginPct.toFixed(1).replace(".", ","))}% sobre o valor do projeto</div></div>
-            <div class="card"><div class="label">Horas executadas</div><div class="value">${escapeHtml(`${summary.totalActivityHours}h`)}</div><div class="sub">Consumo do projeto: ${escapeHtml(summary.projectConsumption.toFixed(1).replace(".", ","))}%</div></div>
-            <div class="card"><div class="label">Atividades</div><div class="value">${escapeHtml(String(summary.activityCount))}</div><div class="sub">${escapeHtml(String(summary.pendingCount))} pendentes • ${escapeHtml(String(summary.completedCount))} concluidas</div></div>
+            <div class="card"><div class="label">Horas previstas</div><div class="value">${escapeHtml(`${project.billingHours}h`)}</div><div class="sub">Planejamento total do projeto</div></div>
+            <div class="card"><div class="label">Horas executadas</div><div class="value">${escapeHtml(`${summary.totalActivityHours}h`)}</div><div class="sub">Consumo: ${escapeHtml(summary.projectConsumption.toFixed(1).replace(".", ","))}%</div></div>
+            <div class="card"><div class="label">Atividades</div><div class="value">${escapeHtml(String(summary.activityCount))}</div><div class="sub">${escapeHtml(String(summary.pendingCount))} pendentes • ${escapeHtml(String(summary.completedCount))} concluídas</div></div>
+            <div class="card"><div class="label">Tarefas</div><div class="value">${escapeHtml(String(summary.taskCount))}</div><div class="sub">${escapeHtml(String(summary.overdueCount))} atividade(s) atrasada(s)</div></div>
+          </div>
+          <div class="executive-box">
+            <div class="label">Resumo executivo</div>
+            <div class="text">${escapeHtml(summary.executiveSummary)}</div>
           </div>
           <div class="section">
             <h2>Informacoes do projeto</h2>
@@ -293,7 +288,6 @@ function buildReportHtml(data){
                   <th>Periodo</th>
                   <th>Horas previstas</th>
                   <th>Horas executadas</th>
-                  <th>Saldo</th>
                   <th>Atividades</th>
                 </tr>
               </thead>
@@ -309,8 +303,6 @@ function buildReportHtml(data){
                   <th>Tarefa</th>
                   <th>Nome da tarefa</th>
                   <th>Atividade</th>
-                  <th>Tecnico</th>
-                  <th>ID tecnico</th>
                   <th>Key user</th>
                   <th>Horas</th>
                   <th>Status</th>
@@ -399,137 +391,151 @@ export async function downloadProjectStatusReportPdf(payload){
   const data = buildStatusReportData(payload);
   const { jsPDF } = await import("https://cdn.jsdelivr.net/npm/jspdf@2.5.1/+esm");
   const doc = new jsPDF({ unit: "mm", format: "a4", compress: true });
-  const logoDataUrl = await fetchImageAsDataUrl(data.client.photoURL);
+  const logoDataUrl = data.client.reportPhotoDataUrl || await fetchImageAsDataUrl(data.client.photoURL);
   const pageWidth = doc.internal.pageSize.getWidth();
+  const summary = data.summary;
 
   doc.setFillColor(243, 247, 255);
-  doc.roundedRect(10, 10, pageWidth - 20, 38, 8, 8, "F");
+  doc.roundedRect(10, 10, pageWidth - 20, 40, 8, 8, "F");
 
   if (logoDataUrl){
-    doc.addImage(logoDataUrl, "PNG", 14, 15, 22, 22);
+    doc.addImage(logoDataUrl, "PNG", 14, 15, 24, 24);
   } else {
     doc.setFillColor(255, 255, 255);
-    doc.roundedRect(14, 15, 22, 22, 5, 5, "F");
+    doc.roundedRect(14, 15, 24, 24, 5, 5, "F");
     doc.setTextColor(86, 99, 130);
     doc.setFont("helvetica", "bold");
     doc.setFontSize(16);
-    doc.text(String((data.client.name || "C").trim().slice(0, 1).toUpperCase()), 25, 29, { align: "center" });
+    doc.text(String((data.client.name || "C").trim().slice(0, 1).toUpperCase()), 26, 30, { align: "center" });
   }
 
   doc.setTextColor(101, 82, 219);
   doc.setFont("helvetica", "bold");
   doc.setFontSize(10);
-  doc.text("STATUS REPORT DO PROJETO", 42, 18);
+  doc.text("STATUS REPORT DO PROJETO", 44, 18);
 
   doc.setTextColor(22, 32, 51);
   doc.setFontSize(20);
-  doc.text(data.project.name, 42, 27);
+  doc.text(data.project.name, 44, 27);
   doc.setFont("helvetica", "normal");
-  doc.setFontSize(10.5);
+  doc.setFontSize(10.3);
   doc.setTextColor(94, 104, 123);
-  doc.text(`Cliente: ${data.client.name}  •  Status: ${data.project.status}  •  Prazo final: ${data.project.endDate}`, 42, 34);
-  doc.text(`Gerado em ${data.generatedAt.toLocaleString("pt-BR")}`, 42, 40);
+  doc.text(`Cliente: ${data.client.name}  •  Status: ${data.project.status}  •  Prazo final: ${data.project.endDate}`, 44, 34);
+  doc.text(`Gerado em ${data.generatedAt.toLocaleString("pt-BR")}`, 44, 40);
 
   const summaryCards = [
-    { label: "Valor do projeto", value: formatCurrency(data.project.billingValue), sub: `Valor hora cliente: ${formatCurrency(data.summary.clientHourlyRate)}` },
-    { label: "Margem estimada", value: formatCurrency(data.summary.estimatedMargin), sub: `${data.summary.estimatedMarginPct.toFixed(1).replace(".", ",")}%` },
-    { label: "Horas executadas", value: `${data.summary.totalActivityHours}h`, sub: `Consumo: ${data.summary.projectConsumption.toFixed(1).replace(".", ",")}%` },
-    { label: "Atividades", value: String(data.summary.activityCount), sub: `${data.summary.pendingCount} pendentes • ${data.summary.completedCount} concluidas` }
+    { label: "Horas previstas", value: `${data.project.billingHours}h`, sub: "Planejamento total" },
+    { label: "Horas executadas", value: `${summary.totalActivityHours}h`, sub: `Consumo: ${summary.projectConsumption.toFixed(1).replace(".", ",")}%` },
+    { label: "Atividades", value: String(summary.activityCount), sub: `${summary.pendingCount} pendentes • ${summary.completedCount} concluidas` },
+    { label: "Tarefas", value: String(summary.taskCount), sub: `${summary.overdueCount} atividade(s) atrasada(s)` }
   ];
 
   let x = 10;
   summaryCards.forEach((card) => {
     doc.setFillColor(255, 255, 255);
     doc.setDrawColor(220, 228, 240);
-    doc.roundedRect(x, 54, 46, 24, 5, 5, "FD");
+    doc.roundedRect(x, 56, 46, 24, 5, 5, "FD");
     doc.setTextColor(122, 133, 153);
     doc.setFont("helvetica", "bold");
     doc.setFontSize(8.5);
-    doc.text(card.label.toUpperCase(), x + 4, 60);
+    doc.text(card.label.toUpperCase(), x + 4, 62);
     doc.setTextColor(22, 32, 51);
     doc.setFontSize(12.5);
-    doc.text(card.value, x + 4, 67);
+    doc.text(card.value, x + 4, 69);
     doc.setTextColor(94, 104, 123);
     doc.setFont("helvetica", "normal");
     doc.setFontSize(8.5);
-    doc.text(card.sub, x + 4, 73);
+    doc.text(card.sub, x + 4, 75);
     x += 48;
   });
 
-  let tasksStartY = drawSimpleTable(doc, {
-    startY: 86,
-    fontSize: 8.4,
-    columns: [
-      { key: "client", label: "Cliente", width: 1.25 },
-      { key: "team", label: "Equipe", width: 1.05 },
-      { key: "manager", label: "Gestor", width: 1.05 },
-      { key: "coordinator", label: "Coordenador", width: 1.1 },
-      { key: "hours", label: "Horas projeto", width: .8 },
-      { key: "cost", label: "Custo tecnico", width: 1 }
-    ],
-    rows: [{
-      client: data.client.name,
-      team: data.summary.teamName,
-      manager: data.summary.managerName,
-      coordinator: data.summary.coordinatorName,
-      hours: `${data.project.billingHours}h`,
-      cost: formatCurrency(data.summary.estimatedTechCost)
-    }]
-  }) + 8;
+  doc.setFillColor(248, 250, 255);
+  doc.setDrawColor(220, 228, 240);
+  doc.roundedRect(10, 84, pageWidth - 20, 20, 5, 5, "FD");
+  doc.setTextColor(122, 133, 153);
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(8.5);
+  doc.text("RESUMO EXECUTIVO", 14, 90);
+  doc.setTextColor(36, 50, 74);
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(9.2);
+  const executiveText = doc.splitTextToSize(summary.executiveSummary, pageWidth - 30);
+  doc.text(executiveText, 14, 96);
+
   doc.setFont("helvetica", "bold");
   doc.setFontSize(12);
   doc.setTextColor(22, 32, 51);
-  doc.text("Resumo das tarefas", 10, tasksStartY);
+  doc.text("Informacoes do projeto", 10, 114);
 
-  let activitiesStartY = drawSimpleTable(doc, {
-    startY: tasksStartY + 3,
+  let nextY = drawSimpleTable(doc, {
+    startY: 117,
+    fontSize: 8.4,
+    columns: [
+      { key: "client", label: "Cliente", width: 1.2 },
+      { key: "team", label: "Equipe", width: 1 },
+      { key: "manager", label: "Gestor", width: 1 },
+      { key: "coordinator", label: "Coordenador", width: 1.05 },
+      { key: "hours", label: "Horas previstas", width: .75 },
+      { key: "worked", label: "Horas executadas", width: .85 }
+    ],
+    rows: [{
+      client: data.client.name,
+      team: summary.teamName,
+      manager: summary.managerName,
+      coordinator: summary.coordinatorName,
+      hours: `${data.project.billingHours}h`,
+      worked: `${summary.totalActivityHours}h`
+    }]
+  }) + 8;
+
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(12);
+  doc.text("Resumo das tarefas", 10, nextY);
+
+  nextY = drawSimpleTable(doc, {
+    startY: nextY + 3,
     fontSize: 8,
     columns: [
       { key: "number", label: "#", width: .45 },
-      { key: "name", label: "Tarefa", width: 1.8 },
-      { key: "period", label: "Periodo", width: 1.35 },
-      { key: "planned", label: "Previstas", width: .8 },
-      { key: "worked", label: "Executadas", width: .9 },
-      { key: "balance", label: "Saldo", width: .75 },
-      { key: "count", label: "Atividades", width: .7 }
+      { key: "name", label: "Tarefa", width: 2.1 },
+      { key: "period", label: "Periodo", width: 1.4 },
+      { key: "planned", label: "Horas previstas", width: .95 },
+      { key: "worked", label: "Horas executadas", width: .98 },
+      { key: "count", label: "Atividades", width: .72 }
     ],
     rows: data.taskRows.map((task) => ({
       number: String(task.number),
       name: task.name,
-      period: `${task.startDate} a ${task.endDate}`,
+      period: task.period,
       planned: `${task.plannedHours}h`,
       worked: `${task.workedHours}h`,
-      balance: `${task.balanceHours}h`,
       count: String(task.activityCount)
     }))
   }) + 8;
+
   doc.setFont("helvetica", "bold");
   doc.setFontSize(12);
-  doc.text("Detalhamento das atividades", 10, activitiesStartY);
+  doc.text("Detalhamento das atividades", 10, nextY);
 
   drawSimpleTable(doc, {
-    startY: activitiesStartY + 3,
+    startY: nextY + 3,
     rowHeight: 10,
     headerHeight: 8,
     fontSize: 7.2,
     columns: [
       { key: "date", label: "Data", width: .7 },
       { key: "taskNumber", label: "Tarefa", width: .55 },
-      { key: "taskName", label: "Nome da tarefa", width: 1.5 },
-      { key: "activityName", label: "Atividade", width: 1.4 },
-      { key: "techLabel", label: "Tecnico", width: 1.25 },
-      { key: "techIds", label: "ID tecnico", width: .95 },
-      { key: "keyUsers", label: "Key user", width: 1.15 },
+      { key: "taskName", label: "Nome da tarefa", width: 1.6 },
+      { key: "activityName", label: "Atividade", width: 1.6 },
+      { key: "keyUsers", label: "Key user", width: 1.4 },
       { key: "hours", label: "Horas", width: .5 },
-      { key: "status", label: "Status", width: .8 }
+      { key: "status", label: "Status", width: .9 }
     ],
     rows: data.activityRows.map((activity) => ({
       date: activity.date,
       taskNumber: `#${activity.taskNumber}`,
       taskName: activity.taskName,
       activityName: activity.activityName,
-      techLabel: activity.techLabel,
-      techIds: activity.techIds,
       keyUsers: activity.keyUsers,
       hours: `${activity.hours}h`,
       status: activity.status

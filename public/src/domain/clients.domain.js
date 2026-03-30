@@ -224,6 +224,35 @@ async function uploadClientPhoto(deps, companyId, clientId, file){
   return await getDownloadURL(ref);
 }
 
+async function buildClientReportPhotoDataUrl(file){
+  if (!file || !String(file.type || "").startsWith("image/")) return "";
+  const dataUrl = await new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result || ""));
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+
+  const img = await new Promise((resolve, reject) => {
+    const image = new Image();
+    image.onload = () => resolve(image);
+    image.onerror = reject;
+    image.src = dataUrl;
+  });
+
+  const maxSize = 220;
+  const scale = Math.min(1, maxSize / Math.max(img.width || maxSize, img.height || maxSize));
+  const width = Math.max(1, Math.round((img.width || maxSize) * scale));
+  const height = Math.max(1, Math.round((img.height || maxSize) * scale));
+  const canvas = document.createElement("canvas");
+  canvas.width = width;
+  canvas.height = height;
+  const ctx = canvas.getContext("2d");
+  if (!ctx) return dataUrl;
+  ctx.drawImage(img, 0, 0, width, height);
+  return canvas.toDataURL("image/jpeg", 0.82);
+}
+
 // =====================
 // View entry points
 // =====================
@@ -915,6 +944,7 @@ async function saveClientFromModal(deps){
     // foto (opcional)
     const file = refs.clientPhotoFile?.files?.[0] || null;
     let photoURL = (refs.clientPhotoUrl?.value || "").trim();
+    const reportPhotoDataUrl = file ? await buildClientReportPhotoDataUrl(file) : "";
 
     let photoWarning = "";
     if (file){
@@ -922,6 +952,7 @@ async function saveClientFromModal(deps){
         photoURL = await uploadClientPhoto(deps, companyId, finalId, file);
         await updateDoc(doc(db, "companies", companyId, "clients", finalId), {
           photoURL,
+          ...(reportPhotoDataUrl ? { reportPhotoDataUrl } : {}),
           updatedAt: serverTimestamp(),
           updatedBy: auth?.currentUser?.uid || ""
         });
