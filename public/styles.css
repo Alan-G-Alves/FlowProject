@@ -2749,12 +2749,9 @@ a{ color: inherit; }
   color: rgba(119,59,246,.82);
 }
 
-.activity-group[open] .activity-group-toggle{
-  color: rgba(12,18,32,.56);
-}
-
 .activity-group[open] .activity-group-toggle::after{
   content: " ocultar";
+  color: rgba(12,18,32,.56);
 }
 
 .activity-group:not([open]) .activity-group-toggle::after{
