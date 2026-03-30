@@ -706,9 +706,14 @@ function setClientModalMode(deps, mode, client){
   const { refs, state } = deps;
   const isEdit = mode === "edit";
   const isView = mode === "view";
+  const titleEl = document.getElementById("createClientTitle");
 
   state._clientsModalMode = mode;
   state._editingClientId = (isEdit || isView) ? (client?.id || "") : null;
+
+  if (titleEl){
+    titleEl.textContent = isView ? "Visualizar cliente" : (isEdit ? "Editar cliente" : "Novo cliente");
+  }
 
   if (refs.btnCreateClient){
     refs.btnCreateClient.textContent = isEdit ? "Salvar alterações" : "Salvar";

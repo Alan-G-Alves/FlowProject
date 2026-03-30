@@ -1038,9 +1038,7 @@ async function loadTechFeedbackList(deps) {
     refs.techFeedbackList.innerHTML = "";
     for (const it of items) {
       const div = document.createElement("div");
-      div.className = "panel subtle";
-      div.style.margin = "8px";
-      div.style.padding = "10px";
+      div.className = "tech-feedback-entry";
 
       const date = it.date || (it.createdAt?.toDate ? it.createdAt.toDate().toLocaleDateString("pt-BR") : "");
       const score = (it.score ?? "");
@@ -1048,7 +1046,7 @@ async function loadTechFeedbackList(deps) {
       const note = it.note || "";
 
       div.innerHTML = `
-        <div style="display:flex; justify-content:space-between; gap:10px;">
+        <div class="tech-feedback-entry-head">
           <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap;"><b>${escapeHtml(`Data: ${formatDateBR(date)}` || "—")}</b><span class="chip-score ${getScoreClass(score)}">${escapeHtml(`Nota: ${String(score || "—")}`)}</span></div>
           <div class="muted" style="font-size:12px;">${escapeHtml(by)}</div>
         </div>

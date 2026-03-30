@@ -1549,8 +1549,8 @@
 <!-- MODAL FEEDBACK TECNICO -->
 <section class="modal" hidden id="modalTechFeedback">
   <div class="modal-backdrop" data-close="true"></div>
-  <div class="modal-card" style="max-width:780px;">
-    <div class="modal-header">
+  <div class="modal-card tech-feedback-modal-card" style="max-width:860px;">
+    <div class="modal-header tech-feedback-modal-head">
       <div>
         <h2>Feedback do Tecnico</h2>
         <p class="muted" id="techFeedbackSubtitle">Registre e acompanhe feedbacks.</p>
@@ -1560,7 +1560,7 @@
 
     <div class="modal-body">
       <div class="form-sections">
-        <div class="form-section">
+        <div class="form-section tech-feedback-form-section">
           <div class="section-title">Novo feedback</div>
 
           <div class="grid" style="grid-template-columns: repeat(12, 1fr); gap:12px;">
@@ -1587,9 +1587,9 @@
           </div>
         </div>
 
-        <div class="form-section">
+        <div class="form-section tech-feedback-history-section">
           <div class="section-title">Historico</div>
-          <div class="panel subtle" id="techFeedbackList" style="max-height:260px; overflow:auto;">
+          <div class="panel subtle tech-feedback-history-list" id="techFeedbackList" style="max-height:320px; overflow:auto;">
             <div class="muted" style="padding:10px;">Nenhum feedback ainda.</div>
           </div>
         </div>
@@ -1648,18 +1648,22 @@
         <div class="form-section">
           <h3 class="client-section-title">Informacoes do Cliente</h3>
 
-          <div class="tech-photo-row client-photo-row">
-            <div class="tech-avatar-preview" id="clientPhotoPreview">
-              <img id="clientPhotoImg" alt="" hidden=""/>
-              <span id="clientPhotoFallback">?</span>
-            </div>
-            <div class="profile-photo-actions photo-upload-actions">
-              <input id="clientPhotoFile" class="hidden-file" type="file" accept="image/png,image/jpeg,image/jpg,image/webp"/>
-              <label class="btn sm" for="clientPhotoFile">Selecionar foto</label>
-              <span class="photo-file-name" id="clientPhotoFileName">Nenhum arquivo selecionado</span>
-              <input type="hidden" id="clientPhotoUrl"/>
-              <button class="btn ghost sm" id="btnClientRemovePhoto" type="button">Remover foto</button>
-              <div class="muted photo-help">PNG/JPG/WebP ate 2MB.</div>
+          <div class="client-photo-card">
+            <div class="tech-photo-row client-photo-row">
+              <div class="tech-avatar-preview client-avatar-preview" id="clientPhotoPreview">
+                <img id="clientPhotoImg" alt="" hidden=""/>
+                <span id="clientPhotoFallback">?</span>
+              </div>
+              <div class="profile-photo-actions photo-upload-actions">
+                <div class="client-photo-actions-row">
+                  <input id="clientPhotoFile" class="hidden-file" type="file" accept="image/png,image/jpeg,image/jpg,image/webp"/>
+                  <label class="btn sm" for="clientPhotoFile">Selecionar foto</label>
+                  <button class="btn ghost sm" id="btnClientRemovePhoto" type="button">Remover foto</button>
+                </div>
+                <span class="photo-file-name" id="clientPhotoFileName">Nenhum arquivo selecionado</span>
+                <input type="hidden" id="clientPhotoUrl"/>
+                <div class="muted photo-help">PNG/JPG/WebP ate 2MB.</div>
+              </div>
             </div>
           </div>
 

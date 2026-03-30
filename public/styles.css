@@ -1724,6 +1724,9 @@ a{ color: inherit; }
 #modalCreateClient .client-modal-head{
   padding: 16px 18px 14px 18px;
   border-bottom: 1px solid rgba(12,18,32,.08);
+  background:
+    radial-gradient(circle at top left, rgba(59,130,246,.10), transparent 34%),
+    linear-gradient(135deg, rgba(248,250,252,.98), rgba(255,255,255,.94));
 }
 
 #modalCreateClient .client-modal-head h2{
@@ -1754,42 +1757,66 @@ a{ color: inherit; }
 }
 
 #modalCreateClient .client-photo-row{
-  margin-bottom: 14px;
+  margin-bottom: 0;
   align-items: center;
+  gap: 16px;
 }
 
 #modalCreateClient .profile-photo-actions{
   display: flex;
-  align-items: center;
+  align-items: flex-start;
+  justify-content: center;
+  flex-direction: column;
   gap: 10px;
   flex-wrap: wrap;
 }
 
 .photo-upload-actions{
-  position: absolute;
-  top: 6px;
-  left: 0;
-  right: 0;
-  z-index: 2;
   display:flex;
-  align-items:center;
+  align-items:flex-start;
   gap:10px;
   flex-wrap:wrap;
+  position: static;
 }
 
 .photo-upload-actions .photo-file-name{
-  max-width: 280px;
-  font-size: 14px;
-  color: rgba(12,18,32,.74);
+  max-width: 320px;
+  font-size: 13px;
+  color: rgba(12,18,32,.68);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 
 .photo-upload-actions .photo-help{
-  width: 100%;
+  width: auto;
   font-size: 12px;
-  margin-top: 2px;
+  margin-top: -2px;
+}
+
+#modalCreateClient .client-photo-card{
+  border: 1px solid rgba(12,18,32,.08);
+  border-radius: 18px;
+  padding: 14px 16px;
+  margin-bottom: 14px;
+  background: linear-gradient(180deg, rgba(247,244,255,.58), rgba(255,255,255,.9));
+}
+
+#modalCreateClient .client-avatar-preview{
+  width: 84px;
+  height: 84px;
+}
+
+#modalCreateClient .client-avatar-preview span{
+  font-size: 30px;
+  font-weight: 800;
+}
+
+#modalCreateClient .client-photo-actions-row{
+  display:flex;
+  align-items:center;
+  gap:10px;
+  flex-wrap:wrap;
 }
 
 #modalCreateClient .client-form-grid{
@@ -2139,6 +2166,104 @@ a{ color: inherit; }
   color: rgb(185,28,28);
   background: rgba(239,68,68,.10);
   border-color: rgba(239,68,68,.18);
+}
+
+.tech-feedback-modal-card{
+  border-radius: 24px;
+}
+
+.tech-feedback-modal-head{
+  background:
+    radial-gradient(circle at top left, rgba(59,130,246,.12), transparent 34%),
+    linear-gradient(135deg, rgba(248,250,252,.98), rgba(255,255,255,.94));
+}
+
+.tech-feedback-modal-head h2{
+  font-size: 22px;
+}
+
+.tech-feedback-form-section,
+.tech-feedback-history-section{
+  border:1px solid rgba(12,18,32,.08);
+  border-radius: 20px;
+  background: rgba(255,255,255,.86);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.8);
+}
+
+.tech-feedback-form-section{
+  background:
+    linear-gradient(180deg, rgba(247,244,255,.72), rgba(255,255,255,.96));
+}
+
+.tech-feedback-history-list{
+  background: linear-gradient(180deg, rgba(250,250,252,.92), rgba(255,255,255,.98));
+  border-style: solid;
+  max-height: 320px;
+}
+
+.tech-feedback-entry{
+  border:1px solid rgba(12,18,32,.08);
+  border-radius: 18px;
+  background: rgba(255,255,255,.96);
+  padding: 14px 16px;
+  margin: 8px;
+  box-shadow: 0 8px 18px rgba(12,18,32,.04);
+}
+
+.tech-feedback-entry-head{
+  display:flex;
+  align-items:flex-start;
+  justify-content:space-between;
+  gap:12px;
+}
+
+.tech-feedback-entry-meta{
+  display:flex;
+  align-items:center;
+  gap:10px;
+  flex-wrap:wrap;
+}
+
+.tech-feedback-entry-date{
+  font-size: 13px;
+  font-weight: 800;
+  color: rgba(12,18,32,.88);
+}
+
+.tech-feedback-entry-by{
+  font-size:12px;
+  color: rgba(12,18,32,.52);
+  white-space: nowrap;
+}
+
+.tech-feedback-entry-note{
+  margin-top: 10px;
+  color: rgba(12,18,32,.84);
+  line-height: 1.55;
+  white-space: pre-wrap;
+}
+
+.tech-feedback-entry > div:first-child{
+  display:flex;
+  justify-content:space-between;
+  gap:12px;
+}
+
+.tech-feedback-entry > div:first-child > div:first-child{
+  display:flex;
+  gap:10px;
+  align-items:center;
+  flex-wrap:wrap;
+}
+
+.tech-feedback-entry > div:first-child > div:last-child{
+  font-size:12px;
+  color: rgba(12,18,32,.52);
+}
+
+.tech-feedback-entry > div:last-child{
+  margin-top: 10px;
+  white-space: pre-wrap;
 }
 
 #modalProjectDetail .modal-card{
