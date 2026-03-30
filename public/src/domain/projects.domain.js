@@ -435,7 +435,7 @@ function _listActiveTechs(state, teamId){
 
 function _populateTechSelect(selectEl, state, teamId){
   if (!selectEl) return;
-  selectEl.innerHTML = '<option value="">Selecione um tÃ©cnico</option>';
+  selectEl.innerHTML = '<option value="">Selecione um tecnico</option>';
 
   const techs = _listActiveTechs(state, teamId);
   techs.sort((a, b) => (a.name || "").localeCompare(b.name || ""));
@@ -467,7 +467,7 @@ function _renderSelectedTechChips(refs, state){
     chip.className = `chip project-tech-chip ${colorClasses[idx % colorClasses.length]}`;
     chip.innerHTML = `
       <span>${escapeHtml(name)}</span>
-      <button type="button" class="project-tech-chip-remove" data-tech-uid="${escapeHtml(uid)}" aria-label="Remover tÃ©cnico">Ã—</button>
+      <button type="button" class="project-tech-chip-remove" data-tech-uid="${escapeHtml(uid)}" aria-label="Remover tecnico">x</button>
     `;
     chipsEl.appendChild(chip);
   });
@@ -479,7 +479,7 @@ function _renderSelectedTechChips(refs, state){
 
 function _populateEditTechSelect(selectEl, state, teamId){
   if (!selectEl) return;
-  selectEl.innerHTML = '<option value="">Selecione um tÃ©cnico</option>';
+  selectEl.innerHTML = '<option value="">Selecione um tecnico</option>';
   const techs = _listActiveTechs(state, teamId);
   techs.sort((a, b) => (a.name || "").localeCompare(b.name || ""));
   for (const t of techs){
@@ -1015,7 +1015,7 @@ function populateClientSelect(selectEl, clients){
   if (!selectEl) return;
   const list = Array.isArray(clients) ? clients.slice() : [];
   // placeholder
-  const opts = ['<option value="">â€” Selecione um cliente (opcional) â€”</option>'];
+  const opts = ['<option value="">- Selecione um cliente (opcional) -</option>'];
   list
     .filter(c => c && c.active !== false)
     .sort((a,b)=> (a.name||"").localeCompare(b.name||""))

@@ -2360,6 +2360,7 @@ a{ color: inherit; }
 .chip-prio.alta { background: rgba(255, 50,50,.18); border-color: rgba(255, 50,50,.35); }
 
 /* Create Project - refresh visual */
+.create-project-modal-card,
 #modalCreateProject .modal-card{
   border-radius: 20px;
   border: 1px solid rgba(12,18,32,.08);
@@ -2367,7 +2368,11 @@ a{ color: inherit; }
 }
 
 #modalCreateProject .project-modal-head{
+  padding: 18px 20px 16px;
   border-bottom: 1px solid rgba(12,18,32,.08);
+  background:
+    radial-gradient(circle at top left, rgba(59,130,246,.10), transparent 34%),
+    linear-gradient(135deg, rgba(248,250,252,.98), rgba(255,255,255,.94));
 }
 
 #modalCreateProject .project-modal-head h2{
@@ -2376,15 +2381,30 @@ a{ color: inherit; }
   margin: 0;
 }
 
+#modalCreateProject .modal-body{
+  padding: 16px 20px 18px;
+}
+
+#modalCreateProject .modal-footer{
+  padding: 14px 20px;
+  border-top: 1px solid rgba(12,18,32,.08);
+}
+
 #modalCreateProject .project-section-title{
-  margin: 0 0 10px 0;
-  font-size: 15px;
-  color: rgba(12,18,32,.88);
+  margin: 0 0 12px 0;
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: .16em;
+  text-transform: uppercase;
+  color: rgba(119,59,246,.76);
 }
 
 #modalCreateProject .form-section{
+  border: 1px solid rgba(12,18,32,.06);
   border-radius: 16px;
-  background: linear-gradient(180deg, rgba(255,255,255,.72), rgba(255,255,255,.62));
+  background: linear-gradient(180deg, rgba(255,255,255,.76), rgba(255,255,255,.64));
+  padding: 16px;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.82);
 }
 
 #modalCreateProject .field input,
@@ -2407,6 +2427,10 @@ a{ color: inherit; }
   align-items: center;
   gap: 10px;
   flex-wrap: wrap;
+  padding: 12px 14px;
+  border: 1px dashed rgba(12,18,32,.14);
+  border-radius: 14px;
+  background: rgba(255,255,255,.58);
 }
 
 #modalCreateProject .project-contract-btn{
@@ -2421,6 +2445,33 @@ a{ color: inherit; }
   overflow: hidden;
   text-overflow: ellipsis;
   color: rgba(12,18,32,.72);
+}
+
+#modalCreateProject .project-tech-chips{
+  min-height: 46px !important;
+  padding: 8px;
+  border: 1px dashed rgba(12,18,32,.14);
+  border-radius: 14px;
+  background: rgba(255,255,255,.6);
+}
+
+#modalCreateProject .help{
+  font-size: 12px;
+  color: rgba(12,18,32,.54);
+  line-height: 1.45;
+}
+
+#modalCreateProject .chip-prio{
+  font-weight: 800;
+  transition: transform .12s ease, border-color .12s ease, box-shadow .12s ease;
+}
+
+#modalCreateProject .chip-prio:hover{
+  transform: translateY(-1px);
+}
+
+#modalCreateProject .modal-footer .btn{
+  min-width: 128px;
 }
 
 .project-tech-chip{

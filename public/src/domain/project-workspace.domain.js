@@ -389,8 +389,6 @@ function isVisibleAlert(el){
 function isInsideProjectTaskActionArea(target, refs){
   if (!target || !refs) return false;
   if (refs.projectTaskAlert?.contains?.(target)) return true;
-  if (refs.projectTaskFormWrap && !refs.projectTaskFormWrap.hidden && refs.projectTaskFormWrap.contains(target)) return true;
-  if (refs.btnOpenTaskForm?.contains?.(target)) return true;
   if (target.closest?.("[data-open-activity-form]")) return true;
   if (target.closest?.("[data-cancel-activity-form]")) return true;
   if (target.closest?.("[data-save-activity]")) return true;
@@ -399,7 +397,6 @@ function isInsideProjectTaskActionArea(target, refs){
   if (target.closest?.("[data-activity-keyuser-select]")) return true;
   if (target.closest?.("[data-remove-activity-techs]")) return true;
   if (target.closest?.("[data-remove-activity-keyusers]")) return true;
-  if (target.closest?.("[id^='activityFormWrap-']")) return true;
   return false;
 }
 
