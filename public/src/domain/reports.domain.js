@@ -22,7 +22,7 @@ const CARD_FILTER_CONFIG = {
   statuses: ["period", "clientId", "teamId"],
   execution: ["period", "clientId", "teamId", "projectId"],
   clients: ["period", "teamId", "status"],
-  techs: ["period", "clientId", "projectId"],
+  techs: [],
   attention: ["period", "clientId", "teamId", "status", "projectId"],
   timeline: ["period", "clientId", "projectId"]
 };
@@ -38,6 +38,12 @@ function formatHours(value){
 
 function formatPercent(value){
   return `${asNumber(value).toFixed(1).replace(".", ",")}%`;
+}
+
+function formatDateBr(value){
+  const date = parseDateOnly(value);
+  if (!date) return "-";
+  return date.toLocaleDateString("pt-BR");
 }
 
 function parseDateOnly(value){
@@ -89,7 +95,17 @@ function refsFrom(deps){
     reportsTeamFilter: r.reportsTeamFilter || byId("reportsTeamFilter"),
     reportsStatusFilter: r.reportsStatusFilter || byId("reportsStatusFilter"),
     btnReloadReports: r.btnReloadReports || byId("btnReloadReports"),
-    reportsGrid: r.reportsGrid || byId("reportsGrid")
+    reportsGrid: r.reportsGrid || byId("reportsGrid"),
+    modalReportTechFilters: r.modalReportTechFilters || byId("modalReportTechFilters"),
+    btnCloseReportTechFilters: r.btnCloseReportTechFilters || byId("btnCloseReportTechFilters"),
+    btnApplyReportTechFilters: r.btnApplyReportTechFilters || byId("btnApplyReportTechFilters"),
+    btnResetReportTechFilters: r.btnResetReportTechFilters || byId("btnResetReportTechFilters"),
+    reportTechFilterPeriod: r.reportTechFilterPeriod || byId("reportTechFilterPeriod"),
+    reportTechFilterStartDate: r.reportTechFilterStartDate || byId("reportTechFilterStartDate"),
+    reportTechFilterEndDate: r.reportTechFilterEndDate || byId("reportTechFilterEndDate"),
+    reportTechFilterClient: r.reportTechFilterClient || byId("reportTechFilterClient"),
+    reportTechFilterProject: r.reportTechFilterProject || byId("reportTechFilterProject"),
+    reportTechFilterTech: r.reportTechFilterTech || byId("reportTechFilterTech")
   };
 }
 
@@ -213,12 +229,19 @@ function teamOptions(state){
 }
 
 function defaultWidgetFilters(baseData){
+  const today = new Date();
+  const endDate = today.toISOString().slice(0, 10);
+  const startDate = new Date(today);
+  startDate.setDate(startDate.getDate() - 29);
   return {
     period: baseData?.period || "30d",
     clientId: "all",
     teamId: "all",
     status: "all",
-    projectId: "all"
+    projectId: "all",
+    techId: "all",
+    startDate: startDate.toISOString().slice(0, 10),
+    endDate
   };
 }
 
@@ -266,7 +289,16 @@ function getScopedData(baseData, filters){
   const teamId = filters?.teamId || "all";
   const status = filters?.status || "all";
   const projectId = filters?.projectId || "all";
-  const { start, end } = getPeriodRange(period);
+  const techId = filters?.techId || "all";
+  const fallbackRange = getPeriodRange(baseData.period || "30d");
+  const customStart = parseDateOnly(filters?.startDate);
+  const customEnd = parseDateOnly(filters?.endDate);
+  const { start, end } = period === "custom"
+    ? {
+      start: customStart || fallbackRange.start,
+      end: customEnd || fallbackRange.end
+    }
+    : getPeriodRange(period);
 
   const projects = baseData.projects.filter((project) => {
     if (clientId !== "all" && project.clientId !== clientId) return false;
@@ -287,9 +319,20 @@ function getScopedData(baseData, filters){
     if (!projectIds.has(activity.projectId)) return false;
     if (period === "all") return true;
     return inRange(parseDateOnly(activity.workDate), start, end);
+  }).filter((activity) => {
+    if (techId === "all") return true;
+    return Array.isArray(activity.techUids) && activity.techUids.includes(techId);
   });
 
-  return { period, projects, tasks, activities };
+  return {
+    period,
+    projects,
+    tasks,
+    activities,
+    techId,
+    startDate: period === "custom" ? (filters?.startDate || "") : "",
+    endDate: period === "custom" ? (filters?.endDate || "") : ""
+  };
 }
 
 function buildCardFilterBar(baseData, state, cardKey){
@@ -304,6 +347,7 @@ function buildCardFilterBar(baseData, state, cardKey){
       { value: "30d", label: "30 dias" },
       { value: "90d", label: "90 dias" },
       { value: "year", label: "12 meses" },
+      { value: "custom", label: "Periodo especifico" },
       { value: "all", label: "Historico" }
     ],
     clientId: [{ value: "all", label: "Todos os clientes" }].concat(
@@ -326,19 +370,130 @@ function buildCardFilterBar(baseData, state, cardKey){
   };
 
   const renderOptions = (options, selected) => options.map((opt) => `<option value="${escapeHtml(opt.value)}"${opt.value === selected ? " selected" : ""}>${escapeHtml(opt.label)}</option>`).join("");
+  const renderField = (filterKey) => `
+    <label class="reports-inline-field${filterKey === "projectId" ? " reports-inline-field--project" : ""}">
+      <span>${escapeHtml(labelMap[filterKey] || filterKey)}</span>
+      <select data-report-card="${escapeHtml(cardKey)}" data-report-filter="${escapeHtml(filterKey)}">
+        ${renderOptions(optionsMap[filterKey] || [], filters[filterKey] || "all")}
+      </select>
+    </label>
+  `;
+  const periodField = config.includes("period") ? renderField("period") : "";
+  const otherFields = config
+    .filter((filterKey) => filterKey !== "period")
+    .map((filterKey) => renderField(filterKey))
+    .join("");
 
   return `
     <div class="reports-card-controls reports-card-controls--${escapeHtml(config.length)}" data-report-card="${escapeHtml(cardKey)}">
-      ${config.map((filterKey) => `
-        <label class="reports-inline-field${filterKey === "projectId" ? " reports-inline-field--project" : ""}">
-          <span>${escapeHtml(labelMap[filterKey] || filterKey)}</span>
-          <select data-report-card="${escapeHtml(cardKey)}" data-report-filter="${escapeHtml(filterKey)}">
-            ${renderOptions(optionsMap[filterKey] || [], filters[filterKey] || "all")}
-          </select>
+      ${periodField}
+      ${config.includes("period") && filters.period === "custom" ? `
+        <label class="reports-inline-field reports-inline-field--date">
+          <span>De</span>
+          <input type="date" value="${escapeHtml(filters.startDate || "")}" data-report-card="${escapeHtml(cardKey)}" data-report-filter="startDate" />
         </label>
-      `).join("")}
+        <label class="reports-inline-field reports-inline-field--date">
+          <span>Ate</span>
+          <input type="date" value="${escapeHtml(filters.endDate || "")}" data-report-card="${escapeHtml(cardKey)}" data-report-filter="endDate" />
+        </label>
+      ` : ""}
+      ${otherFields}
     </div>
   `;
+}
+
+function getTechOptions(baseData, filters){
+  const scopedProjects = baseData.projects.filter((project) => {
+    if (filters?.clientId !== "all" && project.clientId !== filters?.clientId) return false;
+    if (filters?.projectId !== "all" && project.id !== filters?.projectId) return false;
+    return true;
+  });
+  const projectIds = new Set(scopedProjects.map((project) => project.id));
+  const map = new Map();
+  baseData.activities.forEach((activity) => {
+    if (!projectIds.has(activity.projectId)) return;
+    const ids = Array.isArray(activity.techUids) ? activity.techUids : [];
+    const names = Array.isArray(activity.techNames) ? activity.techNames : [];
+    ids.forEach((techId, index) => {
+      if (!techId) return;
+      if (!map.has(techId)){
+        map.set(techId, {
+          value: techId,
+          label: names[index] || names[0] || techId
+        });
+      }
+    });
+  });
+  return [{ value: "all", label: "Todos os tecnicos" }].concat(
+    Array.from(map.values()).sort((a, b) => String(a.label || "").localeCompare(String(b.label || "")))
+  );
+}
+
+function setSelectOptions(element, options, selected){
+  if (!element) return;
+  element.innerHTML = options.map((opt) => (
+    `<option value="${escapeHtml(opt.value)}"${opt.value === selected ? " selected" : ""}>${escapeHtml(opt.label)}</option>`
+  )).join("");
+}
+
+function syncTechFilterDateFields(refs){
+  const showCustom = refs.reportTechFilterPeriod?.value === "custom";
+  const wrappers = Array.from(document.querySelectorAll(".report-tech-filter-date"));
+  wrappers.forEach((node) => {
+    node.hidden = !showCustom;
+  });
+}
+
+function syncTechFilterProjectOptions(baseData, refs, state){
+  const filters = ensureWidgetFilters(state, baseData).techs;
+  const tempFilters = {
+    clientId: refs.reportTechFilterClient?.value || filters.clientId || "all",
+    teamId: "all",
+    status: "all",
+    projectId: refs.reportTechFilterProject?.value || filters.projectId || "all"
+  };
+  const projectOptions = getCardProjectOptions(baseData, tempFilters);
+  const currentProject = refs.reportTechFilterProject?.value || filters.projectId || "all";
+  const validProject = projectOptions.some((opt) => opt.value === currentProject) ? currentProject : "all";
+  setSelectOptions(refs.reportTechFilterProject, projectOptions, validProject);
+  return validProject;
+}
+
+function syncTechFilterTechOptions(baseData, refs, state){
+  const filters = ensureWidgetFilters(state, baseData).techs;
+  const techOptions = getTechOptions(baseData, {
+    clientId: refs.reportTechFilterClient?.value || filters.clientId || "all",
+    projectId: refs.reportTechFilterProject?.value || filters.projectId || "all"
+  });
+  const currentTech = refs.reportTechFilterTech?.value || filters.techId || "all";
+  const validTech = techOptions.some((opt) => opt.value === currentTech) ? currentTech : "all";
+  setSelectOptions(refs.reportTechFilterTech, techOptions, validTech);
+}
+
+function populateTechFilterModal(baseData, refs, state){
+  const filters = ensureWidgetFilters(state, baseData).techs;
+  refs.reportTechFilterPeriod.value = filters.period || "30d";
+  refs.reportTechFilterStartDate.value = filters.startDate || "";
+  refs.reportTechFilterEndDate.value = filters.endDate || "";
+  setSelectOptions(refs.reportTechFilterClient, [{ value: "all", label: "Todos os clientes" }].concat(
+    baseData.clients
+      .slice()
+      .sort((a, b) => String(a.name || "").localeCompare(String(b.name || "")))
+      .map((client) => ({ value: client.id, label: client.name || client.id }))
+  ), filters.clientId || "all");
+  syncTechFilterProjectOptions(baseData, refs, state);
+  syncTechFilterTechOptions(baseData, refs, state);
+  syncTechFilterDateFields(refs);
+}
+
+function openTechFilterModal(refs){
+  if (!refs.modalReportTechFilters) return;
+  refs.modalReportTechFilters.hidden = false;
+}
+
+function closeTechFilterModal(refs){
+  if (!refs.modalReportTechFilters) return;
+  refs.modalReportTechFilters.hidden = true;
 }
 
 function renderReports(cache, refs, state){
@@ -352,6 +507,7 @@ function renderReports(cache, refs, state){
     "30d": "Ultimos 30 dias",
     "90d": "Ultimos 90 dias",
     year: "Ultimos 12 meses",
+    custom: "Periodo especifico",
     all: "Historico completo"
   };
   const today = new Date();
@@ -473,7 +629,11 @@ function renderReports(cache, refs, state){
         <div>
           <div class="reports-card-kicker">Visao executiva</div>
           <h3>Painel consolidado de projetos</h3>
-          <p class="muted">Acompanhe andamento, carga operacional e gargalos do portfolio em ${escapeHtml(periodLabelMap[overviewData.period] || overviewData.period)}.</p>
+          <p class="muted">Acompanhe andamento, carga operacional e gargalos do portfolio em ${escapeHtml(
+            overviewData.period === "custom"
+              ? `${formatDateBr(overviewData.startDate)} a ${formatDateBr(overviewData.endDate)}`
+              : (periodLabelMap[overviewData.period] || overviewData.period)
+          )}.</p>
         </div>
         ${buildCardFilterBar(baseData, state, "overview")}
       </div>
@@ -526,7 +686,21 @@ function renderReports(cache, refs, state){
     </section>
 
     <section class="reports-card reports-card--techs">
-      <div class="reports-card-head"><div><div class="reports-card-kicker">Atividade x tecnico</div><h3>Distribuicao operacional por tecnico</h3></div>${buildCardFilterBar(baseData, state, "techs")}</div>
+      <div class="reports-card-head">
+        <div>
+          <div class="reports-card-kicker">Atividade x tecnico</div>
+          <h3>Distribuicao operacional por tecnico</h3>
+          <p class="muted">Use o filtro avancado para refinar por periodo, cliente, projeto e tecnico.</p>
+        </div>
+        <div class="reports-card-tools">
+          <button class="btn ghost sm reports-card-filter-btn" data-open-report-tech-filters="true" type="button" aria-label="Abrir filtros do indicador Atividade x tecnico">
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" aria-hidden="true">
+              <path d="M4 6h16M7 12h10M10 18h4" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+            </svg>
+            <span>Filtros</span>
+          </button>
+        </div>
+      </div>
       <div class="reports-ranking">
         ${topTechs.length ? topTechs.map((item) => `<div class="reports-ranking-row"><div><strong>${escapeHtml(item.techName)}</strong><span>ID: ${escapeHtml(String(item.techId || "-"))}</span></div><div class="reports-ranking-bar"><div class="reports-ranking-fill reports-ranking-fill--tech" style="width:${Math.max(10, (item.activities / maxTechActivities) * 100)}%"></div></div><b>${escapeHtml(String(item.activities))} / ${escapeHtml(formatHours(item.hours))}</b></div>`).join("") : `<p class="muted">Sem atividades vinculadas a tecnicos com os filtros atuais.</p>`}
       </div>
@@ -569,10 +743,46 @@ function bindOnce(deps){
   refs.reportsTeamFilter?.addEventListener("change", handleGlobalChange);
   refs.reportsStatusFilter?.addEventListener("change", handleGlobalChange);
   refs.btnReloadReports?.addEventListener("click", () => rerender(true));
+  refs.btnCloseReportTechFilters?.addEventListener("click", () => closeTechFilterModal(refs));
+  refs.modalReportTechFilters?.addEventListener("click", (event) => {
+    const target = event.target;
+    if (!(target instanceof HTMLElement)) return;
+    if (target.dataset.closeReportTechFilters === "true"){
+      closeTechFilterModal(refs);
+    }
+  });
+  refs.reportTechFilterPeriod?.addEventListener("change", () => {
+    syncTechFilterDateFields(refs);
+  });
+  refs.reportTechFilterClient?.addEventListener("change", () => {
+    syncTechFilterProjectOptions(deps.state._reportsCache, refs, deps.state);
+    syncTechFilterTechOptions(deps.state._reportsCache, refs, deps.state);
+  });
+  refs.reportTechFilterProject?.addEventListener("change", () => {
+    syncTechFilterTechOptions(deps.state._reportsCache, refs, deps.state);
+  });
+  refs.btnResetReportTechFilters?.addEventListener("click", () => {
+    deps.state._reportsWidgetFilters.techs = defaultWidgetFilters({ period: "30d" });
+    populateTechFilterModal(deps.state._reportsCache, refs, deps.state);
+  });
+  refs.btnApplyReportTechFilters?.addEventListener("click", () => {
+    if (!deps.state._reportsWidgetFilters) deps.state._reportsWidgetFilters = {};
+    deps.state._reportsWidgetFilters.techs = {
+      ...defaultWidgetFilters({ period: refs.reportTechFilterPeriod?.value || "30d" }),
+      period: refs.reportTechFilterPeriod?.value || "30d",
+      clientId: refs.reportTechFilterClient?.value || "all",
+      projectId: refs.reportTechFilterProject?.value || "all",
+      techId: refs.reportTechFilterTech?.value || "all",
+      startDate: refs.reportTechFilterStartDate?.value || "",
+      endDate: refs.reportTechFilterEndDate?.value || ""
+    };
+    closeTechFilterModal(refs);
+    renderReports(deps.state._reportsCache, refs, deps.state);
+  });
 
   refs.reportsGrid?.addEventListener("change", (event) => {
     const target = event.target;
-    if (!(target instanceof HTMLSelectElement)) return;
+    if (!(target instanceof HTMLSelectElement) && !(target instanceof HTMLInputElement)) return;
     const cardKey = target.dataset.reportCard;
     const filterKey = target.dataset.reportFilter;
     if (!cardKey || !filterKey) return;
@@ -580,7 +790,20 @@ function bindOnce(deps){
     if (!deps.state._reportsWidgetFilters[cardKey]) deps.state._reportsWidgetFilters[cardKey] = defaultWidgetFilters({ period: refs.reportsPeriodFilter?.value || "30d" });
     deps.state._reportsWidgetFilters[cardKey][filterKey] = target.value || "all";
     if (["clientId", "teamId", "status"].includes(filterKey)) deps.state._reportsWidgetFilters[cardKey].projectId = "all";
+    if (filterKey === "period" && target.value !== "custom"){
+      const defaults = defaultWidgetFilters({ period: target.value || "30d" });
+      deps.state._reportsWidgetFilters[cardKey].startDate = defaults.startDate;
+      deps.state._reportsWidgetFilters[cardKey].endDate = defaults.endDate;
+    }
     renderReports(deps.state._reportsCache, refs, deps.state);
+  });
+  refs.reportsGrid?.addEventListener("click", (event) => {
+    const target = event.target;
+    if (!(target instanceof HTMLElement)) return;
+    const trigger = target.closest("[data-open-report-tech-filters='true']");
+    if (!trigger) return;
+    populateTechFilterModal(deps.state._reportsCache, refs, deps.state);
+    openTechFilterModal(refs);
   });
 }
 

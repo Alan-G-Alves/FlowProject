@@ -69,6 +69,16 @@ export const reportsTeamFilter = byId("reportsTeamFilter");
 export const reportsStatusFilter = byId("reportsStatusFilter");
 export const btnReloadReports = byId("btnReloadReports");
 export const reportsGrid = byId("reportsGrid");
+export const modalReportTechFilters = byId("modalReportTechFilters");
+export const btnCloseReportTechFilters = byId("btnCloseReportTechFilters");
+export const btnApplyReportTechFilters = byId("btnApplyReportTechFilters");
+export const btnResetReportTechFilters = byId("btnResetReportTechFilters");
+export const reportTechFilterPeriod = byId("reportTechFilterPeriod");
+export const reportTechFilterStartDate = byId("reportTechFilterStartDate");
+export const reportTechFilterEndDate = byId("reportTechFilterEndDate");
+export const reportTechFilterClient = byId("reportTechFilterClient");
+export const reportTechFilterProject = byId("reportTechFilterProject");
+export const reportTechFilterTech = byId("reportTechFilterTech");
 
 // Companies (master)
 export const companiesGrid = byId("companiesGrid");

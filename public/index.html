@@ -221,6 +221,56 @@
   <button class="btn primary" id="btnReloadReports" type="button">Atualizar indicadores</button>
 </section>
 <div class="reports-grid" id="reportsGrid"></div>
+<div class="modal" hidden="" id="modalReportTechFilters">
+  <div class="modal-backdrop" data-close-report-tech-filters="true"></div>
+  <div class="modal-card reports-filter-modal-card">
+    <div class="modal-header">
+      <div>
+        <h2>Filtros do indicador</h2>
+        <p class="muted">Refine o card Atividade x Tecnico sem ocupar espaco no painel.</p>
+      </div>
+      <button class="btn ghost" id="btnCloseReportTechFilters" type="button">X</button>
+    </div>
+    <div class="modal-body">
+      <div class="grid" style="grid-template-columns: repeat(12, 1fr); gap:12px;">
+        <label class="field" style="grid-column: span 4;">
+          <span>Periodo</span>
+          <select id="reportTechFilterPeriod">
+            <option value="30d">30 dias</option>
+            <option value="90d">90 dias</option>
+            <option value="year">12 meses</option>
+            <option value="custom">Periodo especifico</option>
+            <option value="all">Historico</option>
+          </select>
+        </label>
+        <label class="field report-tech-filter-date" hidden style="grid-column: span 4;">
+          <span>De</span>
+          <input id="reportTechFilterStartDate" type="date"/>
+        </label>
+        <label class="field report-tech-filter-date" hidden style="grid-column: span 4;">
+          <span>Ate</span>
+          <input id="reportTechFilterEndDate" type="date"/>
+        </label>
+        <label class="field" style="grid-column: span 6;">
+          <span>Cliente</span>
+          <select id="reportTechFilterClient"></select>
+        </label>
+        <label class="field" style="grid-column: span 6;">
+          <span>Projeto</span>
+          <select id="reportTechFilterProject"></select>
+        </label>
+        <label class="field" style="grid-column: span 12;">
+          <span>Tecnico</span>
+          <select id="reportTechFilterTech"></select>
+        </label>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn" id="btnResetReportTechFilters" type="button">Limpar</button>
+      <button class="btn primary" id="btnApplyReportTechFilters" type="button">Aplicar filtros</button>
+    </div>
+  </div>
+</div>
 </div>
 </section><!-- ADMIN (empresa) --><section class="view" hidden="" id="viewAdmin">
 <div class="container">

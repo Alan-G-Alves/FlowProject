@@ -2065,16 +2065,32 @@ a{ color: inherit; }
 .reports-card-head{
   display:flex;
   align-items:flex-start;
-  justify-content:space-between;
+  justify-content:flex-start;
+  flex-direction:column;
   gap:12px;
   margin-bottom: 14px;
 }
 
+.reports-card-tools{
+  display:flex;
+  align-items:center;
+  gap:8px;
+}
+
+.reports-card-filter-btn{
+  display:inline-flex;
+  align-items:center;
+  gap:8px;
+  border-radius: 12px;
+}
+
 .reports-card-controls{
   display:grid;
-  grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
-  gap:10px;
-  min-width: min(100%, 720px);
+  grid-template-columns: repeat(auto-fit, minmax(120px, max-content));
+  gap:8px;
+  width:100%;
+  min-width: 0;
+  align-items:end;
 }
 
 .reports-inline-field{
@@ -2092,13 +2108,14 @@ a{ color: inherit; }
 }
 
 .reports-inline-field select{
-  height: 38px;
-  border-radius: 12px;
+  height: 36px;
+  border-radius: 11px;
   border: 1px solid rgba(12,18,32,.1);
   background: rgba(255,255,255,.92);
-  padding: 0 12px;
+  padding: 0 10px;
   color: rgba(12,18,32,.88);
   outline: none;
+  min-width: 0;
 }
 
 .reports-inline-field select:focus{
@@ -2106,8 +2123,27 @@ a{ color: inherit; }
   box-shadow: 0 0 0 4px rgba(119,59,246,.12);
 }
 
+.reports-inline-field input{
+  height: 36px;
+  border-radius: 11px;
+  border: 1px solid rgba(12,18,32,.1);
+  background: rgba(255,255,255,.92);
+  padding: 0 10px;
+  color: rgba(12,18,32,.88);
+  outline: none;
+}
+
+.reports-inline-field input:focus{
+  border-color: rgba(119,59,246,.45);
+  box-shadow: 0 0 0 4px rgba(119,59,246,.12);
+}
+
 .reports-inline-field--project{
-  min-width: 180px;
+  min-width: 160px;
+}
+
+.reports-inline-field--date{
+  min-width: 138px;
 }
 
 .reports-card-head h3{
@@ -2391,6 +2427,10 @@ a{ color: inherit; }
 
 .reports-card--loading{
   grid-column: span 12;
+}
+
+.reports-filter-modal-card{
+  width: min(720px, calc(100vw - 40px));
 }
 
 @media (max-width: 1120px){
