@@ -1988,6 +1988,159 @@ a{ color: inherit; }
   overflow:auto;
 }
 
+.client-projects-modal-card .modal-header{
+  background:
+    radial-gradient(circle at top left, rgba(119,59,246,.10), transparent 36%),
+    linear-gradient(135deg, rgba(248,250,252,.98), rgba(255,255,255,.94));
+}
+
+.client-projects-summary{
+  display:grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap:12px;
+  margin-bottom: 14px;
+}
+
+.client-projects-stat{
+  border:1px solid rgba(12,18,32,.08);
+  border-radius: 16px;
+  background: linear-gradient(180deg, rgba(247,244,255,.86), rgba(255,255,255,.96));
+  padding: 14px 16px;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.78);
+}
+
+.client-projects-stat-label{
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: .16em;
+  color: rgba(119,59,246,.72);
+  font-weight: 800;
+}
+
+.client-projects-stat-value{
+  margin-top: 6px;
+  font-size: 24px;
+  font-weight: 800;
+  color: rgba(12,18,32,.92);
+}
+
+.client-projects-table-wrap{
+  border:1px solid rgba(12,18,32,.08);
+  border-radius: 18px;
+  overflow:hidden;
+  background: rgba(255,255,255,.92);
+}
+
+.client-projects-table-wrap table{
+  width:100%;
+  border-collapse: separate;
+  border-spacing: 0;
+}
+
+.client-projects-table-wrap thead th{
+  background: linear-gradient(180deg, rgba(244,247,252,.96), rgba(238,242,255,.82));
+  font-size: 12px;
+  font-weight: 800;
+  color: rgba(12,18,32,.68);
+  text-transform: uppercase;
+  letter-spacing: .08em;
+}
+
+.client-projects-table-wrap tbody td{
+  vertical-align: middle;
+}
+
+.client-projects-table-wrap tbody tr{
+  transition: background .14s ease, transform .14s ease;
+}
+
+.client-projects-table-wrap tbody tr:hover{
+  background: rgba(99,102,241,.05);
+}
+
+.client-project-row-name{
+  display:flex;
+  flex-direction:column;
+  gap:4px;
+}
+
+.client-project-row-title{
+  font-weight: 800;
+  color: rgba(12,18,32,.92);
+}
+
+.client-project-row-sub{
+  font-size: 12px;
+  color: rgba(12,18,32,.56);
+}
+
+.client-project-chip{
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  min-width: 72px;
+  padding: 7px 10px;
+  border-radius: 999px;
+  border:1px solid rgba(12,18,32,.08);
+  background: rgba(248,250,252,.95);
+  font-size: 12px;
+  font-weight: 700;
+  color: rgba(12,18,32,.8);
+}
+
+.client-project-chip--hours{
+  color: rgb(37,99,235);
+  background: rgba(59,130,246,.08);
+  border-color: rgba(59,130,246,.16);
+}
+
+.client-project-chip--value{
+  color: rgb(22,163,74);
+  background: rgba(34,197,94,.08);
+  border-color: rgba(34,197,94,.16);
+}
+
+.client-project-status{
+  display:inline-flex;
+  align-items:center;
+  padding: 7px 10px;
+  border-radius: 999px;
+  border:1px solid transparent;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.client-project-status--a-fazer,
+.client-project-status--backlog{
+  color: rgb(37,99,235);
+  background: rgba(59,130,246,.10);
+  border-color: rgba(59,130,246,.18);
+}
+
+.client-project-status--em-andamento{
+  color: rgb(194,65,12);
+  background: rgba(249,115,22,.10);
+  border-color: rgba(249,115,22,.18);
+}
+
+.client-project-status--go-live{
+  color: rgb(21,128,61);
+  background: rgba(34,197,94,.12);
+  border-color: rgba(34,197,94,.18);
+}
+
+.client-project-status--concluido{
+  color: rgb(71,85,105);
+  background: rgba(148,163,184,.12);
+  border-color: rgba(148,163,184,.2);
+}
+
+.client-project-status--parado{
+  color: rgb(185,28,28);
+  background: rgba(239,68,68,.10);
+  border-color: rgba(239,68,68,.18);
+}
+
 #modalProjectDetail .modal-card{
   max-height: calc(100vh - 48px);
   display: flex;

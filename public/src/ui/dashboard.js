@@ -33,7 +33,7 @@ export function renderDashboardCards(deps, profile){
 
     if (profile.role === "gestor") {
       cards.push({
-        title: "Usuários (Técnicos)",
+        title: "Técnicos",
         desc: "Cadastre técnicos e vincule às equipes que você administra.",
         badge: "Gestor",
         action: () => openManagerUsersView()

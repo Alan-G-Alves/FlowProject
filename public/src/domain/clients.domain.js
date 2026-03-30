@@ -57,6 +57,31 @@ function esc(s){
     .replace(/'/g,"&#039;");
 }
 
+function formatProjectHours(value){
+  const n = Number(value);
+  return Number.isFinite(n) && n > 0 ? `${n}h` : "—";
+}
+
+function formatProjectValue(value){
+  const n = Number(value);
+  return Number.isFinite(n) && n > 0
+    ? n.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })
+    : "—";
+}
+
+function normalizeProjectStatus(status){
+  const st = String(status || "a-fazer").toLowerCase();
+  const labels = {
+    "a-fazer": "A Fazer",
+    "em-andamento": "Em Andamento",
+    "go-live": "Go Live",
+    "concluido": "Concluido",
+    "parado": "Parado",
+    "backlog": "Backlog",
+  };
+  return { key: st, label: labels[st] || st || "—" };
+}
+
 function canManageClients(state){
   const role = (state?.profile?.role || "").toString();
   return ["admin","gestor","coordenador"].includes(role) || !!state?.isSuperAdmin;
@@ -465,6 +490,18 @@ function bindClientsUiOnce(deps){
   refs.btnCancelClientProjects?.addEventListener("click", (e) => { e.preventDefault(); closeClientProjectsModal(deps); });
   refs.btnCloseClientKeyUsers?.addEventListener("click", (e) => { e.preventDefault(); closeClientKeyUsersModal(deps); });
   refs.btnCancelClientKeyUsers?.addEventListener("click", (e) => { e.preventDefault(); closeClientKeyUsersModal(deps); });
+
+  refs.clientProjectsTbody?.addEventListener("click", async (ev) => {
+    const row = ev.target?.closest?.("[data-open-project-id]");
+    if (!row) return;
+    const projectId = row.getAttribute("data-open-project-id");
+    if (!projectId) return;
+    closeClientProjectsModal(deps);
+    deps.setView?.("myProjects");
+    if (typeof deps.openProjectTab === "function"){
+      await deps.openProjectTab(projectId);
+    }
+  });
 }
 
 function renderClientsTable(deps){
@@ -910,6 +947,7 @@ async function saveClientFromModal(deps){
 async function openClientProjectsModal(deps, client){
   const { refs, state, db } = deps;
   if (!refs.modalClientProjects) return;
+  const summaryEl = document.getElementById("clientProjectsSummary");
 
   // título
   if (refs.clientProjectsTitle){
@@ -918,6 +956,10 @@ async function openClientProjectsModal(deps, client){
 
   if (refs.clientProjectsTbody) refs.clientProjectsTbody.innerHTML = "";
   hide(refs.clientProjectsEmpty);
+  if (summaryEl){
+    summaryEl.innerHTML = "";
+    summaryEl.hidden = true;
+  }
 
   const companyId = state.companyId;
   if (!companyId) return;
@@ -933,17 +975,44 @@ async function openClientProjectsModal(deps, client){
       return;
     }
 
+    const totalHours = items.reduce((sum, p) => sum + (Number(p.billingHours ?? p.hours ?? p.billing?.hours ?? p.cobrancaHoras) || 0), 0);
+    const totalValue = items.reduce((sum, p) => sum + (Number(p.billingValue ?? p.value ?? p.projectValue ?? p.billing?.value ?? p.cobrancaValor) || 0), 0);
+
+    if (summaryEl){
+      summaryEl.innerHTML = `
+        <div class="client-projects-stat">
+          <div class="client-projects-stat-label">Projetos</div>
+          <div class="client-projects-stat-value">${esc(items.length)}</div>
+        </div>
+        <div class="client-projects-stat">
+          <div class="client-projects-stat-label">Horas totais</div>
+          <div class="client-projects-stat-value">${esc(totalHours ? `${totalHours}h` : "—")}</div>
+        </div>
+        <div class="client-projects-stat">
+          <div class="client-projects-stat-label">Valor total</div>
+          <div class="client-projects-stat-value">${esc(totalValue ? formatProjectValue(totalValue) : "—")}</div>
+        </div>
+      `;
+      summaryEl.hidden = false;
+    }
+
     const rows = items.map(p => {
       const name = p.name || p.title || "";
-      const hours = p.totalHours ?? p.hours ?? p.estimatedHours ?? "";
-      const value = p.value ?? p.projectValue ?? p.billingValue ?? "";
-      const status = p.status || "";
+      const hours = p.billingHours ?? p.hours ?? p.billing?.hours ?? p.cobrancaHoras ?? p.totalHours ?? p.estimatedHours ?? "";
+      const value = p.billingValue ?? p.value ?? p.projectValue ?? p.billing?.value ?? p.cobrancaValor ?? "";
+      const status = normalizeProjectStatus(p.status);
+      const team = p.teamName || p.teamLabel || "";
       return `
-        <tr>
-          <td>${esc(name)}</td>
-          <td>${esc(hours === "" ? "—" : hours)}</td>
-          <td>${esc(value === "" ? "—" : value)}</td>
-          <td>${esc(status || "—")}</td>
+        <tr data-open-project-id="${esc(p.id)}" style="cursor:pointer;">
+          <td>
+            <div class="client-project-row-name">
+              <div class="client-project-row-title">${esc(name || "Projeto")}</div>
+              <div class="client-project-row-sub">${esc(team || "Projeto vinculado ao cliente")} • Clique para abrir</div>
+            </div>
+          </td>
+          <td><span class="client-project-chip client-project-chip--hours">${esc(formatProjectHours(hours))}</span></td>
+          <td><span class="client-project-chip client-project-chip--value">${esc(formatProjectValue(value))}</span></td>
+          <td><span class="client-project-status client-project-status--${esc(status.key)}">${esc(status.label)}</span></td>
         </tr>
       `;
     }).join("");

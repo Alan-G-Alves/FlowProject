@@ -107,9 +107,9 @@
 <img alt="" class="nav-ico" src="home.png"/>
 <span class="nav-label">Pagina inicial</span>
 </button>
-<button class="nav-item" data-tooltip="Adicionar tecnico" id="navAddTech">
+<button class="nav-item" data-tooltip="Tecnicos" id="navAddTech">
 <img alt="" class="nav-ico" src="adicionar-tecnico.png"/>
-<span class="nav-label">Adicionar tecnico</span>
+<span class="nav-label">Tecnicos</span>
 </button>
 <button class="nav-item" data-tooltip="Clientes" id="navClients">
 <img alt="" class="nav-ico" src="clientes.png"/>
@@ -267,7 +267,7 @@
 <div class="container">
 <div class="page-header">
 <div>
-<h1>Usuarios (Tecnicos)</h1>
+<h1>Tecnicos</h1>
 <p class="muted">Cadastre tecnicos e vincule as equipes que voce administra.</p>
 </div>
 <div class="chips">
@@ -1740,7 +1740,7 @@
 <!-- MODAL: Projetos do Cliente -->
 <div class="modal" hidden="" id="modalClientProjects">
   <div class="modal-backdrop" data-close="true"></div>
-  <div class="modal-card modal-xl">
+  <div class="modal-card modal-xl client-projects-modal-card">
     <div class="modal-header">
       <div>
         <h2 id="clientProjectsTitle">Projetos</h2>
@@ -1750,7 +1750,9 @@
     </div>
 
     <div class="modal-body">
-      <div class="table" style="overflow:auto;">
+      <div class="client-projects-summary" id="clientProjectsSummary" hidden></div>
+
+      <div class="table client-projects-table-wrap" style="overflow:auto;">
         <table>
           <thead>
             <tr>

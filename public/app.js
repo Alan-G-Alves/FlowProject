@@ -867,6 +867,7 @@ function getClientsDeps(){
     refs,
     state,
     setView,
+    openProjectTab,
   };
 }
 
