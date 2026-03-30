@@ -1619,6 +1619,7 @@ a{ color: inherit; }
 }
 /* My Projects (Kanban) – alinhamento do header e separador do topo */
 #viewMyProjects .container{
+  position: relative;
   max-width: none;
   padding-top: 56px; /* desce o header para NÃO encostar no avatar/topo */
 }
@@ -1754,6 +1755,11 @@ a{ color: inherit; }
 }
 
 .photo-upload-actions{
+  position: absolute;
+  top: 6px;
+  left: 0;
+  right: 0;
+  z-index: 2;
   display:flex;
   align-items:center;
   gap:10px;
@@ -2159,14 +2165,19 @@ a{ color: inherit; }
 /* Project Workspace (aba + painel) */
 .project-workspace-tabs{
   display:flex;
-  align-items:center;
+  align-items:flex-start;
   gap:8px;
-  margin: 0 0 10px 0;
-  min-height: 42px;
+  padding: 33px 18px 0;
+  margin: 0;
+  min-height: 56px;
 }
 
 .project-workspace-tabs:empty{
   display:none;
+}
+
+.project-workspace-tabs:not(:empty) ~ .view .container{
+  padding-top: 2px !important;
 }
 
 .workspace-tab{
@@ -2174,11 +2185,13 @@ a{ color: inherit; }
   align-items:center;
   gap:8px;
   border:1px solid rgba(12,18,32,.12);
+  border-bottom-color: transparent;
   background: rgba(255,255,255,.86);
   border-radius: 12px 12px 0 0;
   padding: 8px 10px;
   cursor:pointer;
   font-weight:700;
+  margin-bottom: -7px;
 }
 
 .workspace-tab.active{

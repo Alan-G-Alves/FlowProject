@@ -600,6 +600,9 @@ function bindOnce(deps){
     if (!tab) return;
     const pid = tab.getAttribute("data-open-tab");
     if (!pid) return;
+    if (refs.viewMyProjects?.hidden && typeof deps.setView === "function"){
+      deps.setView("myProjects");
+    }
     await openProjectWorkspace(pid, deps);
   });
 

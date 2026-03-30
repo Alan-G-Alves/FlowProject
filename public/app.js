@@ -922,6 +922,7 @@ async function saveManagedTeams() {
  *  ========================= */
 const getProjectsDeps = () => ({
   refs, state, db, auth, storage,
+  setView,
   loadProjects, openProjectDetailModal, closeProjectDetailModal,
   openEditProjectModal, closeEditProjectModal, updateProject,
   openCreateProjectModal, closeCreateProjectModal, createProject,
