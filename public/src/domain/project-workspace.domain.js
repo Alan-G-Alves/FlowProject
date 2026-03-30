@@ -24,6 +24,7 @@ let _activities = [];
 let _activityModalBound = false;
 let _activityModalMode = "view";
 let _activityModalActivityId = "";
+let _workspaceAlertDismissBound = false;
 const ACTIVITY_CHIP_COLORS = ["t1", "t2", "t3", "t4", "t5", "t6"];
 
 function setWorkspaceOpenUI(deps, isOpen){
@@ -381,6 +382,34 @@ function closeActivityActionModal(){
   _activityModalActivityId = "";
 }
 
+function isVisibleAlert(el){
+  return Boolean(el && !el.hidden && String(el.textContent || "").trim());
+}
+
+function isInsideProjectTaskActionArea(target, refs){
+  if (!target || !refs) return false;
+  if (refs.projectTaskAlert?.contains?.(target)) return true;
+  if (refs.projectTaskFormWrap && !refs.projectTaskFormWrap.hidden && refs.projectTaskFormWrap.contains(target)) return true;
+  if (refs.btnOpenTaskForm?.contains?.(target)) return true;
+  if (target.closest?.("[data-open-activity-form]")) return true;
+  if (target.closest?.("[data-cancel-activity-form]")) return true;
+  if (target.closest?.("[data-save-activity]")) return true;
+  if (target.closest?.("[data-save-tech-fill]")) return true;
+  if (target.closest?.("[data-activity-tech-select]")) return true;
+  if (target.closest?.("[data-activity-keyuser-select]")) return true;
+  if (target.closest?.("[data-remove-activity-techs]")) return true;
+  if (target.closest?.("[data-remove-activity-keyusers]")) return true;
+  if (target.closest?.("[id^='activityFormWrap-']")) return true;
+  return false;
+}
+
+function isInsideActivityModalActionArea(target, modalRefs){
+  if (!target || !modalRefs?.modal || modalRefs.modal.hidden) return false;
+  if (modalRefs.alert?.contains?.(target)) return true;
+  const card = modalRefs.modal.querySelector(".activity-modal-card");
+  return Boolean(card?.contains?.(target));
+}
+
 function openActivityActionModal(activityId, mode){
   const modalRefs = getActivityActionModalRefs();
   const activity = _activities.find((item) => item.id === activityId);
@@ -690,6 +719,19 @@ function bindOnce(deps){
       keyUserSelect.value = "";
     }
   });
+
+  if (!_workspaceAlertDismissBound){
+    _workspaceAlertDismissBound = true;
+    document.addEventListener("click", (ev) => {
+      const target = ev.target;
+      if (isVisibleAlert(refs.projectTaskAlert) && !isInsideProjectTaskActionArea(target, refs)){
+        clearAlert(refs.projectTaskAlert);
+      }
+      if (isVisibleAlert(activityModalRefs.alert) && !isInsideActivityModalActionArea(target, activityModalRefs)){
+        clearAlert(activityModalRefs.alert);
+      }
+    });
+  }
 }
 
 function clearTaskForm(refs){
