@@ -51,6 +51,7 @@ import * as managerUsersDomain from "./src/domain/manager-users.domain.js?v=1770
 import * as clientsDomain from "./src/domain/clients.domain.js?v=1770332252";
 import * as projectsDomain from "./src/domain/projects.domain.js?v=1770332259";
 import * as projectWorkspaceDomain from "./src/domain/project-workspace.domain.js?v=1770332277";
+import * as reportsDomain from "./src/domain/reports.domain.js?v=1770332251";
 import * as profileModal from "./src/ui/modals/profile.modal.js?v=1770332251";
 import * as topbar from "./src/ui/topbar.js?v=1770332251";
 import * as sidebar from "./src/ui/sidebar.js?v=1770332251";
@@ -336,7 +337,7 @@ function initSidebar(){
   });
   refs.navReports?.addEventListener("click", () => {
     setActiveNav("navReports");
-    alert("Em breve: Relatórios e indicadores");
+    openReportsView();
   });
   refs.navAddTech?.addEventListener("click", () => {
     setActiveNav("navAddTech");
@@ -877,6 +878,14 @@ function openClientsView(){
 
 async function loadClients(){
   await clientsDomain.loadClients(getClientsDeps());
+}
+
+async function openReportsView(){
+  await reportsDomain.openReportsView({ refs, state, db, setView });
+}
+
+async function loadReports(opts = {}){
+  await reportsDomain.loadReports({ refs, state, db, setView }, opts);
 }
 
 function openCreateTechModal() {

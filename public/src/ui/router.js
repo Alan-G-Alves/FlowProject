@@ -9,6 +9,7 @@ const ids = {
   sidebar: "sidebar",
   viewLogin: "viewLogin",
   viewDashboard: "viewDashboard",
+  viewReports: "viewReports",
   viewAdmin: "viewAdmin",
   viewCompanies: "viewCompanies",
   viewManagerUsers: "viewManagerUsers",
@@ -23,6 +24,7 @@ export function setView(name){
   const sidebar = el(ids.sidebar);
   const viewLogin = el(ids.viewLogin);
   const viewDashboard = el(ids.viewDashboard);
+  const viewReports = el(ids.viewReports);
   const viewAdmin = el(ids.viewAdmin);
   const viewCompanies = el(ids.viewCompanies);
   const viewManagerUsers = el(ids.viewManagerUsers);
@@ -42,6 +44,7 @@ export function setView(name){
 
   hide(viewLogin);
   hide(viewDashboard);
+  hide(viewReports);
   hide(viewAdmin);
   hide(viewCompanies);
   hide(viewManagerUsers);
@@ -59,6 +62,7 @@ export function setView(name){
 
   if (name === "login") show(viewLogin);
   if (name === "dashboard") show(viewDashboard);
+  if (name === "reports") show(viewReports);
   if (name === "admin") show(viewAdmin);
   if (name === "companies") show(viewCompanies);
   if (name === "managerUsers") show(viewManagerUsers);

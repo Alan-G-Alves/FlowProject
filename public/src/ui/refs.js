@@ -6,6 +6,7 @@ const byId = (id) => document.getElementById(id);
 // Views
 export const viewLogin = byId("viewLogin");
 export const viewDashboard = byId("viewDashboard");
+export const viewReports = byId("viewReports");
 export const viewAdmin = byId("viewAdmin");
 export const viewCompanies = byId("viewCompanies");
 export const viewManagerUsers = byId("viewManagerUsers");
@@ -62,6 +63,12 @@ export const dashSubtitle = byId("dashSubtitle");
 export const chipTeam = byId("chipTeam");
 export const chipEmail = byId("chipEmail");
 export const dashCards = byId("dashCards");
+export const reportsPeriodFilter = byId("reportsPeriodFilter");
+export const reportsClientFilter = byId("reportsClientFilter");
+export const reportsTeamFilter = byId("reportsTeamFilter");
+export const reportsStatusFilter = byId("reportsStatusFilter");
+export const btnReloadReports = byId("btnReloadReports");
+export const reportsGrid = byId("reportsGrid");
 
 // Companies (master)
 export const companiesGrid = byId("companiesGrid");

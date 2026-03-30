@@ -186,6 +186,42 @@
 </div>
 <div class="grid" id="dashCards"></div>
 </div>
+</section><section class="view" hidden="" id="viewReports">
+<div class="container">
+<div class="page-header">
+<div>
+<h1>Relatorios</h1>
+<p class="muted">Acompanhe indicadores executivos, produtividade e andamento dos projetos.</p>
+</div>
+</div>
+<section class="reports-filter-bar">
+  <div class="reports-filter-set">
+    <label class="field">
+      <span>Periodo</span>
+      <select id="reportsPeriodFilter">
+        <option value="30d">Ultimos 30 dias</option>
+        <option value="90d">Ultimos 90 dias</option>
+        <option value="year">Ultimos 12 meses</option>
+        <option value="all">Historico completo</option>
+      </select>
+    </label>
+    <label class="field">
+      <span>Cliente</span>
+      <select id="reportsClientFilter"></select>
+    </label>
+    <label class="field">
+      <span>Equipe</span>
+      <select id="reportsTeamFilter"></select>
+    </label>
+    <label class="field">
+      <span>Status</span>
+      <select id="reportsStatusFilter"></select>
+    </label>
+  </div>
+  <button class="btn primary" id="btnReloadReports" type="button">Atualizar indicadores</button>
+</section>
+<div class="reports-grid" id="reportsGrid"></div>
+</div>
 </section><!-- ADMIN (empresa) --><section class="view" hidden="" id="viewAdmin">
 <div class="container">
 <div class="page-header">
