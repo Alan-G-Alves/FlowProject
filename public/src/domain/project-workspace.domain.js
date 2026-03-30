@@ -14,6 +14,7 @@ import {
 import { setAlert, clearAlert } from "../ui/alerts.js";
 import { escapeHtml } from "../utils/dom.js";
 import { ensureClientsCache } from "./clients.domain.js";
+import { downloadProjectStatusReportExcel, downloadProjectStatusReportPdf } from "./project-status-report.domain.js";
 
 let _bound = false;
 let _activeProjectId = "";
@@ -882,7 +883,24 @@ function renderCover(refs, project, state){
             <strong>${escapeHtml(endDate)}</strong>
           </div>
         </div>
-        <div class="project-cover-actions" id="projectCoverActionsSlot"></div>
+        <div class="project-cover-actions" id="projectCoverActionsSlot">
+          <button class="icon-btn xs btn-report-pdf" id="btnDownloadStatusReportPdf" type="button" title="Baixar status report em PDF" aria-label="Baixar status report em PDF">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M7 3h7l5 5v11a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2Z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"></path>
+              <path d="M14 3v5h5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"></path>
+              <path d="M8 16h2.2a1.4 1.4 0 0 0 0-2.8H8V18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"></path>
+              <path d="M13 18v-4.8h1.4a1.8 1.8 0 1 1 0 3.6H13" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"></path>
+            </svg>
+          </button>
+          <button class="icon-btn xs btn-report-excel" id="btnDownloadStatusReportExcel" type="button" title="Baixar status report em Excel" aria-label="Baixar status report em Excel">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M7 3h7l5 5v11a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2Z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"></path>
+              <path d="M14 3v5h5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"></path>
+              <path d="m8.5 18 3-5-3-5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"></path>
+              <path d="m14.5 18-3-5 3-5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"></path>
+            </svg>
+          </button>
+        </div>
       </div>
     </div>
     <div class="project-cover-profit-strip">
@@ -937,6 +955,34 @@ function renderCover(refs, project, state){
       if (btn) actionsSlot.appendChild(btn);
     });
   }
+
+  document.getElementById("btnDownloadStatusReportPdf")?.addEventListener("click", async () => {
+    try{
+      await downloadProjectStatusReportPdf({
+        project,
+        tasks: _tasks,
+        activities: _activities,
+        state
+      });
+    }catch(err){
+      console.error("[status-report:pdf]", err);
+      setAlert(refs.projectTaskAlert, err?.message || "Nao foi possivel gerar o status report em PDF.", "error");
+    }
+  });
+
+  document.getElementById("btnDownloadStatusReportExcel")?.addEventListener("click", async () => {
+    try{
+      await downloadProjectStatusReportExcel({
+        project,
+        tasks: _tasks,
+        activities: _activities,
+        state
+      });
+    }catch(err){
+      console.error("[status-report:excel]", err);
+      setAlert(refs.projectTaskAlert, err?.message || "Nao foi possivel gerar o status report em Excel.", "error");
+    }
+  });
 }
 
 function renderBreadcrumb(refs, project){
