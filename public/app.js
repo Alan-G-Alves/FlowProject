@@ -947,6 +947,7 @@ async function openMyProjectsView() {
   }
 
   // ✅ IMPORTANTE: passe deps completos (não só um objeto parcial)
+  projectWorkspaceDomain.closeProjectWorkspace(getProjectsDeps());
   projectsDomain.openMyProjectsView(getProjectsDeps());
 }
 
