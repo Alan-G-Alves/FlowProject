@@ -817,10 +817,10 @@
 <!-- MODAL CRIAR TECNICO (Gestor) -->
 <div class="modal" hidden="" id="modalCreateTech">
 <div class="modal-backdrop" data-close="true"></div>
-<div class="modal-card modal-xl">
-  <div class="modal-header">
+<div class="modal-card modal-xl tech-create-modal-card">
+  <div class="modal-header tech-create-modal-head">
     <div>
-      <h2>Novo Tecnico</h2>
+      <h2 id="createTechTitle">Novo Tecnico</h2>
       <p class="muted">O tecnico sera vinculado automaticamente a todas as equipes do seu escopo.</p>
     </div>
     <button class="btn ghost" id="btnCloseCreateTech" data-close="true" type="button">X</button>
@@ -830,17 +830,21 @@
     <div class="form-sections">
       <div class="form-section">
         <div class="section-title">Dados basicos</div>
-        <div class="tech-photo-row">
-          <div class="tech-avatar-preview" id="techAvatarPreview">
-            <img id="techAvatarPreviewImg" alt="" />
-            <span id="techAvatarPreviewFallback">?</span>
-          </div>
-          <div class="tech-photo-actions photo-upload-actions">
-            <input id="techAvatarFile" class="hidden-file" type="file" accept="image/png,image/jpeg,image/jpg,image/webp" />
-            <label class="btn sm" for="techAvatarFile">Selecionar foto</label>
-            <span class="photo-file-name" id="techPhotoFileName">Nenhum arquivo selecionado</span>
-            <button class="btn ghost sm" id="btnTechRemovePhoto" type="button">Remover foto</button>
-            <div class="muted photo-help">PNG/JPG/WebP ate 2MB.</div>
+        <div class="tech-photo-card">
+          <div class="tech-photo-row">
+            <div class="tech-avatar-preview tech-avatar-preview--lg" id="techAvatarPreview">
+              <img id="techAvatarPreviewImg" alt="" />
+              <span id="techAvatarPreviewFallback">?</span>
+            </div>
+            <div class="tech-photo-actions photo-upload-actions">
+              <div class="tech-photo-actions-row">
+                <input id="techAvatarFile" class="hidden-file" type="file" accept="image/png,image/jpeg,image/jpg,image/webp" />
+                <label class="btn sm" for="techAvatarFile">Selecionar foto</label>
+                <button class="btn ghost sm" id="btnTechRemovePhoto" type="button">Remover foto</button>
+              </div>
+              <span class="photo-file-name" id="techPhotoFileName">Nenhum arquivo selecionado</span>
+              <div class="muted photo-help">PNG/JPG/WebP ate 2MB.</div>
+            </div>
           </div>
         </div>
         <div class="grid" style="grid-template-columns: repeat(12, 1fr); gap:12px;">
@@ -915,7 +919,7 @@
     <div class="alert" hidden id="createTechAlert"></div>
   </div>
 
-  <div class="modal-footer">
+  <div class="modal-footer tech-create-modal-footer">
     <button class="btn primary" id="btnCreateTech" type="button">Salvar</button>
   </div>
 </div>

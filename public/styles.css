@@ -3589,6 +3589,80 @@ button.chip-more{
   align-items:center;
 }
 
+.tech-create-modal-card{
+  border-radius: 22px;
+  border: 1px solid rgba(12,18,32,.08);
+  box-shadow: 0 24px 60px rgba(12,18,32,.18);
+}
+
+.tech-create-modal-head{
+  background:
+    radial-gradient(circle at top left, rgba(59,130,246,.10), transparent 34%),
+    linear-gradient(135deg, rgba(248,250,252,.98), rgba(255,255,255,.94));
+}
+
+.tech-create-modal-head h2{
+  margin: 0;
+  font-size: 32px;
+  letter-spacing: -0.02em;
+}
+
+.tech-create-modal-card .modal-body{
+  padding: 16px 18px;
+}
+
+.tech-create-modal-card .modal-footer{
+  padding: 14px 18px;
+  border-top: 1px solid rgba(12,18,32,.08);
+}
+
+.tech-create-modal-card .form-section{
+  background: linear-gradient(180deg, rgba(255,255,255,.76), rgba(255,255,255,.62));
+  border-radius: 18px;
+  padding: 14px;
+  border: 1px solid rgba(12,18,32,.06);
+}
+
+.tech-photo-card{
+  border: 1px solid rgba(12,18,32,.08);
+  border-radius: 18px;
+  padding: 14px 16px;
+  margin-bottom: 14px;
+  background: linear-gradient(180deg, rgba(247,244,255,.58), rgba(255,255,255,.9));
+}
+
+.tech-photo-row{
+  align-items: center;
+  gap: 16px;
+}
+
+.tech-avatar-preview--lg{
+  width: 84px;
+  height: 84px;
+}
+
+.tech-avatar-preview--lg span{
+  font-size: 28px;
+}
+
+.tech-photo-actions{
+  display:flex;
+  flex-direction:column;
+  align-items:flex-start;
+  gap:8px;
+}
+
+.tech-photo-actions-row{
+  display:flex;
+  align-items:center;
+  gap:10px;
+  flex-wrap:wrap;
+}
+
+.tech-create-modal-footer{
+  justify-content: flex-end;
+}
+
 /* input file escondido (clicamos via botão) */
 input[type="file"].hidden-file{
   position:absolute;
