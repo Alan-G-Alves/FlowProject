@@ -2918,44 +2918,45 @@ a{ color: inherit; }
   margin-left: auto;
 }
 
-.btn-report-pdf,
-.btn-report-excel{
+.project-cover-actions .icon-btn.btn-report-pdf,
+.project-cover-actions .icon-btn.btn-report-excel{
   display:inline-flex;
   align-items:center;
   justify-content:center;
   width:34px;
   height:34px;
-  border:none;
+  border:none !important;
   border-radius:10px;
-  color:#fff;
+  color:#fff !important;
   cursor:pointer;
   transition: transform .18s ease, box-shadow .18s ease, filter .18s ease;
 }
 
-.btn-report-pdf{
-  background: linear-gradient(135deg, rgb(239,68,68), rgb(220,38,38));
-  box-shadow: 0 6px 16px rgba(220,38,38,.25);
+.project-cover-actions .icon-btn.btn-report-pdf{
+  background: linear-gradient(135deg, rgb(239,68,68), rgb(220,38,38)) !important;
+  box-shadow: 0 6px 16px rgba(220,38,38,.25) !important;
 }
 
-.btn-report-excel{
-  background: linear-gradient(135deg, rgb(22,163,74), rgb(21,128,61));
-  box-shadow: 0 6px 16px rgba(21,128,61,.25);
+.project-cover-actions .icon-btn.btn-report-excel{
+  background: linear-gradient(135deg, rgb(22,163,74), rgb(21,128,61)) !important;
+  box-shadow: 0 6px 16px rgba(21,128,61,.25) !important;
 }
 
-.btn-report-pdf:hover,
-.btn-report-excel:hover{
+.project-cover-actions .icon-btn.btn-report-pdf:hover,
+.project-cover-actions .icon-btn.btn-report-excel:hover{
   transform: translateY(-2px);
   filter: brightness(1.03);
+  border:none !important;
 }
 
-.btn-report-pdf svg,
-.btn-report-excel svg{
+.project-cover-actions .icon-btn.btn-report-pdf svg,
+.project-cover-actions .icon-btn.btn-report-excel svg{
   width: 16px;
   height: 16px;
 }
 
-.btn-report-pdf svg *,
-.btn-report-excel svg *{
+.project-cover-actions .icon-btn.btn-report-pdf svg *,
+.project-cover-actions .icon-btn.btn-report-excel svg *{
   stroke: #fff;
   fill: none;
 }
