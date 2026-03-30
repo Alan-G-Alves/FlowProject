@@ -994,7 +994,7 @@ function renderTasks(deps){
       `;
       }).join("");
       return `
-        <details class="activity-group activity-group--nested" ${techIdx === 0 ? "open" : ""}>
+        <details class="activity-group activity-group--nested">
           <summary class="activity-group-summary">
             <div>
               <div class="activity-group-title">${escapeHtml(techGroup.label)}</div>
@@ -1009,7 +1009,7 @@ function renderTasks(deps){
       `;
       }).join("");
       return `
-        <details class="activity-group" ${groupIdx === 0 ? "open" : ""}>
+        <details class="activity-group">
           <summary class="activity-group-summary">
             <div>
               <div class="activity-group-title">${escapeHtml(group.label)}</div>
@@ -1034,7 +1034,7 @@ function renderTasks(deps){
     )).join("");
 
     return `
-      <details class="task-card task-tree ${statusCounters.overdue ? "task-card--overdue" : ""}" ${statusCounters.overdue || !_tasks.indexOf(t) ? "open" : ""}>
+      <details class="task-card task-tree ${statusCounters.overdue ? "task-card--overdue" : ""}">
         <summary class="task-summary">
           <div class="task-summary-main">
             <div class="task-head-main">
