@@ -2165,6 +2165,10 @@ a{ color: inherit; }
   min-height: 42px;
 }
 
+.project-workspace-tabs:empty{
+  display:none;
+}
+
 .workspace-tab{
   display:inline-flex;
   align-items:center;
