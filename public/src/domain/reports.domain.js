@@ -105,6 +105,7 @@ function refsFrom(deps){
     reportTechFilterEndDate: r.reportTechFilterEndDate || byId("reportTechFilterEndDate"),
     reportTechFilterClient: r.reportTechFilterClient || byId("reportTechFilterClient"),
     reportTechFilterProject: r.reportTechFilterProject || byId("reportTechFilterProject"),
+    reportTechFilterActivityStatus: r.reportTechFilterActivityStatus || byId("reportTechFilterActivityStatus"),
     reportTechFilterTech: r.reportTechFilterTech || byId("reportTechFilterTech")
   };
 }
@@ -166,32 +167,13 @@ function buildFilters(cache, refs, state){
 }
 
 function getBaseFilteredData(cache, refs){
-  const period = refs.reportsPeriodFilter?.value || "30d";
-  const clientId = refs.reportsClientFilter?.value || "all";
-  const teamId = refs.reportsTeamFilter?.value || "all";
-  const status = refs.reportsStatusFilter?.value || "all";
-  const { start, end } = getPeriodRange(period);
-
-  const projects = cache.projects.filter((project) => {
-    if (clientId !== "all" && project.clientId !== clientId) return false;
-    if (teamId !== "all" && project.teamId !== teamId) return false;
-    if (status !== "all" && String(project.status || "") !== status) return false;
-    return true;
-  });
-
-  const projectIds = new Set(projects.map((project) => project.id));
-  const tasks = cache.tasks.filter((task) => {
-    if (!projectIds.has(task.projectId)) return false;
-    if (period === "all") return true;
-    return overlap(parseDateOnly(task.startDate), parseDateOnly(task.endDate), start, end);
-  });
-  const activities = cache.activities.filter((activity) => {
-    if (!projectIds.has(activity.projectId)) return false;
-    if (period === "all") return true;
-    return inRange(parseDateOnly(activity.workDate), start, end);
-  });
-
-  return { projects, tasks, activities, period, clients: cache.clients };
+  return {
+    projects: cache.projects.slice(),
+    tasks: cache.tasks.slice(),
+    activities: cache.activities.slice(),
+    period: refs.reportsPeriodFilter?.value || "30d",
+    clients: cache.clients
+  };
 }
 
 function statusInfo(status){
@@ -240,6 +222,7 @@ function defaultWidgetFilters(baseData){
     status: "all",
     projectId: "all",
     techId: "all",
+    activityStatus: "all",
     startDate: startDate.toISOString().slice(0, 10),
     endDate
   };
@@ -290,6 +273,7 @@ function getScopedData(baseData, filters){
   const status = filters?.status || "all";
   const projectId = filters?.projectId || "all";
   const techId = filters?.techId || "all";
+  const activityStatus = filters?.activityStatus || "all";
   const fallbackRange = getPeriodRange(baseData.period || "30d");
   const customStart = parseDateOnly(filters?.startDate);
   const customEnd = parseDateOnly(filters?.endDate);
@@ -320,6 +304,7 @@ function getScopedData(baseData, filters){
     if (period === "all") return true;
     return inRange(parseDateOnly(activity.workDate), start, end);
   }).filter((activity) => {
+    if (activityStatus !== "all" && String(activity.status || "") !== activityStatus) return false;
     if (techId === "all") return true;
     return Array.isArray(activity.techUids) && activity.techUids.includes(techId);
   });
@@ -330,6 +315,7 @@ function getScopedData(baseData, filters){
     tasks,
     activities,
     techId,
+    activityStatus,
     startDate: period === "custom" ? (filters?.startDate || "") : "",
     endDate: period === "custom" ? (filters?.endDate || "") : ""
   };
@@ -481,6 +467,9 @@ function populateTechFilterModal(baseData, refs, state){
       .sort((a, b) => String(a.name || "").localeCompare(String(b.name || "")))
       .map((client) => ({ value: client.id, label: client.name || client.id }))
   ), filters.clientId || "all");
+  if (refs.reportTechFilterActivityStatus){
+    refs.reportTechFilterActivityStatus.value = filters.activityStatus || "all";
+  }
   syncTechFilterProjectOptions(baseData, refs, state);
   syncTechFilterTechOptions(baseData, refs, state);
   syncTechFilterDateFields(refs);
@@ -772,6 +761,7 @@ function bindOnce(deps){
       period: refs.reportTechFilterPeriod?.value || "30d",
       clientId: refs.reportTechFilterClient?.value || "all",
       projectId: refs.reportTechFilterProject?.value || "all",
+      activityStatus: refs.reportTechFilterActivityStatus?.value || "all",
       techId: refs.reportTechFilterTech?.value || "all",
       startDate: refs.reportTechFilterStartDate?.value || "",
       endDate: refs.reportTechFilterEndDate?.value || ""

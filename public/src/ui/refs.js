@@ -78,6 +78,7 @@ export const reportTechFilterStartDate = byId("reportTechFilterStartDate");
 export const reportTechFilterEndDate = byId("reportTechFilterEndDate");
 export const reportTechFilterClient = byId("reportTechFilterClient");
 export const reportTechFilterProject = byId("reportTechFilterProject");
+export const reportTechFilterActivityStatus = byId("reportTechFilterActivityStatus");
 export const reportTechFilterTech = byId("reportTechFilterTech");
 
 // Companies (master)
