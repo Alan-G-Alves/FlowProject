@@ -46,8 +46,8 @@ import { listCompaniesDocs } from "./src/services/companies.service.js";
 import * as refs from "./src/ui/refs.js?v=1770332256";
 import * as companiesDomain from "./src/domain/companies.domain.js?v=1770332251";
 import * as teamsDomain from "./src/domain/teams.domain.js?v=1772614200";
-import * as usersDomain from "./src/domain/users.domain.js?v=1772614200";
-import * as managerUsersDomain from "./src/domain/manager-users.domain.js?v=1770332252";
+import * as usersDomain from "./src/domain/users.domain.js?v=1772614800";
+import * as managerUsersDomain from "./src/domain/manager-users.domain.js?v=1772614800";
 import * as clientsDomain from "./src/domain/clients.domain.js?v=1770332252";
 import * as projectsDomain from "./src/domain/projects.domain.js?v=1770332259";
 import * as projectWorkspaceDomain from "./src/domain/project-workspace.domain.js?v=1770332277";
@@ -830,7 +830,7 @@ function updateAdminSummary(){
 const getUsersDeps = () => ({
   refs, state, db, auth, storage, functions, httpsCallable,
   createUserWithAuthAndResetLink, loadUsers, loadTeams,
-  openManagedTeamsModal, ensureTeamsForChips, renderTeamChips
+  openManagedTeamsModal, ensureTeamsForChips, renderTeamChips, openUserFeedbackModal
 });
 
 async function loadUsers(){
@@ -843,6 +843,10 @@ function openCreateUserModal(){
 
 function closeCreateUserModal(){
   usersDomain.closeCreateUserModal(getUsersDeps());
+}
+
+async function openUserFeedbackModal(user){
+  await managerUsersDomain.openTechFeedbackModal(getManagerUsersDeps(), user);
 }
 
 function renderTeamChips(){
@@ -866,6 +870,7 @@ function getManagerUsersDeps() {
     setView,
     loadTeams,
     loadManagerUsers,
+    loadUsers,
     ensureTeamsForChips,
     createUserWithAuthAndResetLink,
     callHttpFunctionWithAuth,

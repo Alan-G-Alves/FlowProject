@@ -970,7 +970,7 @@ export async function loadManagerUsers(deps) {
 /** =========================
  *  FEEDBACK DO TÉCNICO (Modal)
  *  ========================= */
-async function openTechFeedbackModal(deps, techUser) {
+export async function openTechFeedbackModal(deps, techUser) {
   const { refs, state, db, auth } = deps;
   if (!refs.modalTechFeedback) {
     alert("Modal de feedback não encontrado.");
@@ -1107,7 +1107,8 @@ export async function saveTechFeedback(deps) {
 
     await loadTechFeedbackList(deps);
     setAlert(refs.techFeedbackAlert, "Feedback salvo!", "success");
-    await loadManagerUsers(deps);
+    if (typeof loadManagerUsers === "function") await loadManagerUsers(deps);
+    if (typeof deps.loadUsers === "function") await deps.loadUsers(deps);
   } catch (err) {
     console.error(err);
     setAlert(refs.techFeedbackAlert, "Erro ao salvar feedback: " + (err?.message || err));

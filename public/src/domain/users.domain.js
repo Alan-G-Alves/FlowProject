@@ -306,6 +306,8 @@ function getSortableUsers(users, state) {
         return Array.isArray(u.softSkills) ? u.softSkills.join(", ") : "";
       case "hardSkills":
         return Array.isArray(u.hardSkills) ? u.hardSkills.join(", ") : "";
+      case "feedbackCount":
+        return Number(u.feedbackCount || 0);
       case "teams": {
         const teamIds = Array.isArray(u.teamIds) ? u.teamIds : (u.teamId ? [u.teamId] : []);
         const teamArr = teamIds.map((teamId) => {
@@ -323,8 +325,13 @@ function getSortableUsers(users, state) {
   };
 
   return [...users].sort((a, b) => {
-    const av = String(getValue(a) || "").toLowerCase();
-    const bv = String(getValue(b) || "").toLowerCase();
+    const avRaw = getValue(a);
+    const bvRaw = getValue(b);
+    if (typeof avRaw === "number" || typeof bvRaw === "number") {
+      return ((Number(avRaw) || 0) - (Number(bvRaw) || 0)) * dir;
+    }
+    const av = String(avRaw || "").toLowerCase();
+    const bv = String(bvRaw || "").toLowerCase();
     return av.localeCompare(bv, "pt-BR", { numeric: true, sensitivity: "base" }) * dir;
   });
 }
@@ -356,7 +363,7 @@ function initUsersTableSorting(deps) {
 }
 
 export async function loadUsers(deps) {
-  const { refs, state, db, loadTeams, openManagedTeamsModal } = deps;
+  const { refs, state, db, loadTeams, openManagedTeamsModal, openUserFeedbackModal } = deps;
   if (!refs.usersTbody) return;
 
   refs.usersTbody.innerHTML = "";
@@ -422,6 +429,7 @@ export async function loadUsers(deps) {
       <td>${u.phone || "—"}</td>
       <td>${softSkillsLabel}</td>
       <td>${hardSkillsLabel}</td>
+      <td><button class="btn sm feedback-badge" data-act="feedbackCount">${(u.feedbackCount || 0)}</button></td>
       <td>${teamsLabel}</td>
       <td><span class="badge small status-pill ${u.active === false ? "status-inactive" : "status-active"}">${statusLabel}</span></td>
       <td>
@@ -453,7 +461,7 @@ export async function loadUsers(deps) {
     const rowCells = tr.querySelectorAll("td");
     if (rowCells[5]) rowCells[5].innerHTML = '<div class="chips-mini" data-soft></div>';
     if (rowCells[6]) rowCells[6].innerHTML = '<div class="chips-mini" data-hard></div>';
-    if (rowCells[7]) rowCells[7].innerHTML = '<div class="chips-mini" data-teams></div>';
+    if (rowCells[8]) rowCells[8].innerHTML = '<div class="chips-mini" data-teams></div>';
 
     tr.querySelector('[data-act="edit"]').addEventListener("click", async (ev) => {
       ev.preventDefault();
@@ -474,6 +482,14 @@ export async function loadUsers(deps) {
       if (!confirm(`Deseja ${nextActive ? "ativar" : "inativar"} "${u.name}"?`)) return;
       await updateDoc(doc(db, "companies", state.companyId, "users", u.uid), { active: nextActive });
       await loadUsers(deps);
+    });
+
+    tr.querySelector('[data-act="feedbackCount"]')?.addEventListener("click", async (ev) => {
+      ev.preventDefault();
+      ev.stopPropagation();
+      if (typeof openUserFeedbackModal === "function") {
+        await openUserFeedbackModal(u);
+      }
     });
 
     const softWrap = tr.querySelector("[data-soft]");
