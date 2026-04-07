@@ -44,6 +44,7 @@ let _myProjectsDeps = null;
 let _myProjectsLast = [];
 let _myProjectsSearch = "";
 let _myProjectsSearchInitialized = false;
+let _myProjectsOptions = { onlyMine: false, mode: "mine" };
 
 // Create Project Modal state
 let _createProjectUiInitialized = false;
@@ -562,6 +563,9 @@ function getKanbanRefsSafe(deps) {
   const dom = (id) => document.getElementById(id);
 
   return {
+    myProjectsViewTitle: refs.myProjectsViewTitle || dom("myProjectsViewTitle"),
+    myProjectsViewSubtitle: refs.myProjectsViewSubtitle || dom("myProjectsViewSubtitle"),
+
     // containers kanban (ordem: A Fazer, Em Andamento, Go Live, ConcluÃ­do, Parado, Backlog)
     kanbanTodo: refs.kanbanTodo || dom("kanbanTodo"),
     kanbanInProgress: refs.kanbanInProgress || dom("kanbanInProgress"),
@@ -1402,7 +1406,11 @@ export async function updateProject(deps) {
 /**
  * Abre view Meus Projetos (Kanban)
  */
-export function openMyProjectsView(deps) {
+export function openMyProjectsView(deps, options = {}) {
+  _myProjectsOptions = {
+    onlyMine: options?.onlyMine === true,
+    mode: options?.mode === "all" ? "all" : "mine"
+  };
   setView("myProjects");
   subscribeMyProjects(deps);
 }
@@ -1415,12 +1423,23 @@ export function subscribeMyProjects(deps) {
   const safeDeps = deps || {};
   const state = safeDeps.state || {};
   const db = safeDeps.db;
+  const auth = safeDeps.auth;
+  const refs = getKanbanRefsSafe(safeDeps);
+  const currentUid = auth?.currentUser?.uid || "";
+  const currentRole = (state?.profile?.role || "").toString().toLowerCase();
+  const onlyMine = _myProjectsOptions.onlyMine === true && ["gestor", "admin", "coordenador"].includes(currentRole);
+  const isAllMode = _myProjectsOptions.mode === "all";
 
   // MantÃ©m o deps da view para re-renders (busca, snapshot, etc.)
   _myProjectsDeps = safeDeps;
-
-  const refs = getKanbanRefsSafe(safeDeps);
   initMyProjectsSearchUI(refs);
+
+  if (refs.myProjectsViewTitle) refs.myProjectsViewTitle.textContent = isAllMode ? "Projetos" : "Meus Projetos";
+  if (refs.myProjectsViewSubtitle) {
+    refs.myProjectsViewSubtitle.textContent = isAllMode
+      ? "Visualize e gerencie todos os projetos da empresa em Kanban."
+      : "Visualize e gerencie seus projetos em Kanban.";
+  }
 
   // Se nÃ£o temos os containers do Kanban, nÃ£o tem o que renderizar
   if (!refs.kanbanTodo || !refs.kanbanInProgress || !refs.kanbanDone) {
@@ -1464,7 +1483,12 @@ export function subscribeMyProjects(deps) {
   unsubscribeMyProjectsListener = onSnapshot(
     q,
     (snapshot) => {
-      const projects = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+      const projects = snapshot.docs
+        .map(d => ({ id: d.id, ...d.data() }))
+        .filter((project) => {
+          if (!onlyMine) return true;
+          return (project?.createdBy || "").toString() === currentUid;
+        });
       // Usa refs safe para nÃ£o depender de deps.refs
       _myProjectsLast = projects;
       _renderMyProjectsWithFilter(refs);

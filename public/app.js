@@ -43,13 +43,13 @@ import { auth, secondaryAuth, db, storage, functions, httpsCallable } from "./sr
 import { normalizePhone, normalizeCnpj, slugify } from "./src/utils/format.js";
 import { setAlert, clearAlert, clearInlineAlert, showInlineAlert } from "./src/ui/alerts.js";
 import { listCompaniesDocs } from "./src/services/companies.service.js";
-import * as refs from "./src/ui/refs.js?v=1772622200";
+import * as refs from "./src/ui/refs.js?v=1772624400";
 import * as companiesDomain from "./src/domain/companies.domain.js?v=1770332251";
 import * as teamsDomain from "./src/domain/teams.domain.js?v=1772614200";
 import * as usersDomain from "./src/domain/users.domain.js?v=1772622200";
 import * as managerUsersDomain from "./src/domain/manager-users.domain.js?v=1772622600";
 import * as clientsDomain from "./src/domain/clients.domain.js?v=1770332252";
-import * as projectsDomain from "./src/domain/projects.domain.js?v=1770332259";
+import * as projectsDomain from "./src/domain/projects.domain.js?v=1772625000";
 import * as projectWorkspaceDomain from "./src/domain/project-workspace.domain.js?v=1770332277";
 import * as reportsDomain from "./src/domain/reports.domain.js?v=1770332251";
 import * as profileModal from "./src/ui/modals/profile.modal.js?v=1770332251";
@@ -645,6 +645,8 @@ function renderDashboardCards(profile){
   refs.dashCards.innerHTML = "";
 
   const cards = [];
+  const role = (profile?.role || "").toString().toLowerCase();
+  const canSeeOwnProjectsSplit = ["gestor", "admin", "coordenador"].includes(role);
 
   if (state.isSuperAdmin){
     cards.push({
@@ -656,14 +658,29 @@ function renderDashboardCards(profile){
 
     
 } else {
-    cards.push({
-      title: "Meus Projetos",
-      desc: "Visualize seus projetos em formato Kanban.",
-      badge: "Kanban",
-      action: () => openMyProjectsView()
-    });
+    if (canSeeOwnProjectsSplit) {
+      cards.push({
+        title: "Projetos",
+        desc: "Visualize todos os projetos da empresa.",
+        badge: "Carteira",
+        action: () => openProjectsView()
+      });
+      cards.push({
+        title: "Meus Projetos",
+        desc: "Visualize apenas os projetos criados por voce.",
+        badge: "Kanban",
+        action: () => openMyProjectsView({ onlyMine: true })
+      });
+    } else {
+      cards.push({
+        title: "Meus Projetos",
+        desc: "Visualize seus projetos em formato Kanban.",
+        badge: "Kanban",
+        action: () => openMyProjectsView()
+      });
+    }
 
-    if (profile.role === "gestor") {
+    if (false && role === "gestor") {
       cards.push({
         title: "Usuários (Técnicos)",
         desc: "Cadastre técnicos e vincule às equipes que você administra.",
@@ -672,7 +689,7 @@ function renderDashboardCards(profile){
       });
     }
 
-    if (profile.role === "admin"){
+    if (role === "admin"){
       cards.push({
         title: "Administração",
         desc: "Gerencie equipes e usuários da empresa.",
@@ -977,7 +994,7 @@ async function openProjectTab(projectId) {
   await projectWorkspaceDomain.openProjectTab(projectId, getProjectsDeps());
 }
 
-async function openMyProjectsView() {
+async function openMyProjectsView(options = {}) {
   try{
     await ensureCompanyContext();
   }catch(err){
@@ -988,7 +1005,7 @@ async function openMyProjectsView() {
 
   // ✅ IMPORTANTE: passe deps completos (não só um objeto parcial)
   projectWorkspaceDomain.closeProjectWorkspace(getProjectsDeps());
-  projectsDomain.openMyProjectsView(getProjectsDeps());
+  projectsDomain.openMyProjectsView(getProjectsDeps(), options);
 }
 
 async function loadMyProjects() {
@@ -996,7 +1013,8 @@ async function loadMyProjects() {
 }
 
 function openProjectsView() {
-  projectsDomain.openProjectsView({ loadProjects });
+  projectWorkspaceDomain.closeProjectWorkspace(getProjectsDeps());
+  projectsDomain.openMyProjectsView(getProjectsDeps(), { onlyMine: false, mode: "all" });
 }
 
 async function loadProjects() {
