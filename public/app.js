@@ -1269,6 +1269,7 @@ refs.modalCreateCompany?.addEventListener("click", (e) => {
 refs.modalCompanyDetail?.addEventListener("click", (e) => {
   if (e.target?.dataset?.close === "true") closeCompanyDetailModal();
 });
+refs.companyUsersSearch?.addEventListener("input", () => companiesDomain.handleCompanyUsersSearch(getDeps()));
 
 // Teams events
 refs.btnReloadTeams?.addEventListener("click", () => loadTeams());
