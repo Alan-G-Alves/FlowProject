@@ -362,15 +362,15 @@ function initSidebar(){
   refs.navAddTech?.addEventListener("click", () => {
     setActiveNav("navAddTech");
     // para gestor, já existe tela de técnicos
-    if (state.profile?.role === "gestor") openManagerUsersView();
-    else alert("Acesso restrito: somente Gestor");
+    if (["gestor", "admin"].includes(state.profile?.role)) openManagerUsersView();
+    else alert("Acesso restrito.");
   });
 
   refs.navClients?.addEventListener("click", () => {
     setActiveNav("navClients");
     // mesmos perfis que podem criar tecnicos podem criar clientes
-    if (state.profile?.role === "gestor") openClientsView();
-    else alert("Acesso restrito: somente Gestor");
+    if (["gestor", "admin"].includes(state.profile?.role)) openClientsView();
+    else alert("Acesso restrito.");
   });
 
   refs.navConfig?.addEventListener("click", () => {
