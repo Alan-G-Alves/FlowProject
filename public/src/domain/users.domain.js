@@ -101,9 +101,27 @@ function renderSkillChips(chipsEl, state, key) {
   }
 }
 
-function setupChipInput(inputEl, chipsEl, state, key) {
+function setupChipInput(inputEl, chipsEl, state, key, type) {
   if (!inputEl || !chipsEl) return;
-  renderSkillChips(chipsEl, state, key);
+  const chipTypeClass = type === "hard" ? "chip-hard" : "chip-soft";
+
+  const render = () => {
+    chipsEl.innerHTML = "";
+    for (const item of (state[key] || [])) {
+      const chip = document.createElement("button");
+      chip.type = "button";
+      chip.className = `chip mini removable ${chipTypeClass}`;
+      chip.textContent = item;
+      chip.title = "Clique para remover";
+      chip.addEventListener("click", () => {
+        state[key] = (state[key] || []).filter((value) => normalizeText(value) !== normalizeText(item));
+        render();
+      });
+      chipsEl.appendChild(chip);
+    }
+  };
+
+  render();
   if (inputEl.dataset.bound) return;
   inputEl.dataset.bound = "1";
 
@@ -113,7 +131,7 @@ function setupChipInput(inputEl, chipsEl, state, key) {
     const parts = raw.split(",").map((v) => v.trim()).filter(Boolean);
     state[key] = uniqClean([...(state[key] || []), ...parts]);
     inputEl.value = "";
-    renderSkillChips(chipsEl, state, key);
+    render();
   };
 
   inputEl.addEventListener("keydown", (e) => {
@@ -123,7 +141,7 @@ function setupChipInput(inputEl, chipsEl, state, key) {
     }
     if (e.key === "Backspace" && !inputEl.value && (state[key] || []).length) {
       state[key] = (state[key] || []).slice(0, -1);
-      renderSkillChips(chipsEl, state, key);
+      render();
     }
   });
   inputEl.addEventListener("blur", commit);
@@ -198,8 +216,8 @@ async function waitForCompanyUserDoc(db, companyId, uid, timeoutMs = 4000) {
 function initNewUserRichFields(deps) {
   const { refs, state } = deps;
 
-  setupChipInput(refs.newUserSoftSkillInputEl, refs.newUserSoftSkillChips, state, "_newUserSoftSkillsDraft");
-  setupChipInput(refs.newUserHardSkillInputEl, refs.newUserHardSkillChips, state, "_newUserHardSkillsDraft");
+  setupChipInput(refs.newUserSoftSkillInputEl, refs.newUserSoftSkillChips, state, "_newUserSoftSkillsDraft", "soft");
+  setupChipInput(refs.newUserHardSkillInputEl, refs.newUserHardSkillChips, state, "_newUserHardSkillsDraft", "hard");
 
   if (refs.newUserNameEl && refs.newUserAvatarPreviewFallback && !refs.newUserNameEl.dataset.boundAvatar) {
     refs.newUserNameEl.dataset.boundAvatar = "1";
