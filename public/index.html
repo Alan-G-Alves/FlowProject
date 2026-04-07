@@ -291,6 +291,23 @@
 <button class="btn ghost" id="btnBackFromAdmin">Voltar</button>
 </div>
 </div>
+<section class="admin-overview-grid">
+<article class="admin-overview-card">
+<span class="admin-overview-label">Usuarios</span>
+<strong id="adminUsersCount">0</strong>
+<p class="muted">Total de usuarios cadastrados na empresa.</p>
+</article>
+<article class="admin-overview-card">
+<span class="admin-overview-label">Equipes</span>
+<strong id="adminTeamsCount">0</strong>
+<p class="muted">Equipes ativas e inativas cadastradas.</p>
+</article>
+<article class="admin-overview-card admin-overview-card--warn">
+<span class="admin-overview-label">Usuarios bloqueados</span>
+<strong id="adminBlockedUsersCount">0</strong>
+<p class="muted">Usuarios que estao sem acesso no momento.</p>
+</article>
+</section>
 <!-- EQUIPES -->
 <div class="panel" style="margin-bottom:12px;">
 <div class="row" style="display:flex; gap:10px; align-items:flex-end; flex-wrap:wrap;">
@@ -1780,7 +1797,7 @@
 </section>
 
 
-<script src="./app.js?v=1772613600" type="module"></script>
+<script src="./app.js?v=1772614200" type="module"></script>
 <script>
   // Toggle senha (somente UI)
   document.addEventListener("click", function(e){

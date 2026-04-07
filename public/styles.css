@@ -4596,6 +4596,110 @@ body.is-superadmin #navClients{
   background: rgba(99, 102, 241, 0.2);
 }
 
+.admin-overview-grid{
+  display:grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap:12px;
+  margin-bottom:12px;
+}
+
+.admin-overview-card{
+  border:1px solid rgba(12,18,32,.08);
+  border-radius:20px;
+  padding:18px 20px;
+  background:
+    radial-gradient(circle at top right, rgba(59,130,246,.10), transparent 34%),
+    linear-gradient(180deg, rgba(255,255,255,.96), rgba(248,250,252,.92));
+  box-shadow: 0 18px 45px rgba(12,18,32,.06);
+}
+
+.admin-overview-card strong{
+  display:block;
+  margin-top:10px;
+  font-size:34px;
+  line-height:1;
+  letter-spacing:-0.03em;
+  color: rgba(12,18,32,.92);
+}
+
+.admin-overview-label{
+  font-size:12px;
+  font-weight:800;
+  letter-spacing:.14em;
+  text-transform:uppercase;
+  color: rgba(12,18,32,.56);
+}
+
+.admin-overview-card--warn{
+  background:
+    radial-gradient(circle at top right, rgba(239,68,68,.10), transparent 34%),
+    linear-gradient(180deg, rgba(255,255,255,.96), rgba(254,242,242,.92));
+}
+
+.admin-team-card{
+  padding:18px;
+  border-radius:20px;
+  background:
+    radial-gradient(circle at top right, rgba(119,59,246,.08), transparent 30%),
+    linear-gradient(180deg, rgba(255,255,255,.98), rgba(248,250,252,.92));
+}
+
+.admin-team-card .title{
+  margin-bottom:4px;
+}
+
+.admin-team-card .desc{
+  margin-top:0;
+}
+
+.admin-team-stats{
+  margin-top:16px;
+  display:grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap:10px;
+}
+
+.admin-team-stat{
+  border:1px solid rgba(12,18,32,.08);
+  border-radius:16px;
+  padding:10px 12px;
+  background: rgba(255,255,255,.82);
+}
+
+.admin-team-stat-label{
+  display:block;
+  font-size:11px;
+  font-weight:800;
+  letter-spacing:.12em;
+  text-transform:uppercase;
+  color: rgba(12,18,32,.52);
+}
+
+.admin-team-stat strong{
+  display:block;
+  margin-top:6px;
+  font-size:20px;
+  color: rgba(12,18,32,.9);
+}
+
+.admin-team-meta{
+  margin-top:14px;
+  display:flex;
+  align-items:center;
+  gap:8px;
+  flex-wrap:wrap;
+}
+
+@media (max-width: 900px){
+  .admin-overview-grid{
+    grid-template-columns:1fr;
+  }
+
+  .admin-team-stats{
+    grid-template-columns:1fr;
+  }
+}
+
 /* +N / ver menos (expandir skills) */
 .chip-more{
   cursor: pointer;

@@ -159,6 +159,11 @@ export const addUsersTeamName = byId("addUsersTeamName");
 export const addUsersToTeamList = byId("addUsersToTeamList");
 export const addUsersToTeamAlert = byId("addUsersToTeamAlert");
 
+// Admin overview
+export const adminUsersCount = byId("adminUsersCount");
+export const adminTeamsCount = byId("adminTeamsCount");
+export const adminBlockedUsersCount = byId("adminBlockedUsersCount");
+
 // Users
 export const usersTbody = byId("usersTbody");
 export const usersEmpty = byId("usersEmpty");

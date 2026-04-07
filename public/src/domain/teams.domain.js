@@ -22,7 +22,7 @@ import { humanizeRole } from "../utils/roles.js";
  *  ========================= */
 
 export async function loadTeams(deps) {
-  const { refs, state, db, openTeamDetailsModal } = deps;
+  const { refs, state, db, openTeamDetailsModal, updateAdminSummary } = deps;
   if (!refs.teamsGrid) return;
 
   refs.teamsGrid.innerHTML = "";
@@ -30,6 +30,14 @@ export async function loadTeams(deps) {
 
   const snap = await getDocs(collection(db, "companies", state.companyId, "teams"));
   const all = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+  state._teamsAllCache = all.slice();
+
+  let companyUsers = Array.isArray(state._usersCache) ? state._usersCache : [];
+  if (!companyUsers.length) {
+    const usersSnap = await getDocs(collection(db, "companies", state.companyId, "users"));
+    companyUsers = usersSnap.docs.map(d => ({ uid: d.id, ...d.data() }));
+    state._usersCache = companyUsers;
+  }
 
   const q = (refs.teamSearch?.value || "").toLowerCase().trim();
   const filtered = !q ? all : all.filter(t =>
@@ -38,6 +46,7 @@ export async function loadTeams(deps) {
   );
 
   state.teams = filtered.sort((a, b) => (a.name || "").localeCompare(b.name || ""));
+  if (typeof updateAdminSummary === "function") updateAdminSummary(deps);
 
   if (state.teams.length === 0) {
     show(refs.teamsEmpty);
@@ -45,13 +54,35 @@ export async function loadTeams(deps) {
   }
 
   for (const t of state.teams) {
+    const teamUsers = companyUsers.filter((u) => {
+      const teamIds = Array.isArray(u.teamIds) ? u.teamIds : (u.teamId ? [u.teamId] : []);
+      return teamIds.includes(t.id);
+    });
+    const activeCount = teamUsers.filter((u) => u.active !== false).length;
+    const blockedCount = teamUsers.filter((u) => u.active === false).length;
+    const isActive = t.active !== false;
     const el = document.createElement("div");
-    el.className = "card";
+    el.className = "card admin-team-card";
     el.innerHTML = `
       <h3 class="title">${t.name || t.id}</h3>
       <p class="desc">ID: <b>${t.id}</b></p>
-      <div class="meta">
-        <span class="badge">${t.active === false ? "Inativa" : "Ativa"}</span>
+      <div class="admin-team-stats">
+        <div class="admin-team-stat">
+          <span class="admin-team-stat-label">Usuarios</span>
+          <strong>${teamUsers.length}</strong>
+        </div>
+        <div class="admin-team-stat">
+          <span class="admin-team-stat-label">Ativos</span>
+          <strong>${activeCount}</strong>
+        </div>
+        <div class="admin-team-stat">
+          <span class="admin-team-stat-label">Bloqueados</span>
+          <strong>${blockedCount}</strong>
+        </div>
+      </div>
+      <div class="admin-team-meta">
+        <span class="badge small status-pill ${isActive ? "status-active" : "status-inactive"}">${isActive ? "Ativa" : "Inativa"}</span>
+        <span class="chip mini chip-team">${teamUsers.length ? `${teamUsers.length} usuario(s)` : "Sem usuarios"}</span>
       </div>
     `;
     el.addEventListener("click", async () => {

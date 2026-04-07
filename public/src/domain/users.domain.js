@@ -278,6 +278,17 @@ function initNewUserRichFields(deps) {
  *  USERS DOMAIN (Admin da Empresa)
  *  ========================= */
 
+export function updateAdminSummary(deps) {
+  const { refs, state } = deps;
+  const allUsers = Array.isArray(state._usersCache) ? state._usersCache : [];
+  const allTeams = Array.isArray(state._teamsAllCache) ? state._teamsAllCache : (Array.isArray(state.teams) ? state.teams : []);
+  const blockedUsers = allUsers.filter((u) => u.active === false).length;
+
+  if (refs.adminUsersCount) refs.adminUsersCount.textContent = String(allUsers.length);
+  if (refs.adminTeamsCount) refs.adminTeamsCount.textContent = String(allTeams.length);
+  if (refs.adminBlockedUsersCount) refs.adminBlockedUsersCount.textContent = String(blockedUsers);
+}
+
 function getSortableUsers(users, state) {
   const sortKey = state?._usersSortKey || "name";
   const sortDir = state?._usersSortDir === "desc" ? "desc" : "asc";
@@ -357,6 +368,7 @@ export async function loadUsers(deps) {
   const q = (refs.userSearch?.value || "").toLowerCase().trim();
 
   state._usersCache = all;
+  updateAdminSummary(deps);
 
   const filtered = all.filter(u => {
     const text = `${u.uid} ${u.name || ""} ${u.email || ""} ${u.phone || ""}`.toLowerCase();

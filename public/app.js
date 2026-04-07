@@ -45,8 +45,8 @@ import { setAlert, clearAlert, clearInlineAlert, showInlineAlert } from "./src/u
 import { listCompaniesDocs } from "./src/services/companies.service.js";
 import * as refs from "./src/ui/refs.js?v=1770332256";
 import * as companiesDomain from "./src/domain/companies.domain.js?v=1770332251";
-import * as teamsDomain from "./src/domain/teams.domain.js?v=1770332251";
-import * as usersDomain from "./src/domain/users.domain.js?v=1772613600";
+import * as teamsDomain from "./src/domain/teams.domain.js?v=1772614200";
+import * as usersDomain from "./src/domain/users.domain.js?v=1772614200";
 import * as managerUsersDomain from "./src/domain/manager-users.domain.js?v=1770332252";
 import * as clientsDomain from "./src/domain/clients.domain.js?v=1770332252";
 import * as projectsDomain from "./src/domain/projects.domain.js?v=1770332259";
@@ -769,7 +769,7 @@ async function createCompany() {
 const getTeamsDeps = () => ({
   refs, state, db, auth,
   loadTeams, openTeamDetailsModal, loadTeamMembers, removeUserFromTeam,
-  loadUsers, loadManagerUsers, renderTeamChips, getNextTeamId
+  loadUsers, loadManagerUsers, renderTeamChips, getNextTeamId, updateAdminSummary
 });
 
 function openAdminView(){
@@ -818,6 +818,10 @@ function closeCreateTeamModal(){
 
 async function createTeam(){
   await teamsDomain.createTeam(getTeamsDeps());
+}
+
+function updateAdminSummary(){
+  usersDomain.updateAdminSummary(getUsersDeps());
 }
 
 /** =========================
