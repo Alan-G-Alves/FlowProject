@@ -363,10 +363,6 @@ export async function loadUsers(deps) {
               </svg>
             </button>
           </div>
-          <div class="action-meta">
-            ${u.role === "gestor" ? `<button class="btn sm link" data-act="managed">Equipes gerenciadas</button>` : ""}
-            ${u.role !== "admin" ? `<button class="btn sm link" data-act="edit-teams">Equipes</button>` : ""}
-          </div>
         </div>
       </td>
     `;
@@ -397,8 +393,6 @@ export async function loadUsers(deps) {
       await loadUsers(deps);
     });
 
-    const btnManaged = tr.querySelector('[data-act="managed"]');
-    const btnEditTeams = tr.querySelector('[data-act="edit-teams"]');
     const softWrap = tr.querySelector("[data-soft]");
     const hardWrap = tr.querySelector("[data-hard]");
     const teamsWrap = tr.querySelector("[data-teams]");
@@ -448,18 +442,6 @@ export async function loadUsers(deps) {
     renderMiniChips(softWrap, softArr, "soft");
     renderMiniChips(hardWrap, hardArr, "hard");
     renderMiniChips(teamsWrap, teamsArr, "teams");
-    if (btnManaged) {
-      btnManaged.addEventListener("click", async () => {
-        await loadTeams();
-        openManagedTeamsModal(u.uid, u.name);
-      });
-    }
-    if (btnEditTeams) {
-      btnEditTeams.addEventListener("click", async () => {
-        await loadTeams();
-        openEditUserTeamsModal(u.uid, u.name, teamIds, deps);
-      });
-    }
     refs.usersTbody.appendChild(tr);
   }
 }
