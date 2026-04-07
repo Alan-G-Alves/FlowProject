@@ -291,6 +291,8 @@ export async function loadUsers(deps) {
     const teamIds = Array.isArray(u.teamIds) ? u.teamIds : (u.teamId ? [u.teamId] : []);
     const teamsLabel = teamIds.length ? teamIds.join(", ") : "—";
     const statusLabel = (u.active === false) ? "Inativo" : "Ativo";
+    const softSkillsLabel = Array.isArray(u.softSkills) && u.softSkills.length ? u.softSkills.join(", ") : "â€”";
+    const hardSkillsLabel = Array.isArray(u.hardSkills) && u.hardSkills.length ? u.hardSkills.join(", ") : "â€”";
     const photoURL = String(u.photoURL || "").trim();
     const avatarHtml = photoURL
       ? `<span class="tech-avatar"><img src="${photoURL}" alt="Foto de ${u.name || "usuario"}" loading="lazy" /></span>`
@@ -311,6 +313,8 @@ export async function loadUsers(deps) {
       <td>${normalizeRole(u.role)}</td>
       <td>${u.email || "—"}</td>
       <td>${u.phone || "—"}</td>
+      <td>${softSkillsLabel}</td>
+      <td>${hardSkillsLabel}</td>
       <td>${teamsLabel}</td>
       <td><span class="badge small">${statusLabel}</span></td>
       <td>
@@ -320,6 +324,10 @@ export async function loadUsers(deps) {
       </td>
     `;
 
+    const rowCells = tr.querySelectorAll("td");
+    if (rowCells[5]) rowCells[5].innerHTML = '<div class="chips-mini" data-soft></div>';
+    if (rowCells[6]) rowCells[6].innerHTML = '<div class="chips-mini" data-hard></div>';
+
     tr.querySelector('[data-act="toggle"]').addEventListener("click", async () => {
       const nextActive = (u.active === false);
       if (!confirm(`Deseja ${nextActive ? "ativar" : "inativar"} "${u.name}"?`)) return;
@@ -328,6 +336,52 @@ export async function loadUsers(deps) {
     });
 
     const btnManaged = tr.querySelector('[data-act="managed"]');
+    const softWrap = tr.querySelector("[data-soft]");
+    const hardWrap = tr.querySelector("[data-hard]");
+    const softArr = Array.isArray(u.softSkills) ? u.softSkills : [];
+    const hardArr = Array.isArray(u.hardSkills) ? u.hardSkills : [];
+
+    const renderMiniChips = (wrap, arr, type) => {
+      if (!wrap) return;
+      wrap.innerHTML = "";
+      const limit = 4;
+      const expanded = (wrap.dataset.expanded === "1");
+      if (!arr.length) {
+        const empty = document.createElement("span");
+        empty.className = "muted";
+        empty.style.fontSize = "12px";
+        empty.textContent = "—";
+        wrap.appendChild(empty);
+        wrap.dataset.expanded = "0";
+        return;
+      }
+
+      const visible = expanded ? arr : arr.slice(0, limit);
+      for (const value of visible) {
+        const chip = document.createElement("span");
+        chip.className = `chip mini ${type === "hard" ? "chip-hard" : "chip-soft"}`;
+        chip.textContent = value;
+        wrap.appendChild(chip);
+      }
+
+      if (arr.length > limit) {
+        const moreBtn = document.createElement("button");
+        moreBtn.type = "button";
+        moreBtn.className = `chip mini chip-more ${type === "hard" ? "chip-hard" : "chip-soft"}`;
+        moreBtn.textContent = expanded ? "ver menos" : `+${arr.length - limit}`;
+        moreBtn.title = expanded ? "Recolher" : "Ver todas";
+        moreBtn.addEventListener("click", (ev) => {
+          ev.preventDefault();
+          ev.stopPropagation();
+          wrap.dataset.expanded = (wrap.dataset.expanded === "1") ? "0" : "1";
+          renderMiniChips(wrap, arr, type);
+        });
+        wrap.appendChild(moreBtn);
+      }
+    };
+
+    renderMiniChips(softWrap, softArr, "soft");
+    renderMiniChips(hardWrap, hardArr, "hard");
     if (btnManaged) {
       btnManaged.addEventListener("click", async () => {
         await loadTeams();
