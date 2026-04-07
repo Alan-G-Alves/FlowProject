@@ -399,10 +399,11 @@ export async function loadUsers(deps) {
     const tr = document.createElement("tr");
 
     const teamIds = Array.isArray(u.teamIds) ? u.teamIds : (u.teamId ? [u.teamId] : []);
-    const teamArr = teamIds.map((teamId) => {
+    const teamObjects = teamIds.map((teamId) => {
       const team = (state.teams || []).find((item) => item.id === teamId);
-      return team?.name || teamId;
+      return { id: teamId, label: team?.name || teamId };
     });
+    const teamArr = teamObjects.map((item) => item.label);
     const teamsLabel = teamIds.length ? teamIds.join(", ") : "—";
     const statusLabel = (u.active === false) ? "Inativo" : "Ativo";
     const softSkillsLabel = Array.isArray(u.softSkills) && u.softSkills.length ? u.softSkills.join(", ") : "â€”";
@@ -497,7 +498,7 @@ export async function loadUsers(deps) {
     const teamsWrap = tr.querySelector("[data-teams]");
     const softArr = Array.isArray(u.softSkills) ? u.softSkills : [];
     const hardArr = Array.isArray(u.hardSkills) ? u.hardSkills : [];
-    const teamsArr = teamArr;
+    const teamsArr = teamObjects;
 
     const renderMiniChips = (wrap, arr, type) => {
       if (!wrap) return;
@@ -516,9 +517,35 @@ export async function loadUsers(deps) {
 
       const visible = expanded ? arr : arr.slice(0, limit);
       for (const value of visible) {
-        const chip = document.createElement("span");
-        chip.className = `chip mini ${type === "hard" ? "chip-hard" : (type === "teams" ? "chip-team" : "chip-soft")}`;
-        chip.textContent = value;
+        const chip = document.createElement(type === "teams" ? "button" : "span");
+        chip.className = `chip mini ${type === "hard" ? "chip-hard" : (type === "teams" ? "chip-team removable" : "chip-soft")}`;
+        if (type === "teams") {
+          chip.type = "button";
+          chip.title = `Remover da equipe ${value.label}`;
+          chip.innerHTML = `<span>${value.label}</span><span class="chip-removable-x">x</span>`;
+          chip.addEventListener("click", async (ev) => {
+            ev.preventDefault();
+            ev.stopPropagation();
+
+            const currentTeamIds = Array.isArray(u.teamIds) ? u.teamIds.slice() : (u.teamId ? [u.teamId] : []);
+            const nextTeamIds = currentTeamIds.filter((teamId) => teamId !== value.id);
+
+            if (u.role !== "admin" && nextTeamIds.length === 0) {
+              alert("Este usuario precisa permanecer com pelo menos 1 equipe.");
+              return;
+            }
+            if (!confirm(`Remover "${u.name}" da equipe "${value.label}"?`)) return;
+
+            await updateDoc(doc(db, "companies", state.companyId, "users", u.uid), {
+              teamIds: nextTeamIds,
+              teamId: nextTeamIds[0] || ""
+            });
+            await loadUsers(deps);
+            if (typeof loadTeams === "function") await loadTeams();
+          });
+        } else {
+          chip.textContent = value;
+        }
         wrap.appendChild(chip);
       }
 
