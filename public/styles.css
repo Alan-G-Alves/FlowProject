@@ -1319,6 +1319,11 @@ a{ color: inherit; }
   display:block;
 }
 
+body.is-superadmin #navAddTech,
+body.is-superadmin #navClients{
+  display: none !important;
+}
+
 /* tooltip (quando recolhido) */
 .sidebar:not(.expanded) .nav-item::after{
   content: attr(data-tooltip);

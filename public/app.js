@@ -286,8 +286,28 @@ async function callHttpFunctionWithAuth(functionName, payload){
 function setActiveNav(activeId){
   const items = [refs.navHome, refs.navAddTech, refs.navClients, refs.navReports, refs.navConfig].filter(Boolean);
   for (const el of items){
+    if (el.hidden) {
+      el.classList.remove("active");
+      continue;
+    }
     const isActive = el.id === activeId;
     el.classList.toggle("active", isActive);
+  }
+}
+
+function syncSidebarForRole(){
+  const isSuperAdmin = !!state.isSuperAdmin;
+  const sidebarSep = document.querySelector(".sidebar-nav .sidebar-sep");
+
+  document.body.classList.toggle("is-superadmin", isSuperAdmin);
+  if (refs.navAddTech) refs.navAddTech.hidden = isSuperAdmin;
+  if (refs.navClients) refs.navClients.hidden = isSuperAdmin;
+  if (refs.navAddTech) refs.navAddTech.style.display = isSuperAdmin ? "none" : "";
+  if (refs.navClients) refs.navClients.style.display = isSuperAdmin ? "none" : "";
+  if (sidebarSep) sidebarSep.hidden = false;
+
+  if (isSuperAdmin) {
+    setActiveNav("navHome");
   }
 }
 
@@ -357,6 +377,7 @@ function initSidebar(){
     setActiveNav("navConfig");
     alert("Em breve: Configurações");
   });
+  syncSidebarForRole();
 }
 
 /** =========================
@@ -1054,6 +1075,7 @@ onAuthStateChanged(auth, async (user) => {
       state.isSuperAdmin = true;
       state.profile = platformUser;
 
+      syncSidebarForRole();
       renderTopbar(platformUser, user);
       renderDashboardCards(platformUser);
       setView("dashboard");
@@ -1093,6 +1115,7 @@ onAuthStateChanged(auth, async (user) => {
 
     state.profile = profile;
 
+    syncSidebarForRole();
     renderTopbar(profile, user);
     renderDashboardCards(profile);
     setView("dashboard");
