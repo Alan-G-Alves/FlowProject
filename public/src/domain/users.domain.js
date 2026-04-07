@@ -5,12 +5,14 @@ import {
   doc,
   collection,
   getDocs,
+  getDoc,
   setDoc,
   updateDoc,
   serverTimestamp,
   query,
   where
 } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore.js";
+import { getDownloadURL, ref as storageRef, uploadBytes, deleteObject } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-storage.js";
 import { show, hide } from "../utils/dom.js";
 import { setAlert, clearAlert } from "../ui/alerts.js";
 import { normalizeRole } from "../utils/roles.js";
@@ -42,6 +44,214 @@ function setAlertWithResetLink(alertEl, msg, email, resetLink) {
       alert("Não consegui copiar automaticamente. Copie manualmente pelo navegador.");
     }
   });
+}
+
+function normalizeText(v) {
+  return (v || "")
+    .toString()
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .trim();
+}
+
+function initialsFromName(name) {
+  const n = (name || "").trim();
+  if (!n) return "?";
+  const parts = n.split(/\s+/).filter(Boolean);
+  const a = parts[0]?.[0] || "";
+  const b = parts.length > 1 ? (parts[parts.length - 1]?.[0] || "") : (parts[0]?.[1] || "");
+  return (a + b).toUpperCase();
+}
+
+function uniqClean(list) {
+  const seen = new Set();
+  const out = [];
+  for (const item of (Array.isArray(list) ? list : [])) {
+    const value = String(item || "").trim();
+    const key = normalizeText(value);
+    if (!value || !key || seen.has(key)) continue;
+    seen.add(key);
+    out.push(value);
+  }
+  return out;
+}
+
+function readChipsText(chipsEl) {
+  if (!chipsEl) return [];
+  return Array.from(chipsEl.querySelectorAll(".chip"))
+    .map((el) => (el.textContent || "").trim())
+    .filter(Boolean);
+}
+
+function renderSkillChips(chipsEl, state, key) {
+  if (!chipsEl) return;
+  chipsEl.innerHTML = "";
+
+  for (const item of (state[key] || [])) {
+    const chip = document.createElement("button");
+    chip.type = "button";
+    chip.className = "chip";
+    chip.textContent = item;
+    chip.addEventListener("click", () => {
+      state[key] = (state[key] || []).filter((value) => normalizeText(value) !== normalizeText(item));
+      renderSkillChips(chipsEl, state, key);
+    });
+    chipsEl.appendChild(chip);
+  }
+}
+
+function setupChipInput(inputEl, chipsEl, state, key) {
+  if (!inputEl || !chipsEl) return;
+  renderSkillChips(chipsEl, state, key);
+  if (inputEl.dataset.bound) return;
+  inputEl.dataset.bound = "1";
+
+  const commit = () => {
+    const raw = (inputEl.value || "").trim();
+    if (!raw) return;
+    const parts = raw.split(",").map((v) => v.trim()).filter(Boolean);
+    state[key] = uniqClean([...(state[key] || []), ...parts]);
+    inputEl.value = "";
+    renderSkillChips(chipsEl, state, key);
+  };
+
+  inputEl.addEventListener("keydown", (e) => {
+    if (e.key === "Enter" || e.key === ",") {
+      e.preventDefault();
+      commit();
+    }
+    if (e.key === "Backspace" && !inputEl.value && (state[key] || []).length) {
+      state[key] = (state[key] || []).slice(0, -1);
+      renderSkillChips(chipsEl, state, key);
+    }
+  });
+  inputEl.addEventListener("blur", commit);
+}
+
+function setNewUserPhotoFileName(refs, label) {
+  if (!refs?.newUserPhotoFileName) return;
+  refs.newUserPhotoFileName.textContent = label || "Nenhum arquivo selecionado";
+}
+
+async function uploadAvatarForUser(deps, uid, file) {
+  const { storage } = deps;
+  if (!storage || !uid || !file) return "";
+
+  const maxMb = 2;
+  const allowed = ["image/png", "image/jpeg", "image/jpg", "image/webp"];
+  const type = (file.type || "").toLowerCase();
+  if (!allowed.includes(type)) throw new Error("Formato invalido. Use PNG/JPG/WEBP.");
+  if (file.size > maxMb * 1024 * 1024) throw new Error(`A imagem e muito grande (max. ${maxMb}MB).`);
+
+  const ref = storageRef(storage, `avatars/${uid}`);
+  await uploadBytes(ref, file, { contentType: file.type || "image/jpeg" });
+  return await getDownloadURL(ref);
+}
+
+async function uploadTempAvatarForDraft(deps, file) {
+  const { storage, state, auth } = deps;
+  if (!storage || !file) return { tempAvatarPath: "", tempAvatarURL: "" };
+
+  const maxMb = 2;
+  const allowed = ["image/png", "image/jpeg", "image/jpg", "image/webp"];
+  const type = (file.type || "").toLowerCase();
+  if (!allowed.includes(type)) throw new Error("Formato invalido. Use PNG/JPG/WEBP.");
+  if (file.size > maxMb * 1024 * 1024) throw new Error(`A imagem e muito grande (max. ${maxMb}MB).`);
+
+  const user = auth?.currentUser;
+  if (!user) throw new Error("Nao autenticado.");
+  const companyId = (state?.companyId || "").trim();
+  if (!companyId) throw new Error("Empresa nao definida.");
+
+  const tempId = `${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+  const tempAvatarPath = `tempAvatars/${companyId}/${user.uid}/${tempId}`;
+  const ref = storageRef(storage, tempAvatarPath);
+  await uploadBytes(ref, file, { contentType: file.type || "image/jpeg" });
+  const tempAvatarURL = await getDownloadURL(ref);
+  return { tempAvatarPath, tempAvatarURL };
+}
+
+async function deleteTempAvatarIfAny(deps) {
+  const { storage, state } = deps;
+  const path = (state?._newUserTempAvatarPath || "").trim();
+  if (!storage || !path) return;
+  try {
+    await deleteObject(storageRef(storage, path));
+  } catch (_) {}
+  state._newUserTempAvatarPath = "";
+  state._newUserTempAvatarURL = "";
+}
+
+async function waitForCompanyUserDoc(db, companyId, uid, timeoutMs = 4000) {
+  const started = Date.now();
+  while (Date.now() - started < timeoutMs) {
+    try {
+      const snap = await getDoc(doc(db, "companies", companyId, "users", uid));
+      if (snap.exists()) return true;
+    } catch (_) {}
+    await new Promise((resolve) => setTimeout(resolve, 250));
+  }
+  return false;
+}
+
+function initNewUserRichFields(deps) {
+  const { refs, state } = deps;
+
+  setupChipInput(refs.newUserSoftSkillInputEl, refs.newUserSoftSkillChips, state, "_newUserSoftSkillsDraft");
+  setupChipInput(refs.newUserHardSkillInputEl, refs.newUserHardSkillChips, state, "_newUserHardSkillsDraft");
+
+  if (refs.newUserNameEl && refs.newUserAvatarPreviewFallback && !refs.newUserNameEl.dataset.boundAvatar) {
+    refs.newUserNameEl.dataset.boundAvatar = "1";
+    refs.newUserNameEl.addEventListener("input", () => {
+      if (refs.newUserAvatarPreviewImg && refs.newUserAvatarPreviewImg.style.display !== "none") return;
+      refs.newUserAvatarPreviewFallback.textContent = initialsFromName(refs.newUserNameEl.value);
+    });
+  }
+
+  if (refs.newUserAvatarFileEl && !refs.newUserAvatarFileEl.dataset.bound) {
+    refs.newUserAvatarFileEl.dataset.bound = "1";
+    refs.newUserAvatarFileEl.addEventListener("change", async (e) => {
+      const file = e.target.files && e.target.files[0];
+      if (!file) return;
+      setNewUserPhotoFileName(refs, file.name || "Arquivo selecionado");
+      await deleteTempAvatarIfAny(deps);
+      state._newUserAvatarFile = file;
+      setAlert(refs.createUserAlert, "Enviando foto...", "info");
+      try {
+        const { tempAvatarPath, tempAvatarURL } = await uploadTempAvatarForDraft(deps, file);
+        state._newUserTempAvatarPath = tempAvatarPath;
+        state._newUserTempAvatarURL = tempAvatarURL;
+        if (refs.newUserAvatarPreviewImg) {
+          refs.newUserAvatarPreviewImg.src = tempAvatarURL;
+          refs.newUserAvatarPreviewImg.style.display = "block";
+        }
+        if (refs.newUserAvatarPreviewFallback) refs.newUserAvatarPreviewFallback.textContent = "";
+        clearAlert(refs.createUserAlert);
+      } catch (err) {
+        state._newUserTempAvatarPath = "";
+        state._newUserTempAvatarURL = "";
+        setAlert(refs.createUserAlert, "Nao foi possivel enviar a foto: " + (err?.message || err), "error");
+      }
+      e.target.value = "";
+    });
+  }
+
+  if (refs.btnNewUserRemovePhoto && !refs.btnNewUserRemovePhoto.dataset.bound) {
+    refs.btnNewUserRemovePhoto.dataset.bound = "1";
+    refs.btnNewUserRemovePhoto.addEventListener("click", () => {
+      state._newUserAvatarFile = null;
+      deleteTempAvatarIfAny(deps);
+      setNewUserPhotoFileName(refs, "Nenhum arquivo selecionado");
+      if (refs.newUserAvatarPreviewImg) {
+        refs.newUserAvatarPreviewImg.style.display = "none";
+        refs.newUserAvatarPreviewImg.src = "";
+      }
+      if (refs.newUserAvatarPreviewFallback) {
+        refs.newUserAvatarPreviewFallback.textContent = initialsFromName(refs.newUserNameEl?.value || "");
+      }
+    });
+  }
 }
 
 /** =========================
@@ -81,8 +291,17 @@ export async function loadUsers(deps) {
     const teamIds = Array.isArray(u.teamIds) ? u.teamIds : (u.teamId ? [u.teamId] : []);
     const teamsLabel = teamIds.length ? teamIds.join(", ") : "—";
     const statusLabel = (u.active === false) ? "Inativo" : "Ativo";
+    const photoURL = String(u.photoURL || "").trim();
+    const avatarHtml = photoURL
+      ? `<span class="tech-avatar"><img src="${photoURL}" alt="Foto de ${u.name || "usuario"}" loading="lazy" /></span>`
+      : `<span class="tech-avatar"><span class="fallback">${initialsFromName(u.name || "")}</span></span>`;
 
     tr.innerHTML = `
+      <td>
+        <div style="display:flex; justify-content:center;">
+          ${avatarHtml}
+        </div>
+      </td>
       <td>
         <div style="display:flex; flex-direction:column; gap:2px;">
           <div><b>${u.name || "—"}</b></div>
@@ -136,6 +355,24 @@ export function openCreateUserModal(deps) {
   refs.newUserEmailEl.value = "";
   refs.newUserPhoneEl.value = "";
   refs.newUserActiveEl.value = "true";
+  if (refs.newUserSoftSkillInputEl) refs.newUserSoftSkillInputEl.value = "";
+  if (refs.newUserHardSkillInputEl) refs.newUserHardSkillInputEl.value = "";
+
+  state._newUserSoftSkillsDraft = [];
+  state._newUserHardSkillsDraft = [];
+  state._newUserAvatarFile = null;
+  state._newUserTempAvatarPath = "";
+  state._newUserTempAvatarURL = "";
+  if (refs.newUserAvatarFileEl) refs.newUserAvatarFileEl.value = "";
+  setNewUserPhotoFileName(refs, "Nenhum arquivo selecionado");
+  if (refs.newUserAvatarPreviewImg) {
+    refs.newUserAvatarPreviewImg.style.display = "none";
+    refs.newUserAvatarPreviewImg.src = "";
+  }
+  if (refs.newUserAvatarPreviewFallback) {
+    refs.newUserAvatarPreviewFallback.textContent = initialsFromName("");
+  }
+  initNewUserRichFields(deps);
 
   state.selectedTeamIds = [];
 
@@ -144,8 +381,16 @@ export function openCreateUserModal(deps) {
     .catch(() => renderTeamChips());
 }
 
-export function closeCreateUserModal(refs) {
-  if (refs.modalCreateUser) refs.modalCreateUser.hidden = true;
+export function closeCreateUserModal(depsOrRefs) {
+  const refs = depsOrRefs?.refs || depsOrRefs;
+  const state = depsOrRefs?.state;
+  if (refs?.modalCreateUser) refs.modalCreateUser.hidden = true;
+  if (state) {
+    state._newUserAvatarFile = null;
+    state._newUserSoftSkillsDraft = [];
+    state._newUserHardSkillsDraft = [];
+    deleteTempAvatarIfAny(depsOrRefs);
+  }
 }
 
 export function renderTeamChips(deps) {
@@ -191,6 +436,12 @@ export async function createUser(deps) {
   const phone = normalizePhone(refs.newUserPhoneEl?.value || "");
   const active = (refs.newUserActiveEl?.value || "true") === "true";
   const teamIds = Array.from(new Set(state.selectedTeamIds || []));
+  const softSkills = uniqClean((state._newUserSoftSkillsDraft && state._newUserSoftSkillsDraft.length)
+    ? state._newUserSoftSkillsDraft
+    : readChipsText(refs.newUserSoftSkillChips));
+  const hardSkills = uniqClean((state._newUserHardSkillsDraft && state._newUserHardSkillsDraft.length)
+    ? state._newUserHardSkillsDraft
+    : readChipsText(refs.newUserHardSkillChips));
 
   const wantsAutoAuth = !uid;
 
@@ -239,7 +490,10 @@ export async function createUser(deps) {
             email,
             phone,
             role,
-            teamIds
+            teamIds,
+            tempAvatarPath: (state._newUserTempAvatarPath || "").trim(),
+            softSkills,
+            hardSkills
           })
         });
 
@@ -253,6 +507,23 @@ export async function createUser(deps) {
 
         uid = result.uid;
         const resetLink = result.resetLink;
+
+        try {
+          await setDoc(doc(db, "companies", state.companyId, "users", uid), {
+            name,
+            role,
+            email,
+            emailLower: normalizeText(email),
+            phone,
+            active,
+            teamIds,
+            teamId: teamIds[0] || "",
+            softSkills,
+            hardSkills
+          }, { merge: true });
+        } catch (mergeErr) {
+          console.warn("merge user extra fields failed", mergeErr);
+        }
 
         await loadUsers(deps);
 
@@ -275,17 +546,33 @@ export async function createUser(deps) {
       name,
       role,
       email,
+      emailLower: normalizeText(email),
       phone,
       active,
       teamIds,
       teamId: teamIds[0] || "",
+      softSkills,
+      hardSkills,
       createdAt: serverTimestamp(),
       createdBy: auth.currentUser.uid
     });
 
     await setDoc(doc(db, "userCompanies", uid), { companyId: state.companyId });
 
-    closeCreateUserModal(refs);
+    if (state._newUserAvatarFile) {
+      try {
+        setAlert(refs.createUserAlert, "Enviando foto...", "info");
+        await waitForCompanyUserDoc(db, state.companyId, uid, 3000);
+        const photoURL = await uploadAvatarForUser(deps, uid, state._newUserAvatarFile);
+        if (photoURL) {
+          await updateDoc(doc(db, "companies", state.companyId, "users", uid), { photoURL });
+        }
+      } catch (errUp) {
+        console.warn("avatar upload failed", errUp);
+      }
+    }
+
+    closeCreateUserModal(deps);
     await loadUsers(deps);
 
   } catch (err) {
@@ -301,6 +588,8 @@ export async function createUser(deps) {
     } else {
       setAlert(refs.createUserAlert, "Erro ao salvar: " + (err?.message || err));
     }
+  } finally {
+    state._newUserAvatarFile = null;
   }
 }
 

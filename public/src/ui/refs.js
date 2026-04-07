@@ -176,6 +176,16 @@ export const newUserRoleEl = byId("newUserRole");
 export const newUserEmailEl = byId("newUserEmail");
 export const newUserPhoneEl = byId("newUserPhone");
 export const newUserActiveEl = byId("newUserActive");
+export const newUserSoftSkillInputEl = byId("newUserSoftSkillInput");
+export const newUserSoftSkillChips = byId("newUserSoftSkillChips");
+export const newUserHardSkillInputEl = byId("newUserHardSkillInput");
+export const newUserHardSkillChips = byId("newUserHardSkillChips");
+export const newUserAvatarPreview = byId("newUserAvatarPreview");
+export const newUserAvatarPreviewImg = byId("newUserAvatarPreviewImg");
+export const newUserAvatarPreviewFallback = byId("newUserAvatarPreviewFallback");
+export const newUserAvatarFileEl = byId("newUserAvatarFile");
+export const btnNewUserRemovePhoto = byId("btnNewUserRemovePhoto");
+export const newUserPhotoFileName = byId("newUserPhotoFileName");
 export const teamChipsEl = byId("teamChips");
 export const createUserAlert = byId("createUserAlert");
 

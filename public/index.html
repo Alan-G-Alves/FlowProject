@@ -339,6 +339,7 @@
 <table>
 <thead>
 <tr>
+<th style="width:72px;">Foto</th>
 <th>Nome</th>
 <th>Funcao</th>
 <th>E-mail</th>
@@ -860,15 +861,35 @@
 <!-- MODAL CRIAR USUARIO (Admin empresa) -->
 <div class="modal" hidden="" id="modalCreateUser">
 <div class="modal-backdrop" data-close="true"></div>
-<div class="modal-card">
-<div class="modal-header">
+<div class="modal-card modal-xl tech-create-modal-card">
+<div class="modal-header tech-create-modal-head">
 <div>
 <h2>Novo Usuario</h2>
-<p class="muted">Cadastre um usuario e selecione equipes via chips.</p>
+<p class="muted">Cadastre um usuario, selecione equipes e informe foto e skills quando precisar.</p>
 </div>
 <button class="btn ghost" id="btnCloseCreateUser">X</button>
 </div>
 <div class="modal-body">
+<div class="form-sections">
+<div class="form-section">
+<div class="section-title">Dados basicos</div>
+<div class="tech-photo-card">
+<div class="tech-photo-row">
+<div class="tech-avatar-preview tech-avatar-preview--lg" id="newUserAvatarPreview">
+<img id="newUserAvatarPreviewImg" alt="" />
+<span id="newUserAvatarPreviewFallback">?</span>
+</div>
+<div class="tech-photo-actions photo-upload-actions">
+<div class="tech-photo-actions-row">
+<input id="newUserAvatarFile" class="hidden-file" type="file" accept="image/png,image/jpeg,image/jpg,image/webp" />
+<label class="btn sm" for="newUserAvatarFile">Selecionar foto</label>
+<button class="btn ghost sm" id="btnNewUserRemovePhoto" type="button">Remover foto</button>
+</div>
+<span class="photo-file-name" id="newUserPhotoFileName">Nenhum arquivo selecionado</span>
+<div class="muted photo-help">PNG/JPG/WebP ate 2MB.</div>
+</div>
+</div>
+</div>
 <div class="grid" style="grid-template-columns: repeat(12, 1fr); gap:12px;">
 <label class="field" style="grid-column: span 12;">
 <span>UID (do Authentication)</span>
@@ -910,9 +931,32 @@
             </div>
 </div>
 </div>
+</div>
+<div class="form-section">
+<div class="section-title">Skills</div>
+<div class="grid" style="grid-template-columns: repeat(12, 1fr); gap:12px;">
+<div class="field" style="grid-column: span 12;">
+<span>Soft skills</span>
+<div class="chip-input">
+<input id="newUserSoftSkillInput" placeholder="Digite e pressione Enter (ex.: comunicacao, lideranca)"/>
+</div>
+<div class="chips-select chips-mini" id="newUserSoftSkillChips"></div>
+<small class="muted">Dica: Enter ou virgula para criar o chip. Clique no chip para remover.</small>
+</div>
+<div class="field" style="grid-column: span 12;">
+<span>Hard skills</span>
+<div class="chip-input">
+<input id="newUserHardSkillInput" placeholder="Digite e pressione Enter (ex.: SQL, Power BI, ADVPL)"/>
+</div>
+<div class="chips-select chips-mini" id="newUserHardSkillChips"></div>
+<small class="muted">Dica: Enter ou virgula para criar o chip. Clique no chip para remover.</small>
+</div>
+</div>
+</div>
+</div>
 <div class="alert" hidden="" id="createUserAlert"></div>
 </div>
-<div class="modal-footer">
+<div class="modal-footer tech-create-modal-footer">
 <button class="btn" id="btnCancelCreateUser">Cancelar</button>
 <button class="btn primary" id="btnCreateUser">Salvar</button>
 </div>
@@ -1734,7 +1778,7 @@
 </section>
 
 
-<script src="./app.js?v=1772609900" type="module"></script>
+<script src="./app.js?v=1772610900" type="module"></script>
 <script>
   // Toggle senha (somente UI)
   document.addEventListener("click", function(e){

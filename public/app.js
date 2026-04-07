@@ -824,7 +824,7 @@ async function createTeam(){
  *  9) ADMIN (EMPRESA): USERS - Delegado para users.domain.js
  *  ========================= */
 const getUsersDeps = () => ({
-  refs, state, db, auth, functions, httpsCallable,
+  refs, state, db, auth, storage, functions, httpsCallable,
   createUserWithAuthAndResetLink, loadUsers, loadTeams,
   openManagedTeamsModal, ensureTeamsForChips, renderTeamChips
 });
@@ -838,7 +838,7 @@ function openCreateUserModal(){
 }
 
 function closeCreateUserModal(){
-  usersDomain.closeCreateUserModal(refs);
+  usersDomain.closeCreateUserModal(getUsersDeps());
 }
 
 function renderTeamChips(){
