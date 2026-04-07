@@ -235,6 +235,7 @@ function initNewUserRichFields(deps) {
       setNewUserPhotoFileName(refs, file.name || "Arquivo selecionado");
       await deleteTempAvatarIfAny(deps);
       state._newUserAvatarFile = file;
+      state._newUserPhotoRemoved = false;
       setAlert(refs.createUserAlert, "Enviando foto...", "info");
       try {
         const { tempAvatarPath, tempAvatarURL } = await uploadTempAvatarForDraft(deps, file);
@@ -259,6 +260,7 @@ function initNewUserRichFields(deps) {
     refs.btnNewUserRemovePhoto.dataset.bound = "1";
     refs.btnNewUserRemovePhoto.addEventListener("click", () => {
       state._newUserAvatarFile = null;
+      state._newUserPhotoRemoved = true;
       deleteTempAvatarIfAny(deps);
       setNewUserPhotoFileName(refs, "Nenhum arquivo selecionado");
       if (refs.newUserAvatarPreviewImg) {
@@ -336,8 +338,31 @@ export async function loadUsers(deps) {
       <td>${teamsLabel}</td>
       <td><span class="badge small">${statusLabel}</span></td>
       <td>
-        <div class="action-row">
-          <button class="btn sm" data-act="toggle">${u.active === false ? "Ativar" : "Inativar"}</button>${u.role === "gestor" ? `<button class="btn sm link" data-act="managed">Equipes gerenciadas</button>` : ""}${u.role !== "admin" ? `<button class="btn sm link" data-act="edit-teams">Equipes</button>` : ""}
+        <div class="action-col">
+          <div class="table-actions">
+            <button class="icon-btn xs btn-edit" data-act="edit" title="Editar" aria-label="Editar">
+              <svg viewBox="0 0 24 24" width="18" height="18" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <path d="M12 20h9" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                <path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L8 18l-4 1 1-4 11.5-11.5Z" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/>
+              </svg>
+            </button>
+            <button class="icon-btn xs btn-view" data-act="view" title="Visualizar" aria-label="Visualizar">
+              <svg viewBox="0 0 24 24" width="18" height="18" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <path d="M1.5 12s3.5-7 10.5-7 10.5 7 10.5 7-3.5 7-10.5 7S1.5 12 1.5 12Z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                <path d="M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6Z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+              </svg>
+            </button>
+            <button class="icon-btn xs ${u.active === false ? "btn-activate" : "btn-block"}" data-act="toggle" title="${u.active === false ? "Ativar" : "Bloquear"}" aria-label="${u.active === false ? "Ativar" : "Bloquear"}">
+              <svg viewBox="0 0 24 24" width="18" height="18" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <path d="M12 2v10" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                <path d="M7.5 4.5a8 8 0 1 0 9 0" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+              </svg>
+            </button>
+          </div>
+          <div class="action-meta">
+            ${u.role === "gestor" ? `<button class="btn sm link" data-act="managed">Equipes gerenciadas</button>` : ""}
+            ${u.role !== "admin" ? `<button class="btn sm link" data-act="edit-teams">Equipes</button>` : ""}
+          </div>
         </div>
       </td>
     `;
@@ -345,6 +370,20 @@ export async function loadUsers(deps) {
     const rowCells = tr.querySelectorAll("td");
     if (rowCells[5]) rowCells[5].innerHTML = '<div class="chips-mini" data-soft></div>';
     if (rowCells[6]) rowCells[6].innerHTML = '<div class="chips-mini" data-hard></div>';
+
+    tr.querySelector('[data-act="edit"]').addEventListener("click", async (ev) => {
+      ev.preventDefault();
+      ev.stopPropagation();
+      await loadTeams();
+      openEditCompanyUserModal(u, deps);
+    });
+
+    tr.querySelector('[data-act="view"]').addEventListener("click", async (ev) => {
+      ev.preventDefault();
+      ev.stopPropagation();
+      await loadTeams();
+      openViewCompanyUserModal(u, deps);
+    });
 
     tr.querySelector('[data-act="toggle"]').addEventListener("click", async () => {
       const nextActive = (u.active === false);
@@ -354,6 +393,7 @@ export async function loadUsers(deps) {
     });
 
     const btnManaged = tr.querySelector('[data-act="managed"]');
+    const btnEditTeams = tr.querySelector('[data-act="edit-teams"]');
     const softWrap = tr.querySelector("[data-soft]");
     const hardWrap = tr.querySelector("[data-hard]");
     const softArr = Array.isArray(u.softSkills) ? u.softSkills : [];
@@ -406,8 +446,97 @@ export async function loadUsers(deps) {
         openManagedTeamsModal(u.uid, u.name);
       });
     }
+    if (btnEditTeams) {
+      btnEditTeams.addEventListener("click", async () => {
+        await loadTeams();
+        openEditUserTeamsModal(u.uid, u.name, teamIds, deps);
+      });
+    }
     refs.usersTbody.appendChild(tr);
   }
+}
+
+function setCreateUserModalMode(deps, mode, user = null) {
+  const { refs, state } = deps;
+  const isView = mode === "view";
+  const isEdit = mode === "edit";
+  state._adminUserModalMode = mode;
+  state._adminEditingUserUid = isEdit ? (user?.uid || "") : null;
+
+  const titleEl = refs.modalCreateUser?.querySelector(".modal-header h2");
+  const subEl = refs.modalCreateUser?.querySelector(".modal-header p");
+  if (titleEl) titleEl.textContent = isView ? "Visualizar Usuario" : (isEdit ? "Editar Usuario" : "Novo Usuario");
+  if (subEl) subEl.textContent = isView
+    ? "Visualizacao dos dados do usuario."
+    : (isEdit ? "Atualize os dados do usuario." : "Cadastre um usuario, selecione equipes e informe foto e skills quando precisar.");
+
+  if (refs.newUserNameEl) refs.newUserNameEl.disabled = isView;
+  if (refs.newUserRoleEl) refs.newUserRoleEl.disabled = isView;
+  if (refs.newUserEmailEl) refs.newUserEmailEl.disabled = isEdit || isView;
+  if (refs.newUserPhoneEl) refs.newUserPhoneEl.disabled = isView;
+  if (refs.newUserActiveEl) refs.newUserActiveEl.disabled = isView;
+  if (refs.newUserSoftSkillInputEl) refs.newUserSoftSkillInputEl.disabled = isView;
+  if (refs.newUserHardSkillInputEl) refs.newUserHardSkillInputEl.disabled = isView;
+  if (refs.newUserAvatarFileEl) refs.newUserAvatarFileEl.disabled = isView;
+  if (refs.btnNewUserRemovePhoto) refs.btnNewUserRemovePhoto.disabled = isView;
+  if (refs.teamChipsEl) refs.teamChipsEl.classList.toggle("readonly", isView);
+  if (refs.newUserSoftSkillChips) refs.newUserSoftSkillChips.classList.toggle("readonly", isView);
+  if (refs.newUserHardSkillChips) refs.newUserHardSkillChips.classList.toggle("readonly", isView);
+  if (refs.btnCreateUser) {
+    refs.btnCreateUser.style.display = isView ? "none" : "";
+    refs.btnCreateUser.textContent = isEdit ? "Salvar alteracoes" : "Salvar";
+  }
+}
+
+function fillCreateUserModal(user, deps) {
+  const { refs, state } = deps;
+  refs.newUserUidEl.value = user?.uid || "";
+  refs.newUserNameEl.value = user?.name || "";
+  refs.newUserRoleEl.value = user?.role || "tecnico";
+  refs.newUserEmailEl.value = user?.email || "";
+  refs.newUserPhoneEl.value = user?.phone || "";
+  refs.newUserActiveEl.value = (user?.active === false) ? "false" : "true";
+
+  state.selectedTeamIds = Array.isArray(user?.teamIds) ? [...user.teamIds] : (user?.teamId ? [user.teamId] : []);
+  state._newUserSoftSkillsDraft = Array.isArray(user?.softSkills) ? [...user.softSkills] : [];
+  state._newUserHardSkillsDraft = Array.isArray(user?.hardSkills) ? [...user.hardSkills] : [];
+  state._newUserAvatarFile = null;
+  state._newUserTempAvatarPath = "";
+  state._newUserTempAvatarURL = "";
+  state._newUserPhotoRemoved = false;
+  if (refs.newUserSoftSkillInputEl) refs.newUserSoftSkillInputEl.value = "";
+  if (refs.newUserHardSkillInputEl) refs.newUserHardSkillInputEl.value = "";
+  if (refs.newUserAvatarFileEl) refs.newUserAvatarFileEl.value = "";
+  setNewUserPhotoFileName(refs, user?.photoURL ? "Foto atual" : "Nenhum arquivo selecionado");
+  if (refs.newUserAvatarPreviewImg && refs.newUserAvatarPreviewFallback) {
+    if (user?.photoURL) {
+      refs.newUserAvatarPreviewImg.src = user.photoURL;
+      refs.newUserAvatarPreviewImg.style.display = "block";
+      refs.newUserAvatarPreviewFallback.textContent = "";
+    } else {
+      refs.newUserAvatarPreviewImg.src = "";
+      refs.newUserAvatarPreviewImg.style.display = "none";
+      refs.newUserAvatarPreviewFallback.textContent = initialsFromName(user?.name || "");
+    }
+  }
+  initNewUserRichFields(deps);
+  renderTeamChips(deps);
+}
+
+function openEditCompanyUserModal(user, deps) {
+  const { refs } = deps;
+  clearAlert(refs.createUserAlert);
+  refs.modalCreateUser.hidden = false;
+  setCreateUserModalMode(deps, "edit", user);
+  fillCreateUserModal(user, deps);
+}
+
+function openViewCompanyUserModal(user, deps) {
+  const { refs } = deps;
+  clearAlert(refs.createUserAlert);
+  refs.modalCreateUser.hidden = false;
+  setCreateUserModalMode(deps, "view", user);
+  fillCreateUserModal(user, deps);
 }
 
 export function openCreateUserModal(deps) {
@@ -415,6 +544,7 @@ export function openCreateUserModal(deps) {
   if (!refs.modalCreateUser) return;
   clearAlert(refs.createUserAlert);
   refs.modalCreateUser.hidden = false;
+  setCreateUserModalMode(deps, "create");
 
   try {
     const uidLabel = refs.newUserUidEl?.closest("label");
@@ -435,6 +565,7 @@ export function openCreateUserModal(deps) {
   state._newUserAvatarFile = null;
   state._newUserTempAvatarPath = "";
   state._newUserTempAvatarURL = "";
+  state._newUserPhotoRemoved = false;
   if (refs.newUserAvatarFileEl) refs.newUserAvatarFileEl.value = "";
   setNewUserPhotoFileName(refs, "Nenhum arquivo selecionado");
   if (refs.newUserAvatarPreviewImg) {
@@ -461,6 +592,9 @@ export function closeCreateUserModal(depsOrRefs) {
     state._newUserAvatarFile = null;
     state._newUserSoftSkillsDraft = [];
     state._newUserHardSkillsDraft = [];
+    state._adminEditingUserUid = null;
+    state._adminUserModalMode = "create";
+    state._newUserPhotoRemoved = false;
     deleteTempAvatarIfAny(depsOrRefs);
   }
 }
@@ -469,6 +603,7 @@ export function renderTeamChips(deps) {
   const { refs, state } = deps;
   if (!refs.teamChipsEl) return;
   refs.teamChipsEl.innerHTML = "";
+  const readOnly = state._adminUserModalMode === "view";
 
   const activeTeams = (state.teams || []).filter(t => t.active !== false);
 
@@ -486,12 +621,14 @@ export function renderTeamChips(deps) {
     chip.className = "chip-option" + (state.selectedTeamIds.includes(t.id) ? " selected" : "");
     chip.innerHTML = `<span class="dot"></span><span>${t.name}</span>`;
 
-    chip.addEventListener("click", () => {
-      const idx = state.selectedTeamIds.indexOf(t.id);
-      if (idx >= 0) state.selectedTeamIds.splice(idx, 1);
-      else state.selectedTeamIds.push(t.id);
-      renderTeamChips(deps);
-    });
+    if (!readOnly) {
+      chip.addEventListener("click", () => {
+        const idx = state.selectedTeamIds.indexOf(t.id);
+        if (idx >= 0) state.selectedTeamIds.splice(idx, 1);
+        else state.selectedTeamIds.push(t.id);
+        renderTeamChips(deps);
+      });
+    }
 
     refs.teamChipsEl.appendChild(chip);
   }
@@ -516,6 +653,10 @@ export async function createUser(deps) {
     : readChipsText(refs.newUserHardSkillChips));
 
   const wantsAutoAuth = !uid;
+
+  if (state._adminEditingUserUid) {
+    return await updateCompanyUser(deps);
+  }
 
   if (!name) return setAlert(refs.createUserAlert, "Informe o nome do usuário.");
   if (!role) return setAlert(refs.createUserAlert, "Selecione a função.");
@@ -662,6 +803,69 @@ export async function createUser(deps) {
     }
   } finally {
     state._newUserAvatarFile = null;
+  }
+}
+
+async function updateCompanyUser(deps) {
+  const { refs, state, db, loadUsers } = deps;
+  const uid = state._adminEditingUserUid;
+  const name = (refs.newUserNameEl?.value || "").trim();
+  const role = (refs.newUserRoleEl?.value || "").trim();
+  const email = (refs.newUserEmailEl?.value || "").trim();
+  const phone = normalizePhone(refs.newUserPhoneEl?.value || "");
+  const active = (refs.newUserActiveEl?.value || "true") === "true";
+  const teamIds = Array.from(new Set(state.selectedTeamIds || []));
+  const softSkills = uniqClean((state._newUserSoftSkillsDraft && state._newUserSoftSkillsDraft.length)
+    ? state._newUserSoftSkillsDraft
+    : readChipsText(refs.newUserSoftSkillChips));
+  const hardSkills = uniqClean((state._newUserHardSkillsDraft && state._newUserHardSkillsDraft.length)
+    ? state._newUserHardSkillsDraft
+    : readChipsText(refs.newUserHardSkillChips));
+
+  if (!uid) return setAlert(refs.createUserAlert, "Nao foi possivel identificar o usuario.");
+  if (!name) return setAlert(refs.createUserAlert, "Informe o nome do usuario.");
+  if (!role) return setAlert(refs.createUserAlert, "Selecione a funcao.");
+  if (!email || !isEmailValidBasic(email)) return setAlert(refs.createUserAlert, "Informe um e-mail valido.");
+  if (role !== "admin" && teamIds.length === 0) {
+    return setAlert(refs.createUserAlert, "Selecione pelo menos 1 equipe para este usuario.");
+  }
+
+  setAlert(refs.createUserAlert, "Salvando alteracoes...", "info");
+
+  try {
+    const payload = {
+      name,
+      role,
+      phone,
+      active,
+      teamIds,
+      teamId: teamIds[0] || "",
+      softSkills,
+      hardSkills
+    };
+
+    if (state._newUserPhotoRemoved) payload.photoURL = "";
+
+    await updateDoc(doc(db, "companies", state.companyId, "users", uid), payload);
+
+    if (state._newUserAvatarFile) {
+      try {
+        setAlert(refs.createUserAlert, "Enviando foto...", "info");
+        await waitForCompanyUserDoc(db, state.companyId, uid, 3000);
+        const photoURL = await uploadAvatarForUser(deps, uid, state._newUserAvatarFile);
+        if (photoURL) {
+          await updateDoc(doc(db, "companies", state.companyId, "users", uid), { photoURL });
+        }
+      } catch (errUp) {
+        console.warn("avatar upload failed", errUp);
+      }
+    }
+
+    closeCreateUserModal(deps);
+    await loadUsers(deps);
+  } catch (err) {
+    console.error(err);
+    setAlert(refs.createUserAlert, "Erro ao salvar: " + (err?.message || err));
   }
 }
 
