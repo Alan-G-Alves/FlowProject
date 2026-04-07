@@ -278,6 +278,72 @@ function initNewUserRichFields(deps) {
  *  USERS DOMAIN (Admin da Empresa)
  *  ========================= */
 
+function getSortableUsers(users, state) {
+  const sortKey = state?._usersSortKey || "name";
+  const sortDir = state?._usersSortDir === "desc" ? "desc" : "asc";
+  const dir = sortDir === "desc" ? -1 : 1;
+
+  const getValue = (u) => {
+    switch (sortKey) {
+      case "role":
+        return normalizeRole(u.role || "");
+      case "email":
+        return u.email || "";
+      case "phone":
+        return u.phone || "";
+      case "softSkills":
+        return Array.isArray(u.softSkills) ? u.softSkills.join(", ") : "";
+      case "hardSkills":
+        return Array.isArray(u.hardSkills) ? u.hardSkills.join(", ") : "";
+      case "teams": {
+        const teamIds = Array.isArray(u.teamIds) ? u.teamIds : (u.teamId ? [u.teamId] : []);
+        const teamArr = teamIds.map((teamId) => {
+          const team = (state.teams || []).find((item) => item.id === teamId);
+          return team?.name || teamId;
+        });
+        return teamArr.join(", ");
+      }
+      case "status":
+        return u.active === false ? "Inativo" : "Ativo";
+      case "name":
+      default:
+        return u.name || "";
+    }
+  };
+
+  return [...users].sort((a, b) => {
+    const av = String(getValue(a) || "").toLowerCase();
+    const bv = String(getValue(b) || "").toLowerCase();
+    return av.localeCompare(bv, "pt-BR", { numeric: true, sensitivity: "base" }) * dir;
+  });
+}
+
+function initUsersTableSorting(deps) {
+  const { refs, state, loadUsers } = deps;
+  const table = refs.usersTbody?.closest("table");
+  if (!table) return;
+
+  const headers = Array.from(table.querySelectorAll("thead th.sortable"));
+  for (const th of headers) {
+    if (!th.dataset.boundSort) {
+      th.dataset.boundSort = "1";
+      th.addEventListener("click", () => {
+        const key = th.dataset.sort || "name";
+        if (state._usersSortKey === key) {
+          state._usersSortDir = state._usersSortDir === "desc" ? "asc" : "desc";
+        } else {
+          state._usersSortKey = key;
+          state._usersSortDir = "asc";
+        }
+        loadUsers(deps);
+      });
+    }
+    th.classList.toggle("is-sorted", state._usersSortKey === th.dataset.sort);
+    th.classList.toggle("asc", state._usersSortKey === th.dataset.sort && (state._usersSortDir || "asc") === "asc");
+    th.classList.toggle("desc", state._usersSortKey === th.dataset.sort && state._usersSortDir === "desc");
+  }
+}
+
 export async function loadUsers(deps) {
   const { refs, state, db, loadTeams, openManagedTeamsModal } = deps;
   if (!refs.usersTbody) return;
@@ -298,14 +364,19 @@ export async function loadUsers(deps) {
     const roleFilter = (refs.userRoleFilter?.value || "").trim();
     const okRole = !roleFilter || (u.role === roleFilter);
     return okQ && okRole;
-  }).sort((a, b) => (a.name || "").localeCompare(b.name || ""));
+  });
 
-  if (filtered.length === 0) {
+  if (!state._usersSortKey) state._usersSortKey = "name";
+  if (!state._usersSortDir) state._usersSortDir = "asc";
+  const sorted = getSortableUsers(filtered, state);
+  initUsersTableSorting(deps);
+
+  if (sorted.length === 0) {
     show(refs.usersEmpty);
     return;
   }
 
-  for (const u of filtered) {
+  for (const u of sorted) {
     const tr = document.createElement("tr");
 
     const teamIds = Array.isArray(u.teamIds) ? u.teamIds : (u.teamId ? [u.teamId] : []);
@@ -340,7 +411,7 @@ export async function loadUsers(deps) {
       <td>${softSkillsLabel}</td>
       <td>${hardSkillsLabel}</td>
       <td>${teamsLabel}</td>
-      <td><span class="badge small">${statusLabel}</span></td>
+      <td><span class="badge small status-pill ${u.active === false ? "status-inactive" : "status-active"}">${statusLabel}</span></td>
       <td>
         <div class="action-col">
           <div class="table-actions">
