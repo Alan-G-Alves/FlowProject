@@ -309,6 +309,10 @@ export async function loadUsers(deps) {
     const tr = document.createElement("tr");
 
     const teamIds = Array.isArray(u.teamIds) ? u.teamIds : (u.teamId ? [u.teamId] : []);
+    const teamArr = teamIds.map((teamId) => {
+      const team = (state.teams || []).find((item) => item.id === teamId);
+      return team?.name || teamId;
+    });
     const teamsLabel = teamIds.length ? teamIds.join(", ") : "—";
     const statusLabel = (u.active === false) ? "Inativo" : "Ativo";
     const softSkillsLabel = Array.isArray(u.softSkills) && u.softSkills.length ? u.softSkills.join(", ") : "â€”";
@@ -370,6 +374,7 @@ export async function loadUsers(deps) {
     const rowCells = tr.querySelectorAll("td");
     if (rowCells[5]) rowCells[5].innerHTML = '<div class="chips-mini" data-soft></div>';
     if (rowCells[6]) rowCells[6].innerHTML = '<div class="chips-mini" data-hard></div>';
+    if (rowCells[7]) rowCells[7].innerHTML = '<div class="chips-mini" data-teams></div>';
 
     tr.querySelector('[data-act="edit"]').addEventListener("click", async (ev) => {
       ev.preventDefault();
@@ -396,8 +401,10 @@ export async function loadUsers(deps) {
     const btnEditTeams = tr.querySelector('[data-act="edit-teams"]');
     const softWrap = tr.querySelector("[data-soft]");
     const hardWrap = tr.querySelector("[data-hard]");
+    const teamsWrap = tr.querySelector("[data-teams]");
     const softArr = Array.isArray(u.softSkills) ? u.softSkills : [];
     const hardArr = Array.isArray(u.hardSkills) ? u.hardSkills : [];
+    const teamsArr = teamArr;
 
     const renderMiniChips = (wrap, arr, type) => {
       if (!wrap) return;
@@ -417,7 +424,7 @@ export async function loadUsers(deps) {
       const visible = expanded ? arr : arr.slice(0, limit);
       for (const value of visible) {
         const chip = document.createElement("span");
-        chip.className = `chip mini ${type === "hard" ? "chip-hard" : "chip-soft"}`;
+        chip.className = `chip mini ${type === "hard" ? "chip-hard" : (type === "teams" ? "chip-team" : "chip-soft")}`;
         chip.textContent = value;
         wrap.appendChild(chip);
       }
@@ -425,7 +432,7 @@ export async function loadUsers(deps) {
       if (arr.length > limit) {
         const moreBtn = document.createElement("button");
         moreBtn.type = "button";
-        moreBtn.className = `chip mini chip-more ${type === "hard" ? "chip-hard" : "chip-soft"}`;
+        moreBtn.className = `chip mini chip-more ${type === "hard" ? "chip-hard" : (type === "teams" ? "chip-team" : "chip-soft")}`;
         moreBtn.textContent = expanded ? "ver menos" : `+${arr.length - limit}`;
         moreBtn.title = expanded ? "Recolher" : "Ver todas";
         moreBtn.addEventListener("click", (ev) => {
@@ -440,6 +447,7 @@ export async function loadUsers(deps) {
 
     renderMiniChips(softWrap, softArr, "soft");
     renderMiniChips(hardWrap, hardArr, "hard");
+    renderMiniChips(teamsWrap, teamsArr, "teams");
     if (btnManaged) {
       btnManaged.addEventListener("click", async () => {
         await loadTeams();

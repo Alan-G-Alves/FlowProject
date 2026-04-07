@@ -4564,6 +4564,16 @@ body.is-superadmin #navClients{
   background: rgba(59, 130, 246, 0.2);
 }
 
+.chip-team{
+  background: rgba(99, 102, 241, 0.12);
+  color: rgb(99, 102, 241);
+  border-color: rgba(99, 102, 241, 0.25);
+}
+
+.chip-team:hover{
+  background: rgba(99, 102, 241, 0.2);
+}
+
 /* +N / ver menos (expandir skills) */
 .chip-more{
   cursor: pointer;
