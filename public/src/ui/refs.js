@@ -166,6 +166,7 @@ export const adminBlockedUsersCount = byId("adminBlockedUsersCount");
 
 // Users
 export const usersTbody = byId("usersTbody");
+export const usersPagination = byId("usersPagination");
 export const usersEmpty = byId("usersEmpty");
 export const userSearch = byId("userSearch");
 export const userRoleFilter = byId("userRoleFilter");

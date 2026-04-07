@@ -362,12 +362,88 @@ function initUsersTableSorting(deps) {
   }
 }
 
+function exportUsersToExcel(deps, items) {
+  const { state } = deps;
+  const companyId = (state.companyId || "empresa").toString();
+  const now = new Date();
+  const pad = (n) => String(n).padStart(2, "0");
+  const stamp = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}_${pad(now.getHours())}${pad(now.getMinutes())}`;
+  const filename = `usuarios_${companyId}_${stamp}.xls`;
+
+  const esc = (v) => String(v ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/\"/g, "&quot;");
+  const join = (arr) => (Array.isArray(arr) ? arr.join(", ") : "");
+
+  const rows = items.map((u) => {
+    const teamIds = Array.isArray(u.teamIds) ? u.teamIds : (u.teamId ? [u.teamId] : []);
+    const teamsLabel = teamIds.length
+      ? teamIds.map((teamId) => {
+          const team = (state.teams || []).find((item) => item.id === teamId);
+          return team?.name || teamId;
+        }).join(", ")
+      : "";
+    const statusLabel = (u.active === false) ? "Inativo" : "Ativo";
+
+    return `
+      <tr>
+        <td>${esc(u.name || "")}</td>
+        <td>${esc(normalizeRole(u.role || ""))}</td>
+        <td>${esc(u.email || "")}</td>
+        <td>${esc(u.phone || "")}</td>
+        <td>${esc(join(u.softSkills))}</td>
+        <td>${esc(join(u.hardSkills))}</td>
+        <td>${esc(u.feedbackCount ?? 0)}</td>
+        <td>${esc(teamsLabel)}</td>
+        <td>${esc(statusLabel)}</td>
+      </tr>
+    `;
+  }).join("");
+
+  const html = `
+    <html>
+      <head><meta charset="utf-8" /></head>
+      <body>
+        <table border="1">
+          <thead>
+            <tr>
+              <th>Nome</th>
+              <th>Funcao</th>
+              <th>E-mail</th>
+              <th>Telefone</th>
+              <th>Soft Skills</th>
+              <th>Hard Skills</th>
+              <th>Feedback</th>
+              <th>Equipes</th>
+              <th>Status</th>
+            </tr>
+          </thead>
+          <tbody>${rows}</tbody>
+        </table>
+      </body>
+    </html>
+  `;
+
+  const blob = new Blob([html], { type: "application/vnd.ms-excel;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+}
+
 export async function loadUsers(deps) {
   const { refs, state, db, loadTeams, openManagedTeamsModal, openUserFeedbackModal } = deps;
   if (!refs.usersTbody) return;
 
   refs.usersTbody.innerHTML = "";
   hide(refs.usersEmpty);
+  if (refs.usersPagination) refs.usersPagination.innerHTML = "";
 
   const snap = await getDocs(collection(db, "companies", state.companyId, "users"));
   const all = snap.docs.map(d => ({ uid: d.id, ...d.data() }));
@@ -385,6 +461,12 @@ export async function loadUsers(deps) {
     return okQ && okRole;
   });
 
+  const filterKey = `${q}::${(refs.userRoleFilter?.value || "").trim()}`;
+  if (state._usersLastFilterKey !== filterKey) {
+    state._usersLastFilterKey = filterKey;
+    state._usersPage = 1;
+  }
+
   if (!state._usersSortKey) state._usersSortKey = "name";
   if (!state._usersSortDir) state._usersSortDir = "asc";
   const sorted = getSortableUsers(filtered, state);
@@ -395,7 +477,84 @@ export async function loadUsers(deps) {
     return;
   }
 
-  for (const u of sorted) {
+  const ITEMS_PER_PAGE = 10;
+  const totalPages = Math.max(1, Math.ceil(sorted.length / ITEMS_PER_PAGE));
+  state._usersPage = Math.min(Math.max(1, Number(state._usersPage || 1)), totalPages);
+
+  const startIdx = (state._usersPage - 1) * ITEMS_PER_PAGE;
+  const endIdx = startIdx + ITEMS_PER_PAGE;
+  const pageItems = sorted.slice(startIdx, endIdx);
+
+  if (refs.usersPagination) {
+    const cur = state._usersPage;
+    const windowSize = 7;
+    const half = Math.floor(windowSize / 2);
+    let from = Math.max(1, cur - half);
+    let to = Math.min(totalPages, from + windowSize - 1);
+    from = Math.max(1, to - windowSize + 1);
+
+    const mkBtn = (label, page, disabled, cls = "") => {
+      const dis = disabled ? "disabled" : "";
+      return `<button class="page-btn ${cls}" data-page="${page}" ${dis}>${label}</button>`;
+    };
+
+    const parts = [];
+    parts.push(`<div class="page-meta">
+      <span>Mostrando <b>${Math.min(endIdx, sorted.length)}</b> de <b>${sorted.length}</b></span>
+      <button class="icon-btn xs btn-download" data-act="export" title="Baixar Excel" aria-label="Baixar Excel">
+        <svg viewBox="0 0 24 24" width="18" height="18" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <path d="M12 3v10" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+          <path d="M8 11l4 4 4-4" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+          <path d="M4 20h16" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+        </svg>
+      </button>
+    </div>`);
+    parts.push(`<div class="page-controls">`);
+    parts.push(mkBtn("‹", cur - 1, cur <= 1, "nav"));
+
+    if (from > 1) {
+      parts.push(mkBtn("1", 1, false, (cur === 1 ? "active" : "")));
+      if (from > 2) parts.push(`<span class="page-ellipsis">…</span>`);
+    }
+
+    for (let p = from; p <= to; p++) {
+      parts.push(mkBtn(String(p), p, false, (p === cur ? "active" : "")));
+    }
+
+    if (to < totalPages) {
+      if (to < totalPages - 1) parts.push(`<span class="page-ellipsis">…</span>`);
+      parts.push(mkBtn(String(totalPages), totalPages, false, (cur === totalPages ? "active" : "")));
+    }
+
+    parts.push(mkBtn("›", cur + 1, cur >= totalPages, "nav"));
+    parts.push(`</div>`);
+
+    refs.usersPagination.innerHTML = parts.join("");
+    refs.usersPagination.querySelectorAll("[data-page]").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        const p = Number(btn.getAttribute("data-page"));
+        if (!p || p < 1 || p > totalPages) return;
+        state._usersPage = p;
+        loadUsers(deps);
+      });
+    });
+
+    const exportBtn = refs.usersPagination.querySelector('[data-act="export"]');
+    if (exportBtn) {
+      exportBtn.addEventListener("click", (ev) => {
+        ev.preventDefault();
+        ev.stopPropagation();
+        try {
+          exportUsersToExcel(deps, sorted);
+        } catch (err) {
+          console.error(err);
+          alert("Nao foi possivel exportar.");
+        }
+      });
+    }
+  }
+
+  for (const u of pageItems) {
     const tr = document.createElement("tr");
 
     const teamIds = Array.isArray(u.teamIds) ? u.teamIds : (u.teamId ? [u.teamId] : []);

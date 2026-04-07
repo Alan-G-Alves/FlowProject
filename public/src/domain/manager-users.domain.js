@@ -196,7 +196,7 @@ function setCreateTechModalMode(deps, mode, tech){
     ? "Apenas visualização. Para alterar, use o botão Editar."
     : (isEdit
       ? "Edite os dados do técnico. O e-mail não pode ser alterado."
-      : "O técnico será vinculado automaticamente a todas as equipes do seu escopo.");
+      : "Cadastre o técnico, selecione as equipes e complete as skills quando precisar.");
 
   // Email não pode ser editado
   if (refs.techEmailEl) refs.techEmailEl.disabled = !!isEdit || !!isView;
@@ -212,6 +212,7 @@ function setCreateTechModalMode(deps, mode, tech){
   // chips removíveis ficam desativados via pointer-events no wrapper
   if (refs.techSoftSkillChips) refs.techSoftSkillChips.classList.toggle("readonly", disableAll);
   if (refs.techHardSkillChips) refs.techHardSkillChips.classList.toggle("readonly", disableAll);
+  if (refs.mgrTeamChipsEl) refs.mgrTeamChipsEl.classList.toggle("readonly", disableAll);
 
   // UID continua oculto (mas armazenamos no state)
   state._mgrEditingTechUid = (isEdit || isView) ? (tech?.uid || "") : null;
@@ -241,8 +242,14 @@ export function openViewTechModal(deps, techUser){
   // chips (somente leitura)
   state._techSoftSkillsDraft = Array.isArray(techUser?.softSkills) ? [...techUser.softSkills] : [];
   state._techHardSkillsDraft = Array.isArray(techUser?.hardSkills) ? [...techUser.hardSkills] : [];
+  state.mgrSelectedTeamIds = Array.isArray(techUser?.teamIds)
+    ? [...techUser.teamIds]
+    : (techUser?.teamId ? [techUser.teamId] : []);
   setupChipInput(refs.techSoftSkillInputEl, refs.techSoftSkillChips, deps.state, "_techSoftSkillsDraft", "soft");
   setupChipInput(refs.techHardSkillInputEl, refs.techHardSkillChips, deps.state, "_techHardSkillsDraft", "hard");
+  ensureTeamsForChips()
+    .then(() => renderMgrTeamChips(deps))
+    .catch(() => renderMgrTeamChips(deps));
 
   // avatar
   state._techAvatarFile = null;
@@ -360,8 +367,14 @@ export function openEditTechModal(deps, techUser){
   // chips
   state._techSoftSkillsDraft = Array.isArray(techUser?.softSkills) ? [...techUser.softSkills] : [];
   state._techHardSkillsDraft = Array.isArray(techUser?.hardSkills) ? [...techUser.hardSkills] : [];
+  state.mgrSelectedTeamIds = Array.isArray(techUser?.teamIds)
+    ? [...techUser.teamIds]
+    : (techUser?.teamId ? [techUser.teamId] : []);
   setupChipInput(refs.techSoftSkillInputEl, refs.techSoftSkillChips, deps.state, "_techSoftSkillsDraft", "soft");
   setupChipInput(refs.techHardSkillInputEl, refs.techHardSkillChips, deps.state, "_techHardSkillsDraft", "hard");
+  ensureTeamsForChips()
+    .then(() => renderMgrTeamChips(deps))
+    .catch(() => renderMgrTeamChips(deps));
 
   // avatar preview (usa photoURL existente)
   state._techAvatarFile = null;
@@ -444,8 +457,14 @@ const active = (refs.techActiveEl.value || "true") === "true";
   const hardSkills = uniqClean((state._techHardSkillsDraft && state._techHardSkillsDraft.length)
     ? state._techHardSkillsDraft
     : readChipsText(refs.techHardSkillChips));
+  const selectedTeamIds = Array.from(new Set((state.mgrSelectedTeamIds || []).filter(Boolean)));
+  const activeTeams = (state.teams || []).filter(t => t.active !== false);
 
   if (!name) return setAlert(refs.createTechAlert, "Informe o nome do técnico.");
+
+  if (activeTeams.length && !selectedTeamIds.length) {
+    return setAlert(refs.createTechAlert, "Selecione pelo menos uma equipe para o técnico.");
+  }
 
   setAlert(refs.createTechAlert, "Salvando alterações...", "info");
 
@@ -488,6 +507,8 @@ const active = (refs.techActiveEl.value || "true") === "true";
     phone,
     ...(refs.techHourlyRateEl ? { hourlyRate } : {}),
     active,
+    teamIds: selectedTeamIds,
+    teamId: selectedTeamIds[0] || "",
     softSkills,
     hardSkills,
     ...(photoURL ? { photoURL } : {})
@@ -832,7 +853,10 @@ export async function loadManagerUsers(deps) {
   for (const u of pageItems){
     const tr = document.createElement("tr");
     const teamIds = Array.isArray(u.teamIds) ? u.teamIds : (u.teamId ? [u.teamId] : []);
-    const teamsLabel = teamIds.length ? teamIds.map(tid => getTeamNameById(state, tid)).join(", ") : "—";
+    const teamObjects = teamIds.map((teamId) => ({
+      id: teamId,
+      label: getTeamNameById(state, teamId) || teamId
+    }));
     const isActive = (u.active !== false);
     const statusLabel = isActive ? "Ativo" : "Inativo";
 
@@ -848,7 +872,7 @@ export async function loadManagerUsers(deps) {
       </td>
       <td>${escapeHtml(u.email || "—")}</td>
       <td>${escapeHtml(formatHourlyRate(u.hourlyRate))}</td>
-      <td>${escapeHtml(teamsLabel)}</td>
+      <td><span data-teams></span></td>
       <td><span data-soft></span></td>
       <td><span data-hard></span></td>
       <td>
@@ -913,13 +937,15 @@ export async function loadManagerUsers(deps) {
     // skills chips
     const softWrap = tr.querySelector("[data-soft]");
     const hardWrap = tr.querySelector("[data-hard]");
+    const teamsWrap = tr.querySelector("[data-teams]");
     const softArr = Array.isArray(u.softSkills) ? u.softSkills : [];
     const hardArr = Array.isArray(u.hardSkills) ? u.hardSkills : [];
+    const teamsArr = teamObjects;
 
     const renderMiniChips = (wrap, arr, type) => {
       if (!wrap) return;
       wrap.innerHTML = "";
-      const limit = 6;
+      const limit = 4;
       const expanded = (wrap.dataset.expanded === "1");
       if (!arr.length){
         const em = document.createElement("span");
@@ -934,15 +960,15 @@ export async function loadManagerUsers(deps) {
       const visible = expanded ? arr : arr.slice(0, limit);
       for (const v of visible){
         const chip = document.createElement("span");
-        chip.className = `chip mini ${(type === "hard") ? "chip-hard" : "chip-soft"}`;
-        chip.textContent = v;
+        chip.className = `chip mini ${type === "hard" ? "chip-hard" : (type === "teams" ? "chip-team" : "chip-soft")}`;
+        chip.textContent = type === "teams" ? v.label : v;
         wrap.appendChild(chip);
       }
 
       if (arr.length > limit){
         const moreBtn = document.createElement("button");
         moreBtn.type = "button";
-        moreBtn.className = `chip mini chip-more ${(type === "hard") ? "chip-hard" : "chip-soft"}`;
+        moreBtn.className = `chip mini chip-more ${type === "hard" ? "chip-hard" : (type === "teams" ? "chip-team" : "chip-soft")}`;
         moreBtn.textContent = expanded ? "ver menos" : `+${arr.length - limit}`;
         moreBtn.title = expanded ? "Recolher" : "Ver todas";
         moreBtn.addEventListener("click", (ev) => {
@@ -957,6 +983,7 @@ export async function loadManagerUsers(deps) {
 
     renderMiniChips(softWrap, softArr, "soft");
     renderMiniChips(hardWrap, hardArr, "hard");
+    renderMiniChips(teamsWrap, teamsArr, "teams");
 
     tr.querySelector('[data-act="feedbackCount"]').addEventListener("click", async () => {
       await openTechFeedbackModal(deps, u);
@@ -1331,21 +1358,21 @@ async function createTech(deps) {
     : readChipsText(refs.techHardSkillChips));
 
   // UID agora é opcional (se vazio, criamos automaticamente no Auth via Cloud Function)
+  const selectedTeamIds = Array.from(new Set((state.mgrSelectedTeamIds || []).filter(Boolean)));
+  const activeTeams = (state.teams || []).filter(t => t.active !== false);
   const wantsAutoAuth = !uid;
 
   if (!name) return setAlert(refs.createTechAlert, "Informe o nome do técnico.");
   if (!email || !isEmailValidBasic(email)) return setAlert(refs.createTechAlert, "Informe um e-mail válido.");
+  if (activeTeams.length && !selectedTeamIds.length) {
+    return setAlert(refs.createTechAlert, "Selecione pelo menos uma equipe para o técnico.");
+  }
 
   // ❗Regra: não permitir e-mail repetido na MESMA empresa
   const existingUid = await findUserUidByEmailInCompany(db, state.companyId, email);
   if (existingUid && existingUid !== uid) {
     return setAlert(refs.createTechAlert, "Este e-mail já está cadastrado nesta empresa. Use outro e-mail ou edite o usuário existente.");
   }
-
-  // ✅ Regra do FlowProject: Técnico pertence à EMPRESA (aparece para todos os gestores)
-  // -> Vinculamos automaticamente a TODAS as equipes ativas da empresa (se existirem)
-  // -> Se ainda não existir equipe, permitimos salvar com teamIds vazio.
-  const assignableTeamIds = await loadAllActiveTeamIds(db, state.companyId);
 
   // Guard: evita duplo submit (double click / double binding)
   if (state._isCreatingTech) return;
@@ -1361,8 +1388,8 @@ async function createTech(deps) {
     phone,
     ...(hourlyRate === null ? {} : { hourlyRate }),
     active,
-    teamIds: assignableTeamIds,
-    teamId: assignableTeamIds[0] || "",
+    teamIds: selectedTeamIds,
+    teamId: selectedTeamIds[0] || "",
     softSkills,
     hardSkills,
     feedbackCount: 0
@@ -1376,7 +1403,7 @@ async function createTech(deps) {
         email,
         phone,
         role: "tecnico",
-        teamIds: assignableTeamIds,
+        teamIds: selectedTeamIds,
         tempAvatarPath: (state._techTempAvatarPath || "").trim(),
         softSkills,
         hardSkills,

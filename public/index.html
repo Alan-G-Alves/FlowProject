@@ -372,6 +372,7 @@
 <tbody id="usersTbody"></tbody>
 </table>
 </div>
+<div id="usersPagination" class="table-pagination" aria-label="Paginacao de usuarios" style="margin-top:12px;"></div>
 <div class="panel subtle" hidden="" id="usersEmpty" style="margin-top:12px;">
 <h3>Nenhum usuario cadastrado</h3>
 <p class="muted">Clique em "Novo Usuario" para cadastrar o primeiro.</p>
@@ -1077,10 +1078,13 @@
       </div>
     </div>
 
-    <!-- Mantido por compatibilidade (nao exibido) -->
-    <div class="field" style="display:none;">
-      <span>Equipes (chips)</span>
-      <div class="chips-select" id="mgrTeamChips"></div>
+    <div class="form-section">
+      <div class="section-title">Equipes</div>
+      <div class="field">
+        <span>Selecione as equipes do técnico</span>
+        <div class="chips-select" id="mgrTeamChips"></div>
+        <small class="muted">Escolha uma ou mais equipes para vincular o técnico.</small>
+      </div>
     </div>
 
     <div class="alert" hidden id="createTechAlert"></div>
@@ -1798,7 +1802,7 @@
 </section>
 
 
-<script src="./app.js?v=1772615400" type="module"></script>
+<script src="./app.js?v=1772621700" type="module"></script>
 <script>
   // Toggle senha (somente UI)
   document.addEventListener("click", function(e){
