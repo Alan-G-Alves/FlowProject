@@ -4641,6 +4641,55 @@ button.chip.mini.removable{
   color: rgba(12,18,32,.92);
 }
 
+.admin-overview-mini-stats{
+  display:flex;
+  flex-wrap:wrap;
+  gap:8px;
+  margin-top:12px;
+}
+
+.admin-mini-pill{
+  display:inline-flex;
+  align-items:center;
+  gap:6px;
+  padding:6px 10px;
+  border-radius:999px;
+  font-size:12px;
+  font-weight:700;
+  border:1px solid rgba(12,18,32,.08);
+  color: rgba(12,18,32,.78);
+  background: rgba(255,255,255,.82);
+}
+
+.admin-mini-pill b{
+  font-size:12px;
+  color: rgba(12,18,32,.96);
+}
+
+.admin-mini-pill--violet{
+  color:#5b21b6;
+  background: rgba(139,92,246,.12);
+  border-color: rgba(139,92,246,.18);
+}
+
+.admin-mini-pill--blue{
+  color:#1d4ed8;
+  background: rgba(59,130,246,.12);
+  border-color: rgba(59,130,246,.18);
+}
+
+.admin-mini-pill--indigo{
+  color:#4338ca;
+  background: rgba(99,102,241,.12);
+  border-color: rgba(99,102,241,.18);
+}
+
+.admin-mini-pill--slate{
+  color:#334155;
+  background: rgba(148,163,184,.16);
+  border-color: rgba(148,163,184,.2);
+}
+
 .admin-overview-label{
   font-size:12px;
   font-weight:800;

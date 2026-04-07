@@ -161,6 +161,10 @@ export const addUsersToTeamAlert = byId("addUsersToTeamAlert");
 
 // Admin overview
 export const adminUsersCount = byId("adminUsersCount");
+export const adminManagersCount = byId("adminManagersCount");
+export const adminTechsCount = byId("adminTechsCount");
+export const adminAdminsCount = byId("adminAdminsCount");
+export const adminCoordinatorsCount = byId("adminCoordinatorsCount");
 export const adminTeamsCount = byId("adminTeamsCount");
 export const adminBlockedUsersCount = byId("adminBlockedUsersCount");
 

@@ -283,8 +283,16 @@ export function updateAdminSummary(deps) {
   const allUsers = Array.isArray(state._usersCache) ? state._usersCache : [];
   const allTeams = Array.isArray(state._teamsAllCache) ? state._teamsAllCache : (Array.isArray(state.teams) ? state.teams : []);
   const blockedUsers = allUsers.filter((u) => u.active === false).length;
+  const managersCount = allUsers.filter((u) => u.role === "gestor").length;
+  const techsCount = allUsers.filter((u) => u.role === "tecnico").length;
+  const adminsCount = allUsers.filter((u) => u.role === "admin").length;
+  const coordinatorsCount = allUsers.filter((u) => u.role === "coordenador").length;
 
   if (refs.adminUsersCount) refs.adminUsersCount.textContent = String(allUsers.length);
+  if (refs.adminManagersCount) refs.adminManagersCount.textContent = String(managersCount);
+  if (refs.adminTechsCount) refs.adminTechsCount.textContent = String(techsCount);
+  if (refs.adminAdminsCount) refs.adminAdminsCount.textContent = String(adminsCount);
+  if (refs.adminCoordinatorsCount) refs.adminCoordinatorsCount.textContent = String(coordinatorsCount);
   if (refs.adminTeamsCount) refs.adminTeamsCount.textContent = String(allTeams.length);
   if (refs.adminBlockedUsersCount) refs.adminBlockedUsersCount.textContent = String(blockedUsers);
 }

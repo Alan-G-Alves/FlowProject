@@ -43,10 +43,10 @@ import { auth, secondaryAuth, db, storage, functions, httpsCallable } from "./sr
 import { normalizePhone, normalizeCnpj, slugify } from "./src/utils/format.js";
 import { setAlert, clearAlert, clearInlineAlert, showInlineAlert } from "./src/ui/alerts.js";
 import { listCompaniesDocs } from "./src/services/companies.service.js";
-import * as refs from "./src/ui/refs.js?v=1770332256";
+import * as refs from "./src/ui/refs.js?v=1772622200";
 import * as companiesDomain from "./src/domain/companies.domain.js?v=1770332251";
 import * as teamsDomain from "./src/domain/teams.domain.js?v=1772614200";
-import * as usersDomain from "./src/domain/users.domain.js?v=1772621700";
+import * as usersDomain from "./src/domain/users.domain.js?v=1772622200";
 import * as managerUsersDomain from "./src/domain/manager-users.domain.js?v=1772620200";
 import * as clientsDomain from "./src/domain/clients.domain.js?v=1770332252";
 import * as projectsDomain from "./src/domain/projects.domain.js?v=1770332259";
