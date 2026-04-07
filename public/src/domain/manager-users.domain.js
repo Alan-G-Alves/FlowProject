@@ -223,7 +223,7 @@ function setCreateTechModalMode(deps, mode, tech){
 }
 
 export function openViewTechModal(deps, techUser){
-  const { refs, state } = deps;
+  const { refs, state, ensureTeamsForChips } = deps;
   if (!refs.modalCreateTech) {
     console.warn("[manager-users] modalCreateTech não encontrado no DOM");
     return;
@@ -345,7 +345,7 @@ function exportTechniciansToExcel(deps, items){
 }
 
 export function openEditTechModal(deps, techUser){
-  const { refs, state } = deps;
+  const { refs, state, ensureTeamsForChips } = deps;
   if (!refs.modalCreateTech) {
     console.warn("[manager-users] modalCreateTech não encontrado no DOM");
     return;
