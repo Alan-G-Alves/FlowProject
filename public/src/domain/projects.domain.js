@@ -1428,6 +1428,7 @@ export function subscribeMyProjects(deps) {
   const currentUid = auth?.currentUser?.uid || "";
   const currentRole = (state?.profile?.role || "").toString().toLowerCase();
   const onlyMine = _myProjectsOptions.onlyMine === true && ["gestor", "admin", "coordenador"].includes(currentRole);
+  const onlyAssignedTechProjects = currentRole === "tecnico";
   const isAllMode = _myProjectsOptions.mode === "all";
 
   // MantÃ©m o deps da view para re-renders (busca, snapshot, etc.)
@@ -1488,6 +1489,11 @@ export function subscribeMyProjects(deps) {
         .filter((project) => {
           if (!onlyMine) return true;
           return (project?.createdBy || "").toString() === currentUid;
+        })
+        .filter((project) => {
+          if (!onlyAssignedTechProjects) return true;
+          const techUids = Array.isArray(project?.techUids) ? project.techUids.filter(Boolean) : [];
+          return techUids.includes(currentUid);
         });
       // Usa refs safe para nÃ£o depender de deps.refs
       _myProjectsLast = projects;
