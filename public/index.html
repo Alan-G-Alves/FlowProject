@@ -1123,21 +1123,48 @@
 <!-- MODAL: Detalhe da Empresa (Master) -->
 <div class="modal" hidden="" id="modalCompanyDetail">
 <div class="modal-backdrop" data-close="true"></div>
-<div class="modal-card" style="max-width: 980px;">
-<div class="modal-header">
-<div>
+<div class="modal-card company-detail-modal-card">
+<div class="modal-header company-detail-modal-head">
+<div class="company-detail-heading">
 <h2 id="companyDetailTitle">Empresa</h2>
 <p class="muted" id="companyDetailMeta">-</p>
-<div style="margin-top:6px;"><span class="badge" id="companyDetailStatus">-</span></div>
+<div class="company-detail-status-row"><span class="badge" id="companyDetailStatus">-</span></div>
 </div>
-<div style="display:flex; gap:10px; align-items:center;">
+<div class="company-detail-head-actions">
 <button class="btn danger" id="btnToggleCompanyBlock">Bloquear empresa</button>
 <button class="btn ghost" id="btnCloseCompanyDetail">X</button>
 </div>
 </div>
-<div class="modal-body">
-<div class="alert" id="companyUsersAlert" style="display:none; margin-bottom: 12px;"></div>
-<div class="table" style="overflow:auto;">
+<div class="modal-body company-detail-modal-body">
+<div class="alert" id="companyUsersAlert" style="display:none;"></div>
+<section class="company-detail-users-panel">
+<div class="company-detail-users-header">
+<div>
+<h3>Usuarios da empresa</h3>
+<p class="muted">Gerencie perfis, status e acessos sem sair desta tela.</p>
+</div>
+</div>
+<div class="company-detail-toolbar">
+<div class="company-detail-stats">
+<div class="company-stat-card">
+<span class="company-stat-label">Total</span>
+<strong id="companyUsersTotalCount">0</strong>
+</div>
+<div class="company-stat-card company-stat-card--success">
+<span class="company-stat-label">Ativos</span>
+<strong id="companyUsersActiveCount">0</strong>
+</div>
+<div class="company-stat-card company-stat-card--danger">
+<span class="company-stat-label">Bloqueados</span>
+<strong id="companyUsersBlockedCount">0</strong>
+</div>
+</div>
+<label class="field company-users-search-field">
+<span>Pesquisar usuario</span>
+<input id="companyUsersSearch" placeholder="Buscar por nome, e-mail, telefone, ID ou perfil"/>
+</label>
+</div>
+<div class="table company-detail-table-wrap">
 <table>
 <thead>
 <tr>
@@ -1152,9 +1179,10 @@
 <tbody id="companyUsersTbody"></tbody>
 </table>
 </div>
-<div class="muted" id="companyUsersEmpty" style="display:none; margin-top: 12px;">
+<div class="panel subtle company-detail-empty" id="companyUsersEmpty" style="display:none;">
           Nenhum usuario encontrado para esta empresa.
         </div>
+</section>
 </div>
 </div>
 </div>

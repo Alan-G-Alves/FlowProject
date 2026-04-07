@@ -98,6 +98,8 @@ export function closeCompanyDetailModal(deps) {
   if (!refs.modalCompanyDetail) return;
   refs.modalCompanyDetail.hidden = true;
   deps.currentCompanyDetailId = null;
+  deps.companyDetailUsersCache = [];
+  if (refs.companyUsersSearch) refs.companyUsersSearch.value = "";
   if (refs.companyUsersTbody) refs.companyUsersTbody.innerHTML = "";
 }
 
@@ -126,6 +128,7 @@ export async function openCompanyDetailModal(companyId, deps) {
   if (!refs.modalCompanyDetail) return;
 
   clearInlineAlert(refs.companyUsersAlert);
+  if (refs.companyUsersSearch) refs.companyUsersSearch.value = "";
   if (refs.companyUsersTbody) refs.companyUsersTbody.innerHTML = "";
   if (refs.companyUsersEmpty) refs.companyUsersEmpty.hidden = true;
 
@@ -166,6 +169,7 @@ export async function loadCompanyDetail(companyId, deps) {
     uSnap.forEach(d => users.push({ id: d.id, ...d.data() }));
     users.sort((a, b) => (a.name || "").localeCompare(b.name || ""));
 
+    deps.companyDetailUsersCache = users;
     renderCompanyUsersTable(companyId, users);
   } catch (err) {
     console.error("Erro ao carregar detalhes da empresa:", err);
@@ -173,40 +177,84 @@ export async function loadCompanyDetail(companyId, deps) {
   }
 }
 
+function updateCompanyUsersCounters(users, refs) {
+  const total = Array.isArray(users) ? users.length : 0;
+  const active = Array.isArray(users) ? users.filter(u => u.active === true).length : 0;
+  const blocked = Math.max(0, total - active);
+  if (refs.companyUsersTotalCount) refs.companyUsersTotalCount.textContent = String(total);
+  if (refs.companyUsersActiveCount) refs.companyUsersActiveCount.textContent = String(active);
+  if (refs.companyUsersBlockedCount) refs.companyUsersBlockedCount.textContent = String(blocked);
+}
+
+function filterCompanyUsers(users, search) {
+  const qtxt = String(search || "").toLowerCase().trim();
+  if (!qtxt) return Array.isArray(users) ? users : [];
+  return (Array.isArray(users) ? users : []).filter((u) => {
+    const haystack = [
+      u.name,
+      u.email,
+      u.phone,
+      u.id,
+      u.role,
+      u.active === true ? "ativo" : "bloqueado"
+    ].map(v => String(v || "").toLowerCase()).join(" ");
+    return haystack.includes(qtxt);
+  });
+}
+
 export function renderCompanyUsersTable(companyId, users, deps) {
   const { refs, setCompanyUserActive, setCompanyUserRole, loadCompanyDetail } = deps;
   if (!refs.companyUsersTbody) return;
   refs.companyUsersTbody.innerHTML = "";
+  updateCompanyUsersCounters(users, refs);
 
-  if (!users || users.length === 0) {
-    if (refs.companyUsersEmpty) refs.companyUsersEmpty.hidden = false;
+  const filteredUsers = filterCompanyUsers(users, refs.companyUsersSearch?.value || "");
+
+  if (!filteredUsers || filteredUsers.length === 0) {
+    if (refs.companyUsersEmpty) {
+      refs.companyUsersEmpty.hidden = false;
+      refs.companyUsersEmpty.style.display = "block";
+    }
     return;
   }
-  if (refs.companyUsersEmpty) refs.companyUsersEmpty.hidden = true;
+  if (refs.companyUsersEmpty) {
+    refs.companyUsersEmpty.hidden = true;
+    refs.companyUsersEmpty.style.display = "none";
+  }
 
-  for (const u of users) {
+  for (const u of filteredUsers) {
     const active = u.active === true;
     const role = u.role || "tecnico";
+    const displayName = escapeHtml(u.name || "(sem nome)");
+    const displayId = escapeHtml(u.id);
+    const displayEmail = escapeHtml(u.email || "-");
+    const displayPhone = escapeHtml(u.phone || "-");
 
     const tr = document.createElement("tr");
+    tr.className = "company-user-row";
     tr.innerHTML = `
       <td>
-        <div class="cell-main">${escapeHtml(u.name || "(sem nome)")}</div>
-        <div class="cell-sub">${escapeHtml(u.id)}</div>
+        <div class="company-user-cell">
+          <div class="company-user-avatar" aria-hidden="true">${displayName.charAt(0).toUpperCase()}</div>
+          <div class="company-user-text">
+            <div class="cell-main">${displayName}</div>
+            <div class="cell-sub">${displayId}</div>
+          </div>
+        </div>
       </td>
-      <td>${escapeHtml(u.email || "-")}</td>
-      <td>${escapeHtml(u.phone || "-")}</td>
+      <td><div class="company-user-data">${displayEmail}</div></td>
+      <td><div class="company-user-data">${displayPhone}</div></td>
       <td>
-        <select class="input small js-role">
+        <select class="input small company-role-select js-role">
           ${["admin", "gestor", "coordenador", "tecnico"].map(r => `<option value="${r}" ${r === role ? "selected" : ""}>${r}</option>`).join("")}
         </select>
       </td>
       <td>
         <span class="badge ${active ? "badge-success" : "badge-danger"}">${active ? "ATIVO" : "BLOQUEADO"}</span>
       </td>
-      <td class="actions">
-        <button class="btn btn-ghost js-toggle">${active ? "Bloquear" : "Desbloquear"}</button>
-        <button class="btn btn-ghost js-save">Salvar perfil</button>
+      <td class="actions company-user-actions">
+        <button class="btn js-toggle ${active ? "danger" : ""}">${active ? "Bloquear" : "Desbloquear"}</button>
+        <button class="btn primary js-save">Salvar perfil</button>
       </td>
     `;
 
@@ -231,8 +279,14 @@ export function renderCompanyUsersTable(companyId, users, deps) {
   }
 
   if (refs.companyUsersEmpty) {
-    refs.companyUsersEmpty.style.display = users.length ? "none" : "block";
+    refs.companyUsersEmpty.style.display = filteredUsers.length ? "none" : "block";
   }
+}
+
+export function handleCompanyUsersSearch(deps) {
+  const { currentCompanyDetailId, companyDetailUsersCache, renderCompanyUsersTable } = deps;
+  if (!currentCompanyDetailId) return;
+  renderCompanyUsersTable(currentCompanyDetailId, companyDetailUsersCache || [], deps);
 }
 
 export async function setCompanyUserActive(companyId, uid, active, deps) {
