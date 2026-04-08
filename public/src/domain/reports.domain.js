@@ -73,10 +73,28 @@ function escapeHtml(value){
     .replace(/'/g, "&#39;");
 }
 
+function isCompletedActivity(activity){
+  return ["os_gerada", "os_aprovada"].includes(String(activity?.status || "").toLowerCase());
+}
+
+function isPendingOsActivity(activity){
+  return !isCompletedActivity(activity);
+}
+
+function getProjectPlannedHours(project){
+  return asNumber(
+    project?.billingHours ??
+    project?.hours ??
+    project?.billing?.hours ??
+    project?.cobrancaHoras ??
+    project?.totalHours ??
+    project?.estimatedHours
+  );
+}
+
 function getPeriodRange(period){
   const today = new Date();
   today.setHours(0, 0, 0, 0);
-  const isCompletedActivity = (activity) => ["os_gerada", "os_aprovada"].includes(String(activity?.status || "").toLowerCase());
   const end = new Date(today);
   const start = new Date(today);
   if (period === "30d") start.setDate(start.getDate() - 29);
@@ -512,14 +530,18 @@ function renderReports(cache, refs, state){
   const attentionData = getScopedData(baseData, state._reportsWidgetFilters.attention);
   const timelineData = getScopedData(baseData, state._reportsWidgetFilters.timeline);
 
-  const overviewPlannedHours = overviewData.tasks.reduce((acc, task) => acc + asNumber(task.plannedHours), 0);
-  const overviewWorkedHours = overviewData.activities.reduce((acc, activity) => acc + asNumber(activity.hoursWorked), 0);
+  const overviewPlannedHours = overviewData.projects.reduce((acc, project) => acc + getProjectPlannedHours(project), 0);
+  const overviewWorkedHours = overviewData.activities
+    .filter((activity) => isCompletedActivity(activity))
+    .reduce((acc, activity) => acc + asNumber(activity.hoursWorked), 0);
   const overviewCompleted = overviewData.activities.filter((activity) => isCompletedActivity(activity)).length;
   const overviewPending = overviewData.activities.length - overviewCompleted;
-  const overviewOverdue = overviewData.activities.filter((activity) => {
+  const overviewOverdueActivities = overviewData.activities.filter((activity) => {
     const date = parseDateOnly(activity.workDate);
-    return date && date < today && !isCompletedActivity(activity);
-  }).length;
+    return date && date < today && isPendingOsActivity(activity);
+  });
+  const overviewOverdue = overviewOverdueActivities.length;
+  const overviewPlannedPendingHours = overviewOverdueActivities.reduce((acc, activity) => acc + asNumber(activity.hoursWorked), 0);
   const overviewAvgHoursPerTask = overviewData.tasks.length ? (overviewWorkedHours / overviewData.tasks.length) : 0;
 
   const metricsCompleted = metricsData.activities.filter((activity) => isCompletedActivity(activity)).length;
@@ -629,8 +651,9 @@ function renderReports(cache, refs, state){
       </div>
       <div class="reports-kpis">
         <article class="reports-kpi"><span class="reports-kpi-label">Projetos monitorados</span><strong>${escapeHtml(String(overviewData.projects.length))}</strong><span class="reports-kpi-sub">Com filtros ativos</span></article>
-        <article class="reports-kpi"><span class="reports-kpi-label">Horas previstas</span><strong>${escapeHtml(formatHours(overviewPlannedHours))}</strong><span class="reports-kpi-sub">Planejamento agregado</span></article>
-        <article class="reports-kpi"><span class="reports-kpi-label">Horas executadas</span><strong>${escapeHtml(formatHours(overviewWorkedHours))}</strong><span class="reports-kpi-sub">Media por tarefa: ${escapeHtml(formatHours(overviewAvgHoursPerTask))}</span></article>
+        <article class="reports-kpi"><span class="reports-kpi-label">Horas previstas</span><strong>${escapeHtml(formatHours(overviewPlannedHours))}</strong><span class="reports-kpi-sub">Total de horas dos projetos</span></article>
+        <article class="reports-kpi"><span class="reports-kpi-label">Horas executadas</span><strong>${escapeHtml(formatHours(overviewWorkedHours))}</strong><span class="reports-kpi-sub">Somente atividades com OS gerada/aprovada • Media por tarefa: ${escapeHtml(formatHours(overviewAvgHoursPerTask))}</span></article>
+        <article class="reports-kpi"><span class="reports-kpi-label">Horas planejadas</span><strong>${escapeHtml(formatHours(overviewPlannedPendingHours))}</strong><span class="reports-kpi-sub">Atividades atrasadas e sem OS</span></article>
         <article class="reports-kpi"><span class="reports-kpi-label">Atividades pendentes</span><strong>${escapeHtml(String(overviewPending))}</strong><span class="reports-kpi-sub">${escapeHtml(String(overviewOverdue))} atrasadas</span></article>
       </div>
     </section>
