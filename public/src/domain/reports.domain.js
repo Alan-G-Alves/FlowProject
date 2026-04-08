@@ -76,6 +76,7 @@ function escapeHtml(value){
 function getPeriodRange(period){
   const today = new Date();
   today.setHours(0, 0, 0, 0);
+  const isCompletedActivity = (activity) => ["os_gerada", "os_aprovada"].includes(String(activity?.status || "").toLowerCase());
   const end = new Date(today);
   const start = new Date(today);
   if (period === "30d") start.setDate(start.getDate() - 29);
@@ -513,19 +514,19 @@ function renderReports(cache, refs, state){
 
   const overviewPlannedHours = overviewData.tasks.reduce((acc, task) => acc + asNumber(task.plannedHours), 0);
   const overviewWorkedHours = overviewData.activities.reduce((acc, activity) => acc + asNumber(activity.hoursWorked), 0);
-  const overviewCompleted = overviewData.activities.filter((activity) => String(activity.status || "").toLowerCase() === "os_gerada").length;
+  const overviewCompleted = overviewData.activities.filter((activity) => isCompletedActivity(activity)).length;
   const overviewPending = overviewData.activities.length - overviewCompleted;
   const overviewOverdue = overviewData.activities.filter((activity) => {
     const date = parseDateOnly(activity.workDate);
-    return date && date < today && String(activity.status || "").toLowerCase() !== "os_gerada";
+    return date && date < today && !isCompletedActivity(activity);
   }).length;
   const overviewAvgHoursPerTask = overviewData.tasks.length ? (overviewWorkedHours / overviewData.tasks.length) : 0;
 
-  const metricsCompleted = metricsData.activities.filter((activity) => String(activity.status || "").toLowerCase() === "os_gerada").length;
+  const metricsCompleted = metricsData.activities.filter((activity) => isCompletedActivity(activity)).length;
   const metricsPending = metricsData.activities.length - metricsCompleted;
   const metricsOverdue = metricsData.activities.filter((activity) => {
     const date = parseDateOnly(activity.workDate);
-    return date && date < today && String(activity.status || "").toLowerCase() !== "os_gerada";
+    return date && date < today && !isCompletedActivity(activity);
   }).length;
   const deliveryOnTime = metricsData.activities.length ? Math.max(0, ((metricsData.activities.length - metricsOverdue) / metricsData.activities.length) * 100) : 0;
 
@@ -539,7 +540,7 @@ function renderReports(cache, refs, state){
   const executionWorkedHours = executionData.activities.reduce((acc, activity) => acc + asNumber(activity.hoursWorked), 0);
   const executionOverdue = executionData.activities.filter((activity) => {
     const date = parseDateOnly(activity.workDate);
-    return date && date < today && String(activity.status || "").toLowerCase() !== "os_gerada";
+    return date && date < today && !isCompletedActivity(activity);
   }).length;
   const executionProgress = Math.min(100, executionPlannedHours > 0 ? (executionWorkedHours / executionPlannedHours) * 100 : 0);
 
@@ -583,10 +584,10 @@ function renderReports(cache, refs, state){
     const projectActivities = attentionActivitiesByProject.get(project.id) || [];
     const planned = projectTasks.reduce((acc, task) => acc + asNumber(task.plannedHours), 0);
     const worked = projectActivities.reduce((acc, activity) => acc + asNumber(activity.hoursWorked), 0);
-    const pending = projectActivities.filter((activity) => String(activity.status || "").toLowerCase() !== "os_gerada").length;
+    const pending = projectActivities.filter((activity) => !isCompletedActivity(activity)).length;
     const overdue = projectActivities.filter((activity) => {
       const date = parseDateOnly(activity.workDate);
-      return date && date < today && String(activity.status || "").toLowerCase() !== "os_gerada";
+      return date && date < today && !isCompletedActivity(activity);
     }).length;
     return {
       id: project.id,
@@ -608,7 +609,7 @@ function renderReports(cache, refs, state){
       projectName: project?.name || "Projeto",
       taskName: task?.name || activity.taskName || "Tarefa",
       hours: asNumber(activity.hoursWorked),
-      status: statusInfo(activity.status === "os_gerada" ? "go-live" : (activity.status || "em-andamento"))
+      status: statusInfo(isCompletedActivity(activity) ? "go-live" : (activity.status || "em-andamento"))
     };
   });
 

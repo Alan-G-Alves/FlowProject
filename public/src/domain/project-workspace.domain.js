@@ -14,7 +14,7 @@ import {
 import { setAlert, clearAlert } from "../ui/alerts.js";
 import { escapeHtml } from "../utils/dom.js";
 import { ensureClientsCache } from "./clients.domain.js";
-import { downloadProjectStatusReportExcel, downloadProjectStatusReportPdf } from "./project-status-report.domain.js";
+import { downloadProjectStatusReportExcel, downloadProjectStatusReportPdf } from "./project-status-report.domain.js?v=1772710200";
 
 let _bound = false;
 let _activeProjectId = "";
@@ -33,6 +33,19 @@ function formatHoursDisplay(value) {
   if (!Number.isFinite(value) || value <= 0) return "0h";
   const rounded = Math.round(value * 100) / 100;
   return Number.isInteger(rounded) ? `${rounded}h` : `${String(rounded).replace(".", ",")}h`;
+}
+
+function getActivityStatusValue(activity) {
+  return String(activity?.status || "").toLowerCase();
+}
+
+function isApprovedStatus(activity) {
+  return getActivityStatusValue(activity) === "os_aprovada";
+}
+
+function isCompletedStatus(activity) {
+  const status = getActivityStatusValue(activity);
+  return status === "os_gerada" || status === "os_aprovada";
 }
 
 function setWorkspaceOpenUI(deps, isOpen){
@@ -607,7 +620,7 @@ function openActivityActionModal(activityId, mode){
   clearAlert(modalRefs.alert);
 
   const readOnly = mode !== "edit";
-  const isGenerated = String(activity.status || "").toLowerCase() === "os_gerada" && mode !== "delete";
+  const isGenerated = isCompletedStatus(activity) && mode !== "delete";
   modalRefs.title.textContent = mode === "edit" ? "Editar atividade" : (mode === "delete" ? "Excluir atividade" : "Visualizar atividade");
   modalRefs.subtitle.textContent = mode === "edit"
     ? "Atualize os dados da atividade."
@@ -647,10 +660,10 @@ function openActivityActionModal(activityId, mode){
     if (modalRefs.generatedStartTime) modalRefs.generatedStartTime.value = activity.startTime || "";
     if (modalRefs.generatedEndTime) modalRefs.generatedEndTime.value = activity.endTime || "";
     if (modalRefs.generatedBreakTime) modalRefs.generatedBreakTime.value = activity.breakTime || "01:00";
-    if (modalRefs.generatedStatus) modalRefs.generatedStatus.value = "OS Gerada";
+    if (modalRefs.generatedStatus) modalRefs.generatedStatus.value = isApprovedStatus(activity) ? "OS Aprovada" : "OS Gerada";
     if (modalRefs.generatedNote) modalRefs.generatedNote.value = activity.note || "";
     if (modalRefs.generatedStatusBadge) {
-      modalRefs.generatedStatusBadge.textContent = "OS Gerada";
+      modalRefs.generatedStatusBadge.textContent = isApprovedStatus(activity) ? "OS Aprovada" : "OS Gerada";
       modalRefs.generatedStatusBadge.className = "my-activity-status-badge my-activity-status-badge--ok";
     }
     if (modalRefs.generatedTip) {
@@ -681,7 +694,7 @@ async function saveActivityModalChanges(deps){
 
   clearAlert(modalRefs.alert);
 
-  if (String(activity.status || "").toLowerCase() === "os_gerada") {
+  if (isCompletedStatus(activity)) {
     const start = modalRefs.generatedStartTime?.value || "";
     const end = modalRefs.generatedEndTime?.value || "";
     const breakTime = modalRefs.generatedBreakTime?.value || "01:00";
@@ -708,7 +721,7 @@ async function saveActivityModalChanges(deps){
       breakTime,
       workedHours: hoursDiff,
       note,
-      status: "os_gerada",
+      status: isApprovedStatus(activity) ? "os_aprovada" : "os_gerada",
       updatedAt: serverTimestamp(),
       updatedBy: auth?.currentUser?.uid || ""
     });
@@ -1303,19 +1316,20 @@ function renderTasks(deps){
     const balance = Math.max(0, planned - worked);
     const statusCounters = visibleTaskActs.reduce((acc, a) => {
       const workDate = parseDateOnly(a.workDate);
-      const isOverdue = Boolean(workDate && workDate < today && a.status !== "os_gerada");
-      if (a.status === "os_gerada") acc.done += 1;
+      const isOverdue = Boolean(workDate && workDate < today && !isCompletedStatus(a));
+      if (isApprovedStatus(a)) acc.approved += 1;
+      else if (getActivityStatusValue(a) === "os_gerada") acc.generated += 1;
       else acc.pending += 1;
       if (isOverdue) acc.overdue += 1;
       return acc;
-    }, { pending: 0, done: 0, overdue: 0 });
+    }, { pending: 0, generated: 0, approved: 0, overdue: 0 });
     const groupedActs = new Map();
     visibleTaskActs.forEach((a) => {
       const activityName = (a.name || "Atividade").trim();
       const names = Array.isArray(a.techNames) && a.techNames.length ? a.techNames : ["Sem tecnico"];
       const techKey = names.join(" | ");
       const workDate = parseDateOnly(a.workDate);
-      const isOverdue = Boolean(workDate && workDate < today && a.status !== "os_gerada");
+      const isOverdue = Boolean(workDate && workDate < today && !isCompletedStatus(a));
 
       const current = groupedActs.get(activityName) || {
         label: activityName,
@@ -1336,7 +1350,7 @@ function renderTasks(deps){
 
       techGroup.activities.push(a);
       current.activities.push(a);
-      if (a.status !== "os_gerada") {
+      if (!isCompletedStatus(a)) {
         techGroup.pending += 1;
         current.pending += 1;
       }
@@ -1377,16 +1391,17 @@ function renderTasks(deps){
       const canManageActivity = canManageTasks(state);
       const assignedTechs = Array.isArray(a.techNames) && a.techNames.length ? a.techNames.join(", ") : "Sem tecnico";
       const workDate = parseDateOnly(a.workDate);
-      const isOverdue = Boolean(workDate && workDate < today && a.status !== "os_gerada");
+      const isOverdue = Boolean(workDate && workDate < today && !isCompletedStatus(a));
+      const isApproved = isApprovedStatus(a);
       return `
-        <div class="activity-item ${isOverdue ? "overdue" : (a.status === "os_gerada" ? "ok" : "pending")}">
+        <div class="activity-item ${isOverdue ? "overdue" : (isCompletedStatus(a) ? "ok" : "pending")}">
           <div class="activity-main">
             <div>
               <b>${escapeHtml(a.name || "Atividade")}</b>
               <div class="activity-meta-line">${escapeHtml(fmtDate(a.workDate))} | ${escapeHtml(String(a.hoursWorked || 0))}h</div>
             </div>
             <div class="activity-head-actions">
-              <span class="activity-status ${isOverdue ? "orange" : (a.status === "os_gerada" ? "green" : "red")}">${isOverdue ? "Atrasada" : (a.status === "os_gerada" ? "OS Gerada" : "Sem Ordem de Servico")}</span>
+              <span class="activity-status ${isOverdue ? "orange" : (isCompletedStatus(a) ? "green" : "red")}">${isOverdue ? "Atrasada" : (isApproved ? "OS Aprovada" : (getActivityStatusValue(a) === "os_gerada" ? "OS Gerada" : "Sem Ordem de Servico"))}</span>
               ${canManageActivity ? `
                 <div class="activity-action-bar">
                   <button class="icon-btn xs activity-action activity-action-view" data-view-activity="${escapeHtml(a.id)}" type="button" title="Visualizar atividade" aria-label="Visualizar atividade">
@@ -1479,7 +1494,8 @@ function renderTasks(deps){
                 </div>
                 <div class="task-status-strip">
                   <span class="task-status-pill task-status-pill--pending">${iconPending} Sem OS: <b>${escapeHtml(String(statusCounters.pending))}</b></span>
-                  <span class="task-status-pill task-status-pill--done">${iconDone} OS Gerada: <b>${escapeHtml(String(statusCounters.done))}</b></span>
+                  <span class="task-status-pill task-status-pill--done">${iconDone} OS Gerada: <b>${escapeHtml(String(statusCounters.generated))}</b></span>
+                  <span class="task-status-pill task-status-pill--done">${iconDone} OS Aprovada: <b>${escapeHtml(String(statusCounters.approved))}</b></span>
                   <span class="task-status-pill task-status-pill--overdue">${iconOverdue} Atrasadas: <b>${escapeHtml(String(statusCounters.overdue))}</b></span>
                 </div>
               </div>

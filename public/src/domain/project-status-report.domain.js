@@ -40,9 +40,15 @@ function statusLabel(status){
     "parado": "Parado",
     "backlog": "Backlog",
     "sem_os": "Sem OS",
-    "os_gerada": "OS gerada"
+    "os_gerada": "OS gerada",
+    "os_aprovada": "OS aprovada"
   };
   return map[raw] || (status || "-");
+}
+
+function isCompletedStatus(activity){
+  const status = String(activity?.status || "").toLowerCase();
+  return status === "os_gerada" || status === "os_aprovada";
 }
 
 function buildExecutiveSummary(data){
@@ -72,7 +78,7 @@ function buildStatusReportData({ project, tasks, activities, state }){
     : [];
   const billingHours = asNumber(project?.billingHours);
   const totalActivityHours = sortedActivities.reduce((acc, activity) => acc + asNumber(activity.hoursWorked), 0);
-  const completedCount = sortedActivities.filter(activity => String(activity.status || "").toLowerCase() === "os_gerada").length;
+  const completedCount = sortedActivities.filter(activity => isCompletedStatus(activity)).length;
   const pendingCount = sortedActivities.length - completedCount;
   const today = new Date();
   today.setHours(0, 0, 0, 0);
@@ -80,7 +86,7 @@ function buildStatusReportData({ project, tasks, activities, state }){
     const workDate = String(activity.workDate || "").slice(0, 10);
     if (!workDate) return false;
     const parsed = new Date(`${workDate}T00:00:00`);
-    return parsed < today && String(activity.status || "").toLowerCase() !== "os_gerada";
+    return parsed < today && !isCompletedStatus(activity);
   }).length;
   const teamName = teams.find(team => team.id === project?.teamId)?.name || "-";
   const managerName = users.find(user => user.uid === project?.managerUid)?.name || "-";

@@ -18,6 +18,19 @@ let _myActivitiesCache = [];
 let _myActivitiesAllCache = [];
 let _myActivitiesStatusFilter = "all";
 
+function getActivityStatusValue(activity) {
+  return String(activity?.status || "").toLowerCase();
+}
+
+function isApproved(activity) {
+  return getActivityStatusValue(activity) === "os_aprovada";
+}
+
+function isCompleted(activity) {
+  const status = getActivityStatusValue(activity);
+  return status === "os_gerada" || status === "os_aprovada";
+}
+
 function updateMyActivityNoteCounter(refs) {
   if (!refs?.myActivityNoteCounter) return;
   const noteLength = String(refs.myActivityNote?.value || "").trim().length;
@@ -104,7 +117,7 @@ function diffHours(startTime, endTime, breakTime = "00:00") {
 
 function isOverdue(activity) {
   const workDate = String(activity?.workDate || "").slice(0, 10);
-  if (!workDate || activity?.status === "os_gerada") return false;
+  if (!workDate || isCompleted(activity)) return false;
   const today = new Date();
   const todayKey = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-${String(today.getDate()).padStart(2, "0")}`;
   return workDate < todayKey;
@@ -114,7 +127,10 @@ function getStatusMeta(activity) {
   if (isOverdue(activity)) {
     return { label: "Atrasada", cls: "orange", itemCls: "overdue" };
   }
-  if (String(activity?.status || "") === "os_gerada") {
+  if (isApproved(activity)) {
+    return { label: "OS Aprovada", cls: "green", itemCls: "ok" };
+  }
+  if (getActivityStatusValue(activity) === "os_gerada") {
     return { label: "OS Gerada", cls: "green", itemCls: "ok" };
   }
   return { label: "Sem OS", cls: "red", itemCls: "pending" };
@@ -188,9 +204,9 @@ function bindEvents(deps) {
 function applyStatusFilter(items) {
   switch (_myActivitiesStatusFilter) {
     case "pending":
-      return items.filter((item) => String(item.activity?.status || "") !== "os_gerada" && !isOverdue(item.activity));
+      return items.filter((item) => !isCompleted(item.activity) && !isOverdue(item.activity));
     case "generated":
-      return items.filter((item) => String(item.activity?.status || "") === "os_gerada");
+      return items.filter((item) => isCompleted(item.activity));
     case "overdue":
       return items.filter((item) => isOverdue(item.activity));
     default:
@@ -208,8 +224,8 @@ function syncSummaryCards() {
 
 function updateSummary(refs, items) {
   const total = items.length;
-  const pending = items.filter((item) => String(item.activity?.status || "") !== "os_gerada" && !isOverdue(item.activity)).length;
-  const generated = items.filter((item) => String(item.activity?.status || "") === "os_gerada").length;
+  const pending = items.filter((item) => !isCompleted(item.activity) && !isOverdue(item.activity)).length;
+  const generated = items.filter((item) => isCompleted(item.activity)).length;
   const overdue = items.filter((item) => isOverdue(item.activity)).length;
 
   if (refs.myActivitiesTotalCount) refs.myActivitiesTotalCount.textContent = String(total);
@@ -264,8 +280,8 @@ function renderMyActivitiesList(refs, items) {
           return String(a.activity.name || "").localeCompare(String(b.activity.name || ""));
         });
 
-        const pendingCount = taskGroup.activities.filter((item) => String(item.activity.status || "") !== "os_gerada" && !isOverdue(item.activity)).length;
-        const generatedCount = taskGroup.activities.filter((item) => String(item.activity.status || "") === "os_gerada").length;
+        const pendingCount = taskGroup.activities.filter((item) => !isCompleted(item.activity) && !isOverdue(item.activity)).length;
+        const generatedCount = taskGroup.activities.filter((item) => isCompleted(item.activity)).length;
         const overdueCount = taskGroup.activities.filter((item) => isOverdue(item.activity)).length;
 
         const activitiesHtml = taskGroup.activities.map((item) => {
@@ -312,7 +328,7 @@ function renderMyActivitiesList(refs, items) {
               </div>
               <div class="my-activities-task-statuses">
                 <span class="task-status-pill task-status-pill--pending">Sem OS: <b>${escapeHtml(String(pendingCount))}</b></span>
-                <span class="task-status-pill task-status-pill--done">OS Gerada: <b>${escapeHtml(String(generatedCount))}</b></span>
+                <span class="task-status-pill task-status-pill--done">OS Enviadas: <b>${escapeHtml(String(generatedCount))}</b></span>
                 <span class="task-status-pill task-status-pill--overdue">Atrasadas: <b>${escapeHtml(String(overdueCount))}</b></span>
               </div>
             </summary>
@@ -360,7 +376,7 @@ function openMyActivityModal(activityId, mode, deps) {
   _currentModalMode = mode === "edit" ? "edit" : "view";
   clearAlert(refs.myActivityModalAlert);
 
-  const readOnly = _currentModalMode !== "edit";
+  const readOnly = _currentModalMode !== "edit" || isApproved(item.activity);
   const statusMeta = getStatusMeta(item.activity);
   if (refs.myActivityModalTitle) refs.myActivityModalTitle.textContent = readOnly ? "Visualizar atividade" : "Apontar atividade";
   if (refs.myActivityModalSubtitle) refs.myActivityModalSubtitle.textContent = readOnly
@@ -390,7 +406,7 @@ function openMyActivityModal(activityId, mode, deps) {
   if (refs.myActivityNote) refs.myActivityNote.disabled = readOnly;
   if (refs.myActivityTip) {
     refs.myActivityTip.textContent = readOnly
-      ? "Visualizacao somente leitura do apontamento e do contexto da atividade."
+      ? (isApproved(item.activity) ? "Esta atividade ja foi aprovada pela gestao e esta apenas para consulta." : "Visualizacao somente leitura do apontamento e do contexto da atividade.")
       : "Preencha inicio, fim e uma observacao completa para enviar ao gestor.";
   }
   if (refs.btnSaveMyActivityModal) refs.btnSaveMyActivityModal.hidden = readOnly;
