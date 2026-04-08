@@ -15,6 +15,7 @@ const ids = {
   viewManagerUsers: "viewManagerUsers",
   viewClients: "viewClients",
   viewMyProjects: "viewMyProjects",
+  viewMyActivities: "viewMyActivities",
   viewProjects: "viewProjects",
 };
 
@@ -30,6 +31,7 @@ export function setView(name){
   const viewManagerUsers = el(ids.viewManagerUsers);
   const viewClients = el(ids.viewClients);
   const viewMyProjects = el(ids.viewMyProjects);
+  const viewMyActivities = el(ids.viewMyActivities);
   const viewProjects = el(ids.viewProjects);
 
   // 🔥 Cleanup: ao sair do Kanban realtime, cancela o onSnapshot
@@ -50,6 +52,7 @@ export function setView(name){
   hide(viewManagerUsers);
   hide(viewClients);
   hide(viewMyProjects);
+  hide(viewMyActivities);
   hide(viewProjects);
 
   if (name === "login"){
@@ -68,6 +71,7 @@ export function setView(name){
   if (name === "managerUsers") show(viewManagerUsers);
   if (name === "clients") show(viewClients);
   if (name === "myProjects") show(viewMyProjects);
+  if (name === "myActivities") show(viewMyActivities);
   if (name === "projects") show(viewProjects);
 }
 

@@ -4315,6 +4315,31 @@ body.is-superadmin #navClients{
 }
 
 @media (max-width: 720px){
+  .my-activities-summary{
+    grid-template-columns:1fr;
+  }
+
+  .my-activities-search-field{
+    min-width: 100%;
+  }
+
+  .my-activities-task-summary{
+    align-items:flex-start;
+    flex-direction:column;
+  }
+
+  .my-activities-task-statuses{
+    justify-content:flex-start;
+  }
+
+  .my-activity-modal-grid{
+    grid-template-columns:1fr;
+  }
+
+  .my-activity-modal-grid .span-2{
+    grid-column:auto;
+  }
+
   .activity-head-actions{
     align-items:flex-end;
     flex-direction:column;
@@ -4341,6 +4366,178 @@ body.is-superadmin #navClients{
 
 .activity-tech-fill button{
   justify-self:end;
+}
+
+.my-activities-toolbar{
+  width: 100%;
+  justify-content: flex-end;
+  gap: 10px;
+}
+
+.my-activities-search-field{
+  min-width: 320px;
+}
+
+.my-activities-summary{
+  display:grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap:12px;
+  margin-bottom:16px;
+}
+
+.my-activities-stat{
+  border:1px solid rgba(12,18,32,.08);
+  border-radius:18px;
+  padding:18px 20px;
+  background:
+    radial-gradient(circle at top right, rgba(59,130,246,.10), transparent 32%),
+    linear-gradient(180deg, rgba(255,255,255,.98), rgba(248,250,252,.94));
+  box-shadow: 0 16px 34px rgba(12,18,32,.05);
+}
+
+.my-activities-stat--pending{
+  background:
+    radial-gradient(circle at top right, rgba(239,68,68,.10), transparent 32%),
+    linear-gradient(180deg, rgba(255,255,255,.98), rgba(254,242,242,.94));
+}
+
+.my-activities-stat--ok{
+  background:
+    radial-gradient(circle at top right, rgba(34,197,94,.10), transparent 32%),
+    linear-gradient(180deg, rgba(255,255,255,.98), rgba(240,253,244,.94));
+}
+
+.my-activities-stat--warn{
+  background:
+    radial-gradient(circle at top right, rgba(245,158,11,.12), transparent 32%),
+    linear-gradient(180deg, rgba(255,255,255,.98), rgba(255,251,235,.96));
+}
+
+.my-activities-stat-label{
+  display:block;
+  font-size:12px;
+  font-weight:800;
+  letter-spacing:.12em;
+  text-transform:uppercase;
+  color: rgba(12,18,32,.56);
+}
+
+.my-activities-stat strong{
+  display:block;
+  margin-top:10px;
+  font-size:34px;
+  line-height:1;
+  color: rgba(12,18,32,.94);
+}
+
+.my-activities-board{
+  display:grid;
+  gap:16px;
+}
+
+.my-activities-project-card{
+  border:1px solid rgba(12,18,32,.08);
+  border-radius:24px;
+  padding:20px;
+  background:
+    radial-gradient(circle at top right, rgba(119,59,246,.08), transparent 28%),
+    linear-gradient(180deg, rgba(255,255,255,.98), rgba(248,250,252,.95));
+  box-shadow: 0 18px 40px rgba(12,18,32,.06);
+}
+
+.my-activities-project-head{
+  display:flex;
+  align-items:flex-start;
+  justify-content:space-between;
+  gap:12px;
+  margin-bottom:14px;
+}
+
+.my-activities-project-kicker,
+.my-activities-task-kicker{
+  font-size:11px;
+  font-weight:800;
+  letter-spacing:.14em;
+  text-transform:uppercase;
+  color: rgba(12,18,32,.48);
+}
+
+.my-activities-project-head h3,
+.my-activities-task-title{
+  margin:6px 0 4px;
+  font-size:24px;
+  line-height:1.1;
+  color: rgba(12,18,32,.95);
+}
+
+.my-activities-project-body{
+  display:grid;
+  gap:12px;
+}
+
+.my-activities-task-card{
+  border:1px solid rgba(12,18,32,.08);
+  border-radius:18px;
+  background: rgba(255,255,255,.88);
+  overflow:hidden;
+}
+
+.my-activities-task-summary{
+  list-style:none;
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:16px;
+  padding:16px 18px;
+  cursor:pointer;
+}
+
+.my-activities-task-summary::-webkit-details-marker{
+  display:none;
+}
+
+.my-activities-task-subtitle{
+  font-size:13px;
+  color: rgba(12,18,32,.56);
+}
+
+.my-activities-task-statuses{
+  display:flex;
+  flex-wrap:wrap;
+  gap:8px;
+  justify-content:flex-end;
+}
+
+.my-activities-task-list{
+  display:grid;
+  gap:10px;
+  padding:0 18px 18px;
+}
+
+.my-activities-note-preview{
+  margin-top:10px;
+  font-size:13px;
+  line-height:1.5;
+  color: rgba(12,18,32,.72);
+}
+
+.my-activity-modal-card{
+  width:min(820px, calc(100% - 24px));
+}
+
+.my-activity-modal-grid{
+  display:grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap:12px;
+}
+
+.my-activity-modal-grid .span-2{
+  grid-column: 1 / -1;
+}
+
+.my-activity-modal-grid input,
+.my-activity-modal-grid textarea{
+  width:100%;
 }
 
 .weekdays-pills{

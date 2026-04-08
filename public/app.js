@@ -43,13 +43,14 @@ import { auth, secondaryAuth, db, storage, functions, httpsCallable } from "./sr
 import { normalizePhone, normalizeCnpj, slugify } from "./src/utils/format.js";
 import { setAlert, clearAlert, clearInlineAlert, showInlineAlert } from "./src/ui/alerts.js";
 import { listCompaniesDocs } from "./src/services/companies.service.js";
-import * as refs from "./src/ui/refs.js?v=1772624400";
+import * as refs from "./src/ui/refs.js?v=1772628600";
 import * as companiesDomain from "./src/domain/companies.domain.js?v=1770332251";
 import * as teamsDomain from "./src/domain/teams.domain.js?v=1772614200";
 import * as usersDomain from "./src/domain/users.domain.js?v=1772622200";
 import * as managerUsersDomain from "./src/domain/manager-users.domain.js?v=1772622600";
 import * as clientsDomain from "./src/domain/clients.domain.js?v=1770332252";
 import * as projectsDomain from "./src/domain/projects.domain.js?v=1772626200";
+import * as myActivitiesDomain from "./src/domain/my-activities.domain.js?v=1772628600";
 import * as projectWorkspaceDomain from "./src/domain/project-workspace.domain.js?v=1770332277";
 import * as reportsDomain from "./src/domain/reports.domain.js?v=1770332251";
 import * as profileModal from "./src/ui/modals/profile.modal.js?v=1770332251";
@@ -680,6 +681,15 @@ function renderDashboardCards(profile){
       });
     }
 
+    if (role === "tecnico") {
+      cards.push({
+        title: "Minhas Atividades",
+        desc: "Veja suas atividades por tarefa, faca apontamentos e envie para aprovacao.",
+        badge: "Tecnico",
+        action: () => openMyActivitiesView()
+      });
+    }
+
     if (false && role === "gestor") {
       cards.push({
         title: "Usuários (Técnicos)",
@@ -986,6 +996,10 @@ const getProjectsDeps = () => ({
   openProjectWorkspace, openProjectTab
 });
 
+const getMyActivitiesDeps = () => ({
+  refs, state, db, auth, setView
+});
+
 async function openProjectWorkspace(projectId) {
   await projectWorkspaceDomain.openProjectWorkspace(projectId, getProjectsDeps());
 }
@@ -1010,6 +1024,22 @@ async function openMyProjectsView(options = {}) {
 
 async function loadMyProjects() {
   await projectsDomain.loadMyProjects(getProjectsDeps());
+}
+
+async function openMyActivitiesView() {
+  try{
+    await ensureCompanyContext();
+  }catch(err){
+    console.error("openMyActivitiesView: ensureCompanyContext falhou:", err);
+    alert("Nao foi possivel identificar a empresa do usuario. Faca logout e login novamente.");
+    return;
+  }
+
+  myActivitiesDomain.openMyActivitiesView(getMyActivitiesDeps());
+}
+
+async function loadMyActivities() {
+  await myActivitiesDomain.loadMyActivities(getMyActivitiesDeps());
 }
 
 function openProjectsView() {
@@ -1457,6 +1487,11 @@ refs.btnOpenCreateProjectFromKanban?.addEventListener("click", async () => {
   await loadUsers();
   openCreateProjectModal();
 });
+
+// My Activities events
+refs.btnBackFromMyActivities?.addEventListener("click", () => setView("dashboard"));
+refs.btnReloadMyActivities?.addEventListener("click", () => loadMyActivities());
+refs.myActivitiesSearchInput?.addEventListener("input", () => loadMyActivities());
 
 // Projects events
 refs.btnBackFromProjects?.addEventListener("click", () => setView("dashboard"));

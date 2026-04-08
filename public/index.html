@@ -742,6 +742,116 @@
   </div>
 </section>
 
+<section class="view" hidden="" id="viewMyActivities">
+  <div class="container">
+    <div class="page-header">
+      <div>
+        <h1>Minhas Atividades</h1>
+        <p class="muted">Organize seus apontamentos por tarefa e envie tudo com contexto para aprovacao do gestor.</p>
+      </div>
+      <div class="chips my-activities-toolbar">
+        <label class="field my-activities-search-field">
+          <span>Buscar atividade</span>
+          <input id="myActivitiesSearchInput" type="search" placeholder="Projeto, tarefa, atividade, data ou status" />
+        </label>
+        <button class="btn" id="btnReloadMyActivities" type="button">Atualizar</button>
+        <button class="btn ghost" id="btnBackFromMyActivities" type="button">Voltar</button>
+      </div>
+    </div>
+
+    <section class="my-activities-summary">
+      <article class="my-activities-stat">
+        <span class="my-activities-stat-label">Atividades</span>
+        <strong id="myActivitiesTotalCount">0</strong>
+        <p class="muted">Total vinculado ao seu usuario.</p>
+      </article>
+      <article class="my-activities-stat my-activities-stat--pending">
+        <span class="my-activities-stat-label">Sem OS</span>
+        <strong id="myActivitiesPendingCount">0</strong>
+        <p class="muted">Aguardando seu apontamento final.</p>
+      </article>
+      <article class="my-activities-stat my-activities-stat--ok">
+        <span class="my-activities-stat-label">OS Gerada</span>
+        <strong id="myActivitiesGeneratedCount">0</strong>
+        <p class="muted">Prontas para aprovacao do gestor.</p>
+      </article>
+      <article class="my-activities-stat my-activities-stat--warn">
+        <span class="my-activities-stat-label">Atrasadas</span>
+        <strong id="myActivitiesOverdueCount">0</strong>
+        <p class="muted">Com data vencida e sem envio concluido.</p>
+      </article>
+    </section>
+
+    <div id="myActivitiesList" class="my-activities-board"></div>
+    <div class="panel subtle" hidden id="myActivitiesEmpty" style="margin-top:12px;">
+      <h3>Nenhuma atividade encontrada</h3>
+      <p class="muted">Assim que voce for vinculado a atividades, elas aparecerao aqui.</p>
+    </div>
+  </div>
+</section>
+
+<div class="modal" hidden id="modalMyActivity">
+  <div class="modal-backdrop" data-close-my-activity="true"></div>
+  <div class="modal-card my-activity-modal-card">
+    <div class="modal-header">
+      <div>
+        <h2 id="myActivityModalTitle">Atividade</h2>
+        <p class="muted" id="myActivityModalSubtitle">Detalhes da atividade.</p>
+      </div>
+      <button class="btn ghost" id="btnCloseMyActivityModal" type="button">X</button>
+    </div>
+    <div class="modal-body">
+      <div class="alert" hidden id="myActivityModalAlert"></div>
+      <div class="my-activity-modal-grid">
+        <label class="field">
+          <span>Projeto</span>
+          <input id="myActivityProject" disabled />
+        </label>
+        <label class="field">
+          <span>Tarefa</span>
+          <input id="myActivityTask" disabled />
+        </label>
+        <label class="field span-2">
+          <span>Atividade</span>
+          <input id="myActivityName" disabled />
+        </label>
+        <label class="field">
+          <span>Data</span>
+          <input id="myActivityDate" disabled />
+        </label>
+        <label class="field">
+          <span>Horas previstas</span>
+          <input id="myActivityHours" disabled />
+        </label>
+        <label class="field">
+          <span>Status atual</span>
+          <input id="myActivityStatus" disabled />
+        </label>
+        <label class="field">
+          <span>Inicio</span>
+          <input id="myActivityStartTime" type="time" />
+        </label>
+        <label class="field">
+          <span>Fim</span>
+          <input id="myActivityEndTime" type="time" />
+        </label>
+        <label class="field span-2">
+          <span>Key users</span>
+          <textarea id="myActivityKeyUsers" rows="2" disabled></textarea>
+        </label>
+        <label class="field span-2">
+          <span>Observacao do tecnico</span>
+          <textarea id="myActivityNote" rows="5" placeholder="Descreva o que foi realizado. Minimo de 50 caracteres."></textarea>
+        </label>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn ghost" id="btnCancelMyActivityModal" type="button">Fechar</button>
+      <button class="btn primary" id="btnSaveMyActivityModal" type="button">Salvar apontamento</button>
+    </div>
+  </div>
+</div>
+
 <!-- PROJECTS VIEW --><section class="view" hidden="" id="viewProjects">
 <div class="container">
 <div class="page-header">
@@ -1808,7 +1918,7 @@
 </section>
 
 
-<script src="./app.js?v=1772626200" type="module"></script>
+<script src="./app.js?v=1772628600" type="module"></script>
 <script>
   // Toggle senha (somente UI)
   document.addEventListener("click", function(e){

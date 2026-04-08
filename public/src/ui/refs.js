@@ -319,6 +319,35 @@ export const kanbanCountTodo = byId("kanbanCountTodo");
 export const kanbanCountInProgress = byId("kanbanCountInProgress");
 export const kanbanCountDone = byId("kanbanCountDone");
 
+// My Activities
+export const viewMyActivities = byId("viewMyActivities");
+export const btnBackFromMyActivities = byId("btnBackFromMyActivities");
+export const btnReloadMyActivities = byId("btnReloadMyActivities");
+export const myActivitiesSearchInput = byId("myActivitiesSearchInput");
+export const myActivitiesTotalCount = byId("myActivitiesTotalCount");
+export const myActivitiesPendingCount = byId("myActivitiesPendingCount");
+export const myActivitiesGeneratedCount = byId("myActivitiesGeneratedCount");
+export const myActivitiesOverdueCount = byId("myActivitiesOverdueCount");
+export const myActivitiesList = byId("myActivitiesList");
+export const myActivitiesEmpty = byId("myActivitiesEmpty");
+export const modalMyActivity = byId("modalMyActivity");
+export const btnCloseMyActivityModal = byId("btnCloseMyActivityModal");
+export const btnCancelMyActivityModal = byId("btnCancelMyActivityModal");
+export const btnSaveMyActivityModal = byId("btnSaveMyActivityModal");
+export const myActivityModalTitle = byId("myActivityModalTitle");
+export const myActivityModalSubtitle = byId("myActivityModalSubtitle");
+export const myActivityModalAlert = byId("myActivityModalAlert");
+export const myActivityProject = byId("myActivityProject");
+export const myActivityTask = byId("myActivityTask");
+export const myActivityName = byId("myActivityName");
+export const myActivityDate = byId("myActivityDate");
+export const myActivityHours = byId("myActivityHours");
+export const myActivityStatus = byId("myActivityStatus");
+export const myActivityStartTime = byId("myActivityStartTime");
+export const myActivityEndTime = byId("myActivityEndTime");
+export const myActivityKeyUsers = byId("myActivityKeyUsers");
+export const myActivityNote = byId("myActivityNote");
+
 // Projects
 export const viewProjects = byId("viewProjects");
 export const btnBackFromProjects = byId("btnBackFromProjects");
