@@ -4560,13 +4560,31 @@ body.is-superadmin #navClients{
 }
 
 .my-activity-modal-card{
+  display:flex;
+  flex-direction:column;
   width:min(820px, calc(100% - 24px));
+  max-height: calc(100vh - 32px);
+  margin: 16px auto;
   border-radius:28px;
   overflow:hidden;
   background:
     radial-gradient(circle at top right, rgba(99,102,241,.08), transparent 24%),
     linear-gradient(180deg, rgba(255,255,255,.99), rgba(248,250,252,.97));
   box-shadow: 0 26px 70px rgba(12,18,32,.18);
+}
+
+.my-activity-modal-card .modal-body{
+  flex:1 1 auto;
+  overflow-y:auto;
+  padding-bottom:18px;
+}
+
+.my-activity-modal-card .modal-footer{
+  position:sticky;
+  bottom:0;
+  z-index:1;
+  background: rgba(255,255,255,.96);
+  backdrop-filter: blur(10px);
 }
 
 .my-activity-modal-shell{
