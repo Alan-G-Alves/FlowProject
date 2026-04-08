@@ -754,28 +754,26 @@
           <span>Buscar atividade</span>
           <input id="myActivitiesSearchInput" type="search" placeholder="Projeto, tarefa, atividade, data ou status" />
         </label>
-        <button class="btn" id="btnReloadMyActivities" type="button">Atualizar</button>
-        <button class="btn ghost" id="btnBackFromMyActivities" type="button">Voltar</button>
       </div>
     </div>
 
     <section class="my-activities-summary">
-      <article class="my-activities-stat">
+      <article class="my-activities-stat is-active" data-my-activities-filter="all" role="button" tabindex="0" aria-pressed="true">
         <span class="my-activities-stat-label">Atividades</span>
         <strong id="myActivitiesTotalCount">0</strong>
         <p class="muted">Total vinculado ao seu usuario.</p>
       </article>
-      <article class="my-activities-stat my-activities-stat--pending">
+      <article class="my-activities-stat my-activities-stat--pending" data-my-activities-filter="pending" role="button" tabindex="0" aria-pressed="false">
         <span class="my-activities-stat-label">Sem OS</span>
         <strong id="myActivitiesPendingCount">0</strong>
         <p class="muted">Aguardando seu apontamento final.</p>
       </article>
-      <article class="my-activities-stat my-activities-stat--ok">
+      <article class="my-activities-stat my-activities-stat--ok" data-my-activities-filter="generated" role="button" tabindex="0" aria-pressed="false">
         <span class="my-activities-stat-label">OS Gerada</span>
         <strong id="myActivitiesGeneratedCount">0</strong>
         <p class="muted">Prontas para aprovacao do gestor.</p>
       </article>
-      <article class="my-activities-stat my-activities-stat--warn">
+      <article class="my-activities-stat my-activities-stat--warn" data-my-activities-filter="overdue" role="button" tabindex="0" aria-pressed="false">
         <span class="my-activities-stat-label">Atrasadas</span>
         <strong id="myActivitiesOverdueCount">0</strong>
         <p class="muted">Com data vencida e sem envio concluido.</p>
@@ -1918,7 +1916,7 @@
 </section>
 
 
-<script src="./app.js?v=1772628600" type="module"></script>
+<script src="./app.js?v=1772629400" type="module"></script>
 <script>
   // Toggle senha (somente UI)
   document.addEventListener("click", function(e){

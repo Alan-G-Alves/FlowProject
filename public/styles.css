@@ -4405,6 +4405,18 @@ body.is-superadmin #navClients{
     radial-gradient(circle at top right, rgba(59,130,246,.10), transparent 32%),
     linear-gradient(180deg, rgba(255,255,255,.98), rgba(248,250,252,.94));
   box-shadow: 0 16px 34px rgba(12,18,32,.05);
+  cursor:pointer;
+  transition: transform .18s ease, box-shadow .18s ease, border-color .18s ease;
+}
+
+.my-activities-stat:hover{
+  transform: translateY(-2px);
+  box-shadow: 0 20px 38px rgba(12,18,32,.08);
+}
+
+.my-activities-stat.is-active{
+  border-color: rgba(99,102,241,.34);
+  box-shadow: 0 22px 42px rgba(99,102,241,.14);
 }
 
 .my-activities-stat--pending{

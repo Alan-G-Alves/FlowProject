@@ -15,6 +15,8 @@ let _bound = false;
 let _currentActivity = null;
 let _currentModalMode = "view";
 let _myActivitiesCache = [];
+let _myActivitiesAllCache = [];
+let _myActivitiesStatusFilter = "all";
 
 function fmtDate(value) {
   if (!value) return "-";
@@ -84,6 +86,25 @@ function bindEvents(deps) {
   _bound = true;
   const { refs } = deps;
 
+  document.querySelectorAll("[data-my-activities-filter]").forEach((card) => {
+    const apply = () => {
+      const nextFilter = card.getAttribute("data-my-activities-filter") || "all";
+      _myActivitiesStatusFilter = nextFilter;
+      loadMyActivities(deps).catch((err) => {
+        console.error(err);
+        alert("Nao foi possivel aplicar o filtro.");
+      });
+    };
+
+    card.addEventListener("click", apply);
+    card.addEventListener("keydown", (ev) => {
+      if (ev.key === "Enter" || ev.key === " ") {
+        ev.preventDefault();
+        apply();
+      }
+    });
+  });
+
   refs.myActivitiesList?.addEventListener("click", (ev) => {
     const viewBtn = ev.target?.closest?.("[data-view-my-activity]");
     if (viewBtn) {
@@ -104,6 +125,27 @@ function bindEvents(deps) {
   });
   refs.btnSaveMyActivityModal?.addEventListener("click", async () => {
     await saveMyActivityModal(deps);
+  });
+}
+
+function applyStatusFilter(items) {
+  switch (_myActivitiesStatusFilter) {
+    case "pending":
+      return items.filter((item) => String(item.activity?.status || "") !== "os_gerada" && !isOverdue(item.activity));
+    case "generated":
+      return items.filter((item) => String(item.activity?.status || "") === "os_gerada");
+    case "overdue":
+      return items.filter((item) => isOverdue(item.activity));
+    default:
+      return items;
+  }
+}
+
+function syncSummaryCards() {
+  document.querySelectorAll("[data-my-activities-filter]").forEach((card) => {
+    const isActive = (card.getAttribute("data-my-activities-filter") || "all") === _myActivitiesStatusFilter;
+    card.classList.toggle("is-active", isActive);
+    card.setAttribute("aria-pressed", isActive ? "true" : "false");
   });
 }
 
@@ -383,8 +425,9 @@ export async function loadMyActivities(deps) {
 
   const queryText = normalizeText(refs.myActivitiesSearchInput?.value || "");
   const filtered = enriched.filter((item) => !queryText || buildSearchText(item).includes(queryText));
+  const statusFiltered = applyStatusFilter(filtered);
 
-  filtered.sort((a, b) => {
+  statusFiltered.sort((a, b) => {
     if (a.projectName !== b.projectName) return a.projectName.localeCompare(b.projectName);
     if (a.taskName !== b.taskName) return a.taskName.localeCompare(b.taskName);
     const aOverdue = isOverdue(a.activity) ? 1 : 0;
@@ -393,7 +436,9 @@ export async function loadMyActivities(deps) {
     return String(a.activity.workDate || "").localeCompare(String(b.activity.workDate || ""));
   });
 
-  _myActivitiesCache = filtered;
-  updateSummary(refs, filtered);
-  renderMyActivitiesList(refs, filtered);
+  _myActivitiesAllCache = enriched;
+  _myActivitiesCache = statusFiltered;
+  updateSummary(refs, enriched);
+  syncSummaryCards();
+  renderMyActivitiesList(refs, statusFiltered);
 }
