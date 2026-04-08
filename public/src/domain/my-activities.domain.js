@@ -31,11 +31,24 @@ function formatHours(value) {
   return Number.isInteger(rounded) ? `${rounded}h` : `${String(rounded).replace(".", ",")}h`;
 }
 
+function truncateText(value, max = 180) {
+  const text = String(value || "").trim();
+  if (text.length <= max) return text;
+  return `${text.slice(0, max).trimEnd()}...`;
+}
+
+function parseTimeToMinutes(value) {
+  const match = /^(\d{2}):(\d{2})$/.exec(String(value || ""));
+  if (!match) return null;
+  return Number(match[1]) * 60 + Number(match[2]);
+}
+
 function updateMyActivityComputedHours(refs) {
   if (!refs?.myActivityComputedHours || !refs?.myActivityComputedHoursHint) return;
   const start = refs.myActivityStartTime?.value || "";
   const end = refs.myActivityEndTime?.value || "";
-  const total = diffHours(start, end);
+  const breakTime = refs.myActivityBreakTime?.value || "01:00";
+  const total = diffHours(start, end, breakTime);
   const planned = asNumber(_currentActivity?.activity?.hoursWorked);
 
   refs.myActivityComputedHours.textContent = formatHours(total);
@@ -46,14 +59,14 @@ function updateMyActivityComputedHours(refs) {
     return;
   }
   if (total <= 0) {
-    refs.myActivityComputedHoursHint.textContent = "Horario invalido. O fim precisa ser maior que o inicio.";
+    refs.myActivityComputedHoursHint.textContent = "Horario invalido. O total precisa ser maior que zero apos descontar o descanso.";
     return;
   }
   if (planned > 0) {
-    refs.myActivityComputedHoursHint.textContent = `Previsto para a atividade: ${formatHours(planned)}.`;
+    refs.myActivityComputedHoursHint.textContent = `Previsto para a atividade: ${formatHours(planned)}. Descanso aplicado: ${breakTime}.`;
     return;
   }
-  refs.myActivityComputedHoursHint.textContent = "Total calculado com base no intervalo informado.";
+  refs.myActivityComputedHoursHint.textContent = `Total calculado com base no intervalo informado, descontando ${breakTime}.`;
 }
 
 function fmtDate(value) {
@@ -77,15 +90,16 @@ function asNumber(value) {
   return Number.isFinite(num) ? num : 0;
 }
 
-function diffHours(startTime, endTime) {
+function diffHours(startTime, endTime, breakTime = "00:00") {
   if (!startTime || !endTime) return 0;
-  const s = /^(\d{2}):(\d{2})$/.exec(String(startTime));
-  const e = /^(\d{2}):(\d{2})$/.exec(String(endTime));
-  if (!s || !e) return 0;
-  const startMinutes = Number(s[1]) * 60 + Number(s[2]);
-  const endMinutes = Number(e[1]) * 60 + Number(e[2]);
+  const startMinutes = parseTimeToMinutes(startTime);
+  const endMinutes = parseTimeToMinutes(endTime);
+  const breakMinutes = parseTimeToMinutes(breakTime);
+  if (startMinutes == null || endMinutes == null || breakMinutes == null) return 0;
   if (endMinutes <= startMinutes) return 0;
-  return (endMinutes - startMinutes) / 60;
+  const workedMinutes = endMinutes - startMinutes - breakMinutes;
+  if (workedMinutes <= 0) return 0;
+  return workedMinutes / 60;
 }
 
 function isOverdue(activity) {
@@ -162,6 +176,7 @@ function bindEvents(deps) {
   refs.myActivityNote?.addEventListener("input", () => updateMyActivityNoteCounter(refs));
   refs.myActivityStartTime?.addEventListener("input", () => updateMyActivityComputedHours(refs));
   refs.myActivityEndTime?.addEventListener("input", () => updateMyActivityComputedHours(refs));
+  refs.myActivityBreakTime?.addEventListener("input", () => updateMyActivityComputedHours(refs));
   refs.modalMyActivity?.addEventListener("click", (ev) => {
     if (ev.target?.dataset?.closeMyActivity === "true") closeMyActivityModal();
   });
@@ -256,6 +271,7 @@ function renderMyActivitiesList(refs, items) {
         const activitiesHtml = taskGroup.activities.map((item) => {
           const meta = getStatusMeta(item.activity);
           const notePreview = String(item.activity.note || "").trim();
+          const notePreviewShort = truncateText(notePreview, 180);
           return `
             <div class="activity-item ${meta.itemCls}">
               <div class="activity-main">
@@ -281,7 +297,7 @@ function renderMyActivitiesList(refs, items) {
                 <span class="activity-tag">Key users: ${escapeHtml((Array.isArray(item.activity.keyUsers) && item.activity.keyUsers.length) ? item.activity.keyUsers.join(", ") : "-")}</span>
                 <span class="activity-tag">Apontamento: ${escapeHtml(item.activity.startTime && item.activity.endTime ? `${item.activity.startTime} - ${item.activity.endTime}` : "Pendente")}</span>
               </div>
-              ${notePreview ? `<div class="my-activities-note-preview">${escapeHtml(notePreview)}</div>` : `<div class="my-activities-note-preview muted">Sem observacao registrada.</div>`}
+              ${notePreview ? `<div class="my-activities-note-preview" title="${escapeHtml(notePreview)}">${escapeHtml(notePreviewShort)}</div>` : `<div class="my-activities-note-preview muted">Sem observacao registrada.</div>`}
             </div>
           `;
         }).join("");
@@ -364,11 +380,13 @@ function openMyActivityModal(activityId, mode, deps) {
   }
   if (refs.myActivityStartTime) refs.myActivityStartTime.value = item.activity.startTime || "";
   if (refs.myActivityEndTime) refs.myActivityEndTime.value = item.activity.endTime || "";
+  if (refs.myActivityBreakTime) refs.myActivityBreakTime.value = item.activity.breakTime || "01:00";
   if (refs.myActivityKeyUsers) refs.myActivityKeyUsers.value = Array.isArray(item.activity.keyUsers) ? item.activity.keyUsers.join(", ") : "";
   if (refs.myActivityNote) refs.myActivityNote.value = item.activity.note || "";
 
   if (refs.myActivityStartTime) refs.myActivityStartTime.disabled = readOnly;
   if (refs.myActivityEndTime) refs.myActivityEndTime.disabled = readOnly;
+  if (refs.myActivityBreakTime) refs.myActivityBreakTime.disabled = readOnly;
   if (refs.myActivityNote) refs.myActivityNote.disabled = readOnly;
   if (refs.myActivityTip) {
     refs.myActivityTip.textContent = readOnly
@@ -391,8 +409,9 @@ async function saveMyActivityModal(deps) {
 
   const start = refs.myActivityStartTime?.value || "";
   const end = refs.myActivityEndTime?.value || "";
+  const breakTime = refs.myActivityBreakTime?.value || "01:00";
   const note = (refs.myActivityNote?.value || "").trim();
-  const hoursDiff = diffHours(start, end);
+  const hoursDiff = diffHours(start, end, breakTime);
   const maxHours = asNumber(_currentActivity.activity.hoursWorked);
   const currentUid = auth?.currentUser?.uid || "";
   const isAssigned = Array.isArray(_currentActivity.activity.techUids) && _currentActivity.activity.techUids.includes(currentUid);
@@ -417,6 +436,8 @@ async function saveMyActivityModal(deps) {
   await updateDoc(doc(db, `companies/${state.companyId}/activities`, _currentActivity.activity.id), {
     startTime: start,
     endTime: end,
+    breakTime,
+    workedHours: hoursDiff,
     note,
     status: "os_gerada",
     techFilledAt: serverTimestamp(),

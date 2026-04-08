@@ -4227,10 +4227,16 @@ body.is-superadmin #navClients{
   gap:10px;
 }
 
+.activity-item .activity-main > div:first-child{
+  min-width:0;
+  flex:1 1 auto;
+}
+
 .activity-head-actions{
   display:flex;
   align-items:center;
   gap:10px;
+  flex:0 0 auto;
 }
 
 .activity-action-bar{
@@ -4566,6 +4572,12 @@ body.is-superadmin #navClients{
   font-size:13px;
   line-height:1.5;
   color: rgba(12,18,32,.72);
+  overflow-wrap:anywhere;
+  word-break:break-word;
+  display:-webkit-box;
+  -webkit-line-clamp:2;
+  -webkit-box-orient:vertical;
+  overflow:hidden;
 }
 
 .my-activity-modal-card{
@@ -4693,7 +4705,7 @@ body.is-superadmin #navClients{
 
 .my-activity-time-grid{
   display:grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap:12px;
   margin-bottom:12px;
 }

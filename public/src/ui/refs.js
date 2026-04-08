@@ -347,6 +347,7 @@ export const myActivityStatus = byId("myActivityStatus");
 export const myActivityStatusBadge = byId("myActivityStatusBadge");
 export const myActivityStartTime = byId("myActivityStartTime");
 export const myActivityEndTime = byId("myActivityEndTime");
+export const myActivityBreakTime = byId("myActivityBreakTime");
 export const myActivityComputedHours = byId("myActivityComputedHours");
 export const myActivityComputedHoursHint = byId("myActivityComputedHoursHint");
 export const myActivityKeyUsers = byId("myActivityKeyUsers");

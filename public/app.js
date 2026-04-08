@@ -43,14 +43,14 @@ import { auth, secondaryAuth, db, storage, functions, httpsCallable } from "./sr
 import { normalizePhone, normalizeCnpj, slugify } from "./src/utils/format.js";
 import { setAlert, clearAlert, clearInlineAlert, showInlineAlert } from "./src/ui/alerts.js";
 import { listCompaniesDocs } from "./src/services/companies.service.js";
-import * as refs from "./src/ui/refs.js?v=1772631200";
+import * as refs from "./src/ui/refs.js?v=1772631500";
 import * as companiesDomain from "./src/domain/companies.domain.js?v=1770332251";
 import * as teamsDomain from "./src/domain/teams.domain.js?v=1772614200";
 import * as usersDomain from "./src/domain/users.domain.js?v=1772622200";
 import * as managerUsersDomain from "./src/domain/manager-users.domain.js?v=1772622600";
 import * as clientsDomain from "./src/domain/clients.domain.js?v=1770332252";
 import * as projectsDomain from "./src/domain/projects.domain.js?v=1772626200";
-import * as myActivitiesDomain from "./src/domain/my-activities.domain.js?v=1772631200";
+import * as myActivitiesDomain from "./src/domain/my-activities.domain.js?v=1772631800";
 import * as projectWorkspaceDomain from "./src/domain/project-workspace.domain.js?v=1770332277";
 import * as reportsDomain from "./src/domain/reports.domain.js?v=1770332251";
 import * as profileModal from "./src/ui/modals/profile.modal.js?v=1770332251";
