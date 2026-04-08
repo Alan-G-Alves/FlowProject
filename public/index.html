@@ -5,7 +5,7 @@
 <meta charset="utf-8"/>
 <meta content="width=device-width, initial-scale=1.0" name="viewport"/>
 <title>FlowProject</title>
-<link href="./styles.css?v=1772632400" rel="stylesheet"/>
+<link href="./styles.css?v=1772634200" rel="stylesheet"/>
 <link href="logof.png" rel="icon" type="image/png"/>
 <style>
   /* SaaS Search (My Projects Kanban) */
@@ -854,6 +854,73 @@
         <p class="muted">Assim que um gestor ou administrador registrar um feedback para voce, ele aparecera aqui.</p>
       </div>
     </section>
+  </div>
+</section>
+
+<section class="view" hidden="" id="viewOsApprovals">
+  <div class="container os-approvals-page">
+    <div class="page-header">
+      <div>
+        <h1>Aprovacao de OS</h1>
+        <p class="muted">Revise OS geradas pelos tecnicos, aprove individualmente ou em massa e acompanhe os estornos.</p>
+      </div>
+      <div class="chips os-approvals-toolbar">
+        <label class="field os-approvals-search-field">
+          <span>Buscar OS</span>
+          <input id="osApprovalsSearchInput" type="search" placeholder="Projeto, tecnico, cliente, data ou observacao" />
+        </label>
+        <label class="field os-approvals-filter-field">
+          <span>Gestor</span>
+          <select id="osApprovalsManagerFilter">
+            <option value="">Todos</option>
+          </select>
+        </label>
+        <label class="field os-approvals-filter-field">
+          <span>Projeto</span>
+          <select id="osApprovalsProjectFilter">
+            <option value="">Todos</option>
+          </select>
+        </label>
+      </div>
+    </div>
+
+    <section class="os-approvals-summary">
+      <article class="os-approvals-stat is-active" data-os-approvals-status="pending" role="button" tabindex="0" aria-pressed="true">
+        <span class="os-approvals-stat-label">Pendentes</span>
+        <strong id="osApprovalsPendingCount">0</strong>
+        <p class="muted">OS aguardando decisao da gestao.</p>
+      </article>
+      <article class="os-approvals-stat" data-os-approvals-status="approved" role="button" tabindex="0" aria-pressed="false">
+        <span class="os-approvals-stat-label">Aprovadas</span>
+        <strong id="osApprovalsApprovedCount">0</strong>
+        <p class="muted">OS ja aprovadas na empresa.</p>
+      </article>
+      <article class="os-approvals-stat os-approvals-stat--hours">
+        <span class="os-approvals-stat-label">Horas pendentes</span>
+        <strong id="osApprovalsPendingHours">0h</strong>
+        <p class="muted">Total de horas aguardando aprovacao.</p>
+      </article>
+      <article class="os-approvals-stat os-approvals-stat--hours">
+        <span class="os-approvals-stat-label">Horas aprovadas</span>
+        <strong id="osApprovalsApprovedHours">0h</strong>
+        <p class="muted">Total de horas ja aprovadas.</p>
+      </article>
+    </section>
+
+    <section class="os-approvals-bulkbar" hidden id="osApprovalsBulkBar">
+      <label class="check os-approvals-select-all">
+        <input id="osApprovalsSelectAll" type="checkbox" />
+        <span>Selecionar tudo visivel</span>
+      </label>
+      <div class="os-approvals-bulk-meta" id="osApprovalsBulkMeta">0 selecionadas</div>
+      <button class="btn primary" id="btnOsApprovalsBulkAction" type="button">Aprovar selecionadas</button>
+    </section>
+
+    <div class="os-approvals-list" id="osApprovalsList"></div>
+    <div class="panel subtle" hidden id="osApprovalsEmpty">
+      <h3>Nenhuma OS encontrada</h3>
+      <p class="muted">Ajuste os filtros ou aguarde novos apontamentos enviados pelos tecnicos.</p>
+    </div>
   </div>
 </section>
 
@@ -2031,7 +2098,7 @@
 </section>
 
 
-<script src="./app.js?v=1772633300" type="module"></script>
+<script src="./app.js?v=1772634200" type="module"></script>
 <script>
   // Toggle senha (somente UI)
   document.addEventListener("click", function(e){

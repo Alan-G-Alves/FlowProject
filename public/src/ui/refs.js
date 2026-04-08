@@ -369,6 +369,22 @@ export const myFeedbacksListMeta = byId("myFeedbacksListMeta");
 export const myFeedbacksList = byId("myFeedbacksList");
 export const myFeedbacksEmpty = byId("myFeedbacksEmpty");
 
+// OS Approvals
+export const viewOsApprovals = byId("viewOsApprovals");
+export const osApprovalsSearchInput = byId("osApprovalsSearchInput");
+export const osApprovalsManagerFilter = byId("osApprovalsManagerFilter");
+export const osApprovalsProjectFilter = byId("osApprovalsProjectFilter");
+export const osApprovalsPendingCount = byId("osApprovalsPendingCount");
+export const osApprovalsApprovedCount = byId("osApprovalsApprovedCount");
+export const osApprovalsPendingHours = byId("osApprovalsPendingHours");
+export const osApprovalsApprovedHours = byId("osApprovalsApprovedHours");
+export const osApprovalsBulkBar = byId("osApprovalsBulkBar");
+export const osApprovalsSelectAll = byId("osApprovalsSelectAll");
+export const osApprovalsBulkMeta = byId("osApprovalsBulkMeta");
+export const btnOsApprovalsBulkAction = byId("btnOsApprovalsBulkAction");
+export const osApprovalsList = byId("osApprovalsList");
+export const osApprovalsEmpty = byId("osApprovalsEmpty");
+
 // Projects
 export const viewProjects = byId("viewProjects");
 export const btnBackFromProjects = byId("btnBackFromProjects");

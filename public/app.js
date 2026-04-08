@@ -36,14 +36,14 @@ import {
 
 import { normalizeRole, humanizeRole } from "./src/utils/roles.js";
 import { show, hide, escapeHtml } from "./src/utils/dom.js";
-import { setView } from "./src/ui/router.js?v=1772632400";
+import { setView } from "./src/ui/router.js?v=1772634200";
 import { isEmailValidBasic, isCnpjValidBasic } from "./src/utils/validators.js";
 import { fetchPlatformUser, fetchCompanyIdForUser, fetchCompanyUserProfile } from "./src/services/firestore.service.js";
 import { auth, secondaryAuth, db, storage, functions, httpsCallable } from "./src/config/firebase.js";
 import { normalizePhone, normalizeCnpj, slugify } from "./src/utils/format.js";
 import { setAlert, clearAlert, clearInlineAlert, showInlineAlert } from "./src/ui/alerts.js";
 import { listCompaniesDocs } from "./src/services/companies.service.js";
-import * as refs from "./src/ui/refs.js?v=1772632400";
+import * as refs from "./src/ui/refs.js?v=1772634200";
 import * as companiesDomain from "./src/domain/companies.domain.js?v=1770332251";
 import * as teamsDomain from "./src/domain/teams.domain.js?v=1772614200";
 import * as usersDomain from "./src/domain/users.domain.js?v=1772622200";
@@ -52,6 +52,7 @@ import * as clientsDomain from "./src/domain/clients.domain.js?v=1770332252";
 import * as projectsDomain from "./src/domain/projects.domain.js?v=1772626200";
 import * as myActivitiesDomain from "./src/domain/my-activities.domain.js?v=1772631800";
 import * as myFeedbacksDomain from "./src/domain/my-feedbacks.domain.js?v=1772632400";
+import * as osApprovalsDomain from "./src/domain/os-approvals.domain.js?v=1772634200";
 import * as projectWorkspaceDomain from "./src/domain/project-workspace.domain.js?v=1772633300";
 import * as reportsDomain from "./src/domain/reports.domain.js?v=1770332251";
 import * as profileModal from "./src/ui/modals/profile.modal.js?v=1770332251";
@@ -659,6 +660,7 @@ function renderDashboardCards(profile){
   const cards = [];
   const role = (profile?.role || "").toString().toLowerCase();
   const canSeeOwnProjectsSplit = ["gestor", "admin", "coordenador"].includes(role);
+  const canApproveOs = ["gestor", "admin", "coordenador"].includes(role);
 
   if (state.isSuperAdmin){
     cards.push({
@@ -698,6 +700,15 @@ function renderDashboardCards(profile){
         desc: "Veja suas atividades por tarefa, faca apontamentos e envie para aprovacao.",
         badge: "Tecnico",
         action: () => openMyActivitiesView()
+      });
+    }
+
+    if (canApproveOs) {
+      cards.push({
+        title: "OS para Aprovar",
+        desc: "Revise apontamentos enviados, aprove individualmente ou em massa e faca estornos quando necessario.",
+        badge: "Operacao",
+        action: () => openOsApprovalsView()
       });
     }
 
@@ -1015,6 +1026,10 @@ const getMyFeedbacksDeps = () => ({
   refs, state, db, auth, setView
 });
 
+const getOsApprovalsDeps = () => ({
+  refs, state, db, auth, setView
+});
+
 async function openProjectWorkspace(projectId) {
   await projectWorkspaceDomain.openProjectWorkspace(projectId, getProjectsDeps());
 }
@@ -1071,6 +1086,22 @@ async function openMyFeedbacksView() {
 
 async function loadMyFeedbacks() {
   await myFeedbacksDomain.loadMyFeedbacks(getMyFeedbacksDeps());
+}
+
+async function openOsApprovalsView() {
+  try{
+    await ensureCompanyContext();
+  }catch(err){
+    console.error("openOsApprovalsView: ensureCompanyContext falhou:", err);
+    alert("Nao foi possivel identificar a empresa do usuario. Faca logout e login novamente.");
+    return;
+  }
+
+  osApprovalsDomain.openOsApprovalsView(getOsApprovalsDeps());
+}
+
+async function loadOsApprovals() {
+  await osApprovalsDomain.loadOsApprovals(getOsApprovalsDeps());
 }
 
 function openProjectsView() {

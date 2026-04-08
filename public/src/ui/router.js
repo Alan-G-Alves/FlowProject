@@ -17,6 +17,7 @@ const ids = {
   viewMyProjects: "viewMyProjects",
   viewMyActivities: "viewMyActivities",
   viewMyFeedbacks: "viewMyFeedbacks",
+  viewOsApprovals: "viewOsApprovals",
   viewProjects: "viewProjects",
 };
 
@@ -34,6 +35,7 @@ export function setView(name){
   const viewMyProjects = el(ids.viewMyProjects);
   const viewMyActivities = el(ids.viewMyActivities);
   const viewMyFeedbacks = el(ids.viewMyFeedbacks);
+  const viewOsApprovals = el(ids.viewOsApprovals);
   const viewProjects = el(ids.viewProjects);
 
   // 🔥 Cleanup: ao sair do Kanban realtime, cancela o onSnapshot
@@ -56,6 +58,7 @@ export function setView(name){
   hide(viewMyProjects);
   hide(viewMyActivities);
   hide(viewMyFeedbacks);
+  hide(viewOsApprovals);
   hide(viewProjects);
 
   if (name === "login"){
@@ -76,6 +79,7 @@ export function setView(name){
   if (name === "myProjects") show(viewMyProjects);
   if (name === "myActivities") show(viewMyActivities);
   if (name === "myFeedbacks") show(viewMyFeedbacks);
+  if (name === "osApprovals") show(viewOsApprovals);
   if (name === "projects") show(viewProjects);
 }
 
