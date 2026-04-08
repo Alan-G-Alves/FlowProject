@@ -79,6 +79,7 @@ function buildSearchText(item) {
   const status = getStatusMeta(item.activity).label;
   return normalizeText([
     item.projectName,
+    item.clientName,
     item.taskName,
     item.activity.name,
     item.activity.workDate,
@@ -243,6 +244,7 @@ function renderMyActivitiesList(refs, items) {
               </div>
               <div class="activity-tags">
                 <span class="activity-tag">Projeto: ${escapeHtml(item.projectName)}</span>
+                ${item.clientName ? `<span class="activity-tag">Cliente: ${escapeHtml(item.clientName)}</span>` : ""}
                 <span class="activity-tag">Key users: ${escapeHtml((Array.isArray(item.activity.keyUsers) && item.activity.keyUsers.length) ? item.activity.keyUsers.join(", ") : "-")}</span>
                 <span class="activity-tag">Apontamento: ${escapeHtml(item.activity.startTime && item.activity.endTime ? `${item.activity.startTime} - ${item.activity.endTime}` : "Pendente")}</span>
               </div>
@@ -317,6 +319,7 @@ function openMyActivityModal(activityId, mode, deps) {
     : "Preencha seu apontamento. Ao salvar, a atividade vai para OS Gerada e segue para aprovacao do gestor.";
 
   if (refs.myActivityProject) refs.myActivityProject.value = item.projectName || "";
+  if (refs.myActivityClient) refs.myActivityClient.value = item.clientName || "-";
   if (refs.myActivityTask) refs.myActivityTask.value = item.taskName || "";
   if (refs.myActivityName) refs.myActivityName.value = item.activity.name || "";
   if (refs.myActivityDate) refs.myActivityDate.value = fmtDate(item.activity.workDate);
@@ -437,6 +440,7 @@ export async function loadMyActivities(deps) {
       activity,
       projectId: activity.projectId || project?.id || "",
       projectName: project?.name || activity.projectName || "Projeto sem nome",
+      clientName: project?.clientName || project?.client?.name || activity.clientName || "",
       taskId: activity.taskId || task?.id || "",
       taskName: task?.name || activity.taskName || "Tarefa sem nome"
     };

@@ -338,6 +338,7 @@ export const myActivityModalTitle = byId("myActivityModalTitle");
 export const myActivityModalSubtitle = byId("myActivityModalSubtitle");
 export const myActivityModalAlert = byId("myActivityModalAlert");
 export const myActivityProject = byId("myActivityProject");
+export const myActivityClient = byId("myActivityClient");
 export const myActivityTask = byId("myActivityTask");
 export const myActivityName = byId("myActivityName");
 export const myActivityDate = byId("myActivityDate");
