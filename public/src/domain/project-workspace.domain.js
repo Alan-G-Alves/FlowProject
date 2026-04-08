@@ -29,6 +29,12 @@ let _workspaceAlertDismissBound = false;
 let _taskSearchTerm = "";
 const ACTIVITY_CHIP_COLORS = ["t1", "t2", "t3", "t4", "t5", "t6"];
 
+function formatHoursDisplay(value) {
+  if (!Number.isFinite(value) || value <= 0) return "0h";
+  const rounded = Math.round(value * 100) / 100;
+  return Number.isInteger(rounded) ? `${rounded}h` : `${String(rounded).replace(".", ",")}h`;
+}
+
 function setWorkspaceOpenUI(deps, isOpen){
   const refs = _wsRefs(deps);
   if (refs.projectWorkspacePanel){
@@ -110,15 +116,22 @@ function overlap(aStart, aEnd, bStart, bEnd){
   return aS <= bE && bS <= aE;
 }
 
-function diffHours(startTime, endTime){
+function parseTimeToMinutes(value){
+  const match = /^(\d{2}):(\d{2})$/.exec(String(value || ""));
+  if (!match) return null;
+  return Number(match[1]) * 60 + Number(match[2]);
+}
+
+function diffHours(startTime, endTime, breakTime = "00:00"){
   if (!startTime || !endTime) return 0;
-  const s = /^(\d{2}):(\d{2})$/.exec(String(startTime));
-  const e = /^(\d{2}):(\d{2})$/.exec(String(endTime));
-  if (!s || !e) return 0;
-  const sMin = Number(s[1]) * 60 + Number(s[2]);
-  const eMin = Number(e[1]) * 60 + Number(e[2]);
+  const sMin = parseTimeToMinutes(startTime);
+  const eMin = parseTimeToMinutes(endTime);
+  const breakMin = parseTimeToMinutes(breakTime);
+  if (sMin == null || eMin == null || breakMin == null) return 0;
   if (eMin <= sMin) return 0;
-  return (eMin - sMin) / 60;
+  const workedMinutes = eMin - sMin - breakMin;
+  if (workedMinutes <= 0) return 0;
+  return workedMinutes / 60;
 }
 
 function asNumber(v){
@@ -319,7 +332,7 @@ function ensureActivityActionModal(){
         </div>
         <div class="modal-body">
           <div class="alert" hidden id="activityModalAlert"></div>
-          <div class="activity-modal-grid">
+          <div class="activity-modal-grid" id="activityModalLegacyGrid">
             <label class="field">
               <span>Nome da atividade</span>
               <input id="activityModalName" maxlength="100" />
@@ -344,6 +357,98 @@ function ensureActivityActionModal(){
               <span>Observacao</span>
               <textarea id="activityModalNote" rows="4" placeholder="Observacao da atividade"></textarea>
             </label>
+          </div>
+          <div class="my-activity-modal-shell" hidden id="activityModalGeneratedShell">
+            <section class="my-activity-section my-activity-section--context">
+              <div class="my-activity-section-head">
+                <div>
+                  <div class="my-activity-section-kicker">Contexto</div>
+                  <h3>Detalhes da atividade</h3>
+                </div>
+                <span class="my-activity-status-badge" id="activityModalGeneratedStatusBadge">OS Gerada</span>
+              </div>
+
+              <div class="my-activity-modal-grid">
+                <label class="field">
+                  <span>Projeto</span>
+                  <input id="activityModalGeneratedProject" disabled />
+                </label>
+                <label class="field">
+                  <span>Cliente</span>
+                  <input id="activityModalGeneratedClient" disabled />
+                </label>
+                <label class="field">
+                  <span>Tarefa</span>
+                  <input id="activityModalGeneratedTask" disabled />
+                </label>
+                <label class="field span-2">
+                  <span>Atividade</span>
+                  <input id="activityModalGeneratedName" disabled />
+                </label>
+                <label class="field">
+                  <span>Data</span>
+                  <input id="activityModalGeneratedDate" disabled />
+                </label>
+                <label class="field">
+                  <span>Horas previstas</span>
+                  <input id="activityModalGeneratedHours" disabled />
+                </label>
+                <label class="field span-2">
+                  <span>Tecnico</span>
+                  <input id="activityModalGeneratedTech" disabled />
+                </label>
+                <label class="field span-2">
+                  <span>Key users</span>
+                  <textarea id="activityModalGeneratedKeyUsers" rows="2" disabled></textarea>
+                </label>
+              </div>
+            </section>
+
+            <section class="my-activity-section my-activity-section--worklog">
+              <div class="my-activity-section-head">
+                <div>
+                  <div class="my-activity-section-kicker">Apontamento</div>
+                  <h3>Registro do tecnico</h3>
+                </div>
+                <div class="my-activity-tip" id="activityModalGeneratedTip">Confira o apontamento enviado pelo tecnico.</div>
+              </div>
+
+              <div class="my-activity-time-grid">
+                <label class="field">
+                  <span>Inicio</span>
+                  <input id="activityModalGeneratedStartTime" type="time" />
+                </label>
+                <label class="field">
+                  <span>Fim</span>
+                  <input id="activityModalGeneratedEndTime" type="time" />
+                </label>
+                <label class="field">
+                  <span>Descanso</span>
+                  <input id="activityModalGeneratedBreakTime" type="time" value="01:00" />
+                </label>
+                <label class="field">
+                  <span>Status atual</span>
+                  <input id="activityModalGeneratedStatus" disabled />
+                </label>
+              </div>
+
+              <div class="my-activity-hours-summary">
+                <div class="my-activity-hours-card">
+                  <span class="my-activity-hours-label">Horas apontadas</span>
+                  <strong id="activityModalGeneratedComputedHours">0h</strong>
+                </div>
+                <div class="my-activity-hours-hint" id="activityModalGeneratedComputedHoursHint">Informe inicio e fim para calcular o total.</div>
+              </div>
+
+              <label class="field span-2 my-activity-note-field">
+                <span>Observacao do tecnico</span>
+                <textarea id="activityModalGeneratedNote" rows="6" placeholder="Observacao do apontamento"></textarea>
+                <div class="my-activity-note-meta">
+                  <small>Este apontamento foi enviado pelo tecnico e pode ser revisado pelos perfis de gestao.</small>
+                  <strong id="activityModalGeneratedNoteCounter">0/50 minimo</strong>
+                </div>
+              </label>
+            </section>
           </div>
         </div>
         <div class="modal-footer">
@@ -372,11 +477,60 @@ function getActivityActionModalRefs(){
     tech: byId("activityModalTech"),
     keyUsers: byId("activityModalKeyUsers"),
     note: byId("activityModalNote"),
+    legacyGrid: byId("activityModalLegacyGrid"),
+    generatedShell: byId("activityModalGeneratedShell"),
+    generatedStatusBadge: byId("activityModalGeneratedStatusBadge"),
+    generatedProject: byId("activityModalGeneratedProject"),
+    generatedClient: byId("activityModalGeneratedClient"),
+    generatedTask: byId("activityModalGeneratedTask"),
+    generatedName: byId("activityModalGeneratedName"),
+    generatedDate: byId("activityModalGeneratedDate"),
+    generatedHours: byId("activityModalGeneratedHours"),
+    generatedTech: byId("activityModalGeneratedTech"),
+    generatedKeyUsers: byId("activityModalGeneratedKeyUsers"),
+    generatedStartTime: byId("activityModalGeneratedStartTime"),
+    generatedEndTime: byId("activityModalGeneratedEndTime"),
+    generatedBreakTime: byId("activityModalGeneratedBreakTime"),
+    generatedStatus: byId("activityModalGeneratedStatus"),
+    generatedComputedHours: byId("activityModalGeneratedComputedHours"),
+    generatedComputedHoursHint: byId("activityModalGeneratedComputedHoursHint"),
+    generatedNote: byId("activityModalGeneratedNote"),
+    generatedNoteCounter: byId("activityModalGeneratedNoteCounter"),
+    generatedTip: byId("activityModalGeneratedTip"),
     btnClose: byId("btnCloseWorkspaceActivity"),
     btnCancel: byId("btnCancelWorkspaceActivity"),
     btnSave: byId("btnSaveWorkspaceActivity"),
     btnDelete: byId("btnDeleteWorkspaceActivity"),
   };
+}
+
+function updateWorkspaceGeneratedNoteCounter(modalRefs){
+  if (!modalRefs?.generatedNoteCounter) return;
+  const noteLength = String(modalRefs.generatedNote?.value || "").trim().length;
+  modalRefs.generatedNoteCounter.textContent = `${noteLength}/50 minimo`;
+  modalRefs.generatedNoteCounter.classList.toggle("is-ready", noteLength >= 50);
+}
+
+function updateWorkspaceGeneratedComputedHours(modalRefs, activity){
+  if (!modalRefs?.generatedComputedHours || !modalRefs?.generatedComputedHoursHint) return;
+  const start = modalRefs.generatedStartTime?.value || "";
+  const end = modalRefs.generatedEndTime?.value || "";
+  const breakTime = modalRefs.generatedBreakTime?.value || "01:00";
+  const total = diffHours(start, end, breakTime);
+  const planned = asNumber(activity?.hoursWorked);
+
+  modalRefs.generatedComputedHours.textContent = formatHoursDisplay(total);
+  modalRefs.generatedComputedHours.classList.toggle("is-over", total > 0 && planned > 0 && total > planned);
+
+  if (!start || !end) {
+    modalRefs.generatedComputedHoursHint.textContent = "Informe inicio e fim para calcular o total.";
+    return;
+  }
+  if (total <= 0) {
+    modalRefs.generatedComputedHoursHint.textContent = "Horario invalido. O total precisa ser maior que zero apos descontar o descanso.";
+    return;
+  }
+  modalRefs.generatedComputedHoursHint.textContent = `Previsto para a atividade: ${formatHoursDisplay(planned)}. Descanso aplicado: ${breakTime}.`;
 }
 
 function normalizeCommaList(raw){
@@ -446,16 +600,28 @@ function openActivityActionModal(activityId, mode){
   const modalRefs = getActivityActionModalRefs();
   const activity = _activities.find((item) => item.id === activityId);
   if (!activity) return;
+  const modalCard = modalRefs.modal?.querySelector?.(".activity-modal-card");
 
   _activityModalMode = mode;
   _activityModalActivityId = activityId;
   clearAlert(modalRefs.alert);
 
   const readOnly = mode !== "edit";
+  const isGenerated = String(activity.status || "").toLowerCase() === "os_gerada" && mode !== "delete";
   modalRefs.title.textContent = mode === "edit" ? "Editar atividade" : (mode === "delete" ? "Excluir atividade" : "Visualizar atividade");
   modalRefs.subtitle.textContent = mode === "edit"
     ? "Atualize os dados da atividade."
     : (mode === "delete" ? "Confira os dados antes de confirmar a exclusao." : "Detalhes completos da atividade.");
+
+  if (modalRefs.legacyGrid) {
+    modalRefs.legacyGrid.hidden = isGenerated;
+    modalRefs.legacyGrid.style.display = isGenerated ? "none" : "grid";
+  }
+  if (modalRefs.generatedShell) {
+    modalRefs.generatedShell.hidden = !isGenerated;
+    modalRefs.generatedShell.style.display = isGenerated ? "grid" : "none";
+  }
+  if (modalCard) modalCard.classList.toggle("my-activity-modal-card", isGenerated);
 
   modalRefs.name.value = activity.name || "";
   modalRefs.date.value = activity.workDate || "";
@@ -467,6 +633,37 @@ function openActivityActionModal(activityId, mode){
   [modalRefs.name, modalRefs.date, modalRefs.hours, modalRefs.keyUsers, modalRefs.note].forEach((field) => {
     if (field) field.disabled = readOnly;
   });
+
+  if (isGenerated) {
+    const clientName = _activeProject?.clientName || _activeProject?.client?.name || "";
+    if (modalRefs.generatedProject) modalRefs.generatedProject.value = _activeProject?.name || activity.projectName || "Projeto";
+    if (modalRefs.generatedClient) modalRefs.generatedClient.value = clientName || "-";
+    if (modalRefs.generatedTask) modalRefs.generatedTask.value = activity.taskName || (_tasks.find((item) => item.id === activity.taskId)?.name || "");
+    if (modalRefs.generatedName) modalRefs.generatedName.value = activity.name || "";
+    if (modalRefs.generatedDate) modalRefs.generatedDate.value = fmtDate(activity.workDate);
+    if (modalRefs.generatedHours) modalRefs.generatedHours.value = formatHoursDisplay(asNumber(activity.hoursWorked));
+    if (modalRefs.generatedTech) modalRefs.generatedTech.value = Array.isArray(activity.techNames) && activity.techNames.length ? activity.techNames.join(", ") : "Sem tecnico";
+    if (modalRefs.generatedKeyUsers) modalRefs.generatedKeyUsers.value = Array.isArray(activity.keyUsers) ? activity.keyUsers.join(", ") : "";
+    if (modalRefs.generatedStartTime) modalRefs.generatedStartTime.value = activity.startTime || "";
+    if (modalRefs.generatedEndTime) modalRefs.generatedEndTime.value = activity.endTime || "";
+    if (modalRefs.generatedBreakTime) modalRefs.generatedBreakTime.value = activity.breakTime || "01:00";
+    if (modalRefs.generatedStatus) modalRefs.generatedStatus.value = "OS Gerada";
+    if (modalRefs.generatedNote) modalRefs.generatedNote.value = activity.note || "";
+    if (modalRefs.generatedStatusBadge) {
+      modalRefs.generatedStatusBadge.textContent = "OS Gerada";
+      modalRefs.generatedStatusBadge.className = "my-activity-status-badge my-activity-status-badge--ok";
+    }
+    if (modalRefs.generatedTip) {
+      modalRefs.generatedTip.textContent = readOnly
+        ? "Confira o apontamento enviado pelo tecnico."
+        : "Revise o apontamento do tecnico mantendo o mesmo contexto exibido para ele.";
+    }
+    [modalRefs.generatedStartTime, modalRefs.generatedEndTime, modalRefs.generatedBreakTime, modalRefs.generatedNote].forEach((field) => {
+      if (field) field.disabled = readOnly;
+    });
+    updateWorkspaceGeneratedNoteCounter(modalRefs);
+    updateWorkspaceGeneratedComputedHours(modalRefs, activity);
+  }
 
   if (modalRefs.btnSave) modalRefs.btnSave.hidden = mode !== "edit";
   if (modalRefs.btnDelete) modalRefs.btnDelete.hidden = mode === "view";
@@ -483,6 +680,43 @@ async function saveActivityModalChanges(deps){
   if (!activity) return;
 
   clearAlert(modalRefs.alert);
+
+  if (String(activity.status || "").toLowerCase() === "os_gerada") {
+    const start = modalRefs.generatedStartTime?.value || "";
+    const end = modalRefs.generatedEndTime?.value || "";
+    const breakTime = modalRefs.generatedBreakTime?.value || "01:00";
+    const note = (modalRefs.generatedNote?.value || "").trim();
+    const hoursDiff = diffHours(start, end, breakTime);
+    const maxHours = asNumber(activity.hoursWorked);
+
+    if (hoursDiff <= 0) {
+      setAlert(modalRefs.alert, "Informe hora inicio, fim e descanso validos.", "error");
+      return;
+    }
+    if (hoursDiff > maxHours) {
+      setAlert(modalRefs.alert, `O apontamento nao pode ultrapassar ${maxHours}h previstas para a atividade.`, "error");
+      return;
+    }
+    if (note.length < 50) {
+      setAlert(modalRefs.alert, "A observacao precisa ter no minimo 50 caracteres.", "error");
+      return;
+    }
+
+    await updateDoc(doc(db, `companies/${state.companyId}/activities`, activity.id), {
+      startTime: start,
+      endTime: end,
+      breakTime,
+      workedHours: hoursDiff,
+      note,
+      status: "os_gerada",
+      updatedAt: serverTimestamp(),
+      updatedBy: auth?.currentUser?.uid || ""
+    });
+
+    closeActivityActionModal();
+    await refreshWorkspace(deps);
+    return;
+  }
 
   const nextName = (modalRefs.name?.value || "").trim();
   const nextDate = modalRefs.date?.value || "";
@@ -558,6 +792,19 @@ function bindOnce(deps){
 
     activityModalRefs.btnClose?.addEventListener("click", closeActivityActionModal);
     activityModalRefs.btnCancel?.addEventListener("click", closeActivityActionModal);
+    activityModalRefs.generatedNote?.addEventListener("input", () => updateWorkspaceGeneratedNoteCounter(activityModalRefs));
+    activityModalRefs.generatedStartTime?.addEventListener("input", () => {
+      const activity = _activities.find((item) => item.id === _activityModalActivityId);
+      updateWorkspaceGeneratedComputedHours(activityModalRefs, activity);
+    });
+    activityModalRefs.generatedEndTime?.addEventListener("input", () => {
+      const activity = _activities.find((item) => item.id === _activityModalActivityId);
+      updateWorkspaceGeneratedComputedHours(activityModalRefs, activity);
+    });
+    activityModalRefs.generatedBreakTime?.addEventListener("input", () => {
+      const activity = _activities.find((item) => item.id === _activityModalActivityId);
+      updateWorkspaceGeneratedComputedHours(activityModalRefs, activity);
+    });
     activityModalRefs.modal?.addEventListener("click", (ev) => {
       if (ev.target?.dataset?.closeActivityModal === "true") closeActivityActionModal();
     });
