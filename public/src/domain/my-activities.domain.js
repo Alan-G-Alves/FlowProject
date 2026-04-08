@@ -244,7 +244,7 @@ function renderMyActivitiesList(refs, items) {
         }).join("");
 
         return `
-          <details class="my-activities-task-card" open>
+          <details class="my-activities-task-card">
             <summary class="my-activities-task-summary">
               <div>
                 <div class="my-activities-task-kicker">Tarefa</div>
