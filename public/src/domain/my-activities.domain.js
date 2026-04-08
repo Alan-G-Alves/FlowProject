@@ -18,6 +18,13 @@ let _myActivitiesCache = [];
 let _myActivitiesAllCache = [];
 let _myActivitiesStatusFilter = "all";
 
+function updateMyActivityNoteCounter(refs) {
+  if (!refs?.myActivityNoteCounter) return;
+  const noteLength = String(refs.myActivityNote?.value || "").trim().length;
+  refs.myActivityNoteCounter.textContent = `${noteLength}/50 minimo`;
+  refs.myActivityNoteCounter.classList.toggle("is-ready", noteLength >= 50);
+}
+
 function fmtDate(value) {
   if (!value) return "-";
   const raw = String(value).slice(0, 10);
@@ -120,6 +127,7 @@ function bindEvents(deps) {
 
   refs.btnCloseMyActivityModal?.addEventListener("click", closeMyActivityModal);
   refs.btnCancelMyActivityModal?.addEventListener("click", closeMyActivityModal);
+  refs.myActivityNote?.addEventListener("input", () => updateMyActivityNoteCounter(refs));
   refs.modalMyActivity?.addEventListener("click", (ev) => {
     if (ev.target?.dataset?.closeMyActivity === "true") closeMyActivityModal();
   });
@@ -302,6 +310,7 @@ function openMyActivityModal(activityId, mode, deps) {
   clearAlert(refs.myActivityModalAlert);
 
   const readOnly = _currentModalMode !== "edit";
+  const statusMeta = getStatusMeta(item.activity);
   if (refs.myActivityModalTitle) refs.myActivityModalTitle.textContent = readOnly ? "Visualizar atividade" : "Apontar atividade";
   if (refs.myActivityModalSubtitle) refs.myActivityModalSubtitle.textContent = readOnly
     ? "Confira os detalhes completos da atividade."
@@ -312,7 +321,11 @@ function openMyActivityModal(activityId, mode, deps) {
   if (refs.myActivityName) refs.myActivityName.value = item.activity.name || "";
   if (refs.myActivityDate) refs.myActivityDate.value = fmtDate(item.activity.workDate);
   if (refs.myActivityHours) refs.myActivityHours.value = `${item.activity.hoursWorked || 0}h`;
-  if (refs.myActivityStatus) refs.myActivityStatus.value = getStatusMeta(item.activity).label;
+  if (refs.myActivityStatus) refs.myActivityStatus.value = statusMeta.label;
+  if (refs.myActivityStatusBadge) {
+    refs.myActivityStatusBadge.textContent = statusMeta.label;
+    refs.myActivityStatusBadge.className = `my-activity-status-badge my-activity-status-badge--${statusMeta.itemCls}`;
+  }
   if (refs.myActivityStartTime) refs.myActivityStartTime.value = item.activity.startTime || "";
   if (refs.myActivityEndTime) refs.myActivityEndTime.value = item.activity.endTime || "";
   if (refs.myActivityKeyUsers) refs.myActivityKeyUsers.value = Array.isArray(item.activity.keyUsers) ? item.activity.keyUsers.join(", ") : "";
@@ -321,8 +334,14 @@ function openMyActivityModal(activityId, mode, deps) {
   if (refs.myActivityStartTime) refs.myActivityStartTime.disabled = readOnly;
   if (refs.myActivityEndTime) refs.myActivityEndTime.disabled = readOnly;
   if (refs.myActivityNote) refs.myActivityNote.disabled = readOnly;
+  if (refs.myActivityTip) {
+    refs.myActivityTip.textContent = readOnly
+      ? "Visualizacao somente leitura do apontamento e do contexto da atividade."
+      : "Preencha inicio, fim e uma observacao completa para enviar ao gestor.";
+  }
   if (refs.btnSaveMyActivityModal) refs.btnSaveMyActivityModal.hidden = readOnly;
   if (refs.btnCancelMyActivityModal) refs.btnCancelMyActivityModal.textContent = readOnly ? "Fechar" : "Cancelar";
+  updateMyActivityNoteCounter(refs);
 
   refs.modalMyActivity.hidden = false;
 }

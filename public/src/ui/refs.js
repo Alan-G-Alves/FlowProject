@@ -343,10 +343,13 @@ export const myActivityName = byId("myActivityName");
 export const myActivityDate = byId("myActivityDate");
 export const myActivityHours = byId("myActivityHours");
 export const myActivityStatus = byId("myActivityStatus");
+export const myActivityStatusBadge = byId("myActivityStatusBadge");
 export const myActivityStartTime = byId("myActivityStartTime");
 export const myActivityEndTime = byId("myActivityEndTime");
 export const myActivityKeyUsers = byId("myActivityKeyUsers");
 export const myActivityNote = byId("myActivityNote");
+export const myActivityNoteCounter = byId("myActivityNoteCounter");
+export const myActivityTip = byId("myActivityTip");
 
 // Projects
 export const viewProjects = byId("viewProjects");

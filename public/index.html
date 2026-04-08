@@ -800,47 +800,77 @@
     </div>
     <div class="modal-body">
       <div class="alert" hidden id="myActivityModalAlert"></div>
-      <div class="my-activity-modal-grid">
-        <label class="field">
-          <span>Projeto</span>
-          <input id="myActivityProject" disabled />
-        </label>
-        <label class="field">
-          <span>Tarefa</span>
-          <input id="myActivityTask" disabled />
-        </label>
-        <label class="field span-2">
-          <span>Atividade</span>
-          <input id="myActivityName" disabled />
-        </label>
-        <label class="field">
-          <span>Data</span>
-          <input id="myActivityDate" disabled />
-        </label>
-        <label class="field">
-          <span>Horas previstas</span>
-          <input id="myActivityHours" disabled />
-        </label>
-        <label class="field">
-          <span>Status atual</span>
-          <input id="myActivityStatus" disabled />
-        </label>
-        <label class="field">
-          <span>Inicio</span>
-          <input id="myActivityStartTime" type="time" />
-        </label>
-        <label class="field">
-          <span>Fim</span>
-          <input id="myActivityEndTime" type="time" />
-        </label>
-        <label class="field span-2">
-          <span>Key users</span>
-          <textarea id="myActivityKeyUsers" rows="2" disabled></textarea>
-        </label>
-        <label class="field span-2">
-          <span>Observacao do tecnico</span>
-          <textarea id="myActivityNote" rows="5" placeholder="Descreva o que foi realizado. Minimo de 50 caracteres."></textarea>
-        </label>
+      <div class="my-activity-modal-shell">
+        <section class="my-activity-section my-activity-section--context">
+          <div class="my-activity-section-head">
+            <div>
+              <div class="my-activity-section-kicker">Contexto</div>
+              <h3>Detalhes da atividade</h3>
+            </div>
+            <span class="my-activity-status-badge" id="myActivityStatusBadge">Sem OS</span>
+          </div>
+
+          <div class="my-activity-modal-grid">
+            <label class="field">
+              <span>Projeto</span>
+              <input id="myActivityProject" disabled />
+            </label>
+            <label class="field">
+              <span>Tarefa</span>
+              <input id="myActivityTask" disabled />
+            </label>
+            <label class="field span-2">
+              <span>Atividade</span>
+              <input id="myActivityName" disabled />
+            </label>
+            <label class="field">
+              <span>Data</span>
+              <input id="myActivityDate" disabled />
+            </label>
+            <label class="field">
+              <span>Horas previstas</span>
+              <input id="myActivityHours" disabled />
+            </label>
+            <label class="field span-2">
+              <span>Key users</span>
+              <textarea id="myActivityKeyUsers" rows="2" disabled></textarea>
+            </label>
+          </div>
+        </section>
+
+        <section class="my-activity-section my-activity-section--worklog">
+          <div class="my-activity-section-head">
+            <div>
+              <div class="my-activity-section-kicker">Apontamento</div>
+              <h3>Seu registro tecnico</h3>
+            </div>
+            <div class="my-activity-tip" id="myActivityTip">Preencha inicio, fim e observacao para enviar ao gestor.</div>
+          </div>
+
+          <div class="my-activity-time-grid">
+            <label class="field">
+              <span>Inicio</span>
+              <input id="myActivityStartTime" type="time" />
+            </label>
+            <label class="field">
+              <span>Fim</span>
+              <input id="myActivityEndTime" type="time" />
+            </label>
+            <label class="field">
+              <span>Status atual</span>
+              <input id="myActivityStatus" disabled />
+            </label>
+          </div>
+
+          <label class="field span-2 my-activity-note-field">
+            <span>Observacao do tecnico</span>
+            <textarea id="myActivityNote" rows="6" placeholder="Descreva o que foi realizado, dificuldades, resultado, validacoes feitas e qualquer contexto importante. Minimo de 50 caracteres."></textarea>
+            <div class="my-activity-note-meta">
+              <small>Ao salvar, a atividade vai para <b>OS Gerada</b> e segue para aprovacao do gestor.</small>
+              <strong id="myActivityNoteCounter">0/50 minimo</strong>
+            </div>
+          </label>
+        </section>
       </div>
     </div>
     <div class="modal-footer">
@@ -1916,7 +1946,7 @@
 </section>
 
 
-<script src="./app.js?v=1772630100" type="module"></script>
+<script src="./app.js?v=1772630400" type="module"></script>
 <script>
   // Toggle senha (somente UI)
   document.addEventListener("click", function(e){

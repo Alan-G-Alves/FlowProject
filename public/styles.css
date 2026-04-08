@@ -4344,12 +4344,26 @@ body.is-superadmin #navClients{
     justify-content:flex-start;
   }
 
+  .my-activity-section-head{
+    flex-direction:column;
+  }
+
+  .my-activity-tip{
+    max-width:none;
+  }
+
+  .my-activity-time-grid,
   .my-activity-modal-grid{
     grid-template-columns:1fr;
   }
 
   .my-activity-modal-grid .span-2{
     grid-column:auto;
+  }
+
+  .my-activity-note-meta{
+    flex-direction:column;
+    align-items:flex-start;
   }
 
   .activity-head-actions{
@@ -4547,6 +4561,101 @@ body.is-superadmin #navClients{
 
 .my-activity-modal-card{
   width:min(820px, calc(100% - 24px));
+  border-radius:28px;
+  overflow:hidden;
+  background:
+    radial-gradient(circle at top right, rgba(99,102,241,.08), transparent 24%),
+    linear-gradient(180deg, rgba(255,255,255,.99), rgba(248,250,252,.97));
+  box-shadow: 0 26px 70px rgba(12,18,32,.18);
+}
+
+.my-activity-modal-shell{
+  display:grid;
+  gap:16px;
+}
+
+.my-activity-section{
+  border:1px solid rgba(12,18,32,.08);
+  border-radius:22px;
+  padding:18px;
+  background: rgba(255,255,255,.84);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.6);
+}
+
+.my-activity-section--context{
+  background:
+    radial-gradient(circle at top right, rgba(99,102,241,.08), transparent 30%),
+    linear-gradient(180deg, rgba(255,255,255,.96), rgba(243,244,255,.9));
+}
+
+.my-activity-section--worklog{
+  background:
+    radial-gradient(circle at top right, rgba(34,197,94,.08), transparent 28%),
+    linear-gradient(180deg, rgba(255,255,255,.98), rgba(240,253,244,.92));
+}
+
+.my-activity-section-head{
+  display:flex;
+  align-items:flex-start;
+  justify-content:space-between;
+  gap:12px;
+  margin-bottom:14px;
+}
+
+.my-activity-section-head h3{
+  margin:4px 0 0;
+  font-size:22px;
+  line-height:1.15;
+  color: rgba(12,18,32,.94);
+}
+
+.my-activity-section-kicker{
+  font-size:11px;
+  font-weight:800;
+  letter-spacing:.14em;
+  text-transform:uppercase;
+  color: rgba(12,18,32,.48);
+}
+
+.my-activity-status-badge{
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  padding:10px 14px;
+  border-radius:999px;
+  border:1px solid transparent;
+  font-size:13px;
+  font-weight:800;
+  white-space:nowrap;
+}
+
+.my-activity-status-badge--pending{
+  background: rgba(254,226,226,.95);
+  color: #b91c1c;
+  border-color: rgba(248,113,113,.28);
+}
+
+.my-activity-status-badge--ok{
+  background: rgba(220,252,231,.95);
+  color: #047857;
+  border-color: rgba(74,222,128,.32);
+}
+
+.my-activity-status-badge--overdue{
+  background: rgba(255,237,213,.96);
+  color: #c2410c;
+  border-color: rgba(251,146,60,.3);
+}
+
+.my-activity-tip{
+  max-width:280px;
+  padding:10px 12px;
+  border-radius:14px;
+  background: rgba(255,255,255,.72);
+  border:1px solid rgba(12,18,32,.08);
+  font-size:12px;
+  line-height:1.45;
+  color: rgba(12,18,32,.62);
 }
 
 .my-activity-modal-grid{
@@ -4555,13 +4664,52 @@ body.is-superadmin #navClients{
   gap:12px;
 }
 
+.my-activity-time-grid{
+  display:grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap:12px;
+  margin-bottom:12px;
+}
+
 .my-activity-modal-grid .span-2{
   grid-column: 1 / -1;
 }
 
 .my-activity-modal-grid input,
-.my-activity-modal-grid textarea{
+.my-activity-modal-grid textarea,
+.my-activity-time-grid input,
+.my-activity-time-grid textarea{
   width:100%;
+}
+
+.my-activity-modal-grid input:disabled,
+.my-activity-modal-grid textarea:disabled,
+.my-activity-time-grid input:disabled{
+  background: rgba(255,255,255,.92);
+  color: rgba(12,18,32,.78);
+}
+
+.my-activity-note-field textarea{
+  min-height:140px;
+  resize:vertical;
+}
+
+.my-activity-note-meta{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:12px;
+  margin-top:8px;
+  color: rgba(12,18,32,.6);
+}
+
+.my-activity-note-meta strong{
+  color: #b91c1c;
+  font-size:13px;
+}
+
+.my-activity-note-meta strong.is-ready{
+  color: #047857;
 }
 
 .weekdays-pills{
