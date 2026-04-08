@@ -298,13 +298,16 @@ function setActiveNav(activeId){
 
 function syncSidebarForRole(){
   const isSuperAdmin = !!state.isSuperAdmin;
+  const currentRole = String(state.profile?.role || "").toLowerCase();
+  const hideTechMenu = isSuperAdmin || currentRole === "tecnico";
+  const hideClientsMenu = isSuperAdmin || currentRole === "tecnico";
   const sidebarSep = document.querySelector(".sidebar-nav .sidebar-sep");
 
   document.body.classList.toggle("is-superadmin", isSuperAdmin);
-  if (refs.navAddTech) refs.navAddTech.hidden = isSuperAdmin;
-  if (refs.navClients) refs.navClients.hidden = isSuperAdmin;
-  if (refs.navAddTech) refs.navAddTech.style.display = isSuperAdmin ? "none" : "";
-  if (refs.navClients) refs.navClients.style.display = isSuperAdmin ? "none" : "";
+  if (refs.navAddTech) refs.navAddTech.hidden = hideTechMenu;
+  if (refs.navClients) refs.navClients.hidden = hideClientsMenu;
+  if (refs.navAddTech) refs.navAddTech.style.display = hideTechMenu ? "none" : "";
+  if (refs.navClients) refs.navClients.style.display = hideClientsMenu ? "none" : "";
   if (sidebarSep) sidebarSep.hidden = false;
 
   if (isSuperAdmin) {
