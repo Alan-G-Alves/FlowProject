@@ -1927,6 +1927,18 @@ body.is-superadmin #navClients{
 }
 
 /* Usuários (Técnicos) – usar o mesmo padrão visual do Kanban */
+#viewMyActivities .container{
+  position: relative;
+  max-width: none;
+  padding-top: 56px;
+}
+
+#viewMyActivities .page-header{
+  border-top: 2px solid var(--border);
+  padding-top: 18px;
+  margin-top: 0;
+}
+
 #viewManagerUsers .container{
   max-width: none;   /* igual ao Kanban: ocupa toda a largura */
   padding-top: 56px; /* desce o header para NÃO encostar no avatar/topo */
