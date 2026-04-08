@@ -4573,6 +4573,12 @@ body.is-superadmin #navClients{
   color: #15803d;
 }
 
+.task-status-pill--sent{
+  background: rgba(254,240,138,.3);
+  border-color: rgba(245,158,11,.28);
+  color: #b45309;
+}
+
 .task-status-pill--overdue{
   background: rgba(245,158,11,.14);
   border-color: rgba(245,158,11,.22);
@@ -4731,6 +4737,11 @@ body.is-superadmin #navClients{
   border-left: 4px solid rgba(34,197,94,.85);
 }
 
+.activity-item.sent{
+  border-left: 4px solid rgba(245,158,11,.9);
+  background: linear-gradient(180deg, rgba(255,251,235,.96), rgba(255,255,255,.98));
+}
+
 .activity-item.overdue{
   border-left: 4px solid rgba(245,158,11,.95);
   background: linear-gradient(180deg, rgba(255,251,235,.96), rgba(255,255,255,.98));
@@ -4820,6 +4831,7 @@ body.is-superadmin #navClients{
 
 .activity-status.red{ color:#b91c1c; }
 .activity-status.green{ color:#15803d; }
+.activity-status.amber{ color:#b45309; }
 .activity-status.orange{ color:#b45309; }
 
 .activity-tech-fill{
@@ -5232,6 +5244,12 @@ body.is-superadmin #navClients{
   background: rgba(220,252,231,.95);
   color: #047857;
   border-color: rgba(74,222,128,.32);
+}
+
+.my-activity-status-badge--sent{
+  background: rgba(254,240,138,.32);
+  color: #b45309;
+  border-color: rgba(245,158,11,.28);
 }
 
 .my-activity-status-badge--overdue{

@@ -131,7 +131,7 @@ function getStatusMeta(activity) {
     return { label: "OS Aprovada", cls: "green", itemCls: "ok" };
   }
   if (getActivityStatusValue(activity) === "os_gerada") {
-    return { label: "OS Gerada", cls: "green", itemCls: "ok" };
+    return { label: "OS Enviada", cls: "amber", itemCls: "sent" };
   }
   return { label: "Sem OS", cls: "red", itemCls: "pending" };
 }
@@ -328,7 +328,7 @@ function renderMyActivitiesList(refs, items) {
               </div>
               <div class="my-activities-task-statuses">
                 <span class="task-status-pill task-status-pill--pending">Sem OS: <b>${escapeHtml(String(pendingCount))}</b></span>
-                <span class="task-status-pill task-status-pill--done">OS Enviadas: <b>${escapeHtml(String(generatedCount))}</b></span>
+                <span class="task-status-pill task-status-pill--sent">OS Enviadas: <b>${escapeHtml(String(generatedCount))}</b></span>
                 <span class="task-status-pill task-status-pill--overdue">Atrasadas: <b>${escapeHtml(String(overdueCount))}</b></span>
               </div>
             </summary>
@@ -381,7 +381,7 @@ function openMyActivityModal(activityId, mode, deps) {
   if (refs.myActivityModalTitle) refs.myActivityModalTitle.textContent = readOnly ? "Visualizar atividade" : "Apontar atividade";
   if (refs.myActivityModalSubtitle) refs.myActivityModalSubtitle.textContent = readOnly
     ? "Confira os detalhes completos da atividade."
-    : "Preencha seu apontamento. Ao salvar, a atividade vai para OS Gerada e segue para aprovacao do gestor.";
+    : "Preencha seu apontamento. Ao salvar, a atividade vai para OS Enviada e segue para aprovacao do gestor.";
 
   if (refs.myActivityProject) refs.myActivityProject.value = item.projectName || "";
   if (refs.myActivityClient) refs.myActivityClient.value = item.clientName || "-";

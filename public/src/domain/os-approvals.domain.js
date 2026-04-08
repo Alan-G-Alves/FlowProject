@@ -400,7 +400,7 @@ export async function loadOsApprovals(deps) {
       return {
         ...activity,
         status: String(activity.status || "").toLowerCase(),
-        statusLabel: String(activity.status || "").toLowerCase() === "os_aprovada" ? "OS Aprovada" : "OS Gerada",
+        statusLabel: String(activity.status || "").toLowerCase() === "os_aprovada" ? "OS Aprovada" : "OS Enviada",
         projectId: activity.projectId || project.id || "",
         projectName: project.name || activity.projectName || "Projeto",
         clientName: project.clientName || project.client?.name || activity.clientName || "",

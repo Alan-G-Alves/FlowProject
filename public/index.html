@@ -5,7 +5,7 @@
 <meta charset="utf-8"/>
 <meta content="width=device-width, initial-scale=1.0" name="viewport"/>
 <title>FlowProject</title>
-<link href="./styles.css?v=1772634200" rel="stylesheet"/>
+<link href="./styles.css?v=1772711400" rel="stylesheet"/>
 <link href="logof.png" rel="icon" type="image/png"/>
 <style>
   /* SaaS Search (My Projects Kanban) */
@@ -270,7 +270,7 @@
           <span>Status da atividade</span>
           <select id="reportTechFilterActivityStatus">
             <option value="all">Todos os status</option>
-            <option value="os_gerada">OS gerada</option>
+            <option value="os_gerada">OS enviada</option>
             <option value="pendente">Pendente</option>
           </select>
         </label>
@@ -778,7 +778,7 @@
       <article class="my-activities-stat my-activities-stat--ok" data-my-activities-filter="generated" role="button" tabindex="0" aria-pressed="false">
         <span class="my-activities-stat-label">OS Enviadas</span>
         <strong id="myActivitiesGeneratedCount">0</strong>
-        <p class="muted">OS geradas e aprovadas pela gestao.</p>
+        <p class="muted">OS enviadas e aprovadas pela gestao.</p>
       </article>
       <article class="my-activities-stat my-activities-stat--warn" data-my-activities-filter="overdue" role="button" tabindex="0" aria-pressed="false">
         <span class="my-activities-stat-label">Atrasadas</span>
@@ -862,7 +862,7 @@
     <div class="page-header">
       <div>
         <h1>Aprovacao de OS</h1>
-        <p class="muted">Revise OS geradas pelos tecnicos, aprove individualmente ou em massa e acompanhe os estornos.</p>
+        <p class="muted">Revise OS enviadas pelos tecnicos, aprove individualmente ou em massa e acompanhe os estornos.</p>
       </div>
       <div class="chips os-approvals-toolbar">
         <label class="field os-approvals-search-field">
@@ -1018,7 +1018,7 @@
             <span>Observacao do tecnico</span>
             <textarea id="myActivityNote" rows="6" placeholder="Descreva o que foi realizado, dificuldades, resultado, validacoes feitas e qualquer contexto importante. Minimo de 50 caracteres."></textarea>
             <div class="my-activity-note-meta">
-              <small>Ao salvar, a atividade vai para <b>OS Gerada</b> e segue para aprovacao do gestor.</small>
+              <small>Ao salvar, a atividade vai para <b>OS Enviada</b> e segue para aprovacao do gestor.</small>
               <strong id="myActivityNoteCounter">0/50 minimo</strong>
             </div>
           </label>
@@ -2098,7 +2098,7 @@
 </section>
 
 
-<script src="./app.js?v=1772710800" type="module"></script>
+<script src="./app.js?v=1772711400" type="module"></script>
 <script>
   // Toggle senha (somente UI)
   document.addEventListener("click", function(e){

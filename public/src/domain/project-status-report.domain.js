@@ -40,7 +40,7 @@ function statusLabel(status){
     "parado": "Parado",
     "backlog": "Backlog",
     "sem_os": "Sem OS",
-    "os_gerada": "OS gerada",
+    "os_gerada": "OS enviada",
     "os_aprovada": "OS aprovada"
   };
   return map[raw] || (status || "-");

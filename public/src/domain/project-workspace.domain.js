@@ -14,7 +14,7 @@ import {
 import { setAlert, clearAlert } from "../ui/alerts.js";
 import { escapeHtml } from "../utils/dom.js";
 import { ensureClientsCache } from "./clients.domain.js";
-import { downloadProjectStatusReportExcel, downloadProjectStatusReportPdf } from "./project-status-report.domain.js?v=1772710200";
+import { downloadProjectStatusReportExcel, downloadProjectStatusReportPdf } from "./project-status-report.domain.js?v=1772711400";
 
 let _bound = false;
 let _activeProjectId = "";
@@ -378,7 +378,7 @@ function ensureActivityActionModal(){
                   <div class="my-activity-section-kicker">Contexto</div>
                   <h3>Detalhes da atividade</h3>
                 </div>
-                <span class="my-activity-status-badge" id="activityModalGeneratedStatusBadge">OS Gerada</span>
+                <span class="my-activity-status-badge" id="activityModalGeneratedStatusBadge">OS Enviada</span>
               </div>
 
               <div class="my-activity-modal-grid">
@@ -660,11 +660,11 @@ function openActivityActionModal(activityId, mode){
     if (modalRefs.generatedStartTime) modalRefs.generatedStartTime.value = activity.startTime || "";
     if (modalRefs.generatedEndTime) modalRefs.generatedEndTime.value = activity.endTime || "";
     if (modalRefs.generatedBreakTime) modalRefs.generatedBreakTime.value = activity.breakTime || "01:00";
-    if (modalRefs.generatedStatus) modalRefs.generatedStatus.value = isApprovedStatus(activity) ? "OS Aprovada" : "OS Gerada";
+    if (modalRefs.generatedStatus) modalRefs.generatedStatus.value = isApprovedStatus(activity) ? "OS Aprovada" : "OS Enviada";
     if (modalRefs.generatedNote) modalRefs.generatedNote.value = activity.note || "";
     if (modalRefs.generatedStatusBadge) {
-      modalRefs.generatedStatusBadge.textContent = isApprovedStatus(activity) ? "OS Aprovada" : "OS Gerada";
-      modalRefs.generatedStatusBadge.className = "my-activity-status-badge my-activity-status-badge--ok";
+      modalRefs.generatedStatusBadge.textContent = isApprovedStatus(activity) ? "OS Aprovada" : "OS Enviada";
+      modalRefs.generatedStatusBadge.className = `my-activity-status-badge ${isApprovedStatus(activity) ? "my-activity-status-badge--ok" : "my-activity-status-badge--sent"}`;
     }
     if (modalRefs.generatedTip) {
       modalRefs.generatedTip.textContent = readOnly
@@ -1401,7 +1401,7 @@ function renderTasks(deps){
               <div class="activity-meta-line">${escapeHtml(fmtDate(a.workDate))} | ${escapeHtml(String(a.hoursWorked || 0))}h</div>
             </div>
             <div class="activity-head-actions">
-              <span class="activity-status ${isOverdue ? "orange" : (isCompletedStatus(a) ? "green" : "red")}">${isOverdue ? "Atrasada" : (isApproved ? "OS Aprovada" : (getActivityStatusValue(a) === "os_gerada" ? "OS Gerada" : "Sem Ordem de Servico"))}</span>
+              <span class="activity-status ${isOverdue ? "orange" : (isApproved ? "green" : (isCompletedStatus(a) ? "amber" : "red"))}">${isOverdue ? "Atrasada" : (isApproved ? "OS Aprovada" : (getActivityStatusValue(a) === "os_gerada" ? "OS Enviada" : "Sem Ordem de Servico"))}</span>
               ${canManageActivity ? `
                 <div class="activity-action-bar">
                   <button class="icon-btn xs activity-action activity-action-view" data-view-activity="${escapeHtml(a.id)}" type="button" title="Visualizar atividade" aria-label="Visualizar atividade">
@@ -1494,7 +1494,7 @@ function renderTasks(deps){
                 </div>
                 <div class="task-status-strip">
                   <span class="task-status-pill task-status-pill--pending">${iconPending} Sem OS: <b>${escapeHtml(String(statusCounters.pending))}</b></span>
-                  <span class="task-status-pill task-status-pill--done">${iconDone} OS Gerada: <b>${escapeHtml(String(statusCounters.generated))}</b></span>
+                  <span class="task-status-pill task-status-pill--sent">${iconDone} OS Enviada: <b>${escapeHtml(String(statusCounters.generated))}</b></span>
                   <span class="task-status-pill task-status-pill--done">${iconDone} OS Aprovada: <b>${escapeHtml(String(statusCounters.approved))}</b></span>
                   <span class="task-status-pill task-status-pill--overdue">${iconOverdue} Atrasadas: <b>${escapeHtml(String(statusCounters.overdue))}</b></span>
                 </div>
