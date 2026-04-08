@@ -92,6 +92,17 @@ function getProjectPlannedHours(project){
   );
 }
 
+function getKpiMetaCard(label, value, sublabel, focusTarget, tone = "neutral"){
+  return `
+    <article class="reports-kpi reports-kpi--${escapeHtml(tone)}" data-report-focus="${escapeHtml(focusTarget)}" role="button" tabindex="0" aria-label="${escapeHtml(`${label}: ${value}. ${sublabel}. Clique para ver detalhes.`)}">
+      <span class="reports-kpi-label">${escapeHtml(label)}</span>
+      <strong>${escapeHtml(value)}</strong>
+      <span class="reports-kpi-sub">${escapeHtml(sublabel)}</span>
+      <span class="reports-kpi-cta">Ver detalhes</span>
+    </article>
+  `;
+}
+
 function getPeriodRange(period){
   const today = new Date();
   today.setHours(0, 0, 0, 0);
@@ -558,11 +569,13 @@ function renderReports(cache, refs, state){
   }));
   const maxStatusCount = Math.max(1, ...statusCounts.map((item) => item.count));
 
-  const executionPlannedHours = executionData.tasks.reduce((acc, task) => acc + asNumber(task.plannedHours), 0);
-  const executionWorkedHours = executionData.activities.reduce((acc, activity) => acc + asNumber(activity.hoursWorked), 0);
+  const executionPlannedHours = executionData.projects.reduce((acc, project) => acc + getProjectPlannedHours(project), 0);
+  const executionWorkedHours = executionData.activities
+    .filter((activity) => isCompletedActivity(activity))
+    .reduce((acc, activity) => acc + asNumber(activity.hoursWorked), 0);
   const executionOverdue = executionData.activities.filter((activity) => {
     const date = parseDateOnly(activity.workDate);
-    return date && date < today && !isCompletedActivity(activity);
+    return date && date < today && isPendingOsActivity(activity);
   }).length;
   const executionProgress = Math.min(100, executionPlannedHours > 0 ? (executionWorkedHours / executionPlannedHours) * 100 : 0);
 
@@ -650,15 +663,15 @@ function renderReports(cache, refs, state){
         ${buildCardFilterBar(baseData, state, "overview")}
       </div>
       <div class="reports-kpis">
-        <article class="reports-kpi"><span class="reports-kpi-label">Projetos monitorados</span><strong>${escapeHtml(String(overviewData.projects.length))}</strong><span class="reports-kpi-sub">Com filtros ativos</span></article>
-        <article class="reports-kpi"><span class="reports-kpi-label">Horas previstas</span><strong>${escapeHtml(formatHours(overviewPlannedHours))}</strong><span class="reports-kpi-sub">Total de horas dos projetos</span></article>
-        <article class="reports-kpi"><span class="reports-kpi-label">Horas executadas</span><strong>${escapeHtml(formatHours(overviewWorkedHours))}</strong><span class="reports-kpi-sub">Somente atividades com OS gerada/aprovada • Media por tarefa: ${escapeHtml(formatHours(overviewAvgHoursPerTask))}</span></article>
-        <article class="reports-kpi"><span class="reports-kpi-label">Horas planejadas</span><strong>${escapeHtml(formatHours(overviewPlannedPendingHours))}</strong><span class="reports-kpi-sub">Atividades atrasadas e sem OS</span></article>
-        <article class="reports-kpi"><span class="reports-kpi-label">Atividades pendentes</span><strong>${escapeHtml(String(overviewPending))}</strong><span class="reports-kpi-sub">${escapeHtml(String(overviewOverdue))} atrasadas</span></article>
+        ${getKpiMetaCard("Projetos monitorados", String(overviewData.projects.length), "Com filtros ativos", "statuses", "neutral")}
+        ${getKpiMetaCard("Horas previstas", formatHours(overviewPlannedHours), "Total de horas dos projetos", "execution", "planned")}
+        ${getKpiMetaCard("Horas executadas", formatHours(overviewWorkedHours), `Somente atividades com OS gerada/aprovada • Media por tarefa: ${formatHours(overviewAvgHoursPerTask)}`, "timeline", "worked")}
+        ${getKpiMetaCard("Horas planejadas", formatHours(overviewPlannedPendingHours), "Atividades atrasadas e sem OS", "attention", "warning")}
+        ${getKpiMetaCard("Atividades pendentes", String(overviewPending), `${String(overviewOverdue)} atrasadas`, "metrics", "danger")}
       </div>
     </section>
 
-    <section class="reports-card reports-card--list">
+    <section class="reports-card reports-card--list" data-report-section="metrics">
       <div class="reports-card-head"><div><div class="reports-card-kicker">Principais indicadores</div><h3>Saude operacional do periodo</h3></div>${buildCardFilterBar(baseData, state, "metrics")}</div>
       <div class="reports-metric-list">
         <div class="reports-metric-row"><div><strong>Atividades concluidas</strong><span>${escapeHtml(String(metricsCompleted))} com status finalizado no periodo.</span></div><b>${escapeHtml(String(metricsCompleted))}</b></div>
@@ -668,7 +681,7 @@ function renderReports(cache, refs, state){
       </div>
     </section>
 
-    <section class="reports-card reports-card--status">
+    <section class="reports-card reports-card--status" data-report-section="statuses">
       <div class="reports-card-head"><div><div class="reports-card-kicker">Carteira</div><h3>Projetos por status</h3></div>${buildCardFilterBar(baseData, state, "statuses")}</div>
       <div class="reports-status-bars">
         ${statusCounts.map((item) => {
@@ -679,26 +692,26 @@ function renderReports(cache, refs, state){
       </div>
     </section>
 
-    <section class="reports-card reports-card--donut">
+    <section class="reports-card reports-card--donut" data-report-section="execution">
       <div class="reports-card-head"><div><div class="reports-card-kicker">Execucao</div><h3>Horas previstas x executadas</h3></div>${buildCardFilterBar(baseData, state, "execution")}</div>
       <div class="reports-donut-wrap">
         <div class="reports-donut" style="--progress:${executionProgress}"><div class="reports-donut-center"><strong>${escapeHtml(formatPercent(executionProgress))}</strong><span>consumo</span></div></div>
         <div class="reports-legend">
-          <div><span class="reports-legend-dot reports-legend-dot--planned"></span>Horas previstas: <b>${escapeHtml(formatHours(executionPlannedHours))}</b></div>
-          <div><span class="reports-legend-dot reports-legend-dot--worked"></span>Horas executadas: <b>${escapeHtml(formatHours(executionWorkedHours))}</b></div>
-          <div><span class="reports-legend-dot reports-legend-dot--late"></span>Atividades atrasadas: <b>${escapeHtml(String(executionOverdue))}</b></div>
+          <div><span class="reports-legend-dot reports-legend-dot--planned"></span>Horas previstas dos projetos: <b>${escapeHtml(formatHours(executionPlannedHours))}</b></div>
+          <div><span class="reports-legend-dot reports-legend-dot--worked"></span>Horas executadas com OS: <b>${escapeHtml(formatHours(executionWorkedHours))}</b></div>
+          <div><span class="reports-legend-dot reports-legend-dot--late"></span>Atividades atrasadas sem OS: <b>${escapeHtml(String(executionOverdue))}</b></div>
         </div>
       </div>
     </section>
 
-    <section class="reports-card reports-card--clients">
+    <section class="reports-card reports-card--clients" data-report-section="clients">
       <div class="reports-card-head"><div><div class="reports-card-kicker">Carga por cliente</div><h3>Clientes com maior volume executado</h3></div>${buildCardFilterBar(baseData, state, "clients")}</div>
       <div class="reports-ranking">
         ${topClients.length ? topClients.map((item) => `<div class="reports-ranking-row"><div><strong>${escapeHtml(item.clientName)}</strong><span>${escapeHtml(String(item.activities))} atividade(s)</span></div><div class="reports-ranking-bar"><div class="reports-ranking-fill" style="width:${Math.max(10, (item.hours / maxClientHours) * 100)}%"></div></div><b>${escapeHtml(formatHours(item.hours))}</b></div>`).join("") : `<p class="muted">Sem dados suficientes para este filtro.</p>`}
       </div>
     </section>
 
-    <section class="reports-card reports-card--techs">
+    <section class="reports-card reports-card--techs" data-report-section="techs">
       <div class="reports-card-head">
         <div>
           <div class="reports-card-kicker">Atividade x tecnico</div>
@@ -719,14 +732,14 @@ function renderReports(cache, refs, state){
       </div>
     </section>
 
-    <section class="reports-card reports-card--attention">
+    <section class="reports-card reports-card--attention" data-report-section="attention">
       <div class="reports-card-head"><div><div class="reports-card-kicker">Acompanhamento</div><h3>Projetos que exigem atencao</h3></div>${buildCardFilterBar(baseData, state, "attention")}</div>
       <div class="reports-attention-list">
         ${attentionProjects.length ? attentionProjects.map((project) => `<article class="reports-attention-item"><div class="reports-attention-top"><div><strong>#${escapeHtml(String(project.projectNumber))} ${escapeHtml(project.name)}</strong><span class="reports-pill reports-pill--${escapeHtml(project.status.tone)}">${escapeHtml(project.status.label)}</span></div><b>${escapeHtml(formatPercent(project.progress))}</b></div><div class="reports-attention-sub"><span>${escapeHtml(String(project.pending))} pendente(s)</span><span>${escapeHtml(String(project.overdue))} atrasada(s)</span></div></article>`).join("") : `<p class="muted">Nenhum projeto critico com os filtros atuais.</p>`}
       </div>
     </section>
 
-    <section class="reports-card reports-card--timeline">
+    <section class="reports-card reports-card--timeline" data-report-section="timeline">
       <div class="reports-card-head"><div><div class="reports-card-kicker">Movimentacao recente</div><h3>Ultimas atividades registradas</h3></div>${buildCardFilterBar(baseData, state, "timeline")}</div>
       <div class="reports-timeline">
         ${recentActivities.length ? recentActivities.map((activity) => `<div class="reports-timeline-item"><div class="reports-timeline-dot reports-timeline-dot--${escapeHtml(activity.status.tone)}"></div><div class="reports-timeline-body"><strong>${escapeHtml(activity.title)}</strong><span>${escapeHtml(activity.projectName)} • ${escapeHtml(activity.taskName)}</span></div><div class="reports-timeline-meta"><b>${escapeHtml(formatHours(activity.hours))}</b><span>${escapeHtml(activity.date || "-")}</span></div></div>`).join("") : `<p class="muted">Ainda nao ha atividades no periodo filtrado.</p>`}
@@ -815,9 +828,30 @@ function bindOnce(deps){
     const target = event.target;
     if (!(target instanceof HTMLElement)) return;
     const trigger = target.closest("[data-open-report-tech-filters='true']");
-    if (!trigger) return;
-    populateTechFilterModal(deps.state._reportsCache, refs, deps.state);
-    openTechFilterModal(refs);
+    if (trigger){
+      populateTechFilterModal(deps.state._reportsCache, refs, deps.state);
+      openTechFilterModal(refs);
+      return;
+    }
+    const kpiCard = target.closest("[data-report-focus]");
+    if (!kpiCard) return;
+    const focusTarget = kpiCard.getAttribute("data-report-focus");
+    if (!focusTarget) return;
+    const section = refs.reportsGrid?.querySelector(`[data-report-section="${focusTarget}"]`);
+    if (!(section instanceof HTMLElement)) return;
+    refs.reportsGrid.querySelectorAll(".reports-card.is-spotlight").forEach((node) => node.classList.remove("is-spotlight"));
+    section.classList.add("is-spotlight");
+    section.scrollIntoView({ behavior: "smooth", block: "start" });
+    window.setTimeout(() => section.classList.remove("is-spotlight"), 1800);
+  });
+  refs.reportsGrid?.addEventListener("keydown", (event) => {
+    const target = event.target;
+    if (!(target instanceof HTMLElement)) return;
+    const kpiCard = target.closest("[data-report-focus]");
+    if (!kpiCard) return;
+    if (event.key !== "Enter" && event.key !== " ") return;
+    event.preventDefault();
+    kpiCard.click();
   });
 }
 
