@@ -5,7 +5,7 @@
 <meta charset="utf-8"/>
 <meta content="width=device-width, initial-scale=1.0" name="viewport"/>
 <title>FlowProject</title>
-<link href="./styles.css?v=1772631800" rel="stylesheet"/>
+<link href="./styles.css?v=1772632400" rel="stylesheet"/>
 <link href="logof.png" rel="icon" type="image/png"/>
 <style>
   /* SaaS Search (My Projects Kanban) */
@@ -118,6 +118,13 @@
 <button class="nav-item" data-tooltip="Relatorios e indicadores" id="navReports">
 <img alt="" class="nav-ico" src="relatorio.png"/>
 <span class="nav-label">Relatorios</span>
+</button>
+<button class="nav-item" data-tooltip="Feedbacks" id="navFeedbacks">
+<svg aria-hidden="true" class="nav-ico-svg nav-ico-feedback" viewBox="0 0 24 24">
+<path d="M6 7.5A3.5 3.5 0 0 1 9.5 4h8A3.5 3.5 0 0 1 21 7.5v5A3.5 3.5 0 0 1 17.5 16H12l-4.2 3.3c-.7.5-1.8 0-1.8-.9V16A3.5 3.5 0 0 1 2.5 12.5v-5A3.5 3.5 0 0 1 6 4h.2" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8"/>
+<path d="M9 9h7M9 12h4" fill="none" stroke="currentColor" stroke-linecap="round" stroke-width="1.8"/>
+</svg>
+<span class="nav-label">Feedbacks</span>
 </button>
 <div class="sidebar-sep"></div>
 <button class="nav-item" data-tooltip="Configuracoes" id="navConfig">
@@ -785,6 +792,68 @@
       <h3>Nenhuma atividade encontrada</h3>
       <p class="muted">Assim que voce for vinculado a atividades, elas aparecerao aqui.</p>
     </div>
+  </div>
+</section>
+
+<section class="view" hidden="" id="viewMyFeedbacks">
+  <div class="container my-feedbacks-page">
+    <div class="page-header">
+      <div>
+        <h1>Meus Feedbacks</h1>
+        <p class="muted">Acompanhe suas avaliacoes, reconhecimentos e pontos de evolucao em um painel organizado.</p>
+      </div>
+      <div class="chips my-feedbacks-toolbar">
+        <label class="field my-feedbacks-search-field">
+          <span>Buscar feedback</span>
+          <input id="myFeedbacksSearchInput" type="search" placeholder="Nota, avaliador, data ou observacao" />
+        </label>
+      </div>
+    </div>
+
+    <section class="my-feedbacks-hero">
+      <article class="my-feedbacks-highlight">
+        <div class="my-feedbacks-highlight-kicker">Minha evolucao</div>
+        <h2 id="myFeedbacksHeadline">Voce ainda nao recebeu feedbacks.</h2>
+        <p class="muted" id="myFeedbacksIntro">Quando novos feedbacks forem registrados para o seu usuario, eles aparecerao aqui com um resumo elegante.</p>
+      </article>
+      <div class="my-feedbacks-stats">
+        <article class="my-feedbacks-stat">
+          <span class="my-feedbacks-stat-label">Feedbacks</span>
+          <strong id="myFeedbacksTotalCount">0</strong>
+          <p class="muted">Total recebidos ate agora.</p>
+        </article>
+        <article class="my-feedbacks-stat my-feedbacks-stat--score">
+          <span class="my-feedbacks-stat-label">Media</span>
+          <strong id="myFeedbacksAverageScore">0,0</strong>
+          <p class="muted">Nota media geral.</p>
+        </article>
+        <article class="my-feedbacks-stat my-feedbacks-stat--good">
+          <span class="my-feedbacks-stat-label">Destaques</span>
+          <strong id="myFeedbacksPositiveCount">0</strong>
+          <p class="muted">Feedbacks com nota 8+.</p>
+        </article>
+        <article class="my-feedbacks-stat my-feedbacks-stat--recent">
+          <span class="my-feedbacks-stat-label">Ultimo</span>
+          <strong id="myFeedbacksLatestDate">-</strong>
+          <p class="muted">Feedback mais recente.</p>
+        </article>
+      </div>
+    </section>
+
+    <section class="my-feedbacks-list-wrap">
+      <div class="my-feedbacks-list-head">
+        <div>
+          <div class="my-feedbacks-list-kicker">Timeline</div>
+          <h3>Historico de feedbacks</h3>
+        </div>
+        <div class="my-feedbacks-list-meta" id="myFeedbacksListMeta">0 feedbacks encontrados</div>
+      </div>
+      <div class="my-feedbacks-list" id="myFeedbacksList"></div>
+      <div class="panel subtle my-feedbacks-empty" hidden id="myFeedbacksEmpty">
+        <h3>Nenhum feedback encontrado</h3>
+        <p class="muted">Assim que um gestor ou administrador registrar um feedback para voce, ele aparecera aqui.</p>
+      </div>
+    </section>
   </div>
 </section>
 
@@ -1962,7 +2031,7 @@
 </section>
 
 
-<script src="./app.js?v=1772631800" type="module"></script>
+<script src="./app.js?v=1772632400" type="module"></script>
 <script>
   // Toggle senha (somente UI)
   document.addEventListener("click", function(e){

@@ -21,6 +21,7 @@ export const navMyProjects = byId("navMyProjects");
 export const navAddTech = byId("navAddTech");
 export const navClients = byId("navClients");
 export const navReports = byId("navReports");
+export const navFeedbacks = byId("navFeedbacks");
 export const navConfig = byId("navConfig");
 export const navLogout = byId("navLogout");
 
@@ -354,6 +355,19 @@ export const myActivityKeyUsers = byId("myActivityKeyUsers");
 export const myActivityNote = byId("myActivityNote");
 export const myActivityNoteCounter = byId("myActivityNoteCounter");
 export const myActivityTip = byId("myActivityTip");
+
+// My Feedbacks
+export const viewMyFeedbacks = byId("viewMyFeedbacks");
+export const myFeedbacksSearchInput = byId("myFeedbacksSearchInput");
+export const myFeedbacksHeadline = byId("myFeedbacksHeadline");
+export const myFeedbacksIntro = byId("myFeedbacksIntro");
+export const myFeedbacksTotalCount = byId("myFeedbacksTotalCount");
+export const myFeedbacksAverageScore = byId("myFeedbacksAverageScore");
+export const myFeedbacksPositiveCount = byId("myFeedbacksPositiveCount");
+export const myFeedbacksLatestDate = byId("myFeedbacksLatestDate");
+export const myFeedbacksListMeta = byId("myFeedbacksListMeta");
+export const myFeedbacksList = byId("myFeedbacksList");
+export const myFeedbacksEmpty = byId("myFeedbacksEmpty");
 
 // Projects
 export const viewProjects = byId("viewProjects");

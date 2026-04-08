@@ -1435,6 +1435,11 @@ body.is-superadmin #navClients{
   opacity: .9;
 }
 
+.nav-ico-feedback{
+  color: #3b82f6;
+  filter: drop-shadow(0 4px 10px rgba(59,130,246,.18));
+}
+
 /* logout visual */
 .nav-item.danger{
   color: rgba(153,27,27,.92);
@@ -1937,6 +1942,265 @@ body.is-superadmin #navClients{
   border-top: 2px solid var(--border);
   padding-top: 18px;
   margin-top: 0;
+}
+
+#viewMyFeedbacks .container{
+  position: relative;
+  max-width: none;
+  padding-top: 56px;
+}
+
+#viewMyFeedbacks .page-header{
+  border-top: 2px solid var(--border);
+  padding-top: 18px;
+  margin-top: 0;
+}
+
+.my-feedbacks-page{
+  display:grid;
+  gap:18px;
+}
+
+.my-feedbacks-toolbar{
+  align-items:flex-end;
+}
+
+.my-feedbacks-search-field{
+  min-width: 330px;
+}
+
+.my-feedbacks-hero{
+  display:grid;
+  grid-template-columns: minmax(320px, 1.15fr) minmax(0, 1fr);
+  gap:18px;
+}
+
+.my-feedbacks-highlight{
+  border:1px solid rgba(12,18,32,.08);
+  border-radius:28px;
+  padding:24px;
+  background:
+    radial-gradient(circle at top right, rgba(59,130,246,.16), transparent 30%),
+    linear-gradient(135deg, rgba(255,255,255,.98), rgba(243,247,255,.94));
+  box-shadow: 0 18px 40px rgba(12,18,32,.06);
+}
+
+.my-feedbacks-highlight-kicker,
+.my-feedbacks-list-kicker{
+  font-size:11px;
+  font-weight:800;
+  letter-spacing:.14em;
+  text-transform:uppercase;
+  color: rgba(12,18,32,.5);
+}
+
+.my-feedbacks-highlight h2{
+  margin:10px 0 8px;
+  font-size:32px;
+  line-height:1.08;
+  color: rgba(12,18,32,.95);
+}
+
+.my-feedbacks-stats{
+  display:grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap:14px;
+}
+
+.my-feedbacks-stat{
+  border:1px solid rgba(12,18,32,.08);
+  border-radius:22px;
+  padding:18px 20px;
+  background:
+    radial-gradient(circle at top right, rgba(148,163,184,.12), transparent 30%),
+    linear-gradient(180deg, rgba(255,255,255,.98), rgba(248,250,252,.95));
+  box-shadow: 0 14px 28px rgba(12,18,32,.05);
+}
+
+.my-feedbacks-stat--score{
+  background:
+    radial-gradient(circle at top right, rgba(99,102,241,.12), transparent 30%),
+    linear-gradient(180deg, rgba(255,255,255,.98), rgba(243,244,255,.94));
+}
+
+.my-feedbacks-stat--good{
+  background:
+    radial-gradient(circle at top right, rgba(34,197,94,.12), transparent 30%),
+    linear-gradient(180deg, rgba(255,255,255,.98), rgba(240,253,244,.94));
+}
+
+.my-feedbacks-stat--recent{
+  background:
+    radial-gradient(circle at top right, rgba(245,158,11,.12), transparent 30%),
+    linear-gradient(180deg, rgba(255,255,255,.98), rgba(255,251,235,.96));
+}
+
+.my-feedbacks-stat-label{
+  display:block;
+  font-size:12px;
+  font-weight:800;
+  letter-spacing:.12em;
+  text-transform:uppercase;
+  color: rgba(12,18,32,.54);
+}
+
+.my-feedbacks-stat strong{
+  display:block;
+  margin-top:10px;
+  font-size:34px;
+  line-height:1;
+  color: rgba(12,18,32,.94);
+}
+
+.my-feedbacks-list-wrap{
+  border:1px solid rgba(12,18,32,.08);
+  border-radius:28px;
+  padding:22px;
+  background:
+    radial-gradient(circle at top right, rgba(119,59,246,.08), transparent 28%),
+    linear-gradient(180deg, rgba(255,255,255,.98), rgba(248,250,252,.95));
+  box-shadow: 0 18px 40px rgba(12,18,32,.06);
+}
+
+.my-feedbacks-list-head{
+  display:flex;
+  align-items:flex-start;
+  justify-content:space-between;
+  gap:12px;
+  margin-bottom:16px;
+}
+
+.my-feedbacks-list-head h3{
+  margin:6px 0 0;
+  font-size:24px;
+  color: rgba(12,18,32,.95);
+}
+
+.my-feedbacks-list-meta{
+  padding:10px 12px;
+  border-radius:999px;
+  background: rgba(255,255,255,.8);
+  border:1px solid rgba(12,18,32,.08);
+  color: rgba(12,18,32,.68);
+  font-size:13px;
+  font-weight:700;
+}
+
+.my-feedbacks-list{
+  display:grid;
+  gap:14px;
+}
+
+.my-feedback-entry{
+  border:1px solid rgba(12,18,32,.08);
+  border-radius:22px;
+  padding:18px;
+  background: rgba(255,255,255,.92);
+  box-shadow: 0 10px 24px rgba(12,18,32,.05);
+}
+
+.my-feedback-entry--good{
+  background:
+    radial-gradient(circle at top right, rgba(34,197,94,.1), transparent 28%),
+    rgba(255,255,255,.96);
+}
+
+.my-feedback-entry--mid{
+  background:
+    radial-gradient(circle at top right, rgba(245,158,11,.1), transparent 28%),
+    rgba(255,255,255,.96);
+}
+
+.my-feedback-entry--alert{
+  background:
+    radial-gradient(circle at top right, rgba(239,68,68,.1), transparent 28%),
+    rgba(255,255,255,.96);
+}
+
+.my-feedback-entry-top{
+  display:flex;
+  align-items:flex-start;
+  justify-content:space-between;
+  gap:12px;
+}
+
+.my-feedback-entry-kicker{
+  font-size:11px;
+  font-weight:800;
+  letter-spacing:.14em;
+  text-transform:uppercase;
+  color: rgba(12,18,32,.45);
+}
+
+.my-feedback-entry-top h4{
+  margin:6px 0 0;
+  font-size:22px;
+  color: rgba(12,18,32,.94);
+}
+
+.my-feedback-score{
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  padding:10px 14px;
+  border-radius:999px;
+  font-size:13px;
+  font-weight:800;
+  border:1px solid transparent;
+  white-space:nowrap;
+}
+
+.my-feedback-score--good{
+  background: rgba(220,252,231,.95);
+  color: #047857;
+  border-color: rgba(74,222,128,.3);
+}
+
+.my-feedback-score--mid{
+  background: rgba(255,237,213,.96);
+  color: #c2410c;
+  border-color: rgba(251,146,60,.28);
+}
+
+.my-feedback-score--alert{
+  background: rgba(254,226,226,.95);
+  color: #b91c1c;
+  border-color: rgba(248,113,113,.28);
+}
+
+.my-feedback-score--neutral{
+  background: rgba(241,245,249,.95);
+  color: #475569;
+  border-color: rgba(148,163,184,.28);
+}
+
+.my-feedback-entry-meta{
+  display:flex;
+  flex-wrap:wrap;
+  gap:8px;
+  margin-top:12px;
+}
+
+.my-feedback-meta-pill{
+  display:inline-flex;
+  align-items:center;
+  padding:7px 10px;
+  border-radius:999px;
+  background: rgba(244,247,252,.95);
+  border:1px solid rgba(12,18,32,.08);
+  color: rgba(12,18,32,.68);
+  font-size:12px;
+}
+
+.my-feedback-entry-note{
+  margin-top:14px;
+  color: rgba(12,18,32,.84);
+  line-height:1.65;
+  white-space:pre-wrap;
+}
+
+.my-feedbacks-empty{
+  margin-top:14px;
 }
 
 #viewManagerUsers .container{
@@ -4335,6 +4599,21 @@ body.is-superadmin #navClients{
 @media (max-width: 720px){
   .my-activities-summary{
     grid-template-columns:1fr;
+  }
+
+  .my-feedbacks-hero,
+  .my-feedbacks-stats{
+    grid-template-columns:1fr;
+  }
+
+  .my-feedbacks-search-field{
+    min-width: 100%;
+  }
+
+  .my-feedbacks-list-head,
+  .my-feedback-entry-top{
+    flex-direction:column;
+    align-items:flex-start;
   }
 
   .my-activities-search-field{

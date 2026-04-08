@@ -36,14 +36,14 @@ import {
 
 import { normalizeRole, humanizeRole } from "./src/utils/roles.js";
 import { show, hide, escapeHtml } from "./src/utils/dom.js";
-import { setView } from "./src/ui/router.js";
+import { setView } from "./src/ui/router.js?v=1772632400";
 import { isEmailValidBasic, isCnpjValidBasic } from "./src/utils/validators.js";
 import { fetchPlatformUser, fetchCompanyIdForUser, fetchCompanyUserProfile } from "./src/services/firestore.service.js";
 import { auth, secondaryAuth, db, storage, functions, httpsCallable } from "./src/config/firebase.js";
 import { normalizePhone, normalizeCnpj, slugify } from "./src/utils/format.js";
 import { setAlert, clearAlert, clearInlineAlert, showInlineAlert } from "./src/ui/alerts.js";
 import { listCompaniesDocs } from "./src/services/companies.service.js";
-import * as refs from "./src/ui/refs.js?v=1772631500";
+import * as refs from "./src/ui/refs.js?v=1772632400";
 import * as companiesDomain from "./src/domain/companies.domain.js?v=1770332251";
 import * as teamsDomain from "./src/domain/teams.domain.js?v=1772614200";
 import * as usersDomain from "./src/domain/users.domain.js?v=1772622200";
@@ -51,6 +51,7 @@ import * as managerUsersDomain from "./src/domain/manager-users.domain.js?v=1772
 import * as clientsDomain from "./src/domain/clients.domain.js?v=1770332252";
 import * as projectsDomain from "./src/domain/projects.domain.js?v=1772626200";
 import * as myActivitiesDomain from "./src/domain/my-activities.domain.js?v=1772631800";
+import * as myFeedbacksDomain from "./src/domain/my-feedbacks.domain.js?v=1772632400";
 import * as projectWorkspaceDomain from "./src/domain/project-workspace.domain.js?v=1770332277";
 import * as reportsDomain from "./src/domain/reports.domain.js?v=1770332251";
 import * as profileModal from "./src/ui/modals/profile.modal.js?v=1770332251";
@@ -285,7 +286,7 @@ async function callHttpFunctionWithAuth(functionName, payload){
 }
 
 function setActiveNav(activeId){
-  const items = [refs.navHome, refs.navAddTech, refs.navClients, refs.navReports, refs.navConfig].filter(Boolean);
+  const items = [refs.navHome, refs.navAddTech, refs.navClients, refs.navReports, refs.navFeedbacks, refs.navConfig].filter(Boolean);
   for (const el of items){
     if (el.hidden) {
       el.classList.remove("active");
@@ -301,13 +302,16 @@ function syncSidebarForRole(){
   const currentRole = String(state.profile?.role || "").toLowerCase();
   const hideTechMenu = isSuperAdmin || currentRole === "tecnico";
   const hideClientsMenu = isSuperAdmin || currentRole === "tecnico";
+  const hideFeedbacksMenu = isSuperAdmin;
   const sidebarSep = document.querySelector(".sidebar-nav .sidebar-sep");
 
   document.body.classList.toggle("is-superadmin", isSuperAdmin);
   if (refs.navAddTech) refs.navAddTech.hidden = hideTechMenu;
   if (refs.navClients) refs.navClients.hidden = hideClientsMenu;
+  if (refs.navFeedbacks) refs.navFeedbacks.hidden = hideFeedbacksMenu;
   if (refs.navAddTech) refs.navAddTech.style.display = hideTechMenu ? "none" : "";
   if (refs.navClients) refs.navClients.style.display = hideClientsMenu ? "none" : "";
+  if (refs.navFeedbacks) refs.navFeedbacks.style.display = hideFeedbacksMenu ? "none" : "";
   if (sidebarSep) sidebarSep.hidden = false;
 
   if (isSuperAdmin) {
@@ -362,6 +366,10 @@ function initSidebar(){
   refs.navReports?.addEventListener("click", () => {
     setActiveNav("navReports");
     openReportsView();
+  });
+  refs.navFeedbacks?.addEventListener("click", () => {
+    setActiveNav("navFeedbacks");
+    openMyFeedbacksView();
   });
   refs.navAddTech?.addEventListener("click", () => {
     setActiveNav("navAddTech");
@@ -1003,6 +1011,10 @@ const getMyActivitiesDeps = () => ({
   refs, state, db, auth, setView
 });
 
+const getMyFeedbacksDeps = () => ({
+  refs, state, db, auth, setView
+});
+
 async function openProjectWorkspace(projectId) {
   await projectWorkspaceDomain.openProjectWorkspace(projectId, getProjectsDeps());
 }
@@ -1043,6 +1055,22 @@ async function openMyActivitiesView() {
 
 async function loadMyActivities() {
   await myActivitiesDomain.loadMyActivities(getMyActivitiesDeps());
+}
+
+async function openMyFeedbacksView() {
+  try{
+    await ensureCompanyContext();
+  }catch(err){
+    console.error("openMyFeedbacksView: ensureCompanyContext falhou:", err);
+    alert("Nao foi possivel identificar a empresa do usuario. Faca logout e login novamente.");
+    return;
+  }
+
+  myFeedbacksDomain.openMyFeedbacksView(getMyFeedbacksDeps());
+}
+
+async function loadMyFeedbacks() {
+  await myFeedbacksDomain.loadMyFeedbacks(getMyFeedbacksDeps());
 }
 
 function openProjectsView() {
