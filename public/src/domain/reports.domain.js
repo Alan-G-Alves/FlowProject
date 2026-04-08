@@ -103,6 +103,24 @@ function getKpiMetaCard(label, value, sublabel, focusTarget, tone = "neutral"){
   `;
 }
 
+function getOperationalDrilldownMeta(state){
+  return {
+    cta: "Ver atividades",
+    hint: "Clique em qualquer indicador para abrir a lista de atividades correspondente, sem sair do relatorio."
+  };
+}
+
+function getMetricInsightCard(metricKey, label, value, sublabel, ctaLabel, tone = "neutral"){
+  return `
+    <button class="reports-metric-card reports-metric-card--${escapeHtml(tone)}" data-open-activities="true" data-report-metric="${escapeHtml(metricKey)}" type="button">
+      <span class="reports-metric-card-label">${escapeHtml(label)}</span>
+      <strong>${escapeHtml(value)}</strong>
+      <span class="reports-metric-card-sub">${escapeHtml(sublabel)}</span>
+      <span class="reports-metric-card-cta">${escapeHtml(ctaLabel)}</span>
+    </button>
+  `;
+}
+
 function getPeriodRange(period){
   const today = new Date();
   today.setHours(0, 0, 0, 0);
@@ -136,7 +154,13 @@ function refsFrom(deps){
     reportTechFilterClient: r.reportTechFilterClient || byId("reportTechFilterClient"),
     reportTechFilterProject: r.reportTechFilterProject || byId("reportTechFilterProject"),
     reportTechFilterActivityStatus: r.reportTechFilterActivityStatus || byId("reportTechFilterActivityStatus"),
-    reportTechFilterTech: r.reportTechFilterTech || byId("reportTechFilterTech")
+    reportTechFilterTech: r.reportTechFilterTech || byId("reportTechFilterTech"),
+    modalReportActivities: r.modalReportActivities || byId("modalReportActivities"),
+    btnCloseReportActivities: r.btnCloseReportActivities || byId("btnCloseReportActivities"),
+    reportActivitiesModalTitle: r.reportActivitiesModalTitle || byId("reportActivitiesModalTitle"),
+    reportActivitiesModalSubtitle: r.reportActivitiesModalSubtitle || byId("reportActivitiesModalSubtitle"),
+    reportActivitiesSummary: r.reportActivitiesSummary || byId("reportActivitiesSummary"),
+    reportActivitiesList: r.reportActivitiesList || byId("reportActivitiesList")
   };
 }
 
@@ -515,6 +539,87 @@ function closeTechFilterModal(refs){
   refs.modalReportTechFilters.hidden = true;
 }
 
+function openReportActivitiesModal(refs){
+  if (!refs.modalReportActivities) return;
+  refs.modalReportActivities.hidden = false;
+}
+
+function closeReportActivitiesModal(refs){
+  if (!refs.modalReportActivities) return;
+  refs.modalReportActivities.hidden = true;
+}
+
+function renderReportActivitiesModal(metricKey, refs, state, cache){
+  if (!refs.reportActivitiesList || !refs.reportActivitiesSummary) return;
+  const modalData = state?._reportsMetricActivityMap?.[metricKey];
+  const activities = Array.isArray(modalData?.activities) ? modalData.activities : [];
+  const tasksById = Object.fromEntries((cache?.tasks || []).map((task) => [task.id, task]));
+  const projectsById = Object.fromEntries((cache?.projects || []).map((project) => [project.id, project]));
+  const usersByUid = new Map((state?._usersCache || []).map((user) => [user.uid, user]));
+  const completedCount = activities.filter((activity) => isCompletedActivity(activity)).length;
+  const pendingCount = activities.length - completedCount;
+  const totalHours = activities.reduce((acc, activity) => acc + asNumber(activity.hoursWorked), 0);
+
+  if (refs.reportActivitiesModalTitle) refs.reportActivitiesModalTitle.textContent = modalData?.title || "Atividades do indicador";
+  if (refs.reportActivitiesModalSubtitle) refs.reportActivitiesModalSubtitle.textContent = modalData?.subtitle || "Lista detalhada das atividades encontradas com os filtros atuais.";
+  refs.reportActivitiesSummary.innerHTML = `
+    <article class="reports-activities-stat">
+      <span class="reports-activities-stat-label">Atividades</span>
+      <strong>${escapeHtml(String(activities.length))}</strong>
+    </article>
+    <article class="reports-activities-stat">
+      <span class="reports-activities-stat-label">Horas</span>
+      <strong>${escapeHtml(formatHours(totalHours))}</strong>
+    </article>
+    <article class="reports-activities-stat">
+      <span class="reports-activities-stat-label">Pendentes</span>
+      <strong>${escapeHtml(String(pendingCount))}</strong>
+    </article>
+  `;
+
+  if (!activities.length){
+    refs.reportActivitiesList.innerHTML = `<div class="panel subtle"><p class="muted">Nenhuma atividade encontrada para este indicador com os filtros atuais.</p></div>`;
+    return;
+  }
+
+  refs.reportActivitiesList.innerHTML = activities
+    .slice()
+    .sort((a, b) => String(b.workDate || "").localeCompare(String(a.workDate || "")))
+    .map((activity) => {
+      const project = projectsById[activity.projectId];
+      const task = tasksById[activity.taskId];
+      const manager = usersByUid.get(project?.managerUid) || {};
+      const date = parseDateOnly(activity.workDate);
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      const isOverdue = Boolean(date && date < today && isPendingOsActivity(activity));
+      const tone = isOverdue ? "red" : (isCompletedActivity(activity) ? "green" : "orange");
+      const statusLabel = isOverdue ? "Atrasada" : (isCompletedActivity(activity) ? "OS Gerada/Aprovada" : "Sem OS");
+      const techNames = Array.isArray(activity.techNames) && activity.techNames.length ? activity.techNames.join(", ") : "Sem tecnico";
+      const clientName = project?.clientName || project?.client?.name || activity.clientName || "Sem cliente";
+      const managerName = manager.name || manager.email || project?.managerName || project?.manager?.name || "Sem gestor";
+      return `
+        <article class="reports-activity-item">
+          <div class="reports-activity-item-top">
+            <div>
+              <strong>${escapeHtml(activity.name || "Atividade")}</strong>
+              <span>${escapeHtml(project?.name || "Projeto")} • ${escapeHtml(task?.name || activity.taskName || "Tarefa")}</span>
+            </div>
+            <span class="reports-pill reports-pill--${escapeHtml(tone)}">${escapeHtml(statusLabel)}</span>
+          </div>
+          <div class="reports-activity-item-meta">
+            <span>Data: ${escapeHtml(formatDateBr(activity.workDate))}</span>
+            <span>Horas: ${escapeHtml(formatHours(activity.hoursWorked))}</span>
+            <span>Tecnico: ${escapeHtml(techNames)}</span>
+            <span>Cliente: ${escapeHtml(clientName)}</span>
+            <span>Gestor: ${escapeHtml(managerName)}</span>
+          </div>
+        </article>
+      `;
+    })
+    .join("");
+}
+
 function renderReports(cache, refs, state){
   if (!refs.reportsGrid) return;
 
@@ -540,6 +645,7 @@ function renderReports(cache, refs, state){
   const techsData = getScopedData(baseData, state._reportsWidgetFilters.techs);
   const attentionData = getScopedData(baseData, state._reportsWidgetFilters.attention);
   const timelineData = getScopedData(baseData, state._reportsWidgetFilters.timeline);
+  const operationalDrilldown = getOperationalDrilldownMeta(state);
 
   const overviewPlannedHours = overviewData.projects.reduce((acc, project) => acc + getProjectPlannedHours(project), 0);
   const overviewWorkedHours = overviewData.activities
@@ -557,11 +663,38 @@ function renderReports(cache, refs, state){
 
   const metricsCompleted = metricsData.activities.filter((activity) => isCompletedActivity(activity)).length;
   const metricsPending = metricsData.activities.length - metricsCompleted;
-  const metricsOverdue = metricsData.activities.filter((activity) => {
+  const metricsOverdueActivities = metricsData.activities.filter((activity) => {
     const date = parseDateOnly(activity.workDate);
     return date && date < today && !isCompletedActivity(activity);
-  }).length;
+  });
+  const metricsOverdue = metricsOverdueActivities.length;
   const deliveryOnTime = metricsData.activities.length ? Math.max(0, ((metricsData.activities.length - metricsOverdue) / metricsData.activities.length) * 100) : 0;
+  const metricsCompletedActivities = metricsData.activities.filter((activity) => isCompletedActivity(activity));
+  const metricsPendingActivities = metricsData.activities.filter((activity) => !isCompletedActivity(activity));
+  const metricsOnTimeActivities = metricsData.activities.filter((activity) => !metricsOverdueActivities.includes(activity));
+
+  state._reportsMetricActivityMap = {
+    completed: {
+      title: "Atividades concluidas",
+      subtitle: "Atividades com OS gerada ou aprovada dentro do recorte atual.",
+      activities: metricsCompletedActivities
+    },
+    pending: {
+      title: "Atividades pendentes",
+      subtitle: "Atividades que ainda exigem andamento ou emissao de OS.",
+      activities: metricsPendingActivities
+    },
+    overdue: {
+      title: "Atividades atrasadas",
+      subtitle: "Atividades vencidas e ainda sem conclusao no periodo filtrado.",
+      activities: metricsOverdueActivities
+    },
+    ontime: {
+      title: "Entrega no prazo",
+      subtitle: "Atividades dentro do prazo no recorte atual.",
+      activities: metricsOnTimeActivities
+    }
+  };
 
   const statusCounts = ["a-fazer", "em-andamento", "go-live", "concluido", "parado", "backlog"].map((status) => ({
     status,
@@ -673,11 +806,14 @@ function renderReports(cache, refs, state){
 
     <section class="reports-card reports-card--list" data-report-section="metrics">
       <div class="reports-card-head"><div><div class="reports-card-kicker">Principais indicadores</div><h3>Saude operacional do periodo</h3></div>${buildCardFilterBar(baseData, state, "metrics")}</div>
-      <div class="reports-metric-list">
-        <div class="reports-metric-row"><div><strong>Atividades concluidas</strong><span>${escapeHtml(String(metricsCompleted))} com status finalizado no periodo.</span></div><b>${escapeHtml(String(metricsCompleted))}</b></div>
-        <div class="reports-metric-row"><div><strong>Atividades pendentes</strong><span>${escapeHtml(String(metricsPending))} ainda exigem andamento.</span></div><b>${escapeHtml(String(metricsPending))}</b></div>
-        <div class="reports-metric-row"><div><strong>Atividades atrasadas</strong><span>${escapeHtml(String(metricsOverdue))} ultrapassaram a data prevista.</span></div><b class="tone-danger">${escapeHtml(String(metricsOverdue))}</b></div>
-        <div class="reports-metric-row"><div><strong>Entrega no prazo</strong><span>Percentual estimado das atividades sem atraso.</span></div><b class="tone-success">${escapeHtml(formatPercent(deliveryOnTime))}</b></div>
+      <div class="reports-metric-summary">
+        <p class="muted">${escapeHtml(operationalDrilldown.hint)}</p>
+      </div>
+      <div class="reports-metric-grid">
+        ${getMetricInsightCard("completed", "Atividades concluidas", String(metricsCompleted), `${String(metricsCompleted)} com status finalizado no periodo.`, operationalDrilldown.cta, "success")}
+        ${getMetricInsightCard("pending", "Atividades pendentes", String(metricsPending), `${String(metricsPending)} ainda exigem andamento.`, operationalDrilldown.cta, "neutral")}
+        ${getMetricInsightCard("overdue", "Atividades atrasadas", String(metricsOverdue), `${String(metricsOverdue)} ultrapassaram a data prevista.`, operationalDrilldown.cta, "danger")}
+        ${getMetricInsightCard("ontime", "Entrega no prazo", formatPercent(deliveryOnTime), "Percentual estimado das atividades sem atraso.", operationalDrilldown.cta, "info")}
       </div>
     </section>
 
@@ -770,11 +906,19 @@ function bindOnce(deps){
   refs.reportsStatusFilter?.addEventListener("change", handleGlobalChange);
   refs.btnReloadReports?.addEventListener("click", () => rerender(true));
   refs.btnCloseReportTechFilters?.addEventListener("click", () => closeTechFilterModal(refs));
+  refs.btnCloseReportActivities?.addEventListener("click", () => closeReportActivitiesModal(refs));
   refs.modalReportTechFilters?.addEventListener("click", (event) => {
     const target = event.target;
     if (!(target instanceof HTMLElement)) return;
     if (target.dataset.closeReportTechFilters === "true"){
       closeTechFilterModal(refs);
+    }
+  });
+  refs.modalReportActivities?.addEventListener("click", (event) => {
+    const target = event.target;
+    if (!(target instanceof HTMLElement)) return;
+    if (target.dataset.closeReportActivities === "true"){
+      closeReportActivitiesModal(refs);
     }
   });
   refs.reportTechFilterPeriod?.addEventListener("change", () => {
@@ -827,6 +971,13 @@ function bindOnce(deps){
   refs.reportsGrid?.addEventListener("click", (event) => {
     const target = event.target;
     if (!(target instanceof HTMLElement)) return;
+    const activitiesTrigger = target.closest("[data-open-activities='true']");
+    if (activitiesTrigger){
+      const metricKey = activitiesTrigger.getAttribute("data-report-metric") || "pending";
+      renderReportActivitiesModal(metricKey, refs, deps.state, deps.state._reportsCache);
+      openReportActivitiesModal(refs);
+      return;
+    }
     const trigger = target.closest("[data-open-report-tech-filters='true']");
     if (trigger){
       populateTechFilterModal(deps.state._reportsCache, refs, deps.state);

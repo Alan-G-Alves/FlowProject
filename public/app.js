@@ -960,11 +960,11 @@ async function loadClients(){
 }
 
 async function openReportsView(){
-  await reportsDomain.openReportsView({ refs, state, db, setView });
+  await reportsDomain.openReportsView({ refs, state, db, setView, openMyActivitiesView, openProjectsView });
 }
 
 async function loadReports(opts = {}){
-  await reportsDomain.loadReports({ refs, state, db, setView }, opts);
+  await reportsDomain.loadReports({ refs, state, db, setView, openMyActivitiesView, openProjectsView }, opts);
 }
 
 function openCreateTechModal() {
