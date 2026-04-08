@@ -25,6 +25,37 @@ function updateMyActivityNoteCounter(refs) {
   refs.myActivityNoteCounter.classList.toggle("is-ready", noteLength >= 50);
 }
 
+function formatHours(value) {
+  if (!Number.isFinite(value) || value <= 0) return "0h";
+  const rounded = Math.round(value * 100) / 100;
+  return Number.isInteger(rounded) ? `${rounded}h` : `${String(rounded).replace(".", ",")}h`;
+}
+
+function updateMyActivityComputedHours(refs) {
+  if (!refs?.myActivityComputedHours || !refs?.myActivityComputedHoursHint) return;
+  const start = refs.myActivityStartTime?.value || "";
+  const end = refs.myActivityEndTime?.value || "";
+  const total = diffHours(start, end);
+  const planned = asNumber(_currentActivity?.activity?.hoursWorked);
+
+  refs.myActivityComputedHours.textContent = formatHours(total);
+  refs.myActivityComputedHours.classList.toggle("is-over", total > 0 && planned > 0 && total > planned);
+
+  if (!start || !end) {
+    refs.myActivityComputedHoursHint.textContent = "Informe inicio e fim para calcular o total.";
+    return;
+  }
+  if (total <= 0) {
+    refs.myActivityComputedHoursHint.textContent = "Horario invalido. O fim precisa ser maior que o inicio.";
+    return;
+  }
+  if (planned > 0) {
+    refs.myActivityComputedHoursHint.textContent = `Previsto para a atividade: ${formatHours(planned)}.`;
+    return;
+  }
+  refs.myActivityComputedHoursHint.textContent = "Total calculado com base no intervalo informado.";
+}
+
 function fmtDate(value) {
   if (!value) return "-";
   const raw = String(value).slice(0, 10);
@@ -129,6 +160,8 @@ function bindEvents(deps) {
   refs.btnCloseMyActivityModal?.addEventListener("click", closeMyActivityModal);
   refs.btnCancelMyActivityModal?.addEventListener("click", closeMyActivityModal);
   refs.myActivityNote?.addEventListener("input", () => updateMyActivityNoteCounter(refs));
+  refs.myActivityStartTime?.addEventListener("input", () => updateMyActivityComputedHours(refs));
+  refs.myActivityEndTime?.addEventListener("input", () => updateMyActivityComputedHours(refs));
   refs.modalMyActivity?.addEventListener("click", (ev) => {
     if (ev.target?.dataset?.closeMyActivity === "true") closeMyActivityModal();
   });
@@ -345,6 +378,7 @@ function openMyActivityModal(activityId, mode, deps) {
   if (refs.btnSaveMyActivityModal) refs.btnSaveMyActivityModal.hidden = readOnly;
   if (refs.btnCancelMyActivityModal) refs.btnCancelMyActivityModal.textContent = readOnly ? "Fechar" : "Cancelar";
   updateMyActivityNoteCounter(refs);
+  updateMyActivityComputedHours(refs);
 
   refs.modalMyActivity.hidden = false;
 }

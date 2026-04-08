@@ -4366,6 +4366,15 @@ body.is-superadmin #navClients{
     align-items:flex-start;
   }
 
+  .my-activity-hours-summary{
+    flex-direction:column;
+    align-items:flex-start;
+  }
+
+  .my-activity-hours-hint{
+    text-align:left;
+  }
+
   .activity-head-actions{
     align-items:flex-end;
     flex-direction:column;
@@ -4710,6 +4719,49 @@ body.is-superadmin #navClients{
 .my-activity-note-field textarea{
   min-height:140px;
   resize:vertical;
+}
+
+.my-activity-hours-summary{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:12px;
+  margin-bottom:12px;
+  padding:12px 14px;
+  border:1px solid rgba(12,18,32,.08);
+  border-radius:16px;
+  background: rgba(255,255,255,.72);
+}
+
+.my-activity-hours-card{
+  display:flex;
+  flex-direction:column;
+  gap:4px;
+}
+
+.my-activity-hours-label{
+  font-size:11px;
+  font-weight:800;
+  letter-spacing:.12em;
+  text-transform:uppercase;
+  color: rgba(12,18,32,.48);
+}
+
+.my-activity-hours-card strong{
+  font-size:28px;
+  line-height:1;
+  color: rgba(12,18,32,.94);
+}
+
+.my-activity-hours-card strong.is-over{
+  color: #c2410c;
+}
+
+.my-activity-hours-hint{
+  font-size:13px;
+  line-height:1.45;
+  color: rgba(12,18,32,.62);
+  text-align:right;
 }
 
 .my-activity-note-meta{
