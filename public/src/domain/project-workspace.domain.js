@@ -1086,25 +1086,35 @@ function renderCover(refs, project, state){
   const endDate = fmtDate(project.endDate);
   const users = Array.isArray(state?._usersCache) ? state._usersCache : [];
   const taskCount = _tasks.length;
-  const activityHours = _activities.reduce((acc, activity) => acc + asNumber(activity.hoursWorked), 0);
+  const plannedActivityHours = _activities.reduce((acc, activity) => acc + asNumber(activity.hoursWorked), 0);
+  const executedActivityHours = _activities
+    .filter((activity) => isCompletedStatus(activity))
+    .reduce((acc, activity) => acc + asNumber(activity.hoursWorked), 0);
+  const pendingActivities = _activities.filter((activity) => !isCompletedStatus(activity)).length;
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const overdueActivities = _activities.filter((activity) => {
+    const workDate = parseDateOnly(activity.workDate);
+    return Boolean(workDate && workDate < today && !isCompletedStatus(activity));
+  }).length;
   const billingHours = asNumber(project.billingHours);
   const billingValueNumber = asNumber(project.billingValue);
   const billingValue = billingValueNumber > 0 ? formatCurrencyBRL(billingValueNumber) : "-";
   const clientHourlyRate = (billingHours > 0 && billingValueNumber > 0) ? (billingValueNumber / billingHours) : null;
   const estimatedTechCost = _activities.reduce((acc, activity) => {
     const techIds = Array.isArray(activity.techUids) ? activity.techUids.filter(Boolean) : [];
-    const activityHoursWorked = asNumber(activity.hoursWorked);
-    if (!activityHoursWorked || !techIds.length) return acc;
+    const plannedHours = asNumber(activity.hoursWorked);
+    if (!plannedHours || !techIds.length) return acc;
     const activityRate = techIds.reduce((sum, uid) => {
       const tech = users.find(u => u.uid === uid);
       return sum + asNumber(tech?.hourlyRate);
     }, 0);
-    return acc + (activityRate * activityHoursWorked);
+    return acc + (activityRate * plannedHours);
   }, 0);
   const profitValue = billingValueNumber > 0 ? (billingValueNumber - estimatedTechCost) : null;
   const profitPercent = (billingValueNumber > 0 && profitValue !== null) ? ((profitValue / billingValueNumber) * 100) : null;
   const profitTone = profitValue === null ? "neutral" : (profitValue >= 0 ? "positive" : "negative");
-  const projectCompletion = billingHours > 0 ? Math.min(100, Math.round((activityHours / billingHours) * 100)) : 0;
+  const projectCompletion = billingHours > 0 ? Math.min(100, Math.round((executedActivityHours / billingHours) * 100)) : 0;
 
   refs.projectWorkspaceCover.innerHTML = `
     <div class="project-cover-hero">
@@ -1118,12 +1128,17 @@ function renderCover(refs, project, state){
             <strong>${escapeHtml(String(taskCount))}</strong>
           </div>
           <div class="project-cover-kpi">
-            <span class="project-cover-kpi-label">Horas de atividade</span>
-            <strong>${escapeHtml(formatHoursLabel(activityHours))}</strong>
+            <span class="project-cover-kpi-label">Horas planejadas</span>
+            <strong>${escapeHtml(formatHoursLabel(plannedActivityHours))}</strong>
           </div>
           <div class="project-cover-kpi">
-            <span class="project-cover-kpi-label">Valor hora cliente</span>
-            <strong>${escapeHtml(clientHourlyRate !== null ? formatCurrencyBRL(clientHourlyRate) : "-")}</strong>
+            <span class="project-cover-kpi-label">Horas executadas</span>
+            <strong>${escapeHtml(formatHoursLabel(executedActivityHours))}</strong>
+          </div>
+          <div class="project-cover-kpi">
+            <span class="project-cover-kpi-label">Atividades pendentes</span>
+            <strong>${escapeHtml(String(pendingActivities))}</strong>
+            <span class="project-cover-meta">${escapeHtml(String(overdueActivities))} atrasada(s)</span>
           </div>
         </div>
       </div>
@@ -1175,6 +1190,7 @@ function renderCover(refs, project, state){
       <div class="project-cover-profit-item">
         <span class="project-cover-label">Custo tecnico estimado</span>
         <strong>${escapeHtml(estimatedTechCost > 0 ? formatCurrencyBRL(estimatedTechCost) : "-")}</strong>
+        <span class="project-cover-meta">Baseado nas horas planejadas</span>
       </div>
       <div class="project-cover-profit-item">
         <span class="project-cover-label">Consumo das horas</span>
@@ -1199,12 +1215,8 @@ function renderCover(refs, project, state){
         <strong>${escapeHtml(coordinator)}</strong>
       </div>
       <div class="project-cover-card">
-        <span class="project-cover-label">Horas do projeto</span>
-        <strong>${escapeHtml(formatHoursLabel(billingHours))}</strong>
-      </div>
-      <div class="project-cover-card">
-        <span class="project-cover-label">Valor do projeto</span>
-        <strong>${escapeHtml(billingValue)}</strong>
+        <span class="project-cover-label">Valor hora cliente</span>
+        <strong>${escapeHtml(clientHourlyRate !== null ? formatCurrencyBRL(clientHourlyRate) : "-")}</strong>
       </div>
     </div>
   `;

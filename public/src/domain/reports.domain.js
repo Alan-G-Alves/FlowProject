@@ -3,6 +3,11 @@
   getDocs
 } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore.js";
 
+import {
+  downloadExecutiveReportExcel,
+  downloadExecutiveReportPdf
+} from "./reports-export.domain.js";
+
 let _bound = false;
 
 const REPORT_CARD_KEYS = [
@@ -620,6 +625,89 @@ function renderReportActivitiesModal(metricKey, refs, state, cache){
     .join("");
 }
 
+function buildExecutiveExportPayload({
+  state,
+  overviewData,
+  overviewPlannedHours,
+  overviewWorkedHours,
+  overviewPlannedPendingHours,
+  deliveryOnTime,
+  statusCounts,
+  topClients,
+  clientsById,
+  today
+}){
+  const usersByUid = new Map((state?._usersCache || []).map((user) => [user.uid, user]));
+  const tasksByProject = new Map();
+  overviewData.tasks.forEach((task) => {
+    const list = tasksByProject.get(task.projectId) || [];
+    list.push(task);
+    tasksByProject.set(task.projectId, list);
+  });
+  const activitiesByProject = new Map();
+  overviewData.activities.forEach((activity) => {
+    const list = activitiesByProject.get(activity.projectId) || [];
+    list.push(activity);
+    activitiesByProject.set(activity.projectId, list);
+  });
+
+  const projectRows = overviewData.projects.map((project) => {
+    const projectActivities = activitiesByProject.get(project.id) || [];
+    const clientName = clientsById[project.clientId]?.name || project.clientName || "Sem cliente";
+    const manager = usersByUid.get(project.managerUid) || {};
+    const managerName = manager.name || manager.email || project.managerName || project.manager?.name || "Sem gestor";
+    const executedHours = projectActivities
+      .filter((activity) => isCompletedActivity(activity))
+      .reduce((acc, activity) => acc + asNumber(activity.hoursWorked), 0);
+    const pendingActivities = projectActivities.filter((activity) => isPendingOsActivity(activity)).length;
+    const overdueActivities = projectActivities.filter((activity) => {
+      const date = parseDateOnly(activity.workDate);
+      return date && date < today && isPendingOsActivity(activity);
+    }).length;
+    return {
+      number: project.projectNumber ? `#${project.projectNumber}` : "-",
+      name: project.name || "Projeto",
+      client: clientName,
+      manager: managerName,
+      status: statusInfo(project.status).label,
+      plannedHours: getProjectPlannedHours(project),
+      executedHours,
+      pendingActivities,
+      overdueActivities,
+      taskCount: (tasksByProject.get(project.id) || []).length
+    };
+  }).sort((a, b) => b.overdueActivities - a.overdueActivities || b.pendingActivities - a.pendingActivities || b.executedHours - a.executedHours);
+
+  const periodLabel = overviewData.period === "custom"
+    ? `${formatDateBr(overviewData.startDate)} a ${formatDateBr(overviewData.endDate)}`
+    : ({
+      "30d": "Ultimos 30 dias",
+      "90d": "Ultimos 90 dias",
+      year: "Ultimos 12 meses",
+      all: "Historico completo"
+    }[overviewData.period] || overviewData.period);
+
+  return {
+    fileSuffix: `${overviewData.period || "relatorio"}-${new Date().toISOString().slice(0, 10)}`,
+    generatedAtLabel: new Date().toLocaleString("pt-BR"),
+    periodLabel: `Periodo analisado: ${periodLabel}`,
+    executiveSummary: `${overviewData.projects.length} projeto(s) monitorado(s), ${formatHours(overviewPlannedHours)} previstas, ${formatHours(overviewWorkedHours)} executadas com OS e ${formatHours(overviewPlannedPendingHours)} em atividades atrasadas sem OS.`,
+    summary: {
+      projects: overviewData.projects.length,
+      plannedHours: overviewPlannedHours,
+      executedHours: overviewWorkedHours,
+      pendingPlannedHours: overviewPlannedPendingHours,
+      deliveryOnTime
+    },
+    projectRows,
+    statusCounts: statusCounts.map((item) => ({
+      label: statusInfo(item.status).label,
+      count: item.count
+    })),
+    topClients: topClients.slice(0, 5)
+  };
+}
+
 function renderReports(cache, refs, state){
   if (!refs.reportsGrid) return;
 
@@ -781,6 +869,19 @@ function renderReports(cache, refs, state){
     };
   });
 
+  state._reportsExecutiveExportPayload = buildExecutiveExportPayload({
+    state,
+    overviewData,
+    overviewPlannedHours,
+    overviewWorkedHours,
+    overviewPlannedPendingHours,
+    deliveryOnTime,
+    statusCounts,
+    topClients,
+    clientsById,
+    today
+  });
+
   refs.reportsGrid.innerHTML = `
     <section class="reports-card reports-card--hero">
       <div class="reports-card-head">
@@ -792,6 +893,22 @@ function renderReports(cache, refs, state){
               ? `${formatDateBr(overviewData.startDate)} a ${formatDateBr(overviewData.endDate)}`
               : (periodLabelMap[overviewData.period] || overviewData.period)
           )}.</p>
+        </div>
+        <div class="reports-card-tools">
+          <button class="btn ghost sm reports-card-filter-btn" data-export-report="excel" type="button" aria-label="Exportar relatorio executivo em Excel">
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" aria-hidden="true">
+              <path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8zm0 0v5h5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+              <path d="m9 15 2-3 2 3m-4 0 2 3 2-3" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+            <span>Excel</span>
+          </button>
+          <button class="btn ghost sm reports-card-filter-btn" data-export-report="pdf" type="button" aria-label="Exportar relatorio executivo em PDF">
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" aria-hidden="true">
+              <path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8zm0 0v5h5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+              <path d="M8 16h8M8 12h5" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+            </svg>
+            <span>PDF</span>
+          </button>
         </div>
         ${buildCardFilterBar(baseData, state, "overview")}
       </div>
@@ -971,6 +1088,24 @@ function bindOnce(deps){
   refs.reportsGrid?.addEventListener("click", (event) => {
     const target = event.target;
     if (!(target instanceof HTMLElement)) return;
+    const exportTrigger = target.closest("[data-export-report]");
+    if (exportTrigger){
+      const exportType = exportTrigger.getAttribute("data-export-report");
+      const payload = deps.state._reportsExecutiveExportPayload;
+      if (!payload) return;
+      if (exportType === "pdf") {
+        downloadExecutiveReportPdf(payload).catch((err) => {
+          console.error("[reports:executive:pdf]", err);
+          alert("Nao foi possivel exportar o relatorio executivo em PDF.");
+        });
+      } else {
+        downloadExecutiveReportExcel(payload).catch((err) => {
+          console.error("[reports:executive:excel]", err);
+          alert("Nao foi possivel exportar o relatorio executivo em Excel.");
+        });
+      }
+      return;
+    }
     const activitiesTrigger = target.closest("[data-open-activities='true']");
     if (activitiesTrigger){
       const metricKey = activitiesTrigger.getAttribute("data-report-metric") || "pending";
