@@ -158,6 +158,9 @@ function renderList(refs, items) {
   const html = items.map((item) => {
     const selected = _selectedIds.has(item.id);
     const noteShort = truncateText(item.note || "", 240);
+    const plannedHours = Number(item.hoursWorked || 0);
+    const pointedHours = Number(item.workedHours || item.hoursWorked || 0);
+    const pointedMatchesPlanned = plannedHours === pointedHours;
     return `
       <article class="os-approval-card ${item.status === "os_aprovada" ? "is-approved" : "is-pending"}">
         <div class="os-approval-card-head">
@@ -183,13 +186,13 @@ function renderList(refs, items) {
         </div>
 
         <div class="os-approval-meta-row">
-          <span><b>Projeto:</b> ${escapeHtml(item.projectName || "Projeto")}</span>
-          <span><b>Tarefa:</b> ${escapeHtml(item.taskName || "Tarefa")}</span>
-          ${item.clientName ? `<span><b>Cliente:</b> ${escapeHtml(item.clientName)}</span>` : ""}
-          <span><b>Gestor:</b> ${escapeHtml(item.managerName || "-")}</span>
-          <span><b>Data:</b> ${escapeHtml(fmtDate(item.workDate))}</span>
-          <span><b>Previstas:</b> ${escapeHtml(formatHours(item.hoursWorked))}</span>
-          <span><b>Apontadas:</b> ${escapeHtml(formatHours(item.workedHours || item.hoursWorked))}</span>
+          <span class="os-approval-meta-item is-highlight"><b>Projeto:</b> ${escapeHtml(item.projectName || "Projeto")}</span>
+          <span class="os-approval-meta-item is-highlight"><b>Tarefa:</b> ${escapeHtml(item.taskName || "Tarefa")}</span>
+          ${item.clientName ? `<span class="os-approval-meta-item is-highlight"><b>Cliente:</b> ${escapeHtml(item.clientName)}</span>` : ""}
+          <span class="os-approval-meta-item is-highlight"><b>Gestor:</b> ${escapeHtml(item.managerName || "-")}</span>
+          <span class="os-approval-meta-item is-highlight"><b>Data:</b> ${escapeHtml(fmtDate(item.workDate))}</span>
+          <span class="os-approval-meta-item is-planned"><b>Previstas:</b> <strong>${escapeHtml(formatHours(plannedHours))}</strong></span>
+          <span class="os-approval-meta-item ${pointedMatchesPlanned ? "is-pointed-ok" : "is-pointed-alert"}"><b>Apontadas:</b> <strong>${escapeHtml(formatHours(pointedHours))}</strong></span>
         </div>
 
         <div class="os-approval-note">${escapeHtml(noteShort || "Sem observacao registrada.")}</div>

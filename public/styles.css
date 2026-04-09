@@ -2060,15 +2060,15 @@ body.is-superadmin #navClients{
 
 .os-approvals-list{
   display:grid;
-  gap:10px;
+  gap:6px;
 }
 
 .os-approval-card{
   border:1px solid rgba(12,18,32,.08);
-  border-radius:20px;
-  padding:12px 14px;
+  border-radius:18px;
+  padding:8px 10px;
   background: rgba(255,255,255,.96);
-  box-shadow: 0 10px 22px rgba(12,18,32,.04);
+  box-shadow: 0 6px 14px rgba(12,18,32,.03);
 }
 
 .os-approval-card.is-pending{
@@ -2086,7 +2086,7 @@ body.is-superadmin #navClients{
 .os-approval-card-head{
   display:grid;
   grid-template-columns: auto minmax(0, 1fr) auto;
-  gap:8px;
+  gap:6px;
   align-items:center;
 }
 
@@ -2097,14 +2097,14 @@ body.is-superadmin #navClients{
 }
 
 .os-approval-check{
-  margin-top:4px;
+  margin-top:2px;
 }
 
 .os-approval-kicker,
 .os-approval-detail-label{
-  font-size:11px;
+  font-size:10px;
   font-weight:800;
-  letter-spacing:.14em;
+  letter-spacing:.12em;
   text-transform:uppercase;
   color: rgba(12,18,32,.46);
 }
@@ -2115,8 +2115,8 @@ body.is-superadmin #navClients{
 }
 
 .os-approval-card-title h3{
-  margin:2px 0 0;
-  font-size:16px;
+  margin:1px 0 0;
+  font-size:14px;
   line-height:1.1;
   color: rgba(12,18,32,.95);
 }
@@ -2125,9 +2125,9 @@ body.is-superadmin #navClients{
   display:inline-flex;
   align-items:center;
   justify-content:center;
-  padding:8px 12px;
+  padding:6px 9px;
   border-radius:999px;
-  font-size:12px;
+  font-size:10px;
   font-weight:800;
   border:1px solid transparent;
 }
@@ -2145,17 +2145,17 @@ body.is-superadmin #navClients{
 }
 
 .os-approval-inline-action{
-  width:30px;
-  height:30px;
+  width:26px;
+  height:26px;
   border-radius:999px;
   border:1px solid rgba(12,18,32,.08);
   background: rgba(255,255,255,.92);
-  box-shadow: 0 6px 14px rgba(15,23,42,.05);
+  box-shadow: 0 3px 8px rgba(15,23,42,.04);
 }
 
 .os-approval-inline-action svg{
-  width:14px;
-  height:14px;
+  width:12px;
+  height:12px;
 }
 
 .os-approval-inline-action.is-approve{
@@ -2169,9 +2169,9 @@ body.is-superadmin #navClients{
 .os-approval-meta-row{
   display:flex;
   flex-wrap:wrap;
-  gap:6px 10px;
-  margin-top:6px;
-  font-size:11px;
+  gap:4px 7px;
+  margin-top:4px;
+  font-size:10px;
   color: rgba(12,18,32,.62);
 }
 
@@ -2179,28 +2179,52 @@ body.is-superadmin #navClients{
   white-space:nowrap;
 }
 
+.os-approval-meta-item.is-highlight{
+  color: rgb(101,52,219);
+}
+
+.os-approval-meta-item.is-highlight b{
+  color: rgba(12,18,32,.88);
+}
+
+.os-approval-meta-item.is-planned strong{
+  color: #15803d;
+}
+
+.os-approval-meta-item.is-pointed-ok strong{
+  color: #15803d;
+}
+
+.os-approval-meta-item.is-pointed-alert strong{
+  color: #dc2626;
+}
+
 .os-approval-meta-row b{
   color: rgba(12,18,32,.82);
   font-weight:800;
 }
 
+.os-approval-meta-row strong{
+  font-weight:800;
+}
+
 .os-approval-note{
-  margin-top:6px;
+  margin-top:4px;
   color: rgba(12,18,32,.78);
-  line-height:1.35;
+  line-height:1.25;
   white-space:pre-wrap;
   overflow-wrap:anywhere;
   display:-webkit-box;
   -webkit-line-clamp:1;
   -webkit-box-orient:vertical;
   overflow:hidden;
-  font-size:12px;
+  font-size:11px;
 }
 
 .os-approval-details{
-  margin-top:10px;
+  margin-top:6px;
   border:1px solid rgba(12,18,32,.08);
-  border-radius:16px;
+  border-radius:14px;
   background: rgba(248,250,252,.86);
   overflow:hidden;
 }
@@ -2208,10 +2232,10 @@ body.is-superadmin #navClients{
 .os-approval-details summary{
   list-style:none;
   cursor:pointer;
-  padding:10px 14px;
+  padding:7px 10px;
   font-weight:800;
   color: #2563eb;
-  font-size:13px;
+  font-size:11px;
 }
 
 .os-approval-details summary::-webkit-details-marker{
