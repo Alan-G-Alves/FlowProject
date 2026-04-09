@@ -166,21 +166,30 @@ function renderList(refs, items) {
             <span></span>
           </label>
           <div class="os-approval-card-title">
-            <div class="os-approval-kicker">Projeto</div>
-            <h3>${escapeHtml(item.projectName || "Projeto")}</h3>
+            <div class="os-approval-kicker">Tecnico</div>
+            <h3>${escapeHtml(item.techName || "Tecnico")}</h3>
             <p class="muted">${escapeHtml(item.taskName || "Tarefa")} • ${escapeHtml(item.techName || "Tecnico")}</p>
           </div>
           <div class="os-approval-card-status">
             <span class="os-approval-status-pill ${item.status === "os_aprovada" ? "approved" : "pending"}">${escapeHtml(item.statusLabel)}</span>
+            <button class="icon-btn xs os-approval-inline-action ${item.status === "os_aprovada" ? "is-undo" : "is-approve"}" data-os-action="${item.status === "os_aprovada" ? "undo" : "approve"}" data-os-id="${escapeHtml(item.id)}" type="button" title="${escapeHtml(item.status === "os_aprovada" ? "Estornar aprovacao" : "Aprovar OS")}" aria-label="${escapeHtml(item.status === "os_aprovada" ? "Estornar aprovacao" : "Aprovar OS")}">
+              <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                ${item.status === "os_aprovada"
+                  ? `<path d="M9 9H5v4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/><path d="M5 13a7 7 0 1 0 2-4.95L5 9" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>`
+                  : `<path d="M5 12l4 4L19 6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>`}
+              </svg>
+            </button>
           </div>
         </div>
 
-        <div class="os-approval-chip-row">
-          ${item.clientName ? `<span class="activity-tag">Cliente: ${escapeHtml(item.clientName)}</span>` : ""}
-          <span class="activity-tag">Gestor: ${escapeHtml(item.managerName || "-")}</span>
-          <span class="activity-tag">Data: ${escapeHtml(fmtDate(item.workDate))}</span>
-          <span class="activity-tag">Horas previstas: ${escapeHtml(formatHours(item.hoursWorked))}</span>
-          <span class="activity-tag">Horas apontadas: ${escapeHtml(formatHours(item.workedHours || item.hoursWorked))}</span>
+        <div class="os-approval-meta-row">
+          <span><b>Projeto:</b> ${escapeHtml(item.projectName || "Projeto")}</span>
+          <span><b>Tarefa:</b> ${escapeHtml(item.taskName || "Tarefa")}</span>
+          ${item.clientName ? `<span><b>Cliente:</b> ${escapeHtml(item.clientName)}</span>` : ""}
+          <span><b>Gestor:</b> ${escapeHtml(item.managerName || "-")}</span>
+          <span><b>Data:</b> ${escapeHtml(fmtDate(item.workDate))}</span>
+          <span><b>Previstas:</b> ${escapeHtml(formatHours(item.hoursWorked))}</span>
+          <span><b>Apontadas:</b> ${escapeHtml(formatHours(item.workedHours || item.hoursWorked))}</span>
         </div>
 
         <div class="os-approval-note">${escapeHtml(noteShort || "Sem observacao registrada.")}</div>
@@ -217,12 +226,6 @@ function renderList(refs, items) {
           </div>
           <div class="os-approval-details-note">${escapeHtml(item.note || "Sem observacao registrada.")}</div>
         </details>
-
-        <div class="os-approval-actions">
-          <button class="btn ${item.status === "os_aprovada" ? "ghost" : "primary"}" data-os-action="${item.status === "os_aprovada" ? "undo" : "approve"}" data-os-id="${escapeHtml(item.id)}" type="button">
-            ${item.status === "os_aprovada" ? "Estornar aprovacao" : "Aprovar OS"}
-          </button>
-        </div>
       </article>
     `;
   }).join("");
