@@ -4923,10 +4923,21 @@ body.is-superadmin #navClients{
   border:1px solid transparent;
   font-size: 12px;
   font-weight: 700;
+  cursor:pointer;
+  transition: transform .16s ease, box-shadow .16s ease, filter .16s ease;
+}
+
+.task-status-pill:hover{
+  transform: translateY(-1px);
+  filter: brightness(1.01);
 }
 
 .task-status-pill svg{
   flex: 0 0 auto;
+}
+
+.task-status-pill.is-active{
+  box-shadow: 0 0 0 2px rgba(12,18,32,.08), 0 8px 18px rgba(15,23,42,.08);
 }
 
 .task-status-pill--pending{

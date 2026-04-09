@@ -27,6 +27,7 @@ let _activityModalMode = "view";
 let _activityModalActivityId = "";
 let _workspaceAlertDismissBound = false;
 let _taskSearchTerm = "";
+let _taskStatusFilters = {};
 const ACTIVITY_CHIP_COLORS = ["t1", "t2", "t3", "t4", "t5", "t6"];
 
 function formatHoursDisplay(value) {
@@ -46,6 +47,17 @@ function isApprovedStatus(activity) {
 function isCompletedStatus(activity) {
   const status = getActivityStatusValue(activity);
   return status === "os_gerada" || status === "os_aprovada";
+}
+
+function getTaskActivityFilterMatch(activity, filterKey, today){
+  if (!filterKey || filterKey === "all") return true;
+  const workDate = parseDateOnly(activity.workDate);
+  const isOverdue = Boolean(workDate && workDate < today && !isCompletedStatus(activity));
+  if (filterKey === "overdue") return isOverdue;
+  if (filterKey === "pending") return !isCompletedStatus(activity);
+  if (filterKey === "generated") return getActivityStatusValue(activity) === "os_gerada";
+  if (filterKey === "approved") return getActivityStatusValue(activity) === "os_aprovada";
+  return true;
 }
 
 function setWorkspaceOpenUI(deps, isOpen){
@@ -910,6 +922,21 @@ function bindOnce(deps){
   });
 
   refs.projectTaskList?.addEventListener("click", async (ev) => {
+    const statusFilterBtn = ev.target?.closest?.("[data-task-status-filter]");
+    if (statusFilterBtn){
+      ev.preventDefault();
+      ev.stopPropagation();
+      const taskId = statusFilterBtn.getAttribute("data-task-status-filter");
+      const nextFilter = statusFilterBtn.getAttribute("data-filter-value") || "all";
+      const currentFilter = _taskStatusFilters[taskId] || "all";
+      if (currentFilter === nextFilter) delete _taskStatusFilters[taskId];
+      else _taskStatusFilters[taskId] = nextFilter;
+      renderTasks(deps);
+      const taskCard = refs.projectTaskList.querySelector(`details.task-card [data-task-status-filter="${taskId}"]`)?.closest(".task-card");
+      if (taskCard) taskCard.open = true;
+      return;
+    }
+
     const addActivityBtn = ev.target?.closest?.("[data-open-activity-form]");
     if (addActivityBtn){
       ev.preventDefault();
@@ -1293,6 +1320,7 @@ function renderTasks(deps){
 
   const renderedTasks = _tasks.map(t => {
     const taskActs = byTask.get(t.id) || [];
+    const activeStatusFilter = _taskStatusFilters[t.id] || "all";
     const taskSearchText = normalizeSearchText([
       t.id,
       t.taskNumber,
@@ -1323,6 +1351,7 @@ function renderTasks(deps){
     if (searchTerm && !taskMatches && !visibleTaskActs.length){
       return "";
     }
+    const filteredTaskActs = visibleTaskActs.filter((activity) => getTaskActivityFilterMatch(activity, activeStatusFilter, today));
     const worked = visibleTaskActs.reduce((acc, a) => acc + asNumber(a.hoursWorked), 0);
     const planned = asNumber(t.plannedHours);
     const balance = Math.max(0, planned - worked);
@@ -1336,7 +1365,7 @@ function renderTasks(deps){
       return acc;
     }, { pending: 0, generated: 0, approved: 0, overdue: 0 });
     const groupedActs = new Map();
-    visibleTaskActs.forEach((a) => {
+    filteredTaskActs.forEach((a) => {
       const activityName = (a.name || "Atividade").trim();
       const names = Array.isArray(a.techNames) && a.techNames.length ? a.techNames : ["Sem tecnico"];
       const techKey = names.join(" | ");
@@ -1502,13 +1531,13 @@ function renderTasks(deps){
                 ${isUserTech ? `<span class="kpi">Horas orcadas: <b>-</b></span>` : `<span class="kpi">Horas orcadas: <b>${escapeHtml(String(planned))}h</b></span>`}
                 <span class="kpi">Horas trabalhadas: <b>${escapeHtml(String(worked))}h</b></span>
                 <span class="kpi">Saldo disponivel: <b>${escapeHtml(String(balance))}h</b></span>
-                <span class="kpi">Atividades: <b>${escapeHtml(String(visibleTaskActs.length))}</b></span>
+                <span class="kpi">Atividades: <b>${escapeHtml(String(filteredTaskActs.length))}</b></span>
                 </div>
                 <div class="task-status-strip">
-                  <span class="task-status-pill task-status-pill--pending">${iconPending} Sem OS: <b>${escapeHtml(String(statusCounters.pending))}</b></span>
-                  <span class="task-status-pill task-status-pill--sent">${iconDone} OS Enviada: <b>${escapeHtml(String(statusCounters.generated))}</b></span>
-                  <span class="task-status-pill task-status-pill--done">${iconDone} OS Aprovada: <b>${escapeHtml(String(statusCounters.approved))}</b></span>
-                  <span class="task-status-pill task-status-pill--overdue">${iconOverdue} Atrasadas: <b>${escapeHtml(String(statusCounters.overdue))}</b></span>
+                  <button class="task-status-pill task-status-pill--pending ${activeStatusFilter === "pending" ? "is-active" : ""}" data-task-status-filter="${escapeHtml(t.id)}" data-filter-value="pending" type="button">${iconPending} Sem OS: <b>${escapeHtml(String(statusCounters.pending))}</b></button>
+                  <button class="task-status-pill task-status-pill--sent ${activeStatusFilter === "generated" ? "is-active" : ""}" data-task-status-filter="${escapeHtml(t.id)}" data-filter-value="generated" type="button">${iconDone} OS Enviada: <b>${escapeHtml(String(statusCounters.generated))}</b></button>
+                  <button class="task-status-pill task-status-pill--done ${activeStatusFilter === "approved" ? "is-active" : ""}" data-task-status-filter="${escapeHtml(t.id)}" data-filter-value="approved" type="button">${iconDone} OS Aprovada: <b>${escapeHtml(String(statusCounters.approved))}</b></button>
+                  <button class="task-status-pill task-status-pill--overdue ${activeStatusFilter === "overdue" ? "is-active" : ""}" data-task-status-filter="${escapeHtml(t.id)}" data-filter-value="overdue" type="button">${iconOverdue} Atrasadas: <b>${escapeHtml(String(statusCounters.overdue))}</b></button>
                 </div>
               </div>
             </div>
@@ -1579,11 +1608,11 @@ function renderTasks(deps){
             <div class="activity-tree-head">
               <div>
                 <div class="task-step">Atividades</div>
-                <div class="muted">Agrupadas por nome da atividade e expandidas por tecnicos.</div>
+                <div class="muted">Agrupadas por nome da atividade e expandidas por tecnicos${activeStatusFilter !== "all" ? ` • Filtro ativo: ${escapeHtml(activeStatusFilter === "pending" ? "Sem OS" : activeStatusFilter === "generated" ? "OS Enviada" : activeStatusFilter === "approved" ? "OS Aprovada" : "Atrasadas")}` : ""}.</div>
               </div>
               <span class="activity-tree-hint">Clique nos grupos para expandir</span>
             </div>
-            <div class="activity-list">${activityRows || `<p class="muted">Sem atividades.</p>`}</div>
+            <div class="activity-list">${activityRows || `<p class="muted">Sem atividades para este status.</p>`}</div>
           </div>
         </div>
       </details>
