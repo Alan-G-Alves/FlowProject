@@ -25,6 +25,9 @@ let _activities = [];
 let _activityModalBound = false;
 let _activityModalMode = "view";
 let _activityModalActivityId = "";
+let _approvalConfirmBound = false;
+let _approvalConfirmActivityId = "";
+let _approvalConfirmNextStatus = "";
 let _workspaceAlertDismissBound = false;
 let _taskSearchTerm = "";
 let _taskStatusFilters = {};
@@ -488,6 +491,49 @@ function ensureActivityActionModal(){
   return document.getElementById("modalWorkspaceActivity");
 }
 
+function ensureApprovalConfirmModal(){
+  let modal = document.getElementById("modalWorkspaceApprovalConfirm");
+  if (modal) return modal;
+
+  document.body.insertAdjacentHTML("beforeend", `
+    <div class="modal" hidden id="modalWorkspaceApprovalConfirm">
+      <div class="modal-backdrop" data-close-workspace-approval="true"></div>
+      <div class="modal-card workspace-approval-modal-card">
+        <div class="modal-header">
+          <div>
+            <h2 id="workspaceApprovalTitle">Confirmar acao</h2>
+            <p class="muted" id="workspaceApprovalSubtitle">Revise antes de continuar.</p>
+          </div>
+          <button class="btn ghost" id="btnCloseWorkspaceApproval" type="button">X</button>
+        </div>
+        <div class="modal-body">
+          <div class="workspace-approval-summary" id="workspaceApprovalSummary"></div>
+        </div>
+        <div class="modal-footer">
+          <button class="btn ghost" id="btnCancelWorkspaceApproval" type="button">Cancelar</button>
+          <button class="btn primary" id="btnConfirmWorkspaceApproval" type="button">Confirmar</button>
+        </div>
+      </div>
+    </div>
+  `);
+
+  return document.getElementById("modalWorkspaceApprovalConfirm");
+}
+
+function getApprovalConfirmModalRefs(){
+  ensureApprovalConfirmModal();
+  const byId = (id) => document.getElementById(id);
+  return {
+    modal: byId("modalWorkspaceApprovalConfirm"),
+    title: byId("workspaceApprovalTitle"),
+    subtitle: byId("workspaceApprovalSubtitle"),
+    summary: byId("workspaceApprovalSummary"),
+    btnClose: byId("btnCloseWorkspaceApproval"),
+    btnCancel: byId("btnCancelWorkspaceApproval"),
+    btnConfirm: byId("btnConfirmWorkspaceApproval")
+  };
+}
+
 function getActivityActionModalRefs(){
   ensureActivityActionModal();
   const byId = (id) => document.getElementById(id);
@@ -594,6 +640,71 @@ function closeActivityActionModal(){
   if (modalRefs.modal) modalRefs.modal.hidden = true;
   _activityModalMode = "view";
   _activityModalActivityId = "";
+}
+
+function closeApprovalConfirmModal(){
+  const modalRefs = getApprovalConfirmModalRefs();
+  if (modalRefs.modal) modalRefs.modal.hidden = true;
+  _approvalConfirmActivityId = "";
+  _approvalConfirmNextStatus = "";
+}
+
+function openApprovalConfirmModal(activityId, nextStatus){
+  const modalRefs = getApprovalConfirmModalRefs();
+  const activity = _activities.find((item) => item.id === activityId);
+  if (!activity) return;
+  _approvalConfirmActivityId = activityId;
+  _approvalConfirmNextStatus = nextStatus;
+  if (modalRefs.title) modalRefs.title.textContent = nextStatus === "os_aprovada" ? "Confirma a aprovacao?" : "Confirma o estorno?";
+  if (modalRefs.subtitle) modalRefs.subtitle.textContent = "";
+  if (modalRefs.summary) {
+    modalRefs.summary.innerHTML = `
+      <strong>${escapeHtml(activity.name || "Atividade")}</strong>
+      <span>${escapeHtml(activity.taskName || (_tasks.find((item) => item.id === activity.taskId)?.name || "Tarefa"))}</span>
+    `;
+  }
+  if (modalRefs.btnConfirm) {
+    modalRefs.btnConfirm.textContent = "Sim";
+    modalRefs.btnConfirm.className = `btn ${nextStatus === "os_aprovada" ? "primary" : "danger"}`;
+  }
+  if (modalRefs.btnCancel) modalRefs.btnCancel.textContent = "Nao";
+  if (modalRefs.modal) modalRefs.modal.hidden = false;
+}
+
+async function confirmApprovalStatusChange(deps){
+  const { state, db, auth } = deps;
+  const activity = _activities.find((item) => item.id === _approvalConfirmActivityId);
+  if (!activity || !_approvalConfirmNextStatus) return;
+  const currentUid = auth?.currentUser?.uid || "";
+  const currentUser = (state._usersCache || []).find((item) => item.uid === currentUid) || null;
+  const currentName = currentUser?.name || auth?.currentUser?.email || "";
+  const currentEmail = auth?.currentUser?.email || "";
+
+  const payload = _approvalConfirmNextStatus === "os_aprovada"
+    ? {
+        status: "os_aprovada",
+        approvedAt: serverTimestamp(),
+        approvedBy: currentUid,
+        approvedByName: currentName,
+        approvedByEmail: currentEmail,
+        approvalRevertedAt: null,
+        approvalRevertedBy: null,
+        approvalRevertedByName: null,
+        updatedAt: serverTimestamp(),
+        updatedBy: currentUid
+      }
+    : {
+        status: "os_gerada",
+        approvalRevertedAt: serverTimestamp(),
+        approvalRevertedBy: currentUid,
+        approvalRevertedByName: currentName,
+        updatedAt: serverTimestamp(),
+        updatedBy: currentUid
+      };
+
+  await updateDoc(doc(db, `companies/${state.companyId}/activities`, activity.id), payload);
+  closeApprovalConfirmModal();
+  await refreshWorkspace(deps);
 }
 
 function isVisibleAlert(el){
@@ -811,6 +922,7 @@ function bindOnce(deps){
   _bound = true;
   const refs = _wsRefs(deps);
   const activityModalRefs = getActivityActionModalRefs();
+  const approvalModalRefs = getApprovalConfirmModalRefs();
 
   if (!_activityModalBound){
     _activityModalBound = true;
@@ -842,6 +954,18 @@ function bindOnce(deps){
         return;
       }
       await deleteActivityModalItem(deps);
+    });
+  }
+
+  if (!_approvalConfirmBound){
+    _approvalConfirmBound = true;
+    approvalModalRefs.btnClose?.addEventListener("click", closeApprovalConfirmModal);
+    approvalModalRefs.btnCancel?.addEventListener("click", closeApprovalConfirmModal);
+    approvalModalRefs.modal?.addEventListener("click", (ev) => {
+      if (ev.target?.dataset?.closeWorkspaceApproval === "true") closeApprovalConfirmModal();
+    });
+    approvalModalRefs.btnConfirm?.addEventListener("click", async () => {
+      await confirmApprovalStatusChange(deps);
     });
   }
 
@@ -988,6 +1112,15 @@ function bindOnce(deps){
     const deleteActivityBtn = ev.target?.closest?.("[data-delete-activity]");
     if (deleteActivityBtn){
       openActivityActionModal(deleteActivityBtn.getAttribute("data-delete-activity"), "delete");
+      return;
+    }
+
+    const approveActivityBtn = ev.target?.closest?.("[data-approve-activity]");
+    if (approveActivityBtn){
+      openApprovalConfirmModal(
+        approveActivityBtn.getAttribute("data-approve-activity"),
+        approveActivityBtn.getAttribute("data-approve-next-status") || "os_aprovada"
+      );
       return;
     }
 
@@ -1430,10 +1563,13 @@ function renderTasks(deps){
         const activityCards = techGroup.activities.map(a => {
       const canTechFill = isUserTech && ["admin","gestor","coordenador"].includes((a.createdByRole || "").toLowerCase());
       const canManageActivity = canManageTasks(state);
+      const canApproveActivity = canManageTasks(state) && (getActivityStatusValue(a) === "os_gerada" || getActivityStatusValue(a) === "os_aprovada");
       const assignedTechs = Array.isArray(a.techNames) && a.techNames.length ? a.techNames.join(", ") : "Sem tecnico";
       const workDate = parseDateOnly(a.workDate);
       const isOverdue = Boolean(workDate && workDate < today && !isCompletedStatus(a));
       const isApproved = isApprovedStatus(a);
+      const approvalNextStatus = isApproved ? "os_gerada" : "os_aprovada";
+      const approvalTitle = isApproved ? "Estornar aprovacao da atividade" : "Aprovar atividade";
       return `
         <div class="activity-item ${isOverdue ? "overdue" : (isCompletedStatus(a) ? "ok" : "pending")}">
           <div class="activity-main">
@@ -1448,6 +1584,15 @@ function renderTasks(deps){
                   <button class="icon-btn xs activity-action activity-action-view" data-view-activity="${escapeHtml(a.id)}" type="button" title="Visualizar atividade" aria-label="Visualizar atividade">
                     <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M1.5 12s3.8-6.5 10.5-6.5S22.5 12 22.5 12 18.7 18.5 12 18.5 1.5 12 1.5 12Z" stroke="currentColor" stroke-width="1.8"/><circle cx="12" cy="12" r="3.2" stroke="currentColor" stroke-width="1.8"/></svg>
                   </button>
+                  ${canApproveActivity ? `
+                    <button class="icon-btn xs activity-action ${isApproved ? "activity-action-revert" : "activity-action-approve"}" data-approve-activity="${escapeHtml(a.id)}" data-approve-next-status="${escapeHtml(approvalNextStatus)}" type="button" title="${escapeHtml(approvalTitle)}" aria-label="${escapeHtml(approvalTitle)}">
+                      <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                        ${isApproved
+                          ? `<path d="M9 9H5v4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/><path d="M5 13a7 7 0 1 0 2-4.95L5 9" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>`
+                          : `<path d="M5 12l4 4L19 6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>`}
+                      </svg>
+                    </button>
+                  ` : ""}
                   <button class="icon-btn xs activity-action activity-action-edit" data-edit-activity="${escapeHtml(a.id)}" type="button" title="Editar atividade" aria-label="Editar atividade">
                     <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 20h4l10-10-4-4L4 16v4Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><path d="m12 6 4 4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
                   </button>

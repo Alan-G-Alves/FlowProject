@@ -5229,6 +5229,37 @@ body.is-superadmin #navClients{
   width:min(760px, calc(100% - 24px));
 }
 
+.workspace-approval-modal-card{
+  width:min(440px, calc(100% - 24px));
+}
+
+.workspace-approval-summary{
+  display:flex;
+  flex-direction:column;
+  gap:6px;
+  padding: 2px 2px 6px;
+}
+
+.workspace-approval-summary strong{
+  font-size: 18px;
+  line-height: 1.15;
+  color: rgba(12,18,32,.94);
+}
+
+.workspace-approval-summary span,
+.workspace-approval-summary p{
+  margin:0;
+  color: rgba(12,18,32,.62);
+}
+
+.activity-action-approve{
+  color:#15803d;
+}
+
+.activity-action-revert{
+  color:#b45309;
+}
+
 .activity-modal-grid{
   display:grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
