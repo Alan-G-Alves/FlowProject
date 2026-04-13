@@ -3080,12 +3080,59 @@ body.reports-card-maximized{
   gap:6px;
 }
 
-.reports-inline-field span{
+.reports-inline-field span,
+.reports-inline-field legend{
   font-size: 10px;
   letter-spacing: .14em;
   text-transform: uppercase;
   font-weight: 800;
   color: rgba(12,18,32,.48);
+}
+
+.reports-inline-field--multi{
+  border:0;
+  margin:0;
+  padding:0;
+  min-width:min(100%, 360px);
+}
+
+.reports-multi-checks{
+  display:flex;
+  align-items:center;
+  gap:6px;
+  flex-wrap:wrap;
+  min-height:36px;
+  padding:4px;
+  border:1px solid rgba(12,18,32,.1);
+  border-radius:11px;
+  background:rgba(255,255,255,.92);
+}
+
+.reports-multi-checks label{
+  display:inline-flex;
+  align-items:center;
+  gap:5px;
+  min-height:26px;
+  padding:4px 8px;
+  border-radius:999px;
+  background:rgba(239,246,255,.72);
+  color:rgba(12,18,32,.78);
+  cursor:pointer;
+  user-select:none;
+}
+
+.reports-multi-checks input{
+  width:13px;
+  height:13px;
+  accent-color:#2563eb;
+}
+
+.reports-multi-checks label span{
+  color:inherit;
+  font-size:10px;
+  letter-spacing:.04em;
+  text-transform:none;
+  font-weight:800;
 }
 
 .reports-inline-field select{
@@ -3117,6 +3164,14 @@ body.reports-card-maximized{
 .reports-inline-field input:focus{
   border-color: rgba(119,59,246,.45);
   box-shadow: 0 0 0 4px rgba(119,59,246,.12);
+}
+
+.reports-inline-field .reports-multi-checks input{
+  width:13px;
+  height:13px;
+  padding:0;
+  border-radius:3px;
+  box-shadow:none;
 }
 
 .reports-inline-field--project{

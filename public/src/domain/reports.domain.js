@@ -126,7 +126,14 @@ function activityStatusLabel(activity){
 }
 
 function matchesActivityStatus(activity, statusFilter){
-  const filter = String(statusFilter || "all");
+  const filters = Array.isArray(statusFilter)
+    ? statusFilter.filter(Boolean).map((item) => String(item))
+    : [String(statusFilter || "all")];
+  if (!filters.length || filters.includes("all")) return true;
+  return filters.some((filter) => matchesSingleActivityStatus(activity, filter));
+}
+
+function matchesSingleActivityStatus(activity, filter){
   if (filter === "all") return true;
   const status = String(activity?.status || "").toLowerCase();
   if (filter === "pending") return !isCompletedActivity(activity);
@@ -643,6 +650,32 @@ function buildCardFilterBar(baseData, state, cardKey){
   };
 
   const renderOptions = (options, selected) => options.map((opt) => `<option value="${escapeHtml(opt.value)}"${opt.value === selected ? " selected" : ""}>${escapeHtml(opt.label)}</option>`).join("");
+  const renderActivityStatusField = () => {
+    const selectedStatuses = Array.isArray(filters.activityStatus)
+      ? filters.activityStatus.map((item) => String(item))
+      : [String(filters.activityStatus || "all")];
+    const normalized = selectedStatuses.length ? selectedStatuses : ["all"];
+    return `
+      <fieldset class="reports-inline-field reports-inline-field--multi">
+        <legend>${escapeHtml(labelMap.activityStatus)}</legend>
+        <div class="reports-multi-checks" data-report-card="${escapeHtml(cardKey)}" data-report-filter="activityStatus">
+          ${(optionsMap.activityStatus || []).map((opt) => `
+            <label>
+              <input
+                type="checkbox"
+                value="${escapeHtml(opt.value)}"
+                data-report-card="${escapeHtml(cardKey)}"
+                data-report-filter="activityStatus"
+                data-report-filter-multi="true"
+                ${normalized.includes(opt.value) ? "checked" : ""}
+              />
+              <span>${escapeHtml(opt.label)}</span>
+            </label>
+          `).join("")}
+        </div>
+      </fieldset>
+    `;
+  };
   const renderField = (filterKey) => `
     <label class="reports-inline-field${filterKey === "projectId" ? " reports-inline-field--project" : ""}">
       <span>${escapeHtml(labelMap[filterKey] || filterKey)}</span>
@@ -654,7 +687,7 @@ function buildCardFilterBar(baseData, state, cardKey){
   const periodField = config.includes("period") ? renderField("period") : "";
   const otherFields = config
     .filter((filterKey) => filterKey !== "period")
-    .map((filterKey) => renderField(filterKey))
+    .map((filterKey) => filterKey === "activityStatus" ? renderActivityStatusField() : renderField(filterKey))
     .join("");
 
   return `
@@ -1334,7 +1367,18 @@ function bindOnce(deps){
     if (!cardKey || !filterKey) return;
     if (!deps.state._reportsWidgetFilters) deps.state._reportsWidgetFilters = {};
     if (!deps.state._reportsWidgetFilters[cardKey]) deps.state._reportsWidgetFilters[cardKey] = getDefaultWidgetFilters(cardKey, { period: refs.reportsPeriodFilter?.value || "30d" });
-    deps.state._reportsWidgetFilters[cardKey][filterKey] = target.value || "all";
+    if (target instanceof HTMLInputElement && target.dataset.reportFilterMulti === "true"){
+      const group = target.closest(".reports-multi-checks");
+      let selected = Array.from(group?.querySelectorAll("input[type='checkbox']:checked") || [])
+        .map((input) => input instanceof HTMLInputElement ? input.value : "")
+        .filter(Boolean);
+      if (target.value === "all" && target.checked) selected = ["all"];
+      if (target.value !== "all") selected = selected.filter((value) => value !== "all");
+      if (!selected.length) selected = ["all"];
+      deps.state._reportsWidgetFilters[cardKey][filterKey] = selected;
+    } else {
+      deps.state._reportsWidgetFilters[cardKey][filterKey] = target.value || "all";
+    }
     if (cardKey === "activityTech") deps.state._activityTechPage = 1;
     if (["clientId", "teamId", "status"].includes(filterKey)) deps.state._reportsWidgetFilters[cardKey].projectId = "all";
     if (filterKey === "period" && target.value !== "custom"){
