@@ -135,6 +135,58 @@ function buildExecutiveHtml(data){
   `;
 }
 
+function buildGenericReportHtml(payload){
+  const summaryCards = (payload.summary || []).map((item) => `
+    <div class="card"><div class="card-label">${escapeHtml(item.label)}</div><div class="card-value">${escapeHtml(item.value)}</div></div>
+  `).join("");
+
+  const sections = (payload.tables || []).map((table) => {
+    const header = table.columns.map((column) => `<th>${escapeHtml(column.label)}</th>`).join("");
+    const rows = (table.rows || []).map((row) => `
+      <tr>
+        ${table.columns.map((column) => `<td>${escapeHtml(row[column.key] ?? "")}</td>`).join("")}
+      </tr>
+    `).join("");
+    return `
+      <div class="section">
+        <h2>${escapeHtml(table.title)}</h2>
+        <table>
+          <thead><tr>${header}</tr></thead>
+          <tbody>${rows || `<tr><td colspan="${table.columns.length}">Sem dados para os filtros atuais.</td></tr>`}</tbody>
+        </table>
+      </div>
+    `;
+  }).join("");
+
+  return `
+    <html>
+      <head>
+        <meta charset="utf-8" />
+        <style>
+          body { font-family: Arial, sans-serif; color: #162033; padding: 24px; }
+          h1, h2 { margin: 0 0 10px; }
+          p { margin: 0 0 8px; color: #5e687b; }
+          .summary { display: flex; gap: 12px; margin: 18px 0; flex-wrap: wrap; }
+          .card { border: 1px solid #dbe3ef; border-radius: 12px; padding: 12px 14px; min-width: 160px; }
+          .card-label { font-size: 11px; text-transform: uppercase; color: #66758f; font-weight: bold; }
+          .card-value { font-size: 20px; font-weight: bold; margin-top: 6px; color: #162033; }
+          table { width: 100%; border-collapse: collapse; margin-top: 12px; }
+          th, td { border: 1px solid #dbe3ef; padding: 8px; text-align: left; font-size: 12px; vertical-align: top; }
+          th { background: #f3f7ff; }
+          .section { margin-top: 22px; }
+        </style>
+      </head>
+      <body>
+        <h1>${escapeHtml(payload.title)}</h1>
+        <p>${escapeHtml(payload.subtitle || "")}</p>
+        <p>Gerado em ${escapeHtml(payload.generatedAtLabel || new Date().toLocaleString("pt-BR"))}</p>
+        ${summaryCards ? `<div class="summary">${summaryCards}</div>` : ""}
+        ${sections}
+      </body>
+    </html>
+  `;
+}
+
 function drawSimpleTable(doc, { startY, columns, rows, rowHeight = 8, headerHeight = 8, fontSize = 8 }){
   const pageWidth = doc.internal.pageSize.getWidth();
   const pageHeight = doc.internal.pageSize.getHeight();
@@ -175,6 +227,13 @@ function drawSimpleTable(doc, { startY, columns, rows, rowHeight = 8, headerHeig
   });
 
   return cursorY;
+}
+
+function ensurePdfSpace(doc, cursorY, neededHeight = 18){
+  const pageHeight = doc.internal.pageSize.getHeight();
+  if ((cursorY + neededHeight) < (pageHeight - 10)) return cursorY;
+  doc.addPage();
+  return 12;
 }
 
 export async function downloadExecutiveReportExcel(payload){
@@ -308,4 +367,72 @@ export async function downloadExecutiveReportPdf(payload){
   });
 
   doc.save(`${normalizeFileName(`relatorio-executivo-${payload.fileSuffix}`)}.pdf`);
+}
+
+export async function downloadReportExcel(payload){
+  const html = buildGenericReportHtml(payload);
+  const blob = new Blob([html], { type: "application/vnd.ms-excel;charset=utf-8" });
+  triggerDownload(blob, `${normalizeFileName(payload.fileName || payload.title)}.xls`);
+}
+
+export async function downloadReportPdf(payload){
+  const { jsPDF } = await import("https://cdn.jsdelivr.net/npm/jspdf@2.5.1/+esm");
+  const doc = new jsPDF({ unit: "mm", format: "a4", compress: true });
+  const pageWidth = doc.internal.pageSize.getWidth();
+
+  doc.setFillColor(243, 247, 255);
+  doc.roundedRect(10, 10, pageWidth - 20, 30, 8, 8, "F");
+  doc.setTextColor(101, 82, 219);
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(10);
+  doc.text("RELATORIO", 14, 18);
+  doc.setTextColor(22, 32, 51);
+  doc.setFontSize(16);
+  doc.text(String(payload.title || "Relatorio"), 14, 27);
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(9);
+  doc.setTextColor(94, 104, 123);
+  doc.text(String(payload.generatedAtLabel || new Date().toLocaleString("pt-BR")), 14, 34);
+
+  let nextY = 48;
+  const summary = payload.summary || [];
+  if (summary.length){
+    const cardWidth = Math.max(38, (pageWidth - 20 - (Math.min(summary.length, 4) - 1) * 4) / Math.min(summary.length, 4));
+    let x = 10;
+    summary.slice(0, 8).forEach((item, index) => {
+      if (index > 0 && index % 4 === 0) {
+        x = 10;
+        nextY += 24;
+      }
+      doc.setFillColor(255, 255, 255);
+      doc.setDrawColor(220, 228, 240);
+      doc.roundedRect(x, nextY, cardWidth, 20, 5, 5, "FD");
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(7.5);
+      doc.setTextColor(122, 133, 153);
+      doc.text(String(item.label || "").toUpperCase().slice(0, 24), x + 3, nextY + 6);
+      doc.setTextColor(22, 32, 51);
+      doc.setFontSize(10);
+      doc.text(String(item.value || "-").slice(0, 24), x + 3, nextY + 14);
+      x += cardWidth + 4;
+    });
+    nextY += 30;
+  }
+
+  (payload.tables || []).forEach((table) => {
+    nextY = ensurePdfSpace(doc, nextY, 22);
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(12);
+    doc.setTextColor(22, 32, 51);
+    doc.text(String(table.title || "Dados"), 10, nextY);
+    nextY = drawSimpleTable(doc, {
+      startY: nextY + 3,
+      fontSize: table.fontSize || 7,
+      rowHeight: table.rowHeight || 9,
+      columns: table.columns,
+      rows: table.rows || []
+    }) + 8;
+  });
+
+  doc.save(`${normalizeFileName(payload.fileName || payload.title)}.pdf`);
 }

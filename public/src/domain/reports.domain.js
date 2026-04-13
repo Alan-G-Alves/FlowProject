@@ -5,7 +5,9 @@
 
 import {
   downloadExecutiveReportExcel,
-  downloadExecutiveReportPdf
+  downloadExecutiveReportPdf,
+  downloadReportExcel,
+  downloadReportPdf
 } from "./reports-export.domain.js";
 
 let _bound = false;
@@ -708,6 +710,27 @@ function buildCardFilterBar(baseData, state, cardKey){
   `;
 }
 
+function buildReportExportTools(reportKey){
+  return `
+    <div class="reports-card-tools reports-card-tools--export">
+      <button class="btn ghost sm reports-card-filter-btn" data-export-card="${escapeHtml(reportKey)}" data-export-type="excel" type="button" aria-label="Exportar este relatorio em Excel">
+        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" aria-hidden="true">
+          <path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8zm0 0v5h5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+          <path d="m9 15 2-3 2 3m-4 0 2 3 2-3" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+        <span>Excel</span>
+      </button>
+      <button class="btn ghost sm reports-card-filter-btn" data-export-card="${escapeHtml(reportKey)}" data-export-type="pdf" type="button" aria-label="Exportar este relatorio em PDF">
+        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" aria-hidden="true">
+          <path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8zm0 0v5h5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+          <path d="M8 16h8M8 12h5" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+        </svg>
+        <span>PDF</span>
+      </button>
+    </div>
+  `;
+}
+
 function openReportActivitiesModal(refs){
   if (!refs.modalReportActivities) return;
   refs.modalReportActivities.hidden = false;
@@ -827,6 +850,275 @@ function buildActivityTechRows(activityTechData, cache, state){
       };
     });
   }).sort((a, b) => String(a.techName || "").localeCompare(String(b.techName || "")) || String(a.date || "").localeCompare(String(b.date || "")));
+}
+
+function getPeriodExportLabel(data, periodLabelMap){
+  if (data.period === "custom") return `${formatDateBr(data.startDate)} a ${formatDateBr(data.endDate)}`;
+  return periodLabelMap[data.period] || data.period || "Periodo";
+}
+
+function buildActivityExportRows(activities, scopedData, cache, state){
+  const tasksById = Object.fromEntries((cache?.tasks || []).map((task) => [task.id, task]));
+  const projectsById = Object.fromEntries((scopedData?.projects || cache?.projects || []).map((project) => [project.id, project]));
+  const usersByUid = new Map(((cache?.users || state?._usersCache || [])).map((user) => [user.uid || user.id, user]));
+  return (activities || []).map((activity) => {
+    const project = projectsById[activity.projectId] || {};
+    const task = tasksById[activity.taskId] || {};
+    const techNames = Array.isArray(activity.techUids) && activity.techUids.length
+      ? activity.techUids.map((uid) => usersByUid.get(uid)?.name || usersByUid.get(uid)?.email || uid).join(", ")
+      : (Array.isArray(activity.techNames) && activity.techNames.length ? activity.techNames.join(", ") : "Sem tecnico");
+    return {
+      date: formatDateBr(activity.workDate),
+      project: project.name || activity.projectName || "Projeto",
+      task: task.name || activity.taskName || "Tarefa",
+      activity: activity.name || "Atividade",
+      tech: techNames,
+      status: activityStatusLabel(activity),
+      hours: formatHours(activity.hoursWorked)
+    };
+  });
+}
+
+function buildReportsExportPayloads({
+  cache,
+  state,
+  clientsById,
+  periodLabelMap,
+  overviewData,
+  overviewPlannedHours,
+  overviewWorkedHours,
+  overviewPending,
+  metricsData,
+  metricsCompleted,
+  metricsPending,
+  metricsOverdue,
+  deliveryOnTime,
+  statusCounts,
+  executionPlannedHours,
+  executionWorkedHours,
+  executionOverdue,
+  executionProgress,
+  topClients,
+  scheduleData,
+  scheduleProjectHours,
+  schedulePlannedHours,
+  scheduleExecutedHours,
+  scheduleProgress,
+  schedulePlannedActivities,
+  scheduleExecutedActivities,
+  scheduleOverdueActivities,
+  scheduleUpcomingActivities,
+  activityTechRows,
+  activityTechTotals,
+  activityTechHeaderName,
+  activityTechHeaderRate,
+  timelineData,
+  recentActivities
+}){
+  const generatedAtLabel = new Date().toLocaleString("pt-BR");
+  const suffix = new Date().toISOString().slice(0, 10);
+  const activityColumns = [
+    { key: "date", label: "Data", width: .7 },
+    { key: "project", label: "Projeto", width: 1.4 },
+    { key: "task", label: "Tarefa", width: 1.1 },
+    { key: "activity", label: "Atividade", width: 1.5 },
+    { key: "tech", label: "Tecnico", width: 1.1 },
+    { key: "status", label: "Status", width: .8 },
+    { key: "hours", label: "Horas", width: .55 }
+  ];
+  return {
+    overview: {
+      title: "Painel consolidado de projetos",
+      subtitle: `Periodo analisado: ${getPeriodExportLabel(overviewData, periodLabelMap)}`,
+      generatedAtLabel,
+      fileName: `painel-consolidado-${suffix}`,
+      summary: [
+        { label: "Projetos monitorados", value: String(overviewData.projects.length) },
+        { label: "Horas previstas", value: formatHours(overviewPlannedHours) },
+        { label: "Horas executadas", value: formatHours(overviewWorkedHours) },
+        { label: "Atividades pendentes", value: String(overviewPending) }
+      ],
+      tables: [{
+        title: "Projetos",
+        columns: [
+          { key: "project", label: "Projeto", width: 1.6 },
+          { key: "client", label: "Cliente", width: 1.2 },
+          { key: "status", label: "Status", width: .8 },
+          { key: "hours", label: "Horas do projeto", width: .8 }
+        ],
+        rows: overviewData.projects.map((project) => ({
+          project: project.name || "Projeto",
+          client: clientsById?.[project.clientId]?.name || project.clientName || "Sem cliente",
+          status: statusInfo(project.status).label,
+          hours: formatHours(getProjectPlannedHours(project))
+        }))
+      }]
+    },
+    metrics: {
+      title: "Saude operacional do periodo",
+      subtitle: `Periodo analisado: ${getPeriodExportLabel(metricsData, periodLabelMap)}`,
+      generatedAtLabel,
+      fileName: `saude-operacional-${suffix}`,
+      summary: [
+        { label: "Atividades concluidas", value: String(metricsCompleted) },
+        { label: "Atividades pendentes", value: String(metricsPending) },
+        { label: "Atividades atrasadas", value: String(metricsOverdue) },
+        { label: "Entrega no prazo", value: formatPercent(deliveryOnTime) }
+      ],
+      tables: [{
+        title: "Atividades do periodo",
+        columns: activityColumns,
+        rows: buildActivityExportRows(metricsData.activities, metricsData, cache, state)
+      }]
+    },
+    statuses: {
+      title: "Projetos por status",
+      subtitle: "Distribuicao da carteira de projetos",
+      generatedAtLabel,
+      fileName: `projetos-por-status-${suffix}`,
+      summary: [{ label: "Projetos", value: String(statusCounts.reduce((acc, item) => acc + item.count, 0)) }],
+      tables: [{
+        title: "Status",
+        columns: [
+          { key: "status", label: "Status", width: 1.4 },
+          { key: "count", label: "Quantidade", width: .7 }
+        ],
+        rows: statusCounts.map((item) => ({ status: statusInfo(item.status).label, count: String(item.count) }))
+      }]
+    },
+    execution: {
+      title: "Horas previstas x executadas",
+      subtitle: "Comparativo de consumo de horas por periodo",
+      generatedAtLabel,
+      fileName: `horas-previstas-executadas-${suffix}`,
+      summary: [
+        { label: "Horas previstas", value: formatHours(executionPlannedHours) },
+        { label: "Horas executadas", value: formatHours(executionWorkedHours) },
+        { label: "Consumo", value: formatPercent(executionProgress) },
+        { label: "Atrasadas sem OS", value: String(executionOverdue) }
+      ],
+      tables: [{
+        title: "Resumo",
+        columns: [
+          { key: "metric", label: "Indicador", width: 1.5 },
+          { key: "value", label: "Valor", width: 1 }
+        ],
+        rows: [
+          { metric: "Horas previstas dos projetos", value: formatHours(executionPlannedHours) },
+          { metric: "Horas executadas com OS", value: formatHours(executionWorkedHours) },
+          { metric: "Atividades atrasadas sem OS", value: String(executionOverdue) },
+          { metric: "Percentual de consumo", value: formatPercent(executionProgress) }
+        ]
+      }]
+    },
+    clients: {
+      title: "Clientes com maior volume executado",
+      subtitle: "Ranking de carga por cliente",
+      generatedAtLabel,
+      fileName: `clientes-volume-executado-${suffix}`,
+      summary: [{ label: "Clientes listados", value: String(topClients.length) }],
+      tables: [{
+        title: "Clientes",
+        columns: [
+          { key: "client", label: "Cliente", width: 1.6 },
+          { key: "activities", label: "Atividades", width: .8 },
+          { key: "hours", label: "Horas", width: .8 }
+        ],
+        rows: topClients.map((item) => ({
+          client: item.clientName,
+          activities: String(item.activities),
+          hours: formatHours(item.hours)
+        }))
+      }]
+    },
+    schedule: {
+      title: "Cronograma de projeto por periodo",
+      subtitle: `Periodo analisado: ${getPeriodExportLabel(scheduleData, periodLabelMap)}`,
+      generatedAtLabel,
+      fileName: `cronograma-projeto-periodo-${suffix}`,
+      summary: [
+        { label: "Horas do projeto", value: formatHours(scheduleProjectHours) },
+        { label: "Horas planejadas", value: formatHours(schedulePlannedHours) },
+        { label: "Horas executadas", value: formatHours(scheduleExecutedHours) },
+        { label: "Progresso", value: formatPercent(scheduleProgress) }
+      ],
+      tables: [{
+        title: "Atividades do cronograma",
+        columns: activityColumns,
+        rows: buildActivityExportRows(schedulePlannedActivities, scheduleData, cache, state)
+      }, {
+        title: "Resumo por status do cronograma",
+        columns: [
+          { key: "status", label: "Status", width: 1.3 },
+          { key: "count", label: "Quantidade", width: .8 }
+        ],
+        rows: [
+          { status: "Planejadas", count: String(schedulePlannedActivities.length) },
+          { status: "Executadas", count: String(scheduleExecutedActivities.length) },
+          { status: "Atrasadas", count: String(scheduleOverdueActivities.length) },
+          { status: "Proximas", count: String(scheduleUpcomingActivities.length) }
+        ]
+      }]
+    },
+    activityTech: {
+      title: "Relatorio de Atividade x Tecnico",
+      subtitle: `Tecnico: ${activityTechHeaderName} | Valor hora: ${activityTechHeaderRate}`,
+      generatedAtLabel,
+      fileName: `atividade-x-tecnico-${suffix}`,
+      summary: [
+        { label: "Registros", value: String(activityTechRows.length) },
+        { label: "Horas atividade", value: formatHours(activityTechTotals.plannedHours) },
+        { label: "Horas apontadas", value: formatHours(activityTechTotals.pointedHours) },
+        { label: "Valor", value: formatCurrency(activityTechTotals.amount) }
+      ],
+      tables: [{
+        title: "Atividades",
+        rowHeight: 11,
+        columns: [
+          { key: "tech", label: "Tecnico", width: .9 },
+          { key: "project", label: "Projeto", width: 1.1 },
+          { key: "task", label: "Tarefa", width: 1 },
+          { key: "activity", label: "Atividade", width: 1.1 },
+          { key: "status", label: "Status", width: .75 },
+          { key: "planned", label: "H. atividade", width: .65 },
+          { key: "pointed", label: "H. apontadas", width: .75 },
+          { key: "amount", label: "Valor", width: .75 },
+          { key: "note", label: "Observacao", width: 1.4 }
+        ],
+        rows: activityTechRows.map((row) => ({
+          tech: row.techName,
+          project: row.projectName,
+          task: row.taskName,
+          activity: `${row.activityName} (${formatDateBr(row.date)})`,
+          status: row.status,
+          planned: formatHours(row.plannedHours),
+          pointed: formatHours(row.pointedHours),
+          amount: formatCurrency(row.amount),
+          note: row.note || "-"
+        }))
+      }]
+    },
+    timeline: {
+      title: "Ultimas atividades registradas",
+      subtitle: `Periodo analisado: ${getPeriodExportLabel(timelineData, periodLabelMap)}`,
+      generatedAtLabel,
+      fileName: `ultimas-atividades-${suffix}`,
+      summary: [{ label: "Atividades no periodo", value: String(timelineData.activities.length) }],
+      tables: [{
+        title: "Ultimas atividades",
+        columns: activityColumns,
+        rows: recentActivities.map((activity) => ({
+          date: formatDateBr(activity.date),
+          project: activity.projectName,
+          task: activity.taskName,
+          activity: activity.title,
+          tech: "-",
+          status: activity.status?.label || "-",
+          hours: formatHours(activity.hours)
+        }))
+      }]
+    }
+  };
 }
 
 function buildExecutiveExportPayload({
@@ -1113,6 +1405,42 @@ function renderReports(cache, refs, state){
     clientsById,
     today
   });
+  state._reportsExportPayloads = buildReportsExportPayloads({
+    cache,
+    state,
+    clientsById,
+    periodLabelMap,
+    overviewData,
+    overviewPlannedHours,
+    overviewWorkedHours,
+    overviewPending,
+    metricsData,
+    metricsCompleted,
+    metricsPending,
+    metricsOverdue,
+    deliveryOnTime,
+    statusCounts,
+    executionPlannedHours,
+    executionWorkedHours,
+    executionOverdue,
+    executionProgress,
+    topClients,
+    scheduleData,
+    scheduleProjectHours,
+    schedulePlannedHours,
+    scheduleExecutedHours,
+    scheduleProgress,
+    schedulePlannedActivities,
+    scheduleExecutedActivities,
+    scheduleOverdueActivities,
+    scheduleUpcomingActivities,
+    activityTechRows,
+    activityTechTotals,
+    activityTechHeaderName,
+    activityTechHeaderRate,
+    timelineData,
+    recentActivities
+  });
 
   refs.reportsGrid.innerHTML = `
     <section class="reports-card reports-card--hero">
@@ -1126,22 +1454,7 @@ function renderReports(cache, refs, state){
               : (periodLabelMap[overviewData.period] || overviewData.period)
           )}.</p>
         </div>
-        <div class="reports-card-tools">
-          <button class="btn ghost sm reports-card-filter-btn" data-export-report="excel" type="button" aria-label="Exportar relatorio executivo em Excel">
-            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" aria-hidden="true">
-              <path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8zm0 0v5h5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-              <path d="m9 15 2-3 2 3m-4 0 2 3 2-3" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-            </svg>
-            <span>Excel</span>
-          </button>
-          <button class="btn ghost sm reports-card-filter-btn" data-export-report="pdf" type="button" aria-label="Exportar relatorio executivo em PDF">
-            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" aria-hidden="true">
-              <path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8zm0 0v5h5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-              <path d="M8 16h8M8 12h5" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
-            </svg>
-            <span>PDF</span>
-          </button>
-        </div>
+        ${buildReportExportTools("overview")}
         ${buildCardFilterBar(baseData, state, "overview")}
       </div>
       <div class="reports-kpis">
@@ -1153,7 +1466,7 @@ function renderReports(cache, refs, state){
     </section>
 
     <section class="reports-card reports-card--list" data-report-section="metrics">
-      <div class="reports-card-head"><div><div class="reports-card-kicker">Principais indicadores</div><h3>Saude operacional do periodo</h3></div>${buildCardFilterBar(baseData, state, "metrics")}</div>
+      <div class="reports-card-head"><div><div class="reports-card-kicker">Principais indicadores</div><h3>Saude operacional do periodo</h3></div>${buildReportExportTools("metrics")}${buildCardFilterBar(baseData, state, "metrics")}</div>
       <div class="reports-metric-summary">
         <p class="muted">${escapeHtml(operationalDrilldown.hint)}</p>
       </div>
@@ -1166,7 +1479,7 @@ function renderReports(cache, refs, state){
     </section>
 
     <section class="reports-card reports-card--status" data-report-section="statuses">
-      <div class="reports-card-head"><div><div class="reports-card-kicker">Carteira</div><h3>Projetos por status</h3></div>${buildCardFilterBar(baseData, state, "statuses")}</div>
+      <div class="reports-card-head"><div><div class="reports-card-kicker">Carteira</div><h3>Projetos por status</h3></div>${buildReportExportTools("statuses")}${buildCardFilterBar(baseData, state, "statuses")}</div>
       <div class="reports-status-bars">
         ${statusCounts.map((item) => {
           const info = statusInfo(item.status);
@@ -1177,7 +1490,7 @@ function renderReports(cache, refs, state){
     </section>
 
     <section class="reports-card reports-card--donut" data-report-section="execution">
-      <div class="reports-card-head"><div><div class="reports-card-kicker">Execucao</div><h3>Horas previstas x executadas</h3></div>${buildCardFilterBar(baseData, state, "execution")}</div>
+      <div class="reports-card-head"><div><div class="reports-card-kicker">Execucao</div><h3>Horas previstas x executadas</h3></div>${buildReportExportTools("execution")}${buildCardFilterBar(baseData, state, "execution")}</div>
       <div class="reports-donut-wrap">
         <div class="reports-donut" style="--progress:${executionProgress}"><div class="reports-donut-center"><strong>${escapeHtml(formatPercent(executionProgress))}</strong><span>consumo</span></div></div>
         <div class="reports-legend">
@@ -1189,7 +1502,7 @@ function renderReports(cache, refs, state){
     </section>
 
     <section class="reports-card reports-card--clients" data-report-section="clients">
-      <div class="reports-card-head"><div><div class="reports-card-kicker">Carga por cliente</div><h3>Clientes com maior volume executado</h3></div>${buildCardFilterBar(baseData, state, "clients")}</div>
+      <div class="reports-card-head"><div><div class="reports-card-kicker">Carga por cliente</div><h3>Clientes com maior volume executado</h3></div>${buildReportExportTools("clients")}${buildCardFilterBar(baseData, state, "clients")}</div>
       <div class="reports-ranking">
         ${topClients.length ? topClients.map((item) => `<div class="reports-ranking-row"><div><strong>${escapeHtml(item.clientName)}</strong><span>${escapeHtml(String(item.activities))} atividade(s)</span></div><div class="reports-ranking-bar"><div class="reports-ranking-fill" style="width:${Math.max(10, (item.hours / maxClientHours) * 100)}%"></div></div><b>${escapeHtml(formatHours(item.hours))}</b></div>`).join("") : `<p class="muted">Sem dados suficientes para este filtro.</p>`}
       </div>
@@ -1202,6 +1515,7 @@ function renderReports(cache, refs, state){
           <h3>Cronograma de projeto por periodo</h3>
           <p class="muted">Acompanhe horas do projeto, horas planejadas, executadas e o fluxo das atividades por data.</p>
         </div>
+        ${buildReportExportTools("schedule")}
         ${buildCardFilterBar(baseData, state, "schedule")}
       </div>
       <div class="reports-schedule-layout">
@@ -1238,6 +1552,7 @@ function renderReports(cache, refs, state){
           <h3>Relatorio de Atividade x Tecnico</h3>
           <p class="muted">Analise horas planejadas, apontadas e valor calculado por tecnico, projeto e periodo.</p>
         </div>
+        ${buildReportExportTools("activityTech")}
         ${buildCardFilterBar(baseData, state, "activityTech")}
       </div>
       <div class="reports-activity-tech-summary">
@@ -1320,7 +1635,7 @@ function renderReports(cache, refs, state){
     </section>
 
     <section class="reports-card reports-card--timeline" data-report-section="timeline">
-      <div class="reports-card-head"><div><div class="reports-card-kicker">Movimentacao recente</div><h3>Ultimas atividades registradas</h3></div>${buildCardFilterBar(baseData, state, "timeline")}</div>
+      <div class="reports-card-head"><div><div class="reports-card-kicker">Movimentacao recente</div><h3>Ultimas atividades registradas</h3></div>${buildReportExportTools("timeline")}${buildCardFilterBar(baseData, state, "timeline")}</div>
       <div class="reports-timeline">
         ${recentActivities.length ? recentActivities.map((activity) => `<div class="reports-timeline-item"><div class="reports-timeline-dot reports-timeline-dot--${escapeHtml(activity.status.tone)}"></div><div class="reports-timeline-body"><strong>${escapeHtml(activity.title)}</strong><span>${escapeHtml(activity.projectName)} • ${escapeHtml(activity.taskName)}</span></div><div class="reports-timeline-meta"><b>${escapeHtml(formatHours(activity.hours))}</b><span>${escapeHtml(activity.date || "-")}</span></div></div>`).join("") : `<p class="muted">Ainda nao ha atividades no periodo filtrado.</p>`}
       </div>
@@ -1413,6 +1728,27 @@ function bindOnce(deps){
       const current = Number(deps.state._activityTechPage || 1);
       deps.state._activityTechPage = direction === "prev" ? Math.max(1, current - 1) : current + 1;
       renderReports(deps.state._reportsCache, refs, deps.state);
+      return;
+    }
+    const cardExportTrigger = target.closest("[data-export-card]");
+    if (cardExportTrigger){
+      event.preventDefault();
+      event.stopPropagation();
+      const reportKey = cardExportTrigger.getAttribute("data-export-card");
+      const exportType = cardExportTrigger.getAttribute("data-export-type") || "pdf";
+      const payload = deps.state._reportsExportPayloads?.[reportKey];
+      if (!payload) return;
+      if (exportType === "pdf") {
+        downloadReportPdf(payload).catch((err) => {
+          console.error("[reports:card:pdf]", err);
+          alert("Nao foi possivel exportar este relatorio em PDF.");
+        });
+      } else {
+        downloadReportExcel(payload).catch((err) => {
+          console.error("[reports:card:excel]", err);
+          alert("Nao foi possivel exportar este relatorio em Excel.");
+        });
+      }
       return;
     }
     const exportTrigger = target.closest("[data-export-report]");
