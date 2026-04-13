@@ -10,6 +10,7 @@ import { hide, show, escapeHtml } from "../utils/dom.js";
 
 let _bound = false;
 let _myFeedbacksCache = [];
+const NOTE_PREVIEW_LIMIT = 180;
 
 function normalizeText(value) {
   return String(value || "")
@@ -46,6 +47,16 @@ function avgScore(items) {
   if (!scores.length) return "0,0";
   const avg = scores.reduce((acc, n) => acc + n, 0) / scores.length;
   return avg.toFixed(1).replace(".", ",");
+}
+
+function isLongNote(note) {
+  return String(note || "").trim().length > NOTE_PREVIEW_LIMIT;
+}
+
+function shortNote(note) {
+  const value = String(note || "").trim();
+  if (value.length <= NOTE_PREVIEW_LIMIT) return value;
+  return `${value.slice(0, NOTE_PREVIEW_LIMIT).trimEnd()}...`;
 }
 
 function buildSearchText(item) {
@@ -99,6 +110,8 @@ function renderList(refs, items) {
   const html = items.map((item) => {
     const tone = scoreTone(item.score);
     const by = item.createdByName || item.createdByEmail || "Avaliador nao identificado";
+    const note = String(item.note || "-");
+    const hasMore = isLongNote(note);
     return `
       <article class="my-feedback-entry my-feedback-entry--${tone}">
         <div class="my-feedback-entry-top">
@@ -112,12 +125,24 @@ function renderList(refs, items) {
           <span class="my-feedback-meta-pill">Por: ${escapeHtml(by)}</span>
           ${item.createdAtLabel ? `<span class="my-feedback-meta-pill">Registrado em ${escapeHtml(item.createdAtLabel)}</span>` : ""}
         </div>
-        <div class="my-feedback-entry-note">${escapeHtml(item.note || "-")}</div>
+        <div class="my-feedback-entry-note" data-feedback-note data-preview="${escapeHtml(shortNote(note))}" data-full="${escapeHtml(note)}">${escapeHtml(hasMore ? shortNote(note) : note)}</div>
+        ${hasMore ? `<button class="my-feedback-entry-more" type="button" data-feedback-toggle aria-expanded="false">Ver mais</button>` : ""}
       </article>
     `;
   }).join("");
 
   refs.myFeedbacksList.innerHTML = html;
+}
+
+function toggleFeedbackNote(button) {
+  const entry = button.closest(".my-feedback-entry");
+  const note = entry?.querySelector("[data-feedback-note]");
+  if (!note) return;
+
+  const expanded = button.getAttribute("aria-expanded") === "true";
+  note.textContent = expanded ? note.dataset.preview || "" : note.dataset.full || "";
+  button.setAttribute("aria-expanded", expanded ? "false" : "true");
+  button.textContent = expanded ? "Ver mais" : "Ver menos";
 }
 
 function applySearch(refs) {
@@ -133,6 +158,12 @@ function bindEvents(deps) {
 
   refs.myFeedbacksSearchInput?.addEventListener("input", () => {
     applySearch(refs);
+  });
+
+  refs.myFeedbacksList?.addEventListener("click", (event) => {
+    const button = event.target?.closest?.("[data-feedback-toggle]");
+    if (!button) return;
+    toggleFeedbackNote(button);
   });
 }
 

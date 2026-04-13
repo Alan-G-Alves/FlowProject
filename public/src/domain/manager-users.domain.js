@@ -1043,6 +1043,14 @@ function getScoreClass(score){
   return "chip-score-warn"; // 5-6
 }
 
+const TECH_FEEDBACK_NOTE_PREVIEW_LIMIT = 180;
+
+function getFeedbackNotePreview(note) {
+  const value = String(note || "").trim();
+  if (value.length <= TECH_FEEDBACK_NOTE_PREVIEW_LIMIT) return value;
+  return `${value.slice(0, TECH_FEEDBACK_NOTE_PREVIEW_LIMIT).trimEnd()}...`;
+}
+
 async function loadTechFeedbackList(deps) {
   const { refs, state, db } = deps;
   if (!refs.techFeedbackList || !state._techFeedbackUid) return;
@@ -1071,6 +1079,7 @@ async function loadTechFeedbackList(deps) {
       const score = (it.score ?? "");
       const by = it.createdByName || it.createdByEmail || "";
       const note = it.note || "";
+      const hasLongNote = String(note).trim().length > TECH_FEEDBACK_NOTE_PREVIEW_LIMIT;
 
       div.innerHTML = `
         <div class="tech-feedback-entry-head">

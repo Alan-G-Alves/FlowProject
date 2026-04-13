@@ -2519,6 +2519,22 @@ body.is-superadmin #navClients{
   color: rgba(12,18,32,.84);
   line-height:1.65;
   white-space:pre-wrap;
+  overflow-wrap:anywhere;
+  word-break:break-word;
+}
+
+.my-feedback-entry-more{
+  margin-top:10px;
+  border:0;
+  background:transparent;
+  color:#2563eb;
+  font-weight:800;
+  cursor:pointer;
+  padding:0;
+}
+
+.my-feedback-entry-more:hover{
+  text-decoration:underline;
 }
 
 .my-feedbacks-empty{
@@ -2930,6 +2946,7 @@ body.is-superadmin #navClients{
 }
 
 .reports-card{
+  position:relative;
   grid-column: span 6;
   border:1px solid rgba(12,18,32,.08);
   border-radius: 24px;
@@ -2938,6 +2955,88 @@ body.is-superadmin #navClients{
     linear-gradient(180deg, rgba(255,255,255,.92), rgba(248,250,252,.98));
   padding: 18px;
   box-shadow: 0 18px 45px rgba(12,18,32,.08);
+}
+
+.reports-card-maximize-btn{
+  position:absolute;
+  top:14px;
+  right:14px;
+  width:36px;
+  height:36px;
+  display:inline-grid;
+  place-items:center;
+  border:1px solid rgba(12,18,32,.1);
+  border-radius:12px;
+  background:rgba(255,255,255,.9);
+  color:rgba(12,18,32,.72);
+  box-shadow:0 10px 22px rgba(15,23,42,.08);
+  cursor:pointer;
+  transition:transform .16s ease, border-color .16s ease, color .16s ease, background .16s ease;
+}
+
+.reports-card-maximize-btn:hover{
+  transform:translateY(-1px);
+  border-color:rgba(37,99,235,.34);
+  color:#2563eb;
+  background:#fff;
+}
+
+.reports-card-maximize-btn:focus-visible{
+  outline:none;
+  border-color:rgba(37,99,235,.45);
+  box-shadow:0 0 0 4px rgba(37,99,235,.14), 0 10px 22px rgba(15,23,42,.08);
+}
+
+.reports-card-maximize-backdrop{
+  position:fixed;
+  inset:0;
+  z-index:119;
+  border:0;
+  background:rgba(8,18,38,.28);
+  backdrop-filter:blur(5px);
+  cursor:zoom-out;
+}
+
+body.reports-card-maximized{
+  overflow:hidden;
+}
+
+.reports-card.is-maximized{
+  position:fixed;
+  top:64px;
+  left:76px;
+  right:18px;
+  bottom:18px;
+  z-index:120;
+  grid-column:auto;
+  overflow:auto;
+  padding:24px;
+  border-radius:28px;
+  background:
+    radial-gradient(circle at top right, rgba(119,59,246,.08), transparent 32%),
+    linear-gradient(180deg, rgba(255,255,255,.98), rgba(248,250,252,.98));
+  box-shadow:0 34px 90px rgba(8,18,38,.28);
+}
+
+.sidebar.expanded ~ .content .reports-card.is-maximized{
+  left:278px;
+}
+
+.reports-card.is-maximized .reports-card-head{
+  position:sticky;
+  top:-24px;
+  z-index:2;
+  margin:-24px -24px 18px;
+  padding:24px 70px 16px 24px;
+  border-bottom:1px solid rgba(12,18,32,.08);
+  border-radius:28px 28px 0 0;
+  background:rgba(255,255,255,.9);
+  backdrop-filter:blur(14px);
+}
+
+.reports-card.is-maximized .reports-card-maximize-btn{
+  top:20px;
+  right:20px;
 }
 
 .reports-card--hero{
@@ -3621,6 +3720,26 @@ body.is-superadmin #navClients{
   .reports-timeline-meta{
     text-align:left;
   }
+
+  .reports-card.is-maximized{
+    top:66px;
+    left:12px;
+    right:12px;
+    bottom:12px;
+    padding:18px;
+    border-radius:22px;
+  }
+
+  .sidebar.expanded ~ .content .reports-card.is-maximized{
+    left:12px;
+  }
+
+  .reports-card.is-maximized .reports-card-head{
+    top:-18px;
+    margin:-18px -18px 16px;
+    padding:18px 62px 14px 18px;
+    border-radius:22px 22px 0 0;
+  }
 }
 
 /* Create Project V2 */
@@ -3860,6 +3979,22 @@ body.is-superadmin #navClients{
   color: rgba(12,18,32,.84);
   line-height: 1.55;
   white-space: pre-wrap;
+  overflow-wrap:anywhere;
+  word-break:break-word;
+}
+
+.tech-feedback-entry-more{
+  margin-top:8px;
+  border:0;
+  background:transparent;
+  color:#2563eb;
+  font-weight:800;
+  cursor:pointer;
+  padding:0;
+}
+
+.tech-feedback-entry-more:hover{
+  text-decoration:underline;
 }
 
 .tech-feedback-entry > div:first-child{

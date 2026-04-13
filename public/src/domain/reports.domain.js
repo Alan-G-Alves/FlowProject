@@ -126,6 +126,83 @@ function getMetricInsightCard(metricKey, label, value, sublabel, ctaLabel, tone 
   `;
 }
 
+function maximizeIcon(isMaximized = false){
+  return isMaximized
+    ? `<svg viewBox="0 0 24 24" width="18" height="18" fill="none" aria-hidden="true"><path d="M9 4v5H4M15 4v5h5M9 20v-5H4M15 20v-5h5" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/></svg>`
+    : `<svg viewBox="0 0 24 24" width="18" height="18" fill="none" aria-hidden="true"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
+}
+
+function enhanceReportCards(refs){
+  refs.reportsGrid?.querySelectorAll(".reports-card").forEach((card, index) => {
+    if (!(card instanceof HTMLElement)) return;
+    const head = card.querySelector(".reports-card-head");
+    if (!(head instanceof HTMLElement)) return;
+    if (!card.dataset.reportSection) card.dataset.reportSection = index === 0 ? "overview" : `card-${index}`;
+    if (head.querySelector("[data-report-maximize]")) return;
+
+    const title = card.querySelector("h3")?.textContent?.trim() || "dashboard";
+    const button = document.createElement("button");
+    button.className = "reports-card-maximize-btn";
+    button.type = "button";
+    button.dataset.reportMaximize = "true";
+    button.setAttribute("aria-label", `Maximizar ${title}`);
+    button.setAttribute("aria-expanded", "false");
+    button.title = "Maximizar";
+    button.innerHTML = maximizeIcon(false);
+    head.appendChild(button);
+  });
+}
+
+function ensureMaximizeBackdrop(){
+  let backdrop = document.querySelector("[data-report-maximize-backdrop]");
+  if (backdrop instanceof HTMLElement) return backdrop;
+  backdrop = document.createElement("button");
+  backdrop.type = "button";
+  backdrop.className = "reports-card-maximize-backdrop";
+  backdrop.dataset.reportMaximizeBackdrop = "true";
+  backdrop.setAttribute("aria-label", "Fechar dashboard maximizado");
+  backdrop.addEventListener("click", () => closeReportCardMaximized());
+  document.body.appendChild(backdrop);
+  return backdrop;
+}
+
+function closeReportCardMaximized(){
+  const active = document.querySelector(".reports-card.is-maximized");
+  if (active instanceof HTMLElement) {
+    const button = active.querySelector("[data-report-maximize]");
+    active.classList.remove("is-maximized");
+    if (button instanceof HTMLElement) {
+      button.setAttribute("aria-expanded", "false");
+      button.setAttribute("aria-label", "Maximizar dashboard");
+      button.title = "Maximizar";
+      button.innerHTML = maximizeIcon(false);
+    }
+  }
+  document.body.classList.remove("reports-card-maximized");
+  document.querySelector("[data-report-maximize-backdrop]")?.remove();
+}
+
+function toggleReportCardMaximized(card){
+  if (!(card instanceof HTMLElement)) return;
+  const isOpening = !card.classList.contains("is-maximized");
+  closeReportCardMaximized();
+  if (!isOpening) return;
+
+  ensureMaximizeBackdrop();
+  card.classList.add("is-maximized");
+  document.body.classList.add("reports-card-maximized");
+
+  const button = card.querySelector("[data-report-maximize]");
+  if (button instanceof HTMLElement) {
+    const title = card.querySelector("h3")?.textContent?.trim() || "dashboard";
+    button.setAttribute("aria-expanded", "true");
+    button.setAttribute("aria-label", `Restaurar ${title}`);
+    button.title = "Restaurar";
+    button.innerHTML = maximizeIcon(true);
+    button.focus({ preventScroll: true });
+  }
+}
+
 function getPeriodRange(period){
   const today = new Date();
   today.setHours(0, 0, 0, 0);
@@ -999,6 +1076,7 @@ function renderReports(cache, refs, state){
       </div>
     </section>
   `;
+  enhanceReportCards(refs);
 }
 
 function bindOnce(deps){
@@ -1088,6 +1166,13 @@ function bindOnce(deps){
   refs.reportsGrid?.addEventListener("click", (event) => {
     const target = event.target;
     if (!(target instanceof HTMLElement)) return;
+    const maximizeTrigger = target.closest("[data-report-maximize]");
+    if (maximizeTrigger){
+      event.preventDefault();
+      event.stopPropagation();
+      toggleReportCardMaximized(maximizeTrigger.closest(".reports-card"));
+      return;
+    }
     const exportTrigger = target.closest("[data-export-report]");
     if (exportTrigger){
       const exportType = exportTrigger.getAttribute("data-export-report");
@@ -1138,6 +1223,9 @@ function bindOnce(deps){
     if (event.key !== "Enter" && event.key !== " ") return;
     event.preventDefault();
     kpiCard.click();
+  });
+  document.addEventListener("keydown", (event) => {
+    if (event.key === "Escape") closeReportCardMaximized();
   });
 }
 
