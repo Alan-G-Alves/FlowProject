@@ -9,6 +9,8 @@ import {
 } from "./reports-export.domain.js";
 
 let _bound = false;
+const REPORT_NOTE_PREVIEW_LIMIT = 140;
+const ACTIVITY_TECH_PAGE_SIZE = 8;
 
 const REPORT_CARD_KEYS = [
   "overview",
@@ -16,6 +18,8 @@ const REPORT_CARD_KEYS = [
   "statuses",
   "execution",
   "clients",
+  "schedule",
+  "activityTech",
   "timeline"
 ];
 
@@ -25,6 +29,8 @@ const CARD_FILTER_CONFIG = {
   statuses: ["period", "clientId", "teamId"],
   execution: ["period", "clientId", "teamId", "projectId"],
   clients: ["period", "teamId", "status"],
+  schedule: ["period", "clientId", "projectId"],
+  activityTech: ["period", "clientId", "projectId", "techId", "activityStatus"],
   timeline: ["period", "clientId", "projectId"]
 };
 
@@ -39,6 +45,13 @@ function formatHours(value){
 
 function formatPercent(value){
   return `${asNumber(value).toFixed(1).replace(".", ",")}%`;
+}
+
+function formatCurrency(value){
+  return asNumber(value).toLocaleString("pt-BR", {
+    style: "currency",
+    currency: "BRL"
+  });
 }
 
 function formatDateBr(value){
@@ -74,12 +87,64 @@ function escapeHtml(value){
     .replace(/'/g, "&#39;");
 }
 
+function truncateReportNote(value, limit = REPORT_NOTE_PREVIEW_LIMIT){
+  const text = String(value || "").trim();
+  if (text.length <= limit) return text;
+  return `${text.slice(0, limit).trimEnd()}...`;
+}
+
+function parseTimeToMinutes(value){
+  const match = /^(\d{2}):(\d{2})$/.exec(String(value || ""));
+  if (!match) return null;
+  return Number(match[1]) * 60 + Number(match[2]);
+}
+
+function diffHours(startTime, endTime, breakTime = "00:00"){
+  if (!startTime || !endTime) return 0;
+  const sMin = parseTimeToMinutes(startTime);
+  const eMin = parseTimeToMinutes(endTime);
+  const breakMin = parseTimeToMinutes(breakTime);
+  if (sMin == null || eMin == null || breakMin == null) return 0;
+  if (eMin <= sMin) return 0;
+  const workedMinutes = eMin - sMin - breakMin;
+  return workedMinutes > 0 ? workedMinutes / 60 : 0;
+}
+
 function isCompletedActivity(activity){
   return ["os_gerada", "os_aprovada"].includes(String(activity?.status || "").toLowerCase());
 }
 
 function isPendingOsActivity(activity){
   return !isCompletedActivity(activity);
+}
+
+function activityStatusLabel(activity){
+  const status = String(activity?.status || "").toLowerCase();
+  if (status === "os_aprovada") return "OS aprovada";
+  if (status === "os_gerada") return "OS enviada";
+  return "Planejada";
+}
+
+function matchesActivityStatus(activity, statusFilter){
+  const filter = String(statusFilter || "all");
+  if (filter === "all") return true;
+  const status = String(activity?.status || "").toLowerCase();
+  if (filter === "pending") return !isCompletedActivity(activity);
+  if (filter === "overdue") {
+    const date = parseDateOnly(activity?.workDate);
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    return Boolean(date && date < today && !isCompletedActivity(activity));
+  }
+  return status === filter;
+}
+
+function getPointedHours(activity){
+  const explicit = activity?.workedHours;
+  if (explicit !== undefined && explicit !== null && explicit !== "") return asNumber(explicit);
+  const fromTimes = diffHours(activity?.startTime, activity?.endTime, activity?.breakTime || "01:00");
+  if (fromTimes > 0) return fromTimes;
+  return isCompletedActivity(activity) ? asNumber(activity?.hoursWorked) : 0;
 }
 
 function getProjectPlannedHours(project){
@@ -118,6 +183,29 @@ function getMetricInsightCard(metricKey, label, value, sublabel, ctaLabel, tone 
       <strong>${escapeHtml(value)}</strong>
       <span class="reports-metric-card-sub">${escapeHtml(sublabel)}</span>
       <span class="reports-metric-card-cta">${escapeHtml(ctaLabel)}</span>
+    </button>
+  `;
+}
+
+function getScheduleStatCard(metricKey, label, value, sublabel, tone = "neutral"){
+  return `
+    <button class="reports-schedule-stat reports-schedule-stat--${escapeHtml(tone)}" data-open-activities="true" data-report-metric="${escapeHtml(metricKey)}" type="button">
+      <span>${escapeHtml(label)}</span>
+      <strong>${escapeHtml(value)}</strong>
+      <small>${escapeHtml(sublabel)}</small>
+    </button>
+  `;
+}
+
+function getScheduleBar(metricKey, label, count, max, tone = "neutral"){
+  const width = count > 0 ? Math.max(8, (count / Math.max(1, max)) * 100) : 0;
+  return `
+    <button class="reports-schedule-bar-row" data-open-activities="true" data-report-metric="${escapeHtml(metricKey)}" type="button">
+      <span>${escapeHtml(label)}</span>
+      <div class="reports-schedule-bar-track">
+        <div class="reports-schedule-bar-fill reports-schedule-bar-fill--${escapeHtml(tone)}" style="width:${width}%"></div>
+      </div>
+      <b>${escapeHtml(String(count))}</b>
     </button>
   `;
 }
@@ -199,6 +287,17 @@ function toggleReportCardMaximized(card){
   }
 }
 
+function toggleReportNote(button){
+  const cell = button.closest(".reports-activity-tech-note");
+  const note = cell?.querySelector("[data-report-note]");
+  if (!(note instanceof HTMLElement)) return;
+  const expanded = button.getAttribute("aria-expanded") === "true";
+  note.textContent = expanded ? note.dataset.preview || "" : note.dataset.full || "";
+  cell.classList.toggle("is-expanded", !expanded);
+  button.setAttribute("aria-expanded", expanded ? "false" : "true");
+  button.textContent = expanded ? "Ver mais" : "Ver menos";
+}
+
 function getPeriodRange(period){
   const today = new Date();
   today.setHours(0, 0, 0, 0);
@@ -248,19 +347,22 @@ async function ensureReportsCache(deps, { force = false } = {}){
   if (!db || !companyId) return null;
   if (!force && state._reportsCacheLoaded && state._reportsCache) return state._reportsCache;
 
-  const [projectsSnap, tasksSnap, activitiesSnap, clientsSnap] = await Promise.all([
+  const [projectsSnap, tasksSnap, activitiesSnap, clientsSnap, usersSnap] = await Promise.all([
     getDocs(collection(db, `companies/${companyId}/projects`)),
     getDocs(collection(db, `companies/${companyId}/tasks`)),
     getDocs(collection(db, `companies/${companyId}/activities`)),
-    getDocs(collection(db, `companies/${companyId}/clients`))
+    getDocs(collection(db, `companies/${companyId}/clients`)),
+    getDocs(collection(db, `companies/${companyId}/users`))
   ]);
 
   const cache = {
     projects: projectsSnap.docs.map((d) => ({ id: d.id, ...d.data() })),
     tasks: tasksSnap.docs.map((d) => ({ id: d.id, ...d.data() })),
     activities: activitiesSnap.docs.map((d) => ({ id: d.id, ...d.data() })),
-    clients: clientsSnap.docs.map((d) => ({ id: d.id, ...d.data() }))
+    clients: clientsSnap.docs.map((d) => ({ id: d.id, ...d.data() })),
+    users: usersSnap.docs.map((d) => ({ uid: d.id, id: d.id, ...d.data() }))
   };
+  state._usersCache = cache.users;
   state._reportsCache = cache;
   state._reportsCacheLoaded = true;
   return cache;
@@ -360,10 +462,25 @@ function defaultWidgetFilters(baseData){
   };
 }
 
+function getDefaultWidgetFilters(cardKey, baseData){
+  const defaults = defaultWidgetFilters(baseData);
+  if (cardKey === "activityTech") {
+    return {
+      ...defaults,
+      period: "all",
+      clientId: "all",
+      projectId: "all",
+      techId: "all",
+      activityStatus: "all"
+    };
+  }
+  return defaults;
+}
+
 function ensureWidgetFilters(state, baseData){
   if (!state._reportsWidgetFilters) state._reportsWidgetFilters = {};
   REPORT_CARD_KEYS.forEach((key) => {
-    if (!state._reportsWidgetFilters[key]) state._reportsWidgetFilters[key] = defaultWidgetFilters(baseData);
+    if (!state._reportsWidgetFilters[key]) state._reportsWidgetFilters[key] = getDefaultWidgetFilters(key, baseData);
   });
   return state._reportsWidgetFilters;
 }
@@ -395,6 +512,34 @@ function getCardProjectOptions(baseData, filters){
         value: project.id,
         label: `${project.projectNumber ? `#${project.projectNumber} ` : ""}${project.name || "Projeto"}`
       }))
+  );
+}
+
+function getTechFilterOptions(baseData, state){
+  const fromUsers = Array.isArray(state?._usersCache) ? state._usersCache : [];
+  const idsFromActivities = new Set();
+  baseData.activities.forEach((activity) => {
+    (Array.isArray(activity.techUids) ? activity.techUids : []).forEach((uid) => {
+      if (uid) idsFromActivities.add(uid);
+    });
+  });
+  const options = fromUsers
+    .filter((user) => {
+      const role = String(user.role || "").toLowerCase();
+      return role === "tecnico" || idsFromActivities.has(user.uid || user.id);
+    })
+    .map((user) => ({
+      value: user.uid || user.id,
+      label: user.name || user.email || user.uid || user.id
+    }))
+    .filter((item) => item.value);
+
+  idsFromActivities.forEach((uid) => {
+    if (!options.some((item) => item.value === uid)) options.push({ value: uid, label: uid });
+  });
+
+  return [{ value: "all", label: "Todos os tecnicos" }].concat(
+    options.sort((a, b) => String(a.label || "").localeCompare(String(b.label || "")))
   );
 }
 
@@ -436,7 +581,7 @@ function getScopedData(baseData, filters){
     if (period === "all") return true;
     return inRange(parseDateOnly(activity.workDate), start, end);
   }).filter((activity) => {
-    if (activityStatus !== "all" && String(activity.status || "") !== activityStatus) return false;
+    if (!matchesActivityStatus(activity, activityStatus)) return false;
     if (techId === "all") return true;
     return Array.isArray(activity.techUids) && activity.techUids.includes(techId);
   });
@@ -476,7 +621,15 @@ function buildCardFilterBar(baseData, state, cardKey){
     ),
     teamId: teamOptions(state),
     status: statusOptions(),
-    projectId: projectOptions
+    projectId: projectOptions,
+    techId: getTechFilterOptions(baseData, state),
+    activityStatus: [
+      { value: "all", label: "Todos os status" },
+      { value: "pending", label: "Planejada / sem OS" },
+      { value: "os_gerada", label: "OS enviada" },
+      { value: "os_aprovada", label: "OS aprovada" },
+      { value: "overdue", label: "Atrasada" }
+    ]
   };
 
   const labelMap = {
@@ -484,7 +637,9 @@ function buildCardFilterBar(baseData, state, cardKey){
     clientId: "Cliente",
     teamId: "Equipe",
     status: "Status",
-    projectId: "Projeto"
+    projectId: "Projeto",
+    techId: "Tecnico",
+    activityStatus: "Status da atividade"
   };
 
   const renderOptions = (options, selected) => options.map((opt) => `<option value="${escapeHtml(opt.value)}"${opt.value === selected ? " selected" : ""}>${escapeHtml(opt.label)}</option>`).join("");
@@ -565,7 +720,10 @@ function renderReportActivitiesModal(metricKey, refs, state, cache){
 
   refs.reportActivitiesList.innerHTML = activities
     .slice()
-    .sort((a, b) => String(b.workDate || "").localeCompare(String(a.workDate || "")))
+    .sort((a, b) => {
+      const direction = String(metricKey || "").startsWith("schedule-") ? 1 : -1;
+      return direction * String(a.workDate || "").localeCompare(String(b.workDate || ""));
+    })
     .map((activity) => {
       const project = projectsById[activity.projectId];
       const task = tasksById[activity.taskId];
@@ -599,6 +757,43 @@ function renderReportActivitiesModal(metricKey, refs, state, cache){
       `;
     })
     .join("");
+}
+
+function buildActivityTechRows(activityTechData, cache, state){
+  const usersByUid = new Map(((cache?.users || state?._usersCache || [])).map((user) => [user.uid || user.id, user]));
+  const tasksById = Object.fromEntries((cache?.tasks || []).map((task) => [task.id, task]));
+  const projectsById = Object.fromEntries((cache?.projects || []).map((project) => [project.id, project]));
+  const clientsById = Object.fromEntries((cache?.clients || []).map((client) => [client.id, client]));
+
+  return activityTechData.activities.flatMap((activity) => {
+    const techIds = Array.isArray(activity.techUids) && activity.techUids.length ? activity.techUids : [""];
+    const techNames = Array.isArray(activity.techNames) ? activity.techNames : [];
+    return techIds.map((techUid, index) => {
+      const user = usersByUid.get(techUid) || {};
+      const project = projectsById[activity.projectId] || {};
+      const task = tasksById[activity.taskId] || {};
+      const plannedHours = asNumber(activity.hoursWorked);
+      const pointedHours = getPointedHours(activity);
+      const hourlyRate = asNumber(user.hourlyRate);
+      const amount = hourlyRate * pointedHours;
+      return {
+        id: `${activity.id}-${techUid || index}`,
+        date: activity.workDate || "",
+        techUid,
+        techName: user.name || user.email || techNames[index] || techNames[0] || "Sem tecnico",
+        hourlyRate,
+        projectName: project.name || activity.projectName || "Projeto",
+        clientName: clientsById[project.clientId]?.name || project.clientName || activity.clientName || "Sem cliente",
+        taskName: task.name || activity.taskName || "Tarefa",
+        activityName: activity.name || "Atividade",
+        status: activityStatusLabel(activity),
+        plannedHours,
+        pointedHours,
+        amount,
+        note: activity.note || activity.observation || activity.obs || "-"
+      };
+    });
+  }).sort((a, b) => String(a.techName || "").localeCompare(String(b.techName || "")) || String(a.date || "").localeCompare(String(b.date || "")));
 }
 
 function buildExecutiveExportPayload({
@@ -706,6 +901,8 @@ function renderReports(cache, refs, state){
   const statusesData = getScopedData(baseData, state._reportsWidgetFilters.statuses);
   const executionData = getScopedData(baseData, state._reportsWidgetFilters.execution);
   const clientsData = getScopedData(baseData, state._reportsWidgetFilters.clients);
+  const scheduleData = getScopedData(baseData, state._reportsWidgetFilters.schedule);
+  const activityTechData = getScopedData(baseData, state._reportsWidgetFilters.activityTech);
   const timelineData = getScopedData(baseData, state._reportsWidgetFilters.timeline);
   const operationalDrilldown = getOperationalDrilldownMeta(state);
 
@@ -735,6 +932,55 @@ function renderReports(cache, refs, state){
   const metricsPendingActivities = metricsData.activities.filter((activity) => !isCompletedActivity(activity));
   const metricsOnTimeActivities = metricsData.activities.filter((activity) => !metricsOverdueActivities.includes(activity));
 
+  const scheduleProjectHours = scheduleData.projects.reduce((acc, project) => acc + getProjectPlannedHours(project), 0);
+  const schedulePlannedActivities = scheduleData.activities.slice().sort((a, b) => String(a.workDate || "").localeCompare(String(b.workDate || "")));
+  const scheduleExecutedActivities = schedulePlannedActivities.filter((activity) => isCompletedActivity(activity));
+  const scheduleOverdueActivities = schedulePlannedActivities.filter((activity) => {
+    const date = parseDateOnly(activity.workDate);
+    return date && date < today && isPendingOsActivity(activity);
+  });
+  const scheduleUpcomingActivities = schedulePlannedActivities.filter((activity) => {
+    const date = parseDateOnly(activity.workDate);
+    return date && date >= today && isPendingOsActivity(activity);
+  });
+  const schedulePlannedHours = schedulePlannedActivities.reduce((acc, activity) => acc + asNumber(activity.hoursWorked), 0);
+  const scheduleExecutedHours = scheduleExecutedActivities.reduce((acc, activity) => acc + asNumber(activity.hoursWorked), 0);
+  const scheduleProgress = Math.min(100, schedulePlannedHours > 0 ? (scheduleExecutedHours / schedulePlannedHours) * 100 : 0);
+  const scheduleMaxCount = Math.max(
+    1,
+    schedulePlannedActivities.length,
+    scheduleExecutedActivities.length,
+    scheduleOverdueActivities.length,
+    scheduleUpcomingActivities.length
+  );
+  const activityTechRows = buildActivityTechRows(activityTechData, cache, state);
+  const activityTechTotals = activityTechRows.reduce((acc, row) => {
+    acc.plannedHours += row.plannedHours;
+    acc.pointedHours += row.pointedHours;
+    acc.amount += row.amount;
+    return acc;
+  }, { plannedHours: 0, pointedHours: 0, amount: 0 });
+  const activityTechFilters = state._reportsWidgetFilters.activityTech || {};
+  const activityTechSelected = activityTechFilters.techId && activityTechFilters.techId !== "all"
+    ? (cache.users || []).find((user) => (user.uid || user.id) === activityTechFilters.techId)
+    : null;
+  const activityTechHeaderName = activityTechSelected?.name || activityTechSelected?.email || "Todos os tecnicos";
+  const activityTechHeaderRate = activityTechSelected
+    ? formatCurrency(activityTechSelected.hourlyRate)
+    : "Valores por tecnico na lista";
+  const activityTechTotalPages = Math.max(1, Math.ceil(activityTechRows.length / ACTIVITY_TECH_PAGE_SIZE));
+  const activityTechCurrentPage = Math.min(
+    Math.max(1, Number(state._activityTechPage || 1)),
+    activityTechTotalPages
+  );
+  state._activityTechPage = activityTechCurrentPage;
+  const activityTechPageRows = activityTechRows.slice(
+    (activityTechCurrentPage - 1) * ACTIVITY_TECH_PAGE_SIZE,
+    activityTechCurrentPage * ACTIVITY_TECH_PAGE_SIZE
+  );
+  const activityTechStartRow = activityTechRows.length ? ((activityTechCurrentPage - 1) * ACTIVITY_TECH_PAGE_SIZE) + 1 : 0;
+  const activityTechEndRow = Math.min(activityTechRows.length, activityTechCurrentPage * ACTIVITY_TECH_PAGE_SIZE);
+
   state._reportsMetricActivityMap = {
     completed: {
       title: "Atividades concluidas",
@@ -755,6 +1001,31 @@ function renderReports(cache, refs, state){
       title: "Entrega no prazo",
       subtitle: "Atividades dentro do prazo no recorte atual.",
       activities: metricsOnTimeActivities
+    },
+    "schedule-project": {
+      title: "Atividades do projeto no cronograma",
+      subtitle: "Atividades relacionadas aos projetos filtrados no periodo selecionado.",
+      activities: schedulePlannedActivities
+    },
+    "schedule-planned": {
+      title: "Atividades planejadas",
+      subtitle: "Todas as atividades planejadas dentro do periodo, cliente e projeto filtrados.",
+      activities: schedulePlannedActivities
+    },
+    "schedule-executed": {
+      title: "Atividades executadas",
+      subtitle: "Atividades do cronograma com OS gerada ou aprovada.",
+      activities: scheduleExecutedActivities
+    },
+    "schedule-overdue": {
+      title: "Atividades atrasadas",
+      subtitle: "Atividades planejadas com data anterior a hoje e ainda sem conclusao.",
+      activities: scheduleOverdueActivities
+    },
+    "schedule-upcoming": {
+      title: "Proximas atividades planejadas",
+      subtitle: "Atividades futuras ou de hoje que ainda devem ser executadas.",
+      activities: scheduleUpcomingActivities
     }
   };
 
@@ -891,6 +1162,130 @@ function renderReports(cache, refs, state){
       </div>
     </section>
 
+    <section class="reports-card reports-card--schedule" data-report-section="schedule">
+      <div class="reports-card-head">
+        <div>
+          <div class="reports-card-kicker">Cronograma</div>
+          <h3>Cronograma de projeto por periodo</h3>
+          <p class="muted">Acompanhe horas do projeto, horas planejadas, executadas e o fluxo das atividades por data.</p>
+        </div>
+        ${buildCardFilterBar(baseData, state, "schedule")}
+      </div>
+      <div class="reports-schedule-layout">
+        <div class="reports-schedule-stats">
+          ${getScheduleStatCard("schedule-project", "Horas do projeto", formatHours(scheduleProjectHours), `${scheduleData.projects.length} projeto(s) no filtro`, "project")}
+          ${getScheduleStatCard("schedule-planned", "Horas planejadas", formatHours(schedulePlannedHours), `${schedulePlannedActivities.length} atividade(s) planejada(s)`, "planned")}
+          ${getScheduleStatCard("schedule-executed", "Horas executadas", formatHours(scheduleExecutedHours), `${scheduleExecutedActivities.length} atividade(s) • ${formatPercent(scheduleProgress)} do planejado`, "executed")}
+        </div>
+        <div class="reports-schedule-chart" aria-label="Grafico de atividades por status do cronograma">
+          ${getScheduleBar("schedule-planned", "Planejadas", schedulePlannedActivities.length, scheduleMaxCount, "planned")}
+          ${getScheduleBar("schedule-executed", "Executadas", scheduleExecutedActivities.length, scheduleMaxCount, "executed")}
+          ${getScheduleBar("schedule-overdue", "Atrasadas", scheduleOverdueActivities.length, scheduleMaxCount, "overdue")}
+          ${getScheduleBar("schedule-upcoming", "Proximas", scheduleUpcomingActivities.length, scheduleMaxCount, "upcoming")}
+        </div>
+      </div>
+      <div class="reports-schedule-next">
+        <div class="reports-schedule-next-head">
+          <strong>Proximas planejadas</strong>
+          <button type="button" data-open-activities="true" data-report-metric="schedule-upcoming">Ver lista completa</button>
+        </div>
+        ${scheduleUpcomingActivities.length ? scheduleUpcomingActivities.slice(0, 4).map((activity) => {
+          const project = scheduleData.projects.find((item) => item.id === activity.projectId);
+          const task = tasksById[activity.taskId];
+          const techNames = Array.isArray(activity.techNames) && activity.techNames.length ? activity.techNames.join(", ") : "Sem tecnico";
+          return `<div class="reports-schedule-next-item"><div><strong>${escapeHtml(activity.name || "Atividade")}</strong><span>${escapeHtml(project?.name || "Projeto")} • ${escapeHtml(task?.name || activity.taskName || "Tarefa")}</span></div><div><b>${escapeHtml(formatDateBr(activity.workDate))}</b><span>${escapeHtml(formatHours(activity.hoursWorked))} • ${escapeHtml(techNames)}</span></div></div>`;
+        }).join("") : `<p class="muted">Nenhuma proxima atividade planejada para este filtro.</p>`}
+      </div>
+    </section>
+
+    <section class="reports-card reports-card--activity-tech" data-report-section="activityTech">
+      <div class="reports-card-head">
+        <div>
+          <div class="reports-card-kicker">Atividade x tecnico</div>
+          <h3>Relatorio de Atividade x Tecnico</h3>
+          <p class="muted">Analise horas planejadas, apontadas e valor calculado por tecnico, projeto e periodo.</p>
+        </div>
+        ${buildCardFilterBar(baseData, state, "activityTech")}
+      </div>
+      <div class="reports-activity-tech-summary">
+        <article>
+          <span>Tecnico</span>
+          <strong>${escapeHtml(activityTechHeaderName)}</strong>
+        </article>
+        <article>
+          <span>Valor hora</span>
+          <strong>${escapeHtml(activityTechHeaderRate)}</strong>
+        </article>
+        <article>
+          <span>Registros</span>
+          <strong>${escapeHtml(String(activityTechRows.length))}</strong>
+        </article>
+      </div>
+      <div class="reports-activity-tech-table-wrap">
+        <table class="reports-activity-tech-table">
+          <thead>
+            <tr>
+              <th>Tecnico</th>
+              <th>Projeto</th>
+              <th>Tarefa</th>
+              <th>Atividade</th>
+              <th>Status</th>
+              <th>Horas atividade</th>
+              <th>Horas apontadas</th>
+              <th>Valor</th>
+              <th>Observacao/apontamento</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${activityTechPageRows.length ? activityTechPageRows.map((row) => {
+              const note = String(row.note || "-");
+              const hasNote = note.trim() && note.trim() !== "-";
+              const hasLongNote = hasNote && note.trim().length > REPORT_NOTE_PREVIEW_LIMIT;
+              const preview = hasLongNote ? truncateReportNote(note) : note;
+              return `
+                <tr>
+                  <td><strong>${escapeHtml(row.techName)}</strong></td>
+                  <td><strong>${escapeHtml(row.projectName)}</strong><span>${escapeHtml(row.clientName)}</span></td>
+                  <td>${escapeHtml(row.taskName)}</td>
+                  <td><strong>${escapeHtml(row.activityName)}</strong><span>${escapeHtml(formatDateBr(row.date))}</span></td>
+                  <td>${escapeHtml(row.status)}</td>
+                  <td>${escapeHtml(formatHours(row.plannedHours))}</td>
+                  <td>${escapeHtml(formatHours(row.pointedHours))}</td>
+                  <td>${escapeHtml(formatCurrency(row.amount))}</td>
+                  <td class="reports-activity-tech-note${hasNote ? "" : " reports-activity-tech-note--empty"}">
+                    ${hasNote
+                      ? `<span data-report-note data-preview="${escapeHtml(preview)}" data-full="${escapeHtml(note)}">${escapeHtml(preview)}</span>${hasLongNote ? `<button class="reports-activity-tech-note-more" type="button" data-report-note-toggle aria-expanded="false">Ver mais</button>` : ""}`
+                      : `<span>-</span>`}
+                  </td>
+                </tr>
+              `;
+            }).join("") : `
+              <tr>
+                <td colspan="9" class="reports-activity-tech-empty">Nenhuma atividade encontrada com os filtros atuais.</td>
+              </tr>
+            `}
+          </tbody>
+          <tfoot>
+            <tr>
+              <th colspan="5">Totais</th>
+              <th>${escapeHtml(formatHours(activityTechTotals.plannedHours))}</th>
+              <th>${escapeHtml(formatHours(activityTechTotals.pointedHours))}</th>
+              <th>${escapeHtml(formatCurrency(activityTechTotals.amount))}</th>
+              <th></th>
+            </tr>
+          </tfoot>
+        </table>
+      </div>
+      <div class="reports-activity-tech-pagination">
+        <span>${escapeHtml(String(activityTechStartRow))}-${escapeHtml(String(activityTechEndRow))} de ${escapeHtml(String(activityTechRows.length))} atividades</span>
+        <div>
+          <button type="button" data-activity-tech-page="prev" ${activityTechCurrentPage <= 1 ? "disabled" : ""}>Anterior</button>
+          <strong>Pagina ${escapeHtml(String(activityTechCurrentPage))} de ${escapeHtml(String(activityTechTotalPages))}</strong>
+          <button type="button" data-activity-tech-page="next" ${activityTechCurrentPage >= activityTechTotalPages ? "disabled" : ""}>Proxima</button>
+        </div>
+      </div>
+    </section>
+
     <section class="reports-card reports-card--timeline" data-report-section="timeline">
       <div class="reports-card-head"><div><div class="reports-card-kicker">Movimentacao recente</div><h3>Ultimas atividades registradas</h3></div>${buildCardFilterBar(baseData, state, "timeline")}</div>
       <div class="reports-timeline">
@@ -938,8 +1333,9 @@ function bindOnce(deps){
     const filterKey = target.dataset.reportFilter;
     if (!cardKey || !filterKey) return;
     if (!deps.state._reportsWidgetFilters) deps.state._reportsWidgetFilters = {};
-    if (!deps.state._reportsWidgetFilters[cardKey]) deps.state._reportsWidgetFilters[cardKey] = defaultWidgetFilters({ period: refs.reportsPeriodFilter?.value || "30d" });
+    if (!deps.state._reportsWidgetFilters[cardKey]) deps.state._reportsWidgetFilters[cardKey] = getDefaultWidgetFilters(cardKey, { period: refs.reportsPeriodFilter?.value || "30d" });
     deps.state._reportsWidgetFilters[cardKey][filterKey] = target.value || "all";
+    if (cardKey === "activityTech") deps.state._activityTechPage = 1;
     if (["clientId", "teamId", "status"].includes(filterKey)) deps.state._reportsWidgetFilters[cardKey].projectId = "all";
     if (filterKey === "period" && target.value !== "custom"){
       const defaults = defaultWidgetFilters({ period: target.value || "30d" });
@@ -956,6 +1352,23 @@ function bindOnce(deps){
       event.preventDefault();
       event.stopPropagation();
       toggleReportCardMaximized(maximizeTrigger.closest(".reports-card"));
+      return;
+    }
+    const noteToggle = target.closest("[data-report-note-toggle]");
+    if (noteToggle){
+      event.preventDefault();
+      event.stopPropagation();
+      toggleReportNote(noteToggle);
+      return;
+    }
+    const pageTrigger = target.closest("[data-activity-tech-page]");
+    if (pageTrigger){
+      event.preventDefault();
+      event.stopPropagation();
+      const direction = pageTrigger.getAttribute("data-activity-tech-page");
+      const current = Number(deps.state._activityTechPage || 1);
+      deps.state._activityTechPage = direction === "prev" ? Math.max(1, current - 1) : current + 1;
+      renderReports(deps.state._reportsCache, refs, deps.state);
       return;
     }
     const exportTrigger = target.closest("[data-export-report]");
