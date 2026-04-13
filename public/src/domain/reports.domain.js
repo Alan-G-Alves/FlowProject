@@ -1074,6 +1074,16 @@ function buildReportsExportPayloads({
       tables: [{
         title: "Atividades",
         rowHeight: 11,
+        pdfColumns: [
+          { key: "tech", label: "Tecnico", width: 1 },
+          { key: "project", label: "Projeto", width: 1.25 },
+          { key: "task", label: "Tarefa", width: 1.05 },
+          { key: "activity", label: "Atividade", width: 1.25 },
+          { key: "status", label: "Status", width: .85 },
+          { key: "planned", label: "H. atividade", width: .75 },
+          { key: "pointed", label: "H. apontadas", width: .8 },
+          { key: "amount", label: "Valor", width: .85 }
+        ],
         columns: [
           { key: "tech", label: "Tecnico", width: .9 },
           { key: "project", label: "Projeto", width: 1.1 },

@@ -429,7 +429,7 @@ export async function downloadReportPdf(payload){
       startY: nextY + 3,
       fontSize: table.fontSize || 7,
       rowHeight: table.rowHeight || 9,
-      columns: table.columns,
+      columns: table.pdfColumns || table.columns,
       rows: table.rows || []
     }) + 8;
   });
