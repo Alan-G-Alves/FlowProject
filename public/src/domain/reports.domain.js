@@ -16,8 +16,6 @@ const REPORT_CARD_KEYS = [
   "statuses",
   "execution",
   "clients",
-  "techs",
-  "attention",
   "timeline"
 ];
 
@@ -27,8 +25,6 @@ const CARD_FILTER_CONFIG = {
   statuses: ["period", "clientId", "teamId"],
   execution: ["period", "clientId", "teamId", "projectId"],
   clients: ["period", "teamId", "status"],
-  techs: [],
-  attention: ["period", "clientId", "teamId", "status", "projectId"],
   timeline: ["period", "clientId", "projectId"]
 };
 
@@ -524,103 +520,6 @@ function buildCardFilterBar(baseData, state, cardKey){
   `;
 }
 
-function getTechOptions(baseData, filters){
-  const scopedProjects = baseData.projects.filter((project) => {
-    if (filters?.clientId !== "all" && project.clientId !== filters?.clientId) return false;
-    if (filters?.projectId !== "all" && project.id !== filters?.projectId) return false;
-    return true;
-  });
-  const projectIds = new Set(scopedProjects.map((project) => project.id));
-  const map = new Map();
-  baseData.activities.forEach((activity) => {
-    if (!projectIds.has(activity.projectId)) return;
-    const ids = Array.isArray(activity.techUids) ? activity.techUids : [];
-    const names = Array.isArray(activity.techNames) ? activity.techNames : [];
-    ids.forEach((techId, index) => {
-      if (!techId) return;
-      if (!map.has(techId)){
-        map.set(techId, {
-          value: techId,
-          label: names[index] || names[0] || techId
-        });
-      }
-    });
-  });
-  return [{ value: "all", label: "Todos os tecnicos" }].concat(
-    Array.from(map.values()).sort((a, b) => String(a.label || "").localeCompare(String(b.label || "")))
-  );
-}
-
-function setSelectOptions(element, options, selected){
-  if (!element) return;
-  element.innerHTML = options.map((opt) => (
-    `<option value="${escapeHtml(opt.value)}"${opt.value === selected ? " selected" : ""}>${escapeHtml(opt.label)}</option>`
-  )).join("");
-}
-
-function syncTechFilterDateFields(refs){
-  const showCustom = refs.reportTechFilterPeriod?.value === "custom";
-  const wrappers = Array.from(document.querySelectorAll(".report-tech-filter-date"));
-  wrappers.forEach((node) => {
-    node.hidden = !showCustom;
-  });
-}
-
-function syncTechFilterProjectOptions(baseData, refs, state){
-  const filters = ensureWidgetFilters(state, baseData).techs;
-  const tempFilters = {
-    clientId: refs.reportTechFilterClient?.value || filters.clientId || "all",
-    teamId: "all",
-    status: "all",
-    projectId: refs.reportTechFilterProject?.value || filters.projectId || "all"
-  };
-  const projectOptions = getCardProjectOptions(baseData, tempFilters);
-  const currentProject = refs.reportTechFilterProject?.value || filters.projectId || "all";
-  const validProject = projectOptions.some((opt) => opt.value === currentProject) ? currentProject : "all";
-  setSelectOptions(refs.reportTechFilterProject, projectOptions, validProject);
-  return validProject;
-}
-
-function syncTechFilterTechOptions(baseData, refs, state){
-  const filters = ensureWidgetFilters(state, baseData).techs;
-  const techOptions = getTechOptions(baseData, {
-    clientId: refs.reportTechFilterClient?.value || filters.clientId || "all",
-    projectId: refs.reportTechFilterProject?.value || filters.projectId || "all"
-  });
-  const currentTech = refs.reportTechFilterTech?.value || filters.techId || "all";
-  const validTech = techOptions.some((opt) => opt.value === currentTech) ? currentTech : "all";
-  setSelectOptions(refs.reportTechFilterTech, techOptions, validTech);
-}
-
-function populateTechFilterModal(baseData, refs, state){
-  const filters = ensureWidgetFilters(state, baseData).techs;
-  refs.reportTechFilterPeriod.value = filters.period || "30d";
-  refs.reportTechFilterStartDate.value = filters.startDate || "";
-  refs.reportTechFilterEndDate.value = filters.endDate || "";
-  setSelectOptions(refs.reportTechFilterClient, [{ value: "all", label: "Todos os clientes" }].concat(
-    baseData.clients
-      .slice()
-      .sort((a, b) => String(a.name || "").localeCompare(String(b.name || "")))
-      .map((client) => ({ value: client.id, label: client.name || client.id }))
-  ), filters.clientId || "all");
-  if (refs.reportTechFilterActivityStatus){
-    refs.reportTechFilterActivityStatus.value = filters.activityStatus || "all";
-  }
-  syncTechFilterProjectOptions(baseData, refs, state);
-  syncTechFilterTechOptions(baseData, refs, state);
-  syncTechFilterDateFields(refs);
-}
-
-function openTechFilterModal(refs){
-  if (!refs.modalReportTechFilters) return;
-  refs.modalReportTechFilters.hidden = false;
-}
-
-function closeTechFilterModal(refs){
-  if (!refs.modalReportTechFilters) return;
-  refs.modalReportTechFilters.hidden = true;
-}
-
 function openReportActivitiesModal(refs){
   if (!refs.modalReportActivities) return;
   refs.modalReportActivities.hidden = false;
@@ -807,8 +706,6 @@ function renderReports(cache, refs, state){
   const statusesData = getScopedData(baseData, state._reportsWidgetFilters.statuses);
   const executionData = getScopedData(baseData, state._reportsWidgetFilters.execution);
   const clientsData = getScopedData(baseData, state._reportsWidgetFilters.clients);
-  const techsData = getScopedData(baseData, state._reportsWidgetFilters.techs);
-  const attentionData = getScopedData(baseData, state._reportsWidgetFilters.attention);
   const timelineData = getScopedData(baseData, state._reportsWidgetFilters.timeline);
   const operationalDrilldown = getOperationalDrilldownMeta(state);
 
@@ -887,52 +784,6 @@ function renderReports(cache, refs, state){
   }, {})).sort((a, b) => b.hours - a.hours).slice(0, 5);
   const maxClientHours = Math.max(1, ...topClients.map((item) => item.hours));
 
-  const topTechs = Object.values(techsData.activities.reduce((acc, activity) => {
-    const techIds = Array.isArray(activity.techUids) && activity.techUids.length ? activity.techUids : ["sem-tecnico"];
-    const techNames = Array.isArray(activity.techNames) && activity.techNames.length ? activity.techNames : ["Sem tecnico"];
-    techIds.forEach((techId, index) => {
-      const key = techId || `sem-tecnico-${index}`;
-      if (!acc[key]) acc[key] = { techId: techId || "-", techName: techNames[index] || techNames[0] || "Sem tecnico", hours: 0, activities: 0 };
-      acc[key].hours += asNumber(activity.hoursWorked);
-      acc[key].activities += 1;
-    });
-    return acc;
-  }, {})).sort((a, b) => (b.activities - a.activities) || (b.hours - a.hours)).slice(0, 6);
-  const maxTechActivities = Math.max(1, ...topTechs.map((item) => item.activities));
-
-  const attentionTasksByProject = new Map();
-  attentionData.tasks.forEach((task) => {
-    const list = attentionTasksByProject.get(task.projectId) || [];
-    list.push(task);
-    attentionTasksByProject.set(task.projectId, list);
-  });
-  const attentionActivitiesByProject = new Map();
-  attentionData.activities.forEach((activity) => {
-    const list = attentionActivitiesByProject.get(activity.projectId) || [];
-    list.push(activity);
-    attentionActivitiesByProject.set(activity.projectId, list);
-  });
-  const attentionProjects = attentionData.projects.map((project) => {
-    const projectTasks = attentionTasksByProject.get(project.id) || [];
-    const projectActivities = attentionActivitiesByProject.get(project.id) || [];
-    const planned = projectTasks.reduce((acc, task) => acc + asNumber(task.plannedHours), 0);
-    const worked = projectActivities.reduce((acc, activity) => acc + asNumber(activity.hoursWorked), 0);
-    const pending = projectActivities.filter((activity) => !isCompletedActivity(activity)).length;
-    const overdue = projectActivities.filter((activity) => {
-      const date = parseDateOnly(activity.workDate);
-      return date && date < today && !isCompletedActivity(activity);
-    }).length;
-    return {
-      id: project.id,
-      name: project.name || "Projeto",
-      projectNumber: project.projectNumber || "-",
-      status: statusInfo(project.status),
-      pending,
-      overdue,
-      progress: planned > 0 ? Math.min(100, (worked / planned) * 100) : 0
-    };
-  }).sort((a, b) => (b.overdue - a.overdue) || (b.pending - a.pending) || (b.progress - a.progress)).slice(0, 5);
-
   const recentActivities = timelineData.activities.slice().sort((a, b) => String(b.workDate || "").localeCompare(String(a.workDate || ""))).slice(0, 8).map((activity) => {
     const project = timelineData.projects.find((item) => item.id === activity.projectId);
     const task = tasksById[activity.taskId];
@@ -993,7 +844,6 @@ function renderReports(cache, refs, state){
         ${getKpiMetaCard("Projetos monitorados", String(overviewData.projects.length), "Com filtros ativos", "statuses", "neutral")}
         ${getKpiMetaCard("Horas previstas", formatHours(overviewPlannedHours), "Total de horas dos projetos", "execution", "planned")}
         ${getKpiMetaCard("Horas executadas", formatHours(overviewWorkedHours), `Somente atividades com OS gerada/aprovada • Media por tarefa: ${formatHours(overviewAvgHoursPerTask)}`, "timeline", "worked")}
-        ${getKpiMetaCard("Horas planejadas", formatHours(overviewPlannedPendingHours), "Atividades atrasadas e sem OS", "attention", "warning")}
         ${getKpiMetaCard("Atividades pendentes", String(overviewPending), `${String(overviewOverdue)} atrasadas`, "metrics", "danger")}
       </div>
     </section>
@@ -1041,34 +891,6 @@ function renderReports(cache, refs, state){
       </div>
     </section>
 
-    <section class="reports-card reports-card--techs" data-report-section="techs">
-      <div class="reports-card-head">
-        <div>
-          <div class="reports-card-kicker">Atividade x tecnico</div>
-          <h3>Distribuicao operacional por tecnico</h3>
-          <p class="muted">Use o filtro avancado para refinar por periodo, cliente, projeto e tecnico.</p>
-        </div>
-        <div class="reports-card-tools">
-          <button class="btn ghost sm reports-card-filter-btn" data-open-report-tech-filters="true" type="button" aria-label="Abrir filtros do indicador Atividade x tecnico">
-            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" aria-hidden="true">
-              <path d="M4 6h16M7 12h10M10 18h4" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
-            </svg>
-            <span>Filtros</span>
-          </button>
-        </div>
-      </div>
-      <div class="reports-ranking">
-        ${topTechs.length ? topTechs.map((item) => `<div class="reports-ranking-row"><div><strong>${escapeHtml(item.techName)}</strong><span>ID: ${escapeHtml(String(item.techId || "-"))}</span></div><div class="reports-ranking-bar"><div class="reports-ranking-fill reports-ranking-fill--tech" style="width:${Math.max(10, (item.activities / maxTechActivities) * 100)}%"></div></div><b>${escapeHtml(String(item.activities))} / ${escapeHtml(formatHours(item.hours))}</b></div>`).join("") : `<p class="muted">Sem atividades vinculadas a tecnicos com os filtros atuais.</p>`}
-      </div>
-    </section>
-
-    <section class="reports-card reports-card--attention" data-report-section="attention">
-      <div class="reports-card-head"><div><div class="reports-card-kicker">Acompanhamento</div><h3>Projetos que exigem atencao</h3></div>${buildCardFilterBar(baseData, state, "attention")}</div>
-      <div class="reports-attention-list">
-        ${attentionProjects.length ? attentionProjects.map((project) => `<article class="reports-attention-item"><div class="reports-attention-top"><div><strong>#${escapeHtml(String(project.projectNumber))} ${escapeHtml(project.name)}</strong><span class="reports-pill reports-pill--${escapeHtml(project.status.tone)}">${escapeHtml(project.status.label)}</span></div><b>${escapeHtml(formatPercent(project.progress))}</b></div><div class="reports-attention-sub"><span>${escapeHtml(String(project.pending))} pendente(s)</span><span>${escapeHtml(String(project.overdue))} atrasada(s)</span></div></article>`).join("") : `<p class="muted">Nenhum projeto critico com os filtros atuais.</p>`}
-      </div>
-    </section>
-
     <section class="reports-card reports-card--timeline" data-report-section="timeline">
       <div class="reports-card-head"><div><div class="reports-card-kicker">Movimentacao recente</div><h3>Ultimas atividades registradas</h3></div>${buildCardFilterBar(baseData, state, "timeline")}</div>
       <div class="reports-timeline">
@@ -1100,50 +922,13 @@ function bindOnce(deps){
   refs.reportsTeamFilter?.addEventListener("change", handleGlobalChange);
   refs.reportsStatusFilter?.addEventListener("change", handleGlobalChange);
   refs.btnReloadReports?.addEventListener("click", () => rerender(true));
-  refs.btnCloseReportTechFilters?.addEventListener("click", () => closeTechFilterModal(refs));
   refs.btnCloseReportActivities?.addEventListener("click", () => closeReportActivitiesModal(refs));
-  refs.modalReportTechFilters?.addEventListener("click", (event) => {
-    const target = event.target;
-    if (!(target instanceof HTMLElement)) return;
-    if (target.dataset.closeReportTechFilters === "true"){
-      closeTechFilterModal(refs);
-    }
-  });
   refs.modalReportActivities?.addEventListener("click", (event) => {
     const target = event.target;
     if (!(target instanceof HTMLElement)) return;
     if (target.dataset.closeReportActivities === "true"){
       closeReportActivitiesModal(refs);
     }
-  });
-  refs.reportTechFilterPeriod?.addEventListener("change", () => {
-    syncTechFilterDateFields(refs);
-  });
-  refs.reportTechFilterClient?.addEventListener("change", () => {
-    syncTechFilterProjectOptions(deps.state._reportsCache, refs, deps.state);
-    syncTechFilterTechOptions(deps.state._reportsCache, refs, deps.state);
-  });
-  refs.reportTechFilterProject?.addEventListener("change", () => {
-    syncTechFilterTechOptions(deps.state._reportsCache, refs, deps.state);
-  });
-  refs.btnResetReportTechFilters?.addEventListener("click", () => {
-    deps.state._reportsWidgetFilters.techs = defaultWidgetFilters({ period: "30d" });
-    populateTechFilterModal(deps.state._reportsCache, refs, deps.state);
-  });
-  refs.btnApplyReportTechFilters?.addEventListener("click", () => {
-    if (!deps.state._reportsWidgetFilters) deps.state._reportsWidgetFilters = {};
-    deps.state._reportsWidgetFilters.techs = {
-      ...defaultWidgetFilters({ period: refs.reportTechFilterPeriod?.value || "30d" }),
-      period: refs.reportTechFilterPeriod?.value || "30d",
-      clientId: refs.reportTechFilterClient?.value || "all",
-      projectId: refs.reportTechFilterProject?.value || "all",
-      activityStatus: refs.reportTechFilterActivityStatus?.value || "all",
-      techId: refs.reportTechFilterTech?.value || "all",
-      startDate: refs.reportTechFilterStartDate?.value || "",
-      endDate: refs.reportTechFilterEndDate?.value || ""
-    };
-    closeTechFilterModal(refs);
-    renderReports(deps.state._reportsCache, refs, deps.state);
   });
 
   refs.reportsGrid?.addEventListener("change", (event) => {
@@ -1196,12 +981,6 @@ function bindOnce(deps){
       const metricKey = activitiesTrigger.getAttribute("data-report-metric") || "pending";
       renderReportActivitiesModal(metricKey, refs, deps.state, deps.state._reportsCache);
       openReportActivitiesModal(refs);
-      return;
-    }
-    const trigger = target.closest("[data-open-report-tech-filters='true']");
-    if (trigger){
-      populateTechFilterModal(deps.state._reportsCache, refs, deps.state);
-      openTechFilterModal(refs);
       return;
     }
     const kpiCard = target.closest("[data-report-focus]");
