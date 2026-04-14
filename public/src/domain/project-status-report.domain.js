@@ -30,6 +30,28 @@ function escapeHtml(value){
     .replace(/'/g, "&#39;");
 }
 
+function escapeXml(value){
+  return String(value ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&apos;");
+}
+
+function escapeXmlAttr(value){
+  return escapeXml(value).replace(/\r?\n/g, " ");
+}
+
+function formatHours(value){
+  const rounded = Math.round(asNumber(value) * 100) / 100;
+  return `${Number.isInteger(rounded) ? String(rounded) : String(rounded).replace(".", ",")}h`;
+}
+
+function formatPercent(value){
+  return `${asNumber(value).toFixed(1).replace(".", ",")}%`;
+}
+
 function statusLabel(status){
   const raw = String(status || "").trim().toLowerCase();
   const map = {
@@ -73,8 +95,8 @@ function buildExecutiveSummary(data){
   const { project, summary } = data;
   const parts = [
     `O projeto está em ${project.status.toLowerCase()}.`,
-    `Foram executadas ${summary.executedActivityHours}h de ${project.billingHours}h previstas.`,
-    `Ha ${summary.plannedWithoutOsHours}h em atividades planejadas.`,
+    `Foram executadas ${formatHours(summary.executedActivityHours)} de ${formatHours(project.billingHours)} previstas.`,
+    `Ha ${formatHours(summary.plannedWithoutOsHours)} em atividades planejadas.`,
     `Há ${summary.activityCount} atividade(s) registradas em ${summary.taskCount} tarefa(s).`,
     `${summary.completedCount} atividade(s) estão concluídas e ${summary.pendingCount} seguem pendentes.`
   ];
@@ -109,6 +131,9 @@ function buildStatusReportData({ project, tasks, activities, state }){
   const overdueCount = sortedActivities.filter((activity) => {
     return isOverdueActivity(activity, today);
   }).length;
+  const inProgressCount = sortedActivities.filter(activity => statusReportActivityLabel(activity, today) === "Em Andamento").length;
+  const concludedCount = sortedActivities.filter(activity => statusReportActivityLabel(activity, today) === "Concluida").length;
+  const delayedCount = sortedActivities.filter(activity => statusReportActivityLabel(activity, today) === "Atrasada").length;
   const teamName = teams.find(team => team.id === project?.teamId)?.name || "-";
   const managerName = users.find(user => user.uid === project?.managerUid)?.name || "-";
   const coordinatorName = users.find(user => user.uid === project?.coordinatorUid)?.name || "-";
@@ -145,6 +170,10 @@ function buildStatusReportData({ project, tasks, activities, state }){
     };
   });
 
+  const attentionRows = activityRows
+    .filter(activity => activity.status === "Atrasada")
+    .slice(0, 5);
+
   const data = {
     generatedAt: new Date(),
     project: {
@@ -176,10 +205,14 @@ function buildStatusReportData({ project, tasks, activities, state }){
       completedCount,
       pendingCount,
       overdueCount,
+      inProgressCount,
+      concludedCount,
+      delayedCount,
       projectConsumption: billingHours > 0 ? ((executedActivityHours / billingHours) * 100) : 0
     },
     taskRows,
-    activityRows
+    activityRows,
+    attentionRows
   };
 
   data.summary.executiveSummary = buildExecutiveSummary(data);
@@ -223,20 +256,19 @@ function buildReportHtml(data, options = {}){
       <td>${escapeHtml(String(task.number))}</td>
       <td>${escapeHtml(task.name)}</td>
       <td>${escapeHtml(task.period)}</td>
-      <td>${escapeHtml(`${task.plannedHours}h`)}</td>
-      <td>${escapeHtml(`${task.plannedWithoutOsHours}h`)}</td>
-      <td>${escapeHtml(`${task.workedHours}h`)}</td>
+      <td>${escapeHtml(formatHours(task.plannedHours))}</td>
+      <td>${escapeHtml(formatHours(task.plannedWithoutOsHours))}</td>
+      <td>${escapeHtml(formatHours(task.workedHours))}</td>
       <td>${escapeHtml(String(task.activityCount))}</td>
     </tr>
   `).join("");
   const activityRowsHtml = data.activityRows.map((activity) => `
     <tr>
       <td>${escapeHtml(activity.date)}</td>
-      <td>#${escapeHtml(String(activity.taskNumber))}</td>
-      <td>${escapeHtml(activity.taskName)}</td>
+      <td>#${escapeHtml(String(activity.taskNumber))} - ${escapeHtml(activity.taskName)}</td>
       <td>${escapeHtml(activity.activityName)}</td>
       <td>${escapeHtml(activity.keyUsers)}</td>
-      <td>${escapeHtml(`${activity.hours}h`)}</td>
+      <td>${escapeHtml(formatHours(activity.hours))}</td>
       <td>${escapeHtml(activity.status)}</td>
     </tr>
   `).join("");
@@ -278,6 +310,14 @@ function buildReportHtml(data, options = {}){
           th,td{padding:10px 12px;border-bottom:1px solid #e8eef6;text-align:left;font-size:12px;vertical-align:top}
           th{background:#f5f8fd;color:#5d687b;font-size:11px;letter-spacing:.08em;text-transform:uppercase}
           .footer{padding:0 30px 28px;color:#6a7588;font-size:12px}
+          .status-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}
+          .status-card{border:1px solid #dce4f0;border-radius:16px;padding:12px 14px;background:#fff}
+          .status-card .label{font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:#7a8599;font-weight:800}
+          .status-card .value{margin-top:6px;font-size:22px;font-weight:800}
+          .status-card.in-progress .value{color:#1f5b99}
+          .status-card.done .value{color:#0f7a4f}
+          .status-card.late .value{color:#b42318}
+          .excel-clean body{background:#fff;padding:0}
         </style>
       </head>
       <body${bodyAttrs}>
@@ -298,14 +338,37 @@ function buildReportHtml(data, options = {}){
             </div>
           </div>
           <div class="summary">
-            <div class="card"><div class="label">Horas previstas</div><div class="value">${escapeHtml(`${project.billingHours}h`)}</div><div class="sub">Planejamento total do projeto</div></div>
-            <div class="card"><div class="label">Horas planejadas</div><div class="value">${escapeHtml(`${summary.plannedWithoutOsHours}h`)}</div><div class="sub">Atividades planejadas</div></div>
-            <div class="card"><div class="label">Horas executadas</div><div class="value">${escapeHtml(`${summary.executedActivityHours}h`)}</div><div class="sub">Consumo: ${escapeHtml(summary.projectConsumption.toFixed(1).replace(".", ","))}%</div></div>
+            <div class="card"><div class="label">Horas previstas</div><div class="value">${escapeHtml(formatHours(project.billingHours))}</div><div class="sub">Planejamento total do projeto</div></div>
+            <div class="card"><div class="label">Horas planejadas</div><div class="value">${escapeHtml(formatHours(summary.plannedWithoutOsHours))}</div><div class="sub">Atividades planejadas</div></div>
+            <div class="card"><div class="label">Horas executadas</div><div class="value">${escapeHtml(formatHours(summary.executedActivityHours))}</div><div class="sub">Consumo: ${escapeHtml(formatPercent(summary.projectConsumption))}</div></div>
             <div class="card"><div class="label">Atividades</div><div class="value">${escapeHtml(String(summary.activityCount))}</div><div class="sub">${escapeHtml(String(summary.pendingCount))} pendentes • ${escapeHtml(String(summary.completedCount))} concluídas</div></div>
           </div>
           <div class="executive-box">
             <div class="label">Resumo executivo</div>
             <div class="text">${escapeHtml(summary.executiveSummary)}</div>
+          </div>
+          <div class="section">
+            <h2>Status das atividades</h2>
+            <div class="status-grid">
+              <div class="status-card in-progress"><div class="label">Em andamento</div><div class="value">${escapeHtml(String(summary.inProgressCount))}</div></div>
+              <div class="status-card done"><div class="label">Concluidas</div><div class="value">${escapeHtml(String(summary.concludedCount))}</div></div>
+              <div class="status-card late"><div class="label">Atrasadas</div><div class="value">${escapeHtml(String(summary.delayedCount))}</div></div>
+            </div>
+          </div>
+          <div class="section">
+            <h2>Pontos de atencao</h2>
+            ${data.attentionRows.length ? `<table>
+              <thead>
+                <tr><th>Data</th><th>Tarefa</th><th>Atividade</th><th>Responsavel</th><th>Horas</th></tr>
+              </thead>
+              <tbody>${data.attentionRows.map((activity) => `<tr>
+                <td>${escapeHtml(activity.date)}</td>
+                <td>#${escapeHtml(String(activity.taskNumber))}</td>
+                <td>${escapeHtml(activity.activityName)}</td>
+                <td>${escapeHtml(activity.keyUsers)}</td>
+                <td>${escapeHtml(formatHours(activity.hours))}</td>
+              </tr>`).join("")}</tbody>
+            </table>` : `<p class="subtitle">Nenhum ponto critico identificado no momento.</p>`}
           </div>
           <div class="section">
             <h2>Informacoes do projeto</h2>
@@ -344,7 +407,6 @@ function buildReportHtml(data, options = {}){
                 <tr>
                   <th>Data</th>
                   <th>Tarefa</th>
-                  <th>Nome da tarefa</th>
                   <th>Atividade</th>
                   <th>Key user</th>
                   <th>Horas</th>
@@ -372,6 +434,398 @@ function triggerDownload(blob, filename){
   anchor.click();
   anchor.remove();
   URL.revokeObjectURL(url);
+}
+
+function excelCell(value, type = "String"){
+  const cellType = type === "Number" ? "Number" : "String";
+  return `<Cell><Data ss:Type="${cellType}">${escapeXml(value)}</Data></Cell>`;
+}
+
+function excelRow(values, types = []){
+  return `<Row>${values.map((value, index) => excelCell(value, types[index] || "String")).join("")}</Row>`;
+}
+
+function excelWorksheet(name, rows, options = {}){
+  const autoFilter = options.autoFilterColumns
+    ? `<AutoFilter x:Range="R1C1:R1C${options.autoFilterColumns}" xmlns="urn:schemas-microsoft-com:office:excel"></AutoFilter>`
+    : "";
+  const worksheetOptions = options.freezeTopRow
+    ? `<WorksheetOptions xmlns="urn:schemas-microsoft-com:office:excel"><FreezePanes/><FrozenNoSplit/><SplitHorizontal>1</SplitHorizontal><TopRowBottomPane>1</TopRowBottomPane><ActivePane>2</ActivePane></WorksheetOptions>`
+    : "";
+  return `<Worksheet ss:Name="${escapeXml(name)}"><Table>${rows.join("")}</Table>${autoFilter}${worksheetOptions}</Worksheet>`;
+}
+
+function buildExcelWorkbook(data){
+  const { project, client, summary } = data;
+  const summaryRows = [
+    excelRow(["Status Report do Projeto"]),
+    excelRow(["Projeto", project.name]),
+    excelRow(["Numero", project.number]),
+    excelRow(["Cliente", client.name]),
+    excelRow(["Status", project.status]),
+    excelRow(["Prazo final", project.endDate]),
+    excelRow(["Gerado em", data.generatedAt.toLocaleString("pt-BR")]),
+    excelRow([""]),
+    excelRow(["Indicador", "Valor"]),
+    excelRow(["Horas previstas", formatHours(project.billingHours)]),
+    excelRow(["Horas planejadas", formatHours(summary.plannedWithoutOsHours)]),
+    excelRow(["Horas executadas", formatHours(summary.executedActivityHours)]),
+    excelRow(["Consumo", formatPercent(summary.projectConsumption)]),
+    excelRow(["Atividades em andamento", summary.inProgressCount], ["String", "Number"]),
+    excelRow(["Atividades concluidas", summary.concludedCount], ["String", "Number"]),
+    excelRow(["Atividades atrasadas", summary.delayedCount], ["String", "Number"]),
+    excelRow([""]),
+    excelRow(["Resumo executivo"]),
+    excelRow([summary.executiveSummary]),
+    excelRow([""]),
+    excelRow(["Pontos de atencao"]),
+    ...(data.attentionRows.length
+      ? [
+          excelRow(["Data", "Tarefa", "Atividade", "Responsavel", "Horas"]),
+          ...data.attentionRows.map(activity => excelRow([
+            activity.date,
+            `#${activity.taskNumber}`,
+            activity.activityName,
+            activity.keyUsers,
+            formatHours(activity.hours)
+          ]))
+        ]
+      : [excelRow(["Nenhum ponto critico identificado no momento."])])
+  ];
+
+  const taskRows = [
+    excelRow(["#", "Tarefa", "Periodo", "Horas previstas", "Horas planejadas", "Horas executadas", "Atividades"]),
+    ...data.taskRows.map(task => excelRow([
+      task.number,
+      task.name,
+      task.period,
+      formatHours(task.plannedHours),
+      formatHours(task.plannedWithoutOsHours),
+      formatHours(task.workedHours),
+      task.activityCount
+    ], ["String", "String", "String", "String", "String", "String", "Number"])),
+    excelRow([""]),
+    excelRow([
+      "Totais",
+      "",
+      "",
+      formatHours(data.taskRows.reduce((acc, task) => acc + asNumber(task.plannedHours), 0)),
+      formatHours(summary.plannedWithoutOsHours),
+      formatHours(summary.executedActivityHours),
+      summary.activityCount
+    ], ["String", "String", "String", "String", "String", "String", "Number"])
+  ];
+
+  const activityRows = [
+    excelRow(["Data", "Tarefa", "Atividade", "Responsavel", "Horas", "Status"]),
+    ...data.activityRows.map(activity => excelRow([
+      activity.date,
+      `#${activity.taskNumber} - ${activity.taskName}`,
+      activity.activityName,
+      activity.keyUsers,
+      formatHours(activity.hours),
+      activity.status
+    ])),
+    excelRow([""]),
+    excelRow(["Totais", "", "", "", formatHours(data.activityRows.reduce((acc, activity) => acc + asNumber(activity.hours), 0)), ""])
+  ];
+
+  return `<?xml version="1.0" encoding="UTF-8"?>
+<?mso-application progid="Excel.Sheet"?>
+<Workbook xmlns="urn:schemas-microsoft-com:office:spreadsheet"
+ xmlns:o="urn:schemas-microsoft-com:office:office"
+ xmlns:x="urn:schemas-microsoft-com:office:excel"
+ xmlns:ss="urn:schemas-microsoft-com:office:spreadsheet">
+${excelWorksheet("Resumo", summaryRows)}
+${excelWorksheet("Tarefas", taskRows, { freezeTopRow: true, autoFilterColumns: 7 })}
+${excelWorksheet("Atividades", activityRows, { freezeTopRow: true, autoFilterColumns: 6 })}
+</Workbook>`;
+}
+
+function columnName(index){
+  let name = "";
+  let current = index;
+  while (current > 0){
+    const mod = (current - 1) % 26;
+    name = String.fromCharCode(65 + mod) + name;
+    current = Math.floor((current - mod) / 26);
+  }
+  return name;
+}
+
+function buildXlsxSheet(rows, options = {}){
+  const colCount = rows.reduce((max, row) => Math.max(max, row.length), 0);
+  const rowXml = rows.map((row, rowIndex) => {
+    const rowNumber = rowIndex + 1;
+    const cells = row.map((cell, cellIndex) => {
+      const value = cell?.value ?? cell ?? "";
+      const type = cell?.type || "String";
+      const style = cell?.style ? ` s="${cell.style}"` : "";
+      const ref = `${columnName(cellIndex + 1)}${rowNumber}`;
+      if (type === "Number" && value !== ""){
+        return `<c r="${ref}"${style}><v>${asNumber(value)}</v></c>`;
+      }
+      return `<c r="${ref}" t="inlineStr"${style}><is><t>${escapeXml(value)}</t></is></c>`;
+    }).join("");
+    return `<row r="${rowNumber}">${cells}</row>`;
+  }).join("");
+  const dimensionRef = `A1:${columnName(Math.max(1, colCount))}${Math.max(1, rows.length)}`;
+  const freezePane = options.freezeTopRow
+    ? `<sheetViews><sheetView workbookViewId="0"><pane ySplit="1" topLeftCell="A2" activePane="bottomLeft" state="frozen"/></sheetView></sheetViews>`
+    : `<sheetViews><sheetView workbookViewId="0"/></sheetViews>`;
+  const autoFilter = options.autoFilterColumns
+    ? `<autoFilter ref="A1:${columnName(options.autoFilterColumns)}${Math.max(1, rows.length)}"/>`
+    : "";
+  const cols = colCount
+    ? `<cols>${Array.from({ length: colCount }, (_, index) => `<col min="${index + 1}" max="${index + 1}" width="${options.widths?.[index] || 18}" customWidth="1"/>`).join("")}</cols>`
+    : "";
+  return `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
+<dimension ref="${dimensionRef}"/>
+${freezePane}
+${cols}
+<sheetData>${rowXml}</sheetData>
+${autoFilter}
+</worksheet>`;
+}
+
+function xlsxText(value, style = ""){
+  return { value, type: "String", style };
+}
+
+function xlsxNumber(value, style = ""){
+  return { value: asNumber(value), type: "Number", style };
+}
+
+function buildXlsxWorkbookFiles(data){
+  const { project, client, summary } = data;
+  const summaryRows = [
+    [xlsxText("Status Report do Projeto", "1")],
+    [xlsxText("Projeto", "1"), xlsxText(project.name)],
+    [xlsxText("Numero", "1"), xlsxText(project.number)],
+    [xlsxText("Cliente", "1"), xlsxText(client.name)],
+    [xlsxText("Status", "1"), xlsxText(project.status)],
+    [xlsxText("Prazo final", "1"), xlsxText(project.endDate)],
+    [xlsxText("Gerado em", "1"), xlsxText(data.generatedAt.toLocaleString("pt-BR"))],
+    [],
+    [xlsxText("Indicador", "1"), xlsxText("Valor", "1")],
+    [xlsxText("Horas previstas"), xlsxText(formatHours(project.billingHours))],
+    [xlsxText("Horas planejadas"), xlsxText(formatHours(summary.plannedWithoutOsHours))],
+    [xlsxText("Horas executadas"), xlsxText(formatHours(summary.executedActivityHours))],
+    [xlsxText("Consumo"), xlsxText(formatPercent(summary.projectConsumption))],
+    [xlsxText("Atividades em andamento"), xlsxNumber(summary.inProgressCount)],
+    [xlsxText("Atividades concluidas"), xlsxNumber(summary.concludedCount)],
+    [xlsxText("Atividades atrasadas"), xlsxNumber(summary.delayedCount)],
+    [],
+    [xlsxText("Resumo executivo", "1")],
+    [xlsxText(summary.executiveSummary)],
+    [],
+    [xlsxText("Pontos de atencao", "1")],
+    ...(data.attentionRows.length
+      ? [
+          [xlsxText("Data", "1"), xlsxText("Tarefa", "1"), xlsxText("Atividade", "1"), xlsxText("Responsavel", "1"), xlsxText("Horas", "1")],
+          ...data.attentionRows.map(activity => [
+            xlsxText(activity.date),
+            xlsxText(`#${activity.taskNumber}`),
+            xlsxText(activity.activityName),
+            xlsxText(activity.keyUsers),
+            xlsxText(formatHours(activity.hours))
+          ])
+        ]
+      : [[xlsxText("Nenhum ponto critico identificado no momento.")]])
+  ];
+
+  const taskRows = [
+    [xlsxText("#", "1"), xlsxText("Tarefa", "1"), xlsxText("Periodo", "1"), xlsxText("Horas previstas", "1"), xlsxText("Horas planejadas", "1"), xlsxText("Horas executadas", "1"), xlsxText("Atividades", "1")],
+    ...data.taskRows.map(task => [
+      xlsxText(task.number),
+      xlsxText(task.name),
+      xlsxText(task.period),
+      xlsxText(formatHours(task.plannedHours)),
+      xlsxText(formatHours(task.plannedWithoutOsHours)),
+      xlsxText(formatHours(task.workedHours)),
+      xlsxNumber(task.activityCount)
+    ]),
+    [],
+    [
+      xlsxText("Totais", "1"),
+      xlsxText(""),
+      xlsxText(""),
+      xlsxText(formatHours(data.taskRows.reduce((acc, task) => acc + asNumber(task.plannedHours), 0)), "1"),
+      xlsxText(formatHours(summary.plannedWithoutOsHours), "1"),
+      xlsxText(formatHours(summary.executedActivityHours), "1"),
+      xlsxNumber(summary.activityCount, "1")
+    ]
+  ];
+
+  const activityRows = [
+    [xlsxText("Data", "1"), xlsxText("Tarefa", "1"), xlsxText("Atividade", "1"), xlsxText("Responsavel", "1"), xlsxText("Horas", "1"), xlsxText("Status", "1")],
+    ...data.activityRows.map(activity => [
+      xlsxText(activity.date),
+      xlsxText(`#${activity.taskNumber} - ${activity.taskName}`),
+      xlsxText(activity.activityName),
+      xlsxText(activity.keyUsers),
+      xlsxText(formatHours(activity.hours)),
+      xlsxText(activity.status)
+    ]),
+    [],
+    [xlsxText("Totais", "1"), xlsxText(""), xlsxText(""), xlsxText(""), xlsxText(formatHours(data.activityRows.reduce((acc, activity) => acc + asNumber(activity.hours), 0)), "1"), xlsxText("")]
+  ];
+
+  const sheets = [
+    { name: "Resumo", file: "sheet1.xml", xml: buildXlsxSheet(summaryRows, { widths: [28, 54, 24, 24, 16] }) },
+    { name: "Tarefas", file: "sheet2.xml", xml: buildXlsxSheet(taskRows, { freezeTopRow: true, autoFilterColumns: 7, widths: [10, 34, 24, 18, 18, 18, 12] }) },
+    { name: "Atividades", file: "sheet3.xml", xml: buildXlsxSheet(activityRows, { freezeTopRow: true, autoFilterColumns: 6, widths: [14, 34, 42, 28, 12, 16] }) }
+  ];
+
+  const workbookSheets = sheets.map((sheet, index) => `<sheet name="${escapeXmlAttr(sheet.name)}" sheetId="${index + 1}" r:id="rId${index + 1}"/>`).join("");
+  const workbookRels = sheets.map((sheet, index) => `<Relationship Id="rId${index + 1}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/${sheet.file}"/>`).join("");
+  const overrides = sheets.map((sheet) => `<Override PartName="/xl/worksheets/${sheet.file}" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>`).join("");
+
+  return {
+    "[Content_Types].xml": `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
+<Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
+<Default Extension="xml" ContentType="application/xml"/>
+<Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/>
+<Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/>
+<Override PartName="/docProps/core.xml" ContentType="application/vnd.openxmlformats-package.core-properties+xml"/>
+<Override PartName="/docProps/app.xml" ContentType="application/vnd.openxmlformats-officedocument.extended-properties+xml"/>
+${overrides}
+</Types>`,
+    "_rels/.rels": `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/>
+<Relationship Id="rId2" Type="http://schemas.openxmlformats.org/package/2006/relationships/metadata/core-properties" Target="docProps/core.xml"/>
+<Relationship Id="rId3" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/extended-properties" Target="docProps/app.xml"/>
+</Relationships>`,
+    "xl/workbook.xml": `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
+<sheets>${workbookSheets}</sheets>
+</workbook>`,
+    "xl/_rels/workbook.xml.rels": `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+${workbookRels}
+<Relationship Id="rId${sheets.length + 1}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/>
+</Relationships>`,
+    "xl/styles.xml": `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">
+<fonts count="2"><font><sz val="11"/><name val="Calibri"/></font><font><b/><sz val="11"/><name val="Calibri"/></font></fonts>
+<fills count="2"><fill><patternFill patternType="none"/></fill><fill><patternFill patternType="gray125"/></fill></fills>
+<borders count="1"><border><left/><right/><top/><bottom/><diagonal/></border></borders>
+<cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs>
+<cellXfs count="2"><xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/><xf numFmtId="0" fontId="1" fillId="0" borderId="0" xfId="0"/></cellXfs>
+</styleSheet>`,
+    "docProps/core.xml": `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<cp:coreProperties xmlns:cp="http://schemas.openxmlformats.org/package/2006/metadata/core-properties" xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:dcterms="http://purl.org/dc/terms/" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+<dc:title>Status Report - ${escapeXml(project.name)}</dc:title>
+<dc:creator>FlowProject</dc:creator>
+<dcterms:created xsi:type="dcterms:W3CDTF">${new Date().toISOString()}</dcterms:created>
+</cp:coreProperties>`,
+    "docProps/app.xml": `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Properties xmlns="http://schemas.openxmlformats.org/officeDocument/2006/extended-properties" xmlns:vt="http://schemas.openxmlformats.org/officeDocument/2006/docPropsVTypes">
+<Application>FlowProject</Application>
+</Properties>`,
+    ...Object.fromEntries(sheets.map(sheet => [`xl/worksheets/${sheet.file}`, sheet.xml]))
+  };
+}
+
+function makeCrcTable(){
+  const table = [];
+  for (let n = 0; n < 256; n += 1){
+    let c = n;
+    for (let k = 0; k < 8; k += 1){
+      c = (c & 1) ? (0xedb88320 ^ (c >>> 1)) : (c >>> 1);
+    }
+    table[n] = c >>> 0;
+  }
+  return table;
+}
+
+const CRC_TABLE = makeCrcTable();
+
+function crc32(bytes){
+  let crc = 0xffffffff;
+  for (let i = 0; i < bytes.length; i += 1){
+    crc = CRC_TABLE[(crc ^ bytes[i]) & 0xff] ^ (crc >>> 8);
+  }
+  return (crc ^ 0xffffffff) >>> 0;
+}
+
+function pushUint16(bytes, value){
+  bytes.push(value & 0xff, (value >>> 8) & 0xff);
+}
+
+function pushUint32(bytes, value){
+  bytes.push(value & 0xff, (value >>> 8) & 0xff, (value >>> 16) & 0xff, (value >>> 24) & 0xff);
+}
+
+function pushBytes(bytes, values){
+  for (let i = 0; i < values.length; i += 1) bytes.push(values[i]);
+}
+
+function createZip(files){
+  const encoder = new TextEncoder();
+  const bytes = [];
+  const centralDirectory = [];
+  const entries = Object.entries(files);
+
+  entries.forEach(([name, content]) => {
+    const nameBytes = encoder.encode(name.replace(/\\/g, "/"));
+    const fileBytes = encoder.encode(content);
+    const crc = crc32(fileBytes);
+    const offset = bytes.length;
+
+    pushUint32(bytes, 0x04034b50);
+    pushUint16(bytes, 20);
+    pushUint16(bytes, 0);
+    pushUint16(bytes, 0);
+    pushUint16(bytes, 0);
+    pushUint16(bytes, 0);
+    pushUint32(bytes, crc);
+    pushUint32(bytes, fileBytes.length);
+    pushUint32(bytes, fileBytes.length);
+    pushUint16(bytes, nameBytes.length);
+    pushUint16(bytes, 0);
+    pushBytes(bytes, nameBytes);
+    pushBytes(bytes, fileBytes);
+
+    centralDirectory.push({ nameBytes, crc, size: fileBytes.length, offset });
+  });
+
+  const centralOffset = bytes.length;
+  centralDirectory.forEach((entry) => {
+    pushUint32(bytes, 0x02014b50);
+    pushUint16(bytes, 20);
+    pushUint16(bytes, 20);
+    pushUint16(bytes, 0);
+    pushUint16(bytes, 0);
+    pushUint16(bytes, 0);
+    pushUint16(bytes, 0);
+    pushUint32(bytes, entry.crc);
+    pushUint32(bytes, entry.size);
+    pushUint32(bytes, entry.size);
+    pushUint16(bytes, entry.nameBytes.length);
+    pushUint16(bytes, 0);
+    pushUint16(bytes, 0);
+    pushUint16(bytes, 0);
+    pushUint16(bytes, 0);
+    pushUint32(bytes, 0);
+    pushUint32(bytes, entry.offset);
+    pushBytes(bytes, entry.nameBytes);
+  });
+  const centralSize = bytes.length - centralOffset;
+
+  pushUint32(bytes, 0x06054b50);
+  pushUint16(bytes, 0);
+  pushUint16(bytes, 0);
+  pushUint16(bytes, centralDirectory.length);
+  pushUint16(bytes, centralDirectory.length);
+  pushUint32(bytes, centralSize);
+  pushUint32(bytes, centralOffset);
+  pushUint16(bytes, 0);
+
+  return new Uint8Array(bytes);
 }
 
 function drawSimpleTable(doc, config){
@@ -422,11 +876,35 @@ function drawSimpleTable(doc, config){
   return cursorY;
 }
 
+function addPdfPageChrome(doc, data){
+  const pageCount = doc.internal.getNumberOfPages();
+  const pageWidth = doc.internal.pageSize.getWidth();
+  const pageHeight = doc.internal.pageSize.getHeight();
+  for (let page = 1; page <= pageCount; page += 1){
+    doc.setPage(page);
+    doc.setDrawColor(225, 232, 242);
+    doc.line(10, pageHeight - 10, pageWidth - 10, pageHeight - 10);
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(7.5);
+    doc.setTextColor(102, 113, 133);
+    doc.text(`${data.project.name} | Gerado em ${data.generatedAt.toLocaleString("pt-BR")}`, 10, pageHeight - 5);
+    doc.text(`Pagina ${page} de ${pageCount}`, pageWidth - 10, pageHeight - 5, { align: "right" });
+    if (page > 1){
+      doc.setDrawColor(225, 232, 242);
+      doc.line(10, 10, pageWidth - 10, 10);
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(8);
+      doc.setTextColor(40, 54, 80);
+      doc.text(`Status Report | ${data.project.name}`, 10, 7);
+    }
+  }
+}
+
 export async function downloadProjectStatusReportExcel(payload){
   const data = buildStatusReportData(payload);
-  const html = buildReportHtml(data, { includeClientImage: false, includeClientContactInfo: false });
-  const blob = new Blob([html], { type: "application/vnd.ms-excel;charset=utf-8" });
-  const filename = `${normalizeFileName(`status-report-${data.project.number}-${data.project.name}`)}.xls`;
+  const workbook = createZip(buildXlsxWorkbookFiles(data));
+  const blob = new Blob([workbook], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
+  const filename = `${normalizeFileName(`status-report-${data.project.number}-${data.project.name}`)}.xlsx`;
   triggerDownload(blob, filename);
 }
 
@@ -467,9 +945,9 @@ export async function downloadProjectStatusReportPdf(payload){
   doc.text(`Gerado em ${data.generatedAt.toLocaleString("pt-BR")}`, 44, 40);
 
   const summaryCards = [
-    { label: "Horas previstas", value: `${data.project.billingHours}h`, sub: "Planejamento total" },
-    { label: "Horas planejadas", value: `${summary.plannedWithoutOsHours}h`, sub: "Atividades planejadas" },
-    { label: "Horas executadas", value: `${summary.executedActivityHours}h`, sub: `Consumo: ${summary.projectConsumption.toFixed(1).replace(".", ",")}%` },
+    { label: "Horas previstas", value: formatHours(data.project.billingHours), sub: "Planejamento total" },
+    { label: "Horas planejadas", value: formatHours(summary.plannedWithoutOsHours), sub: "Atividades planejadas" },
+    { label: "Horas executadas", value: formatHours(summary.executedActivityHours), sub: `Consumo: ${formatPercent(summary.projectConsumption)}` },
     { label: "Atividades", value: String(summary.activityCount), sub: `${summary.pendingCount} pendentes • ${summary.completedCount} concluidas` },
   ];
 
@@ -506,10 +984,71 @@ export async function downloadProjectStatusReportPdf(payload){
   doc.setFontSize(9.2);
   doc.text(executiveText, 14, 96);
 
+  const statusTitleY = 84 + executiveBoxHeight + 10;
   doc.setFont("helvetica", "bold");
   doc.setFontSize(12);
   doc.setTextColor(22, 32, 51);
-  const infoTitleY = 84 + executiveBoxHeight + 10;
+  doc.text("Status das atividades", 10, statusTitleY);
+
+  const statusCards = [
+    { label: "Em andamento", value: summary.inProgressCount, color: [31, 91, 153] },
+    { label: "Concluidas", value: summary.concludedCount, color: [15, 122, 79] },
+    { label: "Atrasadas", value: summary.delayedCount, color: [180, 35, 24] }
+  ];
+  let statusX = 10;
+  statusCards.forEach((card) => {
+    doc.setFillColor(255, 255, 255);
+    doc.setDrawColor(220, 228, 240);
+    doc.roundedRect(statusX, statusTitleY + 4, 61, 20, 4, 4, "FD");
+    doc.setTextColor(122, 133, 153);
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(8);
+    doc.text(card.label.toUpperCase(), statusX + 4, statusTitleY + 11);
+    doc.setTextColor(card.color[0], card.color[1], card.color[2]);
+    doc.setFontSize(13);
+    doc.text(String(card.value), statusX + 4, statusTitleY + 18);
+    statusX += 64;
+  });
+
+  let attentionY = statusTitleY + 35;
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(12);
+  doc.setTextColor(22, 32, 51);
+  doc.text("Pontos de atencao", 10, attentionY);
+
+  if (data.attentionRows.length){
+    attentionY = drawSimpleTable(doc, {
+      startY: attentionY + 3,
+      rowHeight: 9,
+      headerHeight: 8,
+      fontSize: 7.5,
+      columns: [
+        { key: "date", label: "Data", width: .75 },
+        { key: "task", label: "Tarefa", width: .8 },
+        { key: "activity", label: "Atividade", width: 2.2 },
+        { key: "keyUsers", label: "Responsavel", width: 1.4 },
+        { key: "hours", label: "Horas", width: .55 }
+      ],
+      rows: data.attentionRows.map((activity) => ({
+        date: activity.date,
+        task: `#${activity.taskNumber}`,
+        activity: activity.activityName,
+        keyUsers: activity.keyUsers,
+        hours: formatHours(activity.hours)
+      }))
+    }) + 8;
+  } else {
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(9);
+    doc.setTextColor(94, 104, 123);
+    doc.text("Nenhum ponto critico identificado no momento.", 10, attentionY + 7);
+    attentionY += 15;
+  }
+
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(12);
+  doc.setTextColor(22, 32, 51);
+  const infoTitleY = attentionY;
   doc.text("Informacoes do projeto", 10, infoTitleY);
 
   let nextY = drawSimpleTable(doc, {
@@ -529,9 +1068,9 @@ export async function downloadProjectStatusReportPdf(payload){
       team: summary.teamName,
       manager: summary.managerName,
       coordinator: summary.coordinatorName,
-      hours: `${data.project.billingHours}h`,
-      planned: `${summary.plannedWithoutOsHours}h`,
-      worked: `${summary.executedActivityHours}h`
+      hours: formatHours(data.project.billingHours),
+      planned: formatHours(summary.plannedWithoutOsHours),
+      worked: formatHours(summary.executedActivityHours)
     }]
   }) + 8;
 
@@ -555,9 +1094,9 @@ export async function downloadProjectStatusReportPdf(payload){
       number: String(task.number),
       name: task.name,
       period: task.period,
-      planned: `${task.plannedHours}h`,
-      plannedNoOs: `${task.plannedWithoutOsHours}h`,
-      worked: `${task.workedHours}h`,
+      planned: formatHours(task.plannedHours),
+      plannedNoOs: formatHours(task.plannedWithoutOsHours),
+      worked: formatHours(task.workedHours),
       count: String(task.activityCount)
     }))
   }) + 8;
@@ -573,23 +1112,23 @@ export async function downloadProjectStatusReportPdf(payload){
     fontSize: 7.2,
     columns: [
       { key: "date", label: "Data", width: .7 },
-      { key: "taskNumber", label: "Tarefa", width: .55 },
-      { key: "taskName", label: "Nome da tarefa", width: 1.6 },
-      { key: "activityName", label: "Atividade", width: 1.6 },
+      { key: "task", label: "Tarefa", width: 1.4 },
+      { key: "activityName", label: "Atividade", width: 1.9 },
       { key: "keyUsers", label: "Key user", width: 1.4 },
       { key: "hours", label: "Horas", width: .5 },
       { key: "status", label: "Status", width: .9 }
     ],
     rows: data.activityRows.map((activity) => ({
       date: activity.date,
-      taskNumber: `#${activity.taskNumber}`,
-      taskName: activity.taskName,
+      task: `#${activity.taskNumber} - ${activity.taskName}`,
       activityName: activity.activityName,
       keyUsers: activity.keyUsers,
-      hours: `${activity.hours}h`,
+      hours: formatHours(activity.hours),
       status: activity.status
     }))
   });
+
+  addPdfPageChrome(doc, data);
 
   const filename = `${normalizeFileName(`status-report-${data.project.number}-${data.project.name}`)}.pdf`;
   doc.save(filename);
