@@ -43,7 +43,7 @@ import { auth, secondaryAuth, db, storage, functions, httpsCallable } from "./sr
 import { normalizePhone, normalizeCnpj, slugify } from "./src/utils/format.js";
 import { setAlert, clearAlert, clearInlineAlert, showInlineAlert } from "./src/ui/alerts.js";
 import { getCompanyDoc, listCompaniesDocs } from "./src/services/companies.service.js";
-import * as refs from "./src/ui/refs.js?v=1776052712";
+import * as refs from "./src/ui/refs.js?v=1776052715";
 import * as companiesDomain from "./src/domain/companies.domain.js?v=1770332251";
 import * as teamsDomain from "./src/domain/teams.domain.js?v=1772614200";
 import * as usersDomain from "./src/domain/users.domain.js?v=1772622200";
@@ -187,12 +187,18 @@ function getCompanyBrand(company = state.company){
 
 function renderSidebarBrand(company = state.company){
   const brand = getCompanyBrand(company);
+  const canEditBrand = isCompanyAdmin();
   if (refs.sidebarBrandLogo){
     refs.sidebarBrandLogo.src = brand.logoURL;
     refs.sidebarBrandLogo.alt = brand.name;
     refs.sidebarBrandLogo.classList.toggle("is-company-logo", brand.customLogo);
   }
   if (refs.sidebarBrandTitle) refs.sidebarBrandTitle.textContent = brand.name;
+  if (refs.sidebarBrand){
+    refs.sidebarBrand.classList.toggle("can-edit", canEditBrand);
+    refs.sidebarBrand.title = canEditBrand ? "Alterar marca da empresa" : brand.name;
+    refs.sidebarBrand.setAttribute("aria-label", canEditBrand ? "Alterar marca da empresa" : brand.name);
+  }
 }
 
 async function loadCurrentCompanyBrand(){
@@ -426,6 +432,15 @@ function initSidebar(){
 
   refs.navConfig?.addEventListener("click", () => {
     setActiveNav("navConfig");
+    alert("Configuracoes gerais em breve. Para alterar a marca da empresa, clique no logo no topo do menu lateral.");
+  });
+
+  refs.sidebarBrand?.addEventListener("click", () => {
+    openCompanyBrandModal();
+  });
+  refs.sidebarBrand?.addEventListener("keydown", (event) => {
+    if (event.key !== "Enter" && event.key !== " ") return;
+    event.preventDefault();
     openCompanyBrandModal();
   });
   syncSidebarForRole();

@@ -14,6 +14,7 @@ export const viewClients = byId("viewClients");
 
 // Sidebar
 export const sidebar = byId("sidebar");
+export const sidebarBrand = byId("sidebarBrand");
 export const sidebarBrandLogo = byId("sidebarBrandLogo");
 export const sidebarBrandTitle = byId("sidebarBrandTitle");
 export const btnToggleSidebar = byId("btnToggleSidebar");

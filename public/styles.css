@@ -1234,6 +1234,14 @@ a{ color: inherit; }
   align-items:center;
   gap: 10px;
   min-width: 0;
+  border-radius: 8px;
+  outline: none;
+}
+.sidebar-brand.can-edit{
+  cursor: pointer;
+}
+.sidebar-brand.can-edit:focus-visible{
+  box-shadow: 0 0 0 3px rgba(37,99,235,.22);
 }
 .sidebar-brand-logo{
   width: 34px;
