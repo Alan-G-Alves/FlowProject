@@ -14,6 +14,7 @@ import {
 import { setAlert, clearAlert } from "../ui/alerts.js";
 import { escapeHtml } from "../utils/dom.js";
 import { ensureClientsCache } from "./clients.domain.js";
+import { createNotifications } from "../services/notifications.service.js?v=1776052722";
 import { downloadProjectStatusReportExcel, downloadProjectStatusReportPdf } from "./project-status-report.domain.js?v=1776052718";
 
 let _bound = false;
@@ -703,6 +704,19 @@ async function confirmApprovalStatusChange(deps){
       };
 
   await updateDoc(doc(db, `companies/${state.companyId}/activities`, activity.id), payload);
+  await createNotifications(db, state.companyId, activity.techUids || [], {
+    type: _approvalConfirmNextStatus === "os_aprovada" ? "os_approved" : "os_reverted",
+    title: _approvalConfirmNextStatus === "os_aprovada" ? "OS aprovada" : "OS estornada",
+    message: `${currentName || "Gestao"} ${_approvalConfirmNextStatus === "os_aprovada" ? "aprovou" : "estornou"} sua OS em ${_activeProject?.name || "um projeto"}.`,
+    entityType: "activity",
+    entityId: activity.id,
+    activityId: activity.id,
+    projectId: activity.projectId || _activeProjectId || "",
+    taskId: activity.taskId || "",
+    createdBy: currentUid,
+    createdByName: currentName,
+    createdByEmail: currentEmail
+  }).catch((err) => console.warn("[notifications:workspace-approval]", err));
   closeApprovalConfirmModal();
   await refreshWorkspace(deps);
 }

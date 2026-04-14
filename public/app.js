@@ -22,6 +22,7 @@ import {
   updateDoc,
   writeBatch,
   serverTimestamp,
+  onSnapshot,
   query,
   where,
   deleteDoc
@@ -36,24 +37,25 @@ import {
 
 import { normalizeRole, humanizeRole } from "./src/utils/roles.js";
 import { show, hide, escapeHtml } from "./src/utils/dom.js";
-import { setView } from "./src/ui/router.js?v=1776052721";
+import { setView } from "./src/ui/router.js?v=1776052722";
 import { isEmailValidBasic, isCnpjValidBasic } from "./src/utils/validators.js";
 import { fetchPlatformUser, fetchCompanyIdForUser, fetchCompanyUserProfile } from "./src/services/firestore.service.js";
 import { auth, secondaryAuth, db, storage, functions, httpsCallable } from "./src/config/firebase.js";
 import { normalizePhone, normalizeCnpj, slugify } from "./src/utils/format.js";
 import { setAlert, clearAlert, clearInlineAlert, showInlineAlert } from "./src/ui/alerts.js";
 import { getCompanyDoc, listCompaniesDocs } from "./src/services/companies.service.js";
-import * as refs from "./src/ui/refs.js?v=1776052721";
+import { createNotification } from "./src/services/notifications.service.js?v=1776052722";
+import * as refs from "./src/ui/refs.js?v=1776052724";
 import * as companiesDomain from "./src/domain/companies.domain.js?v=1770332251";
 import * as teamsDomain from "./src/domain/teams.domain.js?v=1772614200";
 import * as usersDomain from "./src/domain/users.domain.js?v=1772622200";
-import * as managerUsersDomain from "./src/domain/manager-users.domain.js?v=1776052719";
+import * as managerUsersDomain from "./src/domain/manager-users.domain.js?v=1776052722";
 import * as clientsDomain from "./src/domain/clients.domain.js?v=1776052720";
 import * as projectsDomain from "./src/domain/projects.domain.js?v=1772626200";
-import * as myActivitiesDomain from "./src/domain/my-activities.domain.js?v=1772711400";
+import * as myActivitiesDomain from "./src/domain/my-activities.domain.js?v=1776052722";
 import * as myFeedbacksDomain from "./src/domain/my-feedbacks.domain.js?v=1776040900";
-import * as osApprovalsDomain from "./src/domain/os-approvals.domain.js?v=1772711400";
-import * as projectWorkspaceDomain from "./src/domain/project-workspace.domain.js?v=1776052718";
+import * as osApprovalsDomain from "./src/domain/os-approvals.domain.js?v=1776052722";
+import * as projectWorkspaceDomain from "./src/domain/project-workspace.domain.js?v=1776052722";
 import * as reportsDomain from "./src/domain/reports.domain.js?v=1776052700";
 import * as profileModal from "./src/ui/modals/profile.modal.js?v=1770332251";
 import * as topbar from "./src/ui/topbar.js?v=1770332251";
@@ -159,8 +161,11 @@ const state = {
   mgrSelectedTeamIds: [],
   managedTeamsTargetUid: null,
   managedTeamsSelected: [],
-  _usersCache: []
+  _usersCache: [],
+  _notificationsCache: []
 };
+
+let _notificationsUnsub = null;
 
 // Guard: evita salvar projeto duas vezes (double click / duplo binding)
 let _isCreatingProject = false;
@@ -550,6 +555,7 @@ function initSidebar(){
   refs.navHome?.addEventListener("click", () => {
     setActiveNav("navHome");
     setView("dashboard");
+    loadDashboardAgenda().catch((err) => console.warn("[dashboard-agenda]", err));
   });
   refs.navReports?.addEventListener("click", () => {
     setActiveNav("navReports");
@@ -682,6 +688,233 @@ function initUserMenu(){
     closeDropdown();
     await signOut(auth);
   });
+}
+
+/** =========================
+ *  TOPBAR: NOTIFICACOES
+ *  ========================= */
+function stopNotificationsListener(){
+  if (typeof _notificationsUnsub === "function") {
+    _notificationsUnsub();
+    _notificationsUnsub = null;
+  }
+  state._notificationsCache = [];
+  renderNotifications([]);
+}
+
+function formatNotificationTime(value){
+  const date = value?.toDate ? value.toDate() : (value instanceof Date ? value : null);
+  if (!date) return "";
+  return date.toLocaleString("pt-BR", {
+    day: "2-digit",
+    month: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit"
+  });
+}
+
+function renderNotifications(items = state._notificationsCache || []){
+  if (!refs.notificationCount || !refs.notificationsList) return;
+
+  const unreadCount = items.filter((item) => item.read !== true).length;
+  refs.notificationCount.textContent = unreadCount > 99 ? "99+" : String(unreadCount);
+  refs.notificationCount.hidden = unreadCount <= 0;
+
+  if (!items.length) {
+    refs.notificationsList.innerHTML = '<div class="notifications-empty">Nenhuma notificacao por enquanto.</div>';
+    return;
+  }
+
+  refs.notificationsList.innerHTML = items.slice(0, 20).map((item) => `
+    <button class="notification-item ${item.read === true ? "" : "unread"}" type="button" data-notification-id="${escapeHtml(item.id)}">
+      <strong>${escapeHtml(item.title || "Notificacao")}</strong>
+      <span>${escapeHtml(item.message || "")}</span>
+      <small>${escapeHtml(formatNotificationTime(item.createdAt))}</small>
+    </button>
+  `).join("");
+}
+
+async function markNotificationRead(notificationId){
+  if (!state.companyId || !notificationId) return;
+  await updateDoc(doc(db, "companies", state.companyId, "notifications", notificationId), {
+    read: true,
+    readAt: serverTimestamp()
+  });
+}
+
+async function markVisibleNotificationsRead(){
+  if (!state.companyId) return;
+  const unread = (state._notificationsCache || []).filter((item) => item.read !== true);
+  if (!unread.length) return;
+  const batch = writeBatch(db);
+  unread.forEach((item) => {
+    batch.update(doc(db, "companies", state.companyId, "notifications", item.id), {
+      read: true,
+      readAt: serverTimestamp()
+    });
+  });
+  await batch.commit();
+}
+
+function openNotificationTarget(notification){
+  const type = String(notification?.type || "");
+  refs.notificationsPanel?.classList.remove("open");
+  refs.btnNotifications?.setAttribute("aria-expanded", "false");
+
+  if (type === "os_submitted") {
+    openOsApprovalsView();
+    return;
+  }
+  if (type === "os_approved" || type === "os_reverted" || type === "daily_today" || type === "daily_overdue") {
+    openMyActivitiesView();
+    return;
+  }
+  if (type === "feedback_received") {
+    openMyFeedbacksView();
+  }
+}
+
+function initNotificationsUi(){
+  if (!refs.btnNotifications || refs.btnNotifications.__fp_notifications_bound) return;
+  refs.btnNotifications.__fp_notifications_bound = true;
+
+  refs.btnNotifications.addEventListener("click", (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    const isOpen = refs.notificationsPanel?.classList.contains("open");
+    refs.notificationsPanel?.classList.toggle("open", !isOpen);
+    refs.btnNotifications?.setAttribute("aria-expanded", !isOpen ? "true" : "false");
+  });
+
+  refs.notificationsList?.addEventListener("click", async (event) => {
+    const itemBtn = event.target?.closest?.("[data-notification-id]");
+    if (!itemBtn) return;
+    const id = itemBtn.getAttribute("data-notification-id") || "";
+    const notification = (state._notificationsCache || []).find((item) => item.id === id);
+    try {
+      if (notification?.read !== true) await markNotificationRead(id);
+    } catch (err) {
+      console.warn("[notifications:read]", err);
+    }
+    openNotificationTarget(notification);
+  });
+
+  refs.btnMarkAllNotificationsRead?.addEventListener("click", async (event) => {
+    event.preventDefault();
+    try {
+      await markVisibleNotificationsRead();
+    } catch (err) {
+      console.warn("[notifications:mark-all]", err);
+    }
+  });
+
+  document.addEventListener("click", (event) => {
+    if (!refs.notificationsPanel?.classList.contains("open")) return;
+    if (refs.notificationsMenu?.contains?.(event.target)) return;
+    refs.notificationsPanel.classList.remove("open");
+    refs.btnNotifications?.setAttribute("aria-expanded", "false");
+  });
+
+  document.addEventListener("keydown", (event) => {
+    if (event.key !== "Escape") return;
+    refs.notificationsPanel?.classList.remove("open");
+    refs.btnNotifications?.setAttribute("aria-expanded", "false");
+  });
+}
+
+function startNotificationsListener(){
+  stopNotificationsListener();
+  const uid = auth.currentUser?.uid || "";
+  if (!state.companyId || !uid || state.isSuperAdmin) return;
+
+  const q = query(
+    collection(db, "companies", state.companyId, "notifications"),
+    where("recipientUid", "==", uid)
+  );
+
+  _notificationsUnsub = onSnapshot(q, (snap) => {
+    const items = snap.docs.map((docSnap) => ({ id: docSnap.id, ...docSnap.data() }))
+      .sort((a, b) => {
+        const at = a.createdAt?.toMillis ? a.createdAt.toMillis() : 0;
+        const bt = b.createdAt?.toMillis ? b.createdAt.toMillis() : 0;
+        return bt - at;
+      });
+    state._notificationsCache = items;
+    renderNotifications(items);
+  }, (err) => {
+    console.warn("[notifications:listen]", err);
+    renderNotifications([]);
+  });
+}
+
+function todayKeyLocal(){
+  const now = new Date();
+  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
+}
+
+function isActivityStatusCompleted(activity){
+  const status = String(activity?.status || "").toLowerCase();
+  return status === "os_gerada" || status === "os_aprovada";
+}
+
+async function createDailyTechnicalNotifications(){
+  const uid = auth.currentUser?.uid || "";
+  const role = String(state.profile?.role || "").toLowerCase();
+  if (!state.companyId || !uid || role !== "tecnico") return;
+
+  const today = todayKeyLocal();
+
+  try {
+    const [activitiesSnap, notificationsSnap] = await Promise.all([
+      getDocs(query(
+        collection(db, "companies", state.companyId, "activities"),
+        where("techUids", "array-contains", uid)
+      )),
+      getDocs(query(
+        collection(db, "companies", state.companyId, "notifications"),
+        where("recipientUid", "==", uid)
+      ))
+    ]);
+
+    const activities = activitiesSnap.docs.map((docSnap) => ({ id: docSnap.id, ...docSnap.data() }));
+    const pending = activities.filter((activity) => !isActivityStatusCompleted(activity));
+    const todayItems = pending.filter((activity) => String(activity.workDate || "").slice(0, 10) === today);
+    const overdueItems = pending.filter((activity) => {
+      const workDate = String(activity.workDate || "").slice(0, 10);
+      return workDate && workDate < today;
+    });
+
+    const alreadyCreated = new Set(
+      notificationsSnap.docs
+        .map((docSnap) => docSnap.data() || {})
+        .filter((item) => item.entityId === today)
+        .map((item) => item.type)
+    );
+
+    if (todayItems.length && !alreadyCreated.has("daily_today")) {
+      await createNotification(db, state.companyId, uid, {
+        type: "daily_today",
+        title: "Atividades de hoje",
+        message: `Voce tem ${todayItems.length} atividade(s) planejada(s) para hoje.`,
+        entityType: "activity-summary",
+        entityId: today,
+        createdBy: "system"
+      });
+    }
+
+    if (overdueItems.length && !alreadyCreated.has("daily_overdue")) {
+      await createNotification(db, state.companyId, uid, {
+        type: "daily_overdue",
+        title: "Atividades atrasadas",
+        message: `Voce tem ${overdueItems.length} atividade(s) atrasada(s) aguardando apontamento.`,
+        entityType: "activity-summary",
+        entityId: today,
+        createdBy: "system"
+      });
+    }
+  } catch (err) {
+    console.warn("[notifications:daily-tech]", err);
+  }
 }
 
 /** =========================
@@ -937,6 +1170,111 @@ function renderDashboardCards(profile){
     el.addEventListener("click", c.action);
     refs.dashCards.appendChild(el);
   }
+
+  loadDashboardAgenda().catch((err) => {
+    console.warn("[dashboard-agenda]", err);
+  });
+}
+
+function getMonthKey(date){
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
+}
+
+function getDateKeyLocal(date){
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
+}
+
+function renderDashboardCalendar(dateCountMap, currentDate = new Date()){
+  if (!refs.dashboardCalendar) return;
+
+  const year = currentDate.getFullYear();
+  const month = currentDate.getMonth();
+  const monthLabel = currentDate.toLocaleDateString("pt-BR", { month: "long", year: "numeric" });
+  const firstDay = new Date(year, month, 1);
+  const daysInMonth = new Date(year, month + 1, 0).getDate();
+  const startOffset = firstDay.getDay();
+  const todayKey = getDateKeyLocal(new Date());
+  const weekdays = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sab"];
+
+  if (refs.dashboardAgendaMonth) {
+    refs.dashboardAgendaMonth.textContent = monthLabel.charAt(0).toUpperCase() + monthLabel.slice(1);
+  }
+
+  const cells = [];
+  weekdays.forEach((day) => {
+    cells.push(`<div class="dashboard-calendar-weekday">${escapeHtml(day)}</div>`);
+  });
+
+  for (let i = 0; i < startOffset; i += 1) {
+    cells.push('<div class="dashboard-calendar-day is-muted" aria-hidden="true"></div>');
+  }
+
+  for (let day = 1; day <= daysInMonth; day += 1) {
+    const date = new Date(year, month, day);
+    const key = getDateKeyLocal(date);
+    const count = dateCountMap.get(key) || 0;
+    const classes = [
+      "dashboard-calendar-day",
+      key === todayKey ? "is-today" : "",
+      count > 0 ? "has-activity" : ""
+    ].filter(Boolean).join(" ");
+
+    cells.push(`
+      <div class="${classes}">
+        <span class="dashboard-calendar-number">${escapeHtml(String(day))}</span>
+        ${count > 0 ? `<span class="dashboard-calendar-count">${escapeHtml(String(count))} atividade${count > 1 ? "s" : ""}</span>` : ""}
+      </div>
+    `);
+  }
+
+  const remainder = (7 - (cells.length % 7)) % 7;
+  for (let i = 0; i < remainder; i += 1) {
+    cells.push('<div class="dashboard-calendar-day is-muted" aria-hidden="true"></div>');
+  }
+
+  refs.dashboardCalendar.innerHTML = cells.join("");
+}
+
+async function loadDashboardAgenda(){
+  if (!refs.dashboardAgenda || !refs.dashboardCalendar) return;
+
+  if (state.isSuperAdmin) {
+    refs.dashboardAgenda.hidden = true;
+    return;
+  }
+
+  refs.dashboardAgenda.hidden = false;
+  refs.dashboardCalendar.innerHTML = '<div class="dashboard-calendar-empty">Carregando agenda...</div>';
+
+  const uid = auth.currentUser?.uid || "";
+  if (!state.companyId || !uid) {
+    renderDashboardCalendar(new Map());
+    if (refs.dashboardAgendaSubtitle) refs.dashboardAgendaSubtitle.textContent = "Entre para visualizar suas atividades do mes atual.";
+    return;
+  }
+
+  const now = new Date();
+  const monthKey = getMonthKey(now);
+  const activitiesSnap = await getDocs(query(
+    collection(db, "companies", state.companyId, "activities"),
+    where("techUids", "array-contains", uid)
+  ));
+
+  const counts = new Map();
+  activitiesSnap.docs.forEach((docSnap) => {
+    const activity = docSnap.data() || {};
+    const workDate = String(activity.workDate || "").slice(0, 10);
+    if (!workDate || !workDate.startsWith(monthKey)) return;
+    counts.set(workDate, (counts.get(workDate) || 0) + 1);
+  });
+
+  const total = Array.from(counts.values()).reduce((acc, count) => acc + count, 0);
+  if (refs.dashboardAgendaSubtitle) {
+    refs.dashboardAgendaSubtitle.textContent = total
+      ? `${total} atividade(s) planejada(s) para voce neste mes.`
+      : "Nenhuma atividade planejada para voce neste mes.";
+  }
+  renderDashboardCalendar(counts, now);
 }
 
 /** =========================
@@ -1501,9 +1839,11 @@ async function updateProject() {
  *  ========================= */
 // Inicializa o dropdown do avatar (não depende do login)
 initUserMenu();
+initNotificationsUi();
 
 onAuthStateChanged(auth, async (user) => {
   clearAlert(refs.loginAlert);
+  stopNotificationsListener();
 
   state.companyId = null;
   state.company = null;
@@ -1571,6 +1911,8 @@ onAuthStateChanged(auth, async (user) => {
 
     syncSidebarForRole();
     renderTopbar(profile, user);
+    startNotificationsListener();
+    createDailyTechnicalNotifications();
     renderDashboardCards(profile);
     setView("dashboard");
   } catch (err) {
@@ -1654,11 +1996,20 @@ refs.navLogout?.addEventListener("click", async (e) => {
   await signOut(auth);
 });
 // Dashboard navigation
-refs.btnBackToDashboard?.addEventListener("click", () => setView("dashboard"));
-refs.btnBackFromAdmin?.addEventListener("click", () => setView("dashboard"));
+refs.btnBackToDashboard?.addEventListener("click", () => {
+  setView("dashboard");
+  loadDashboardAgenda().catch((err) => console.warn("[dashboard-agenda]", err));
+});
+refs.btnBackFromAdmin?.addEventListener("click", () => {
+  setView("dashboard");
+  loadDashboardAgenda().catch((err) => console.warn("[dashboard-agenda]", err));
+});
 
 // Gestor Users view
-refs.btnBackFromManagerUsers?.addEventListener("click", () => setView("dashboard"));
+refs.btnBackFromManagerUsers?.addEventListener("click", () => {
+  setView("dashboard");
+  loadDashboardAgenda().catch((err) => console.warn("[dashboard-agenda]", err));
+});
 refs.btnReloadMgrUsers?.addEventListener("click", () => loadManagerUsers());
 refs.mgrUserSearch?.addEventListener("input", () => loadManagerUsers());
 onOnce(refs.btnClearMgrUserSearch, "click", (e) => {
@@ -1911,7 +2262,10 @@ refs.modalCompanyDetail?.addEventListener("click", (e) => {
 });
 
 // My Projects (Kanban) events
-refs.btnBackFromMyProjects?.addEventListener("click", () => setView("dashboard"));
+refs.btnBackFromMyProjects?.addEventListener("click", () => {
+  setView("dashboard");
+  loadDashboardAgenda().catch((err) => console.warn("[dashboard-agenda]", err));
+});
 refs.btnOpenCreateProjectFromKanban?.addEventListener("click", async () => {
   await loadTeams();
   await loadUsers();
@@ -1919,12 +2273,18 @@ refs.btnOpenCreateProjectFromKanban?.addEventListener("click", async () => {
 });
 
 // My Activities events
-refs.btnBackFromMyActivities?.addEventListener("click", () => setView("dashboard"));
+refs.btnBackFromMyActivities?.addEventListener("click", () => {
+  setView("dashboard");
+  loadDashboardAgenda().catch((err) => console.warn("[dashboard-agenda]", err));
+});
 refs.btnReloadMyActivities?.addEventListener("click", () => loadMyActivities());
 refs.myActivitiesSearchInput?.addEventListener("input", () => loadMyActivities());
 
 // Projects events
-refs.btnBackFromProjects?.addEventListener("click", () => setView("dashboard"));
+refs.btnBackFromProjects?.addEventListener("click", () => {
+  setView("dashboard");
+  loadDashboardAgenda().catch((err) => console.warn("[dashboard-agenda]", err));
+});
 refs.btnReloadProjects?.addEventListener("click", () => loadProjects());
 refs.projectSearch?.addEventListener("input", () => loadProjects());
 refs.projectTeamFilter?.addEventListener("change", () => loadProjects());

@@ -5,7 +5,7 @@
 <meta charset="utf-8"/>
 <meta content="width=device-width, initial-scale=1.0" name="viewport"/>
 <title>FlowProject</title>
-<link href="./styles.css?v=1776052721" rel="stylesheet"/>
+<link href="./styles.css?v=1776052724" rel="stylesheet"/>
 <link href="logof.png" rel="icon" type="image/png"/>
 <style>
   /* SaaS Search (My Projects Kanban) */
@@ -55,6 +55,24 @@
 <header class="topbar">
 <div class="topbar-left"></div>
 <div class="topbar-right">
+  <div class="notifications-menu" id="notificationsMenu">
+    <button class="notification-btn" id="btnNotifications" type="button" aria-haspopup="menu" aria-expanded="false" title="Notificacoes">
+      <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+        <path d="M18 10a6 6 0 1 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9Z" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+        <path d="M9.8 21a2.4 2.4 0 0 0 4.4 0" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+      </svg>
+      <span class="notification-count" id="notificationCount" hidden>0</span>
+    </button>
+    <div class="notifications-panel" id="notificationsPanel" role="menu" aria-label="Notificacoes">
+      <div class="notifications-head">
+        <strong>Notificacoes</strong>
+        <button class="btn ghost sm" id="btnMarkAllNotificationsRead" type="button">Marcar lidas</button>
+      </div>
+      <div class="notifications-list" id="notificationsList">
+        <div class="notifications-empty">Nenhuma notificacao por enquanto.</div>
+      </div>
+    </div>
+  </div>
   <div class="user-menu" id="userMenu">
     <button class="avatar-btn" id="avatarBtn" aria-haspopup="menu" aria-expanded="false">
       <img id="userAvatarImg" class="avatar-img" alt="Avatar do usuario" />
@@ -192,6 +210,16 @@
 </div>
 </div>
 <div class="grid" id="dashCards"></div>
+<section class="dashboard-agenda" id="dashboardAgenda">
+  <div class="dashboard-agenda-head">
+    <div>
+      <h2>Minhas Agendas</h2>
+      <p class="muted" id="dashboardAgendaSubtitle">Atividades planejadas para o mes atual.</p>
+    </div>
+    <strong id="dashboardAgendaMonth">Mes atual</strong>
+  </div>
+  <div class="dashboard-calendar" id="dashboardCalendar"></div>
+</section>
 </div>
 </section><section class="view" hidden="" id="viewReports">
 <div class="container">
@@ -2178,7 +2206,7 @@
   </div>
 </div>
 
-<script src="./app.js?v=1776052721" type="module"></script>
+<script src="./app.js?v=1776052724" type="module"></script>
 <script>
   // Toggle senha (somente UI)
   document.addEventListener("click", function(e){

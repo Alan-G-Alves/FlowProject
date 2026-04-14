@@ -10,6 +10,7 @@ import {
 
 import { clearAlert, setAlert } from "../ui/alerts.js";
 import { escapeHtml, hide, show } from "../utils/dom.js";
+import { createNotifications } from "../services/notifications.service.js?v=1776052722";
 
 let _bound = false;
 let _currentActivity = null;
@@ -462,6 +463,20 @@ async function saveMyActivityModal(deps) {
     updatedBy: currentUid
   });
 
+  await createNotifications(db, state.companyId, [_currentActivity.managerUid, _currentActivity.coordinatorUid], {
+    type: "os_submitted",
+    title: "OS enviada para aprovacao",
+    message: `${state.profile?.name || "Tecnico"} enviou apontamento em ${_currentActivity.projectName || "um projeto"}.`,
+    entityType: "activity",
+    entityId: _currentActivity.activity.id,
+    activityId: _currentActivity.activity.id,
+    projectId: _currentActivity.projectId || "",
+    taskId: _currentActivity.taskId || "",
+    createdBy: currentUid,
+    createdByName: state.profile?.name || "",
+    createdByEmail: auth?.currentUser?.email || ""
+  }).catch((err) => console.warn("[notifications:os-submitted]", err));
+
   closeMyActivityModal();
   await loadMyActivities(deps);
 }
@@ -511,6 +526,8 @@ export async function loadMyActivities(deps) {
       activity,
       projectId: activity.projectId || project?.id || "",
       projectName: project?.name || activity.projectName || "Projeto sem nome",
+      managerUid: project?.managerUid || "",
+      coordinatorUid: project?.coordinatorUid || "",
       clientName: project?.clientName || project?.client?.name || activity.clientName || "",
       taskId: activity.taskId || task?.id || "",
       taskName: task?.name || activity.taskName || "Tarefa sem nome"

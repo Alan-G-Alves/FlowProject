@@ -62,6 +62,12 @@ export const userMenu = byId("userMenu");
 export const avatarDropdown = byId("avatarDropdown");
 export const btnEditProfile = byId("btnEditProfile");
 export const btnUserLogout = byId("btnUserLogout");
+export const notificationsMenu = byId("notificationsMenu");
+export const btnNotifications = byId("btnNotifications");
+export const notificationCount = byId("notificationCount");
+export const notificationsPanel = byId("notificationsPanel");
+export const notificationsList = byId("notificationsList");
+export const btnMarkAllNotificationsRead = byId("btnMarkAllNotificationsRead");
 
 // Perfil modal
 export const profileModal = byId("profileModal");
@@ -85,6 +91,10 @@ export const dashSubtitle = byId("dashSubtitle");
 export const chipTeam = byId("chipTeam");
 export const chipEmail = byId("chipEmail");
 export const dashCards = byId("dashCards");
+export const dashboardAgenda = byId("dashboardAgenda");
+export const dashboardAgendaSubtitle = byId("dashboardAgendaSubtitle");
+export const dashboardAgendaMonth = byId("dashboardAgendaMonth");
+export const dashboardCalendar = byId("dashboardCalendar");
 export const reportsPeriodFilter = byId("reportsPeriodFilter");
 export const reportsClientFilter = byId("reportsClientFilter");
 export const reportsTeamFilter = byId("reportsTeamFilter");

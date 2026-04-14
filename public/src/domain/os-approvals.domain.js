@@ -8,6 +8,7 @@ import {
 } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore.js";
 
 import { hide, show, escapeHtml } from "../utils/dom.js";
+import { createNotifications } from "../services/notifications.service.js?v=1776052722";
 
 let _bound = false;
 let _itemsCache = [];
@@ -251,6 +252,7 @@ async function updateApprovalStatus(ids, nextStatus, deps) {
   const currentEmail = auth?.currentUser?.email || "";
 
   for (const id of ids) {
+    const item = _itemsCache.find((entry) => entry.id === id) || null;
     const payload = nextStatus === "os_aprovada"
       ? {
           status: "os_aprovada",
@@ -274,6 +276,20 @@ async function updateApprovalStatus(ids, nextStatus, deps) {
         };
 
     await updateDoc(doc(db, `companies/${state.companyId}/activities`, id), payload);
+
+    await createNotifications(db, state.companyId, [item?.techUid], {
+      type: nextStatus === "os_aprovada" ? "os_approved" : "os_reverted",
+      title: nextStatus === "os_aprovada" ? "OS aprovada" : "OS estornada",
+      message: `${currentName || "Gestao"} ${nextStatus === "os_aprovada" ? "aprovou" : "estornou"} sua OS em ${item?.projectName || "um projeto"}.`,
+      entityType: "activity",
+      entityId: id,
+      activityId: id,
+      projectId: item?.projectId || "",
+      taskId: item?.taskId || "",
+      createdBy: currentUid,
+      createdByName: currentName,
+      createdByEmail: currentEmail
+    }).catch((err) => console.warn("[notifications:os-approval]", err));
   }
 }
 
@@ -412,7 +428,9 @@ export async function loadOsApprovals(deps) {
         clientName: project.clientName || project.client?.name || activity.clientName || "",
         managerUid: project.managerUid || "",
         managerName: manager.name || project.managerName || "Sem gestor",
+        taskId: activity.taskId || "",
         taskName: activity.taskName || "Tarefa",
+        techUid,
         techName: Array.isArray(activity.techNames) && activity.techNames.length ? activity.techNames.join(", ") : (tech.name || "Tecnico"),
         workedHours: Number(activity.workedHours || 0),
         hoursWorked: Number(activity.hoursWorked || 0),

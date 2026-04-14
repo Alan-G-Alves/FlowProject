@@ -426,6 +426,42 @@ allow delete: if false;
           || isCoordenador(companyId);
       }
 
+      // notifications
+      match /notifications/{notificationId} {
+        allow read: if isCompanyMember(companyId)
+          && resource.data.recipientUid == myUid();
+
+        allow create: if isCompanyMember(companyId)
+          && request.resource.data.keys().hasOnly([
+            "recipientUid", "type", "title", "message", "entityType", "entityId",
+            "projectId", "activityId", "taskId", "read", "createdAt",
+            "createdBy", "createdByName", "createdByEmail"
+          ])
+          && request.resource.data.recipientUid is string
+          && request.resource.data.recipientUid.size() > 0
+          && request.resource.data.type is string
+          && request.resource.data.title is string
+          && request.resource.data.message is string
+          && request.resource.data.entityType is string
+          && request.resource.data.entityId is string
+          && request.resource.data.projectId is string
+          && request.resource.data.activityId is string
+          && request.resource.data.taskId is string
+          && request.resource.data.read == false
+          && request.resource.data.createdAt is timestamp
+          && request.resource.data.createdBy is string
+          && request.resource.data.createdByName is string
+          && request.resource.data.createdByEmail is string;
+
+        allow update: if isCompanyMember(companyId)
+          && resource.data.recipientUid == myUid()
+          && request.resource.data.diff(resource.data).changedKeys().hasOnly(["read", "readAt"])
+          && request.resource.data.read is bool
+          && (!("readAt" in request.resource.data) || request.resource.data.readAt is timestamp);
+
+        allow delete: if false;
+      }
+
       match /{document=**} {
         allow read, write: if false;
       }

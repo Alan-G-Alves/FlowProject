@@ -602,6 +602,7 @@ import { humanizeRole } from "../utils/roles.js";
 import { show, hide, escapeHtml } from "../utils/dom.js";
 import { isEmailValidBasic } from "../utils/validators.js";
 import { normalizePhone } from "../utils/format.js";
+import { createNotifications } from "../services/notifications.service.js?v=1776052722";
 
 
 
@@ -1222,6 +1223,17 @@ export async function saveTechFeedback(deps) {
     await updateDoc(doc(db, "companies", state.companyId, "users", state._techFeedbackUid), {
       feedbackCount: increment(1)
     });
+
+    await createNotifications(db, state.companyId, [state._techFeedbackUid], {
+      type: "feedback_received",
+      title: "Novo feedback recebido",
+      message: `${meName || createdByEmail || "Gestao"} registrou um feedback para voce.`,
+      entityType: "feedback",
+      entityId: fbRef.id,
+      createdBy,
+      createdByName: meName,
+      createdByEmail
+    }).catch((err) => console.warn("[notifications:feedback]", err));
 
     refs.techFeedbackDate.value = "";
     refs.techFeedbackScore.value = "";
