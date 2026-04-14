@@ -91,6 +91,14 @@ function statusReportActivityLabel(activity, today){
   return "Em Andamento";
 }
 
+function daysOverdue(activity, today){
+  const workDate = String(activity?.workDate || "").slice(0, 10);
+  if (!workDate) return 0;
+  const parsed = new Date(`${workDate}T00:00:00`);
+  if (!Number.isFinite(parsed.getTime()) || parsed >= today) return 0;
+  return Math.max(0, Math.floor((today.getTime() - parsed.getTime()) / 86400000));
+}
+
 function buildExecutiveSummary(data){
   const { project, summary } = data;
   const parts = [
@@ -183,6 +191,7 @@ function buildStatusReportData({ project, tasks, activities, state }){
       techNames: getTechNames(activity),
       keyUsers: Array.isArray(activity.keyUsers) && activity.keyUsers.length ? activity.keyUsers.join(", ") : "-",
       hours: asNumber(activity.hoursWorked),
+      daysOverdue: daysOverdue(activity, today),
       status: statusReportActivityLabel(activity, today)
     };
   });
@@ -379,10 +388,11 @@ function buildReportHtml(data, options = {}){
             <h2>Pontos de atencao</h2>
             ${data.attentionRows.length ? `<table>
               <thead>
-                <tr><th>Data</th><th>Tarefa</th><th>Atividade</th><th>Responsavel tecnico</th><th>Horas</th></tr>
+                <tr><th>Data</th><th>Dias em atraso</th><th>Tarefa</th><th>Atividade</th><th>Responsavel tecnico</th><th>Horas</th></tr>
               </thead>
               <tbody>${data.attentionRows.map((activity) => `<tr>
                 <td>${escapeHtml(activity.date)}</td>
+                <td>${escapeHtml(String(activity.daysOverdue))}</td>
                 <td>#${escapeHtml(String(activity.taskNumber))}</td>
                 <td>${escapeHtml(activity.activityName)}</td>
                 <td>${escapeHtml(activity.techNames)}</td>
@@ -644,9 +654,10 @@ function buildXlsxWorkbookFiles(data){
     [xlsxText("Pontos de atencao", "1")],
     ...(data.attentionRows.length
       ? [
-          [xlsxText("Data", "1"), xlsxText("Tarefa", "1"), xlsxText("Atividade", "1"), xlsxText("Responsavel tecnico", "1"), xlsxText("Horas", "1")],
+          [xlsxText("Data", "1"), xlsxText("Dias em atraso", "1"), xlsxText("Tarefa", "1"), xlsxText("Atividade", "1"), xlsxText("Responsavel tecnico", "1"), xlsxText("Horas", "1")],
           ...data.attentionRows.map(activity => [
             xlsxText(activity.date),
+            xlsxNumber(activity.daysOverdue),
             xlsxText(`#${activity.taskNumber}`),
             xlsxText(activity.activityName),
             xlsxText(activity.techNames),
@@ -1082,14 +1093,16 @@ export async function downloadProjectStatusReportPdf(payload){
       headerHeight: 8,
       fontSize: 7.5,
       columns: [
-        { key: "date", label: "Data", width: .75 },
-        { key: "task", label: "Tarefa", width: .8 },
-        { key: "activity", label: "Atividade", width: 2.2 },
-        { key: "techNames", label: "Responsavel tecnico", width: 1.4 },
+        { key: "date", label: "Data", width: .7 },
+        { key: "days", label: "Dias atraso", width: .65 },
+        { key: "task", label: "Tarefa", width: .75 },
+        { key: "activity", label: "Atividade", width: 2.05 },
+        { key: "techNames", label: "Responsavel tecnico", width: 1.35 },
         { key: "hours", label: "Horas", width: .55 }
       ],
       rows: data.attentionRows.map((activity) => ({
         date: activity.date,
+        days: String(activity.daysOverdue),
         task: `#${activity.taskNumber}`,
         activity: activity.activityName,
         techNames: activity.techNames,
