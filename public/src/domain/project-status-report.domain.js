@@ -888,9 +888,12 @@ function drawSimpleTable(doc, config){
       doc.setTextColor(isHeader ? 93 : 22, isHeader ? 104 : 32, isHeader ? 123 : 51);
       if (!isHeader && columns[i]?.key === "status"){
         const status = String(cells[i] || "");
-        if (status === "Concluida") doc.setTextColor(15, 122, 79);
-        if (status === "Atrasada") doc.setTextColor(180, 35, 24);
-        if (status === "Em Andamento") doc.setTextColor(31, 91, 153);
+        doc.setFillColor(102, 113, 133);
+        if (status === "Concluida") doc.setFillColor(15, 122, 79);
+        if (status === "Atrasada") doc.setFillColor(180, 35, 24);
+        if (status === "Em Andamento") doc.setFillColor(31, 91, 153);
+        doc.roundedRect(x + 2, cursorY + 2, Math.max(10, width - 4), Math.min(6, height - 4), 2, 2, "F");
+        doc.setTextColor(255, 255, 255);
       }
       doc.setFont("helvetica", isHeader ? "bold" : "normal");
       doc.setFontSize(fontSize);
@@ -920,8 +923,7 @@ function addPdfPageChrome(doc, data){
     doc.setFont("helvetica", "normal");
     doc.setFontSize(7.5);
     doc.setTextColor(102, 113, 133);
-    const managerLine = `${data.summary.managerName} | Gerente de projetos | ${data.summary.managerPhone} | ${data.summary.managerEmail}`;
-    doc.text(managerLine, 10, pageHeight - 5);
+    doc.text(`${data.project.name} | ${data.client.name}`, 10, pageHeight - 5);
     doc.text(`Pagina ${page} de ${pageCount}`, pageWidth - 10, pageHeight - 5, { align: "right" });
     if (page > 1){
       doc.setDrawColor(225, 232, 242);
@@ -975,7 +977,8 @@ export async function downloadProjectStatusReportPdf(payload){
   doc.setFont("helvetica", "normal");
   doc.setFontSize(10.3);
   doc.setTextColor(94, 104, 123);
-  doc.text(`Cliente: ${data.client.name}  •  Status: ${data.project.status}  •  Prazo final: ${data.project.endDate}`, 44, 34);
+  doc.text(`Cliente: ${data.client.name} | Status: ${data.project.status} | Prazo final: ${data.project.endDate}`, 44, 34);
+  doc.text(`Gestor: ${summary.managerName}`, 44, 40);
 
   const summaryCards = [
     { label: "Horas previstas", value: formatHours(data.project.billingHours), sub: "Planejamento total" },
@@ -984,31 +987,7 @@ export async function downloadProjectStatusReportPdf(payload){
     { label: "Atividades", value: String(summary.activityCount), sub: `${summary.pendingCount} pendentes • ${summary.completedCount} concluidas` },
   ];
 
-  doc.setFont("helvetica", "bold");
-  doc.setFontSize(12);
-  doc.setTextColor(22, 32, 51);
-  doc.text("Informacoes do projeto", 10, 58);
-
-  let nextY = drawSimpleTable(doc, {
-    startY: 61,
-    fontSize: 8.4,
-    columns: [
-      { key: "client", label: "Cliente", width: 1.2 },
-      { key: "team", label: "Equipe", width: 1 },
-      { key: "manager", label: "Gestor", width: 1 },
-      { key: "coordinator", label: "Coordenador", width: 1 },
-      { key: "deadline", label: "Prazo final", width: .75 },
-      { key: "status", label: "Status", width: .75 }
-    ],
-    rows: [{
-      client: data.client.name,
-      team: summary.teamName,
-      manager: summary.managerName,
-      coordinator: summary.coordinatorName,
-      deadline: data.project.endDate,
-      status: data.project.status
-    }]
-  }) + 8;
+  let nextY = 58;
 
   let x = 10;
   summaryCards.forEach((card) => {
@@ -1087,6 +1066,14 @@ export async function downloadProjectStatusReportPdf(payload){
   doc.setFontSize(12);
   doc.setTextColor(22, 32, 51);
   doc.text("Pontos de atencao", 10, attentionY);
+  if (summary.delayedCount > 0){
+    const hiddenDelayed = Math.max(0, summary.delayedCount - data.attentionRows.length);
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(8.5);
+    doc.setTextColor(180, 35, 24);
+    doc.text(`${summary.delayedCount} atividade(s) atrasada(s)${hiddenDelayed ? ` | + ${hiddenDelayed} nao listada(s)` : ""}`, 10, attentionY + 6);
+    attentionY += 6;
+  }
 
   if (data.attentionRows.length){
     attentionY = drawSimpleTable(doc, {
@@ -1117,16 +1104,6 @@ export async function downloadProjectStatusReportPdf(payload){
     attentionY += 15;
   }
 
-  doc.setFont("helvetica", "bold");
-  doc.setFontSize(12);
-  doc.setTextColor(22, 32, 51);
-  doc.text("Legenda de status", 10, attentionY);
-  doc.setFont("helvetica", "normal");
-  doc.setFontSize(8.6);
-  doc.setTextColor(94, 104, 123);
-  doc.text("Em Andamento: atividade planejada ainda sem OS.", 10, attentionY + 7);
-  doc.text("Concluida: OS enviada ou aprovada.", 10, attentionY + 12);
-  doc.text("Atrasada: atividade planejada vencida sem conclusao.", 10, attentionY + 17);
 
   doc.addPage();
   nextY = 20;
@@ -1162,7 +1139,7 @@ export async function downloadProjectStatusReportPdf(payload){
   doc.setFontSize(12);
   doc.text("Detalhamento das atividades", 10, nextY);
 
-  drawSimpleTable(doc, {
+  nextY = drawSimpleTable(doc, {
     startY: nextY + 3,
     rowHeight: 10,
     headerHeight: 8,
@@ -1185,7 +1162,25 @@ export async function downloadProjectStatusReportPdf(payload){
       hours: formatHours(activity.hours),
       status: activity.status
     }))
-  });
+  }) + 12;
+
+  const pageHeight = doc.internal.pageSize.getHeight();
+  if (nextY > pageHeight - 45){
+    doc.addPage();
+    nextY = 24;
+  }
+  doc.setDrawColor(180, 190, 205);
+  doc.line(10, nextY + 12, 82, nextY + 12);
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(10);
+  doc.setTextColor(22, 32, 51);
+  doc.text(summary.managerName, 10, nextY + 18);
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(8.5);
+  doc.setTextColor(94, 104, 123);
+  doc.text("Gerente de projetos", 10, nextY + 23);
+  doc.text(`Telefone: ${summary.managerPhone}`, 10, nextY + 28);
+  doc.text(`Email: ${summary.managerEmail}`, 10, nextY + 33);
 
   addPdfPageChrome(doc, data);
 
