@@ -1244,6 +1244,10 @@ a{ color: inherit; }
   background: rgba(255,255,255,.65);
   padding: 6px;
 }
+.sidebar-brand-logo.is-company-logo{
+  object-fit: cover;
+  padding: 0;
+}
 .sidebar-brand-text{
   display:none;
   min-width: 0;
@@ -1262,6 +1266,34 @@ a{ color: inherit; }
   font-size: 12px;
   color: var(--muted);
   margin-top: 2px;
+}
+
+.company-brand-preview{
+  display:flex;
+  align-items:center;
+  gap:12px;
+  padding:12px;
+  border:1px solid var(--border);
+  border-radius:12px;
+  background:#fff;
+  margin-bottom:16px;
+}
+.company-brand-preview img{
+  width:44px;
+  height:44px;
+  border-radius:12px;
+  object-fit:cover;
+  border:1px solid rgba(12,18,32,.12);
+}
+.company-brand-preview strong{
+  display:block;
+  font-size:15px;
+}
+.company-brand-preview span{
+  display:block;
+  color:var(--muted);
+  font-size:12px;
+  margin-top:2px;
 }
 
 /* Nav items */

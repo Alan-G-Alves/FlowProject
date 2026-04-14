@@ -1192,7 +1192,9 @@ export async function downloadProjectStatusReportPdf(payload){
   doc.setFontSize(9.2);
   doc.text(executiveText, 14, nextY + 12);
 
-  const statusTitleY = nextY + executiveBoxHeight + 10;
+  nextY = drawProjectSummaryChart(doc, data, nextY + executiveBoxHeight + 10);
+
+  const statusTitleY = nextY + 2;
   doc.setFont("helvetica", "bold");
   doc.setFontSize(12);
   doc.setTextColor(22, 32, 51);
@@ -1324,15 +1326,9 @@ export async function downloadProjectStatusReportPdf(payload){
   }) + 12;
 
   const pageHeight = doc.internal.pageSize.getHeight();
-  if (nextY > pageHeight - 82){
-    doc.addPage();
-    nextY = 24;
-  }
-  nextY = drawProjectSummaryChart(doc, data, nextY);
   if (nextY > pageHeight - 45){
     doc.addPage();
     nextY = 24;
-    nextY = drawProjectSummaryChart(doc, data, nextY);
   }
   doc.setDrawColor(180, 190, 205);
   doc.line(10, nextY + 12, 82, nextY + 12);

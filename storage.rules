@@ -7,20 +7,12 @@ service firebase.storage {
     }
 
     function myCompanyId() {
-      return get(/databases/(default)/documents/userCompanies/$(request.auth.uid)).data.companyId;
-    }
-
-    function isMemberOfCompany(companyId) {
-      return exists(/databases/(default)/documents/companies/$(companyId)/users/$(request.auth.uid));
-    }
-
-    function sameCompany(companyId) {
-      return companyId == myCompanyId() || isMemberOfCompany(companyId);
+      return firestore.get(/databases/(default)/documents/userCompanies/$(request.auth.uid)).data.companyId;
     }
 
     function myRole() {
       // role do usuário logado dentro da empresa
-      return get(/databases/(default)/documents/companies/$(myCompanyId())/users/$(request.auth.uid)).data.role;
+      return firestore.get(/databases/(default)/documents/companies/$(myCompanyId())/users/$(request.auth.uid)).data.role;
     }
 
     function canManageUsers() {
@@ -28,7 +20,7 @@ service firebase.storage {
     }
 
     function targetExistsInMyCompany(targetUid) {
-      return exists(/databases/(default)/documents/companies/$(myCompanyId())/users/$(targetUid));
+      return firestore.get(/databases/(default)/documents/companies/$(myCompanyId())/users/$(targetUid)).data.role is string;
     }
 
     // Avatares (SEM extensão): avatars/{uid}
@@ -71,6 +63,22 @@ service firebase.storage {
         && canManageUsers();
     }
 
+
+    // Logo da empresa: companyLogos/{companyId}/brandLogo
+    match /companyLogos/{companyId}/{fileName} {
+      allow read: if signedIn();
+
+      allow create, update: if signedIn()
+        && companyId == myCompanyId()
+        && myRole() == 'admin'
+        && fileName == 'brandLogo'
+        && request.resource.size < 2 * 1024 * 1024
+        && request.resource.contentType.matches('image/.*');
+
+      allow delete: if signedIn()
+        && companyId == myCompanyId()
+        && myRole() == 'admin';
+    }
 
 // Upload temporário de avatar enquanto o usuário ainda NÃO existe em companies/{companyId}/users/{uid}
     // Caminho: tempAvatars/{companyId}/{uploaderUid}/{tempId}

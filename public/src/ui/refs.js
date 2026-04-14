@@ -14,6 +14,8 @@ export const viewClients = byId("viewClients");
 
 // Sidebar
 export const sidebar = byId("sidebar");
+export const sidebarBrandLogo = byId("sidebarBrandLogo");
+export const sidebarBrandTitle = byId("sidebarBrandTitle");
 export const btnToggleSidebar = byId("btnToggleSidebar");
 export const navHome = byId("navHome");
 export const navAddProject = byId("navAddProject");
@@ -24,6 +26,18 @@ export const navReports = byId("navReports");
 export const navFeedbacks = byId("navFeedbacks");
 export const navConfig = byId("navConfig");
 export const navLogout = byId("navLogout");
+
+// Company brand settings
+export const modalCompanyBrand = byId("modalCompanyBrand");
+export const btnCloseCompanyBrand = byId("btnCloseCompanyBrand");
+export const btnCancelCompanyBrand = byId("btnCancelCompanyBrand");
+export const btnSaveCompanyBrand = byId("btnSaveCompanyBrand");
+export const btnResetCompanyBrand = byId("btnResetCompanyBrand");
+export const companyBrandAlert = byId("companyBrandAlert");
+export const companyBrandName = byId("companyBrandName");
+export const companyBrandLogoFile = byId("companyBrandLogoFile");
+export const companyBrandPreviewImg = byId("companyBrandPreviewImg");
+export const companyBrandPreviewName = byId("companyBrandPreviewName");
 
 // Login
 export const loginForm = byId("loginForm");

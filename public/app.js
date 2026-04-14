@@ -42,8 +42,8 @@ import { fetchPlatformUser, fetchCompanyIdForUser, fetchCompanyUserProfile } fro
 import { auth, secondaryAuth, db, storage, functions, httpsCallable } from "./src/config/firebase.js";
 import { normalizePhone, normalizeCnpj, slugify } from "./src/utils/format.js";
 import { setAlert, clearAlert, clearInlineAlert, showInlineAlert } from "./src/ui/alerts.js";
-import { listCompaniesDocs } from "./src/services/companies.service.js";
-import * as refs from "./src/ui/refs.js?v=1772634200";
+import { getCompanyDoc, listCompaniesDocs } from "./src/services/companies.service.js";
+import * as refs from "./src/ui/refs.js?v=1776052712";
 import * as companiesDomain from "./src/domain/companies.domain.js?v=1770332251";
 import * as teamsDomain from "./src/domain/teams.domain.js?v=1772614200";
 import * as usersDomain from "./src/domain/users.domain.js?v=1772622200";
@@ -53,7 +53,7 @@ import * as projectsDomain from "./src/domain/projects.domain.js?v=1772626200";
 import * as myActivitiesDomain from "./src/domain/my-activities.domain.js?v=1772711400";
 import * as myFeedbacksDomain from "./src/domain/my-feedbacks.domain.js?v=1776040900";
 import * as osApprovalsDomain from "./src/domain/os-approvals.domain.js?v=1772711400";
-import * as projectWorkspaceDomain from "./src/domain/project-workspace.domain.js?v=1776052711";
+import * as projectWorkspaceDomain from "./src/domain/project-workspace.domain.js?v=1776052712";
 import * as reportsDomain from "./src/domain/reports.domain.js?v=1776052700";
 import * as profileModal from "./src/ui/modals/profile.modal.js?v=1770332251";
 import * as topbar from "./src/ui/topbar.js?v=1770332251";
@@ -151,6 +151,7 @@ async function createUserWithAuthAndResetLink(payload){
  *  ========================= */
 const state = {
   companyId: null,
+  company: null,
   profile: null,
   isSuperAdmin: false,
   teams: [],          // cache de equipes
@@ -172,6 +173,43 @@ let _isCreatingProject = false;
 // Acesse via refs.nomeDoElemento (ex: refs.viewLogin, refs.btnAvatar)
 
 let currentCompanyDetailId = null;
+
+const DEFAULT_BRAND = {
+  name: "FlowProject",
+  logoURL: "logof.png"
+};
+
+function getCompanyBrand(company = state.company){
+  const name = (company?.displayName || company?.name || DEFAULT_BRAND.name).toString().trim() || DEFAULT_BRAND.name;
+  const logoURL = (company?.logoURL || "").toString().trim();
+  return { name, logoURL: logoURL || DEFAULT_BRAND.logoURL, customLogo: Boolean(logoURL) };
+}
+
+function renderSidebarBrand(company = state.company){
+  const brand = getCompanyBrand(company);
+  if (refs.sidebarBrandLogo){
+    refs.sidebarBrandLogo.src = brand.logoURL;
+    refs.sidebarBrandLogo.alt = brand.name;
+    refs.sidebarBrandLogo.classList.toggle("is-company-logo", brand.customLogo);
+  }
+  if (refs.sidebarBrandTitle) refs.sidebarBrandTitle.textContent = brand.name;
+}
+
+async function loadCurrentCompanyBrand(){
+  if (!state.companyId || state.isSuperAdmin){
+    state.company = null;
+    renderSidebarBrand(null);
+    return null;
+  }
+  try{
+    state.company = await getCompanyDoc(state.companyId);
+  }catch(err){
+    console.warn("[company-brand] nao foi possivel carregar marca da empresa", err);
+    state.company = null;
+  }
+  renderSidebarBrand(state.company);
+  return state.company;
+}
 
 /** =========================
  *  4) HELPERS
@@ -388,7 +426,7 @@ function initSidebar(){
 
   refs.navConfig?.addEventListener("click", () => {
     setActiveNav("navConfig");
-    alert("Em breve: Configurações");
+    openCompanyBrandModal();
   });
   syncSidebarForRole();
 }
@@ -634,8 +672,7 @@ refs.profilePhotoFile?.addEventListener("change", async (e) => {
     const user = auth.currentUser;
     if (!user) throw new Error("not-auth");
 
-    const ext = (file.type || "").includes("png") ? "png" : "jpg";
-    const path = `avatars/${user.uid}.${ext}`;
+    const path = `avatars/${user.uid}`;
     const ref = storageRef(storage, path);
 
     await uploadBytes(ref, file, { contentType: file.type || "image/jpeg" });
@@ -867,6 +904,98 @@ function closeCreateTeamModal(){
 
 async function createTeam(){
   await teamsDomain.createTeam(getTeamsDeps());
+}
+
+function isCompanyAdmin(){
+  return !state.isSuperAdmin && String(state.profile?.role || "").toLowerCase() === "admin";
+}
+
+function closeCompanyBrandModal(){
+  hide(refs.modalCompanyBrand);
+  clearAlert(refs.companyBrandAlert);
+  if (refs.companyBrandLogoFile) refs.companyBrandLogoFile.value = "";
+}
+
+async function openCompanyBrandModal(){
+  clearAlert(refs.companyBrandAlert);
+  if (!isCompanyAdmin()){
+    alert("Acesso restrito: somente admin da empresa pode alterar a marca.");
+    return;
+  }
+  if (!state.company && state.companyId) await loadCurrentCompanyBrand();
+  const brand = getCompanyBrand(state.company);
+  if (refs.companyBrandName) refs.companyBrandName.value = brand.name === DEFAULT_BRAND.name ? (state.company?.name || "") : brand.name;
+  if (refs.companyBrandPreviewName) refs.companyBrandPreviewName.textContent = brand.name;
+  if (refs.companyBrandPreviewImg) refs.companyBrandPreviewImg.src = brand.logoURL;
+  if (refs.companyBrandLogoFile) refs.companyBrandLogoFile.value = "";
+  show(refs.modalCompanyBrand);
+}
+
+function previewCompanyBrand(){
+  const name = (refs.companyBrandName?.value || "").trim() || state.company?.name || DEFAULT_BRAND.name;
+  if (refs.companyBrandPreviewName) refs.companyBrandPreviewName.textContent = name;
+  const file = refs.companyBrandLogoFile?.files?.[0];
+  if (file && refs.companyBrandPreviewImg){
+    refs.companyBrandPreviewImg.src = URL.createObjectURL(file);
+  } else if (refs.companyBrandPreviewImg){
+    refs.companyBrandPreviewImg.src = getCompanyBrand(state.company).logoURL;
+  }
+}
+
+async function saveCompanyBrand(){
+  clearAlert(refs.companyBrandAlert);
+  if (!isCompanyAdmin()) return setAlert(refs.companyBrandAlert, "Acesso restrito.");
+  if (!state.companyId) return setAlert(refs.companyBrandAlert, "Empresa nao identificada.");
+
+  const displayName = (refs.companyBrandName?.value || "").trim();
+  const file = refs.companyBrandLogoFile?.files?.[0] || null;
+  if (!displayName) return setAlert(refs.companyBrandAlert, "Informe o nome exibido.");
+  if (file && !String(file.type || "").startsWith("image/")) return setAlert(refs.companyBrandAlert, "Selecione uma imagem valida.");
+  if (file && file.size > 2 * 1024 * 1024) return setAlert(refs.companyBrandAlert, "A imagem deve ter ate 2MB.");
+
+  try{
+    let logoURL = (state.company?.logoURL || "").toString();
+    let logoPath = (state.company?.logoPath || "").toString();
+    if (file){
+      logoPath = `companyLogos/${state.companyId}/brandLogo`;
+      const ref = storageRef(storage, logoPath);
+      await uploadBytes(ref, file, { contentType: file.type || "image/png" });
+      logoURL = await getDownloadURL(ref);
+    }
+    await updateDoc(doc(db, "companies", state.companyId), {
+      displayName,
+      logoURL,
+      logoPath,
+      updatedAt: serverTimestamp()
+    });
+    state.company = { ...(state.company || {}), displayName, logoURL, logoPath };
+    renderSidebarBrand(state.company);
+    closeCompanyBrandModal();
+  }catch(err){
+    console.error("[company-brand:save]", err);
+    setAlert(refs.companyBrandAlert, err?.message || "Nao foi possivel salvar a marca da empresa.");
+  }
+}
+
+async function resetCompanyBrand(){
+  clearAlert(refs.companyBrandAlert);
+  if (!isCompanyAdmin()) return setAlert(refs.companyBrandAlert, "Acesso restrito.");
+  if (!state.companyId) return setAlert(refs.companyBrandAlert, "Empresa nao identificada.");
+  const displayName = (state.company?.name || DEFAULT_BRAND.name).toString().trim() || DEFAULT_BRAND.name;
+  try{
+    await updateDoc(doc(db, "companies", state.companyId), {
+      displayName,
+      logoURL: "",
+      logoPath: "",
+      updatedAt: serverTimestamp()
+    });
+    state.company = { ...(state.company || {}), displayName, logoURL: "", logoPath: "" };
+    renderSidebarBrand(state.company);
+    closeCompanyBrandModal();
+  }catch(err){
+    console.error("[company-brand:reset]", err);
+    setAlert(refs.companyBrandAlert, err?.message || "Nao foi possivel restaurar a marca padrao.");
+  }
 }
 
 function updateAdminSummary(){
@@ -1175,10 +1304,12 @@ onAuthStateChanged(auth, async (user) => {
   clearAlert(refs.loginAlert);
 
   state.companyId = null;
+  state.company = null;
   state.profile = null;
   state.isSuperAdmin = false;
 
   if (!user){
+    renderSidebarBrand(null);
     setView("login");
     return;
   }
@@ -1193,6 +1324,7 @@ onAuthStateChanged(auth, async (user) => {
     if (platformUser && platformUser.role === "superadmin" && platformUser.active !== false){
       state.isSuperAdmin = true;
       state.profile = platformUser;
+      renderSidebarBrand(null);
 
       syncSidebarForRole();
       renderTopbar(platformUser, user);
@@ -1233,6 +1365,7 @@ onAuthStateChanged(auth, async (user) => {
     localStorage.setItem("currentCompanyId", companyId);
 
     state.profile = profile;
+    await loadCurrentCompanyBrand();
 
     syncSidebarForRole();
     renderTopbar(profile, user);
@@ -1249,6 +1382,16 @@ onAuthStateChanged(auth, async (user) => {
 /** =========================
  *  11) EVENTOS
  *  ========================= */
+refs.btnCloseCompanyBrand?.addEventListener("click", closeCompanyBrandModal);
+refs.btnCancelCompanyBrand?.addEventListener("click", closeCompanyBrandModal);
+refs.modalCompanyBrand?.addEventListener("click", (event) => {
+  if (event.target?.matches?.("[data-close-company-brand='true']")) closeCompanyBrandModal();
+});
+refs.companyBrandName?.addEventListener("input", previewCompanyBrand);
+refs.companyBrandLogoFile?.addEventListener("change", previewCompanyBrand);
+refs.btnSaveCompanyBrand?.addEventListener("click", saveCompanyBrand);
+refs.btnResetCompanyBrand?.addEventListener("click", resetCompanyBrand);
+
 refs.loginForm?.addEventListener("submit", async (e) => {
   e.preventDefault();
   clearAlert(refs.loginAlert);
