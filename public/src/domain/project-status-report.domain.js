@@ -947,6 +947,60 @@ function addPdfPageChrome(doc, data){
   }
 }
 
+function drawProjectSummaryChart(doc, data, startY){
+  const pageWidth = doc.internal.pageSize.getWidth();
+  const { project, summary } = data;
+  const rows = [
+    { label: "Horas previstas", value: asNumber(project.billingHours), color: [31, 91, 153] },
+    { label: "Horas planejadas", value: asNumber(summary.plannedWithoutOsHours), color: [245, 158, 11] },
+    { label: "Horas executadas", value: asNumber(summary.executedActivityHours), color: [15, 122, 79] }
+  ];
+  const maxValue = Math.max(1, ...rows.map(row => row.value));
+  const barX = 58;
+  const barWidth = pageWidth - barX - 34;
+
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(12);
+  doc.setTextColor(22, 32, 51);
+  doc.text("Resumo visual do projeto", 10, startY);
+
+  let y = startY + 9;
+  rows.forEach((row) => {
+    const filled = Math.max(2, barWidth * (row.value / maxValue));
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(8.5);
+    doc.setTextColor(40, 54, 80);
+    doc.text(row.label, 10, y + 4);
+    doc.setFillColor(232, 238, 246);
+    doc.roundedRect(barX, y, barWidth, 5, 2, 2, "F");
+    doc.setFillColor(row.color[0], row.color[1], row.color[2]);
+    doc.roundedRect(barX, y, filled, 5, 2, 2, "F");
+    doc.setFont("helvetica", "bold");
+    doc.setTextColor(22, 32, 51);
+    doc.text(formatHours(row.value), barX + barWidth + 4, y + 4);
+    y += 11;
+  });
+
+  y += 4;
+  const statusRows = [
+    { label: "Em andamento", value: summary.inProgressCount, color: [31, 91, 153] },
+    { label: "Concluidas", value: summary.concludedCount, color: [15, 122, 79] },
+    { label: "Atrasadas", value: summary.delayedCount, color: [180, 35, 24] }
+  ];
+  let x = 10;
+  statusRows.forEach((item) => {
+    doc.setFillColor(item.color[0], item.color[1], item.color[2]);
+    doc.roundedRect(x, y, 4, 4, 1.5, 1.5, "F");
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(8.5);
+    doc.setTextColor(40, 54, 80);
+    doc.text(`${item.label}: ${item.value}`, x + 6, y + 4);
+    x += 48;
+  });
+
+  return y + 14;
+}
+
 export async function downloadProjectStatusReportExcel(payload){
   const data = buildStatusReportData(payload);
   const workbook = createZip(buildXlsxWorkbookFiles(data));
@@ -1178,9 +1232,15 @@ export async function downloadProjectStatusReportPdf(payload){
   }) + 12;
 
   const pageHeight = doc.internal.pageSize.getHeight();
+  if (nextY > pageHeight - 82){
+    doc.addPage();
+    nextY = 24;
+  }
+  nextY = drawProjectSummaryChart(doc, data, nextY);
   if (nextY > pageHeight - 45){
     doc.addPage();
     nextY = 24;
+    nextY = drawProjectSummaryChart(doc, data, nextY);
   }
   doc.setDrawColor(180, 190, 205);
   doc.line(10, nextY + 12, 82, nextY + 12);
