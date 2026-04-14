@@ -55,12 +55,26 @@ function isPlannedWithoutOs(activity){
   return !isCompletedStatus(activity);
 }
 
+function isOverdueActivity(activity, today){
+  const workDate = String(activity?.workDate || "").slice(0, 10);
+  if (!workDate) return false;
+  const parsed = new Date(`${workDate}T00:00:00`);
+  return parsed < today && !isCompletedStatus(activity);
+}
+
+function statusReportActivityLabel(activity, today){
+  const raw = String(activity?.status || "").trim().toLowerCase();
+  if (raw === "atrasada" || isOverdueActivity(activity, today)) return "Atrasada";
+  if (isCompletedStatus(activity)) return "Concluida";
+  return "Em Andamento";
+}
+
 function buildExecutiveSummary(data){
   const { project, summary } = data;
   const parts = [
     `O projeto está em ${project.status.toLowerCase()}.`,
     `Foram executadas ${summary.executedActivityHours}h de ${project.billingHours}h previstas.`,
-    `Ha ${summary.plannedWithoutOsHours}h planejadas em atividades sem OS.`,
+    `Ha ${summary.plannedWithoutOsHours}h em atividades planejadas.`,
     `Há ${summary.activityCount} atividade(s) registradas em ${summary.taskCount} tarefa(s).`,
     `${summary.completedCount} atividade(s) estão concluídas e ${summary.pendingCount} seguem pendentes.`
   ];
@@ -93,10 +107,7 @@ function buildStatusReportData({ project, tasks, activities, state }){
   const today = new Date();
   today.setHours(0, 0, 0, 0);
   const overdueCount = sortedActivities.filter((activity) => {
-    const workDate = String(activity.workDate || "").slice(0, 10);
-    if (!workDate) return false;
-    const parsed = new Date(`${workDate}T00:00:00`);
-    return parsed < today && !isCompletedStatus(activity);
+    return isOverdueActivity(activity, today);
   }).length;
   const teamName = teams.find(team => team.id === project?.teamId)?.name || "-";
   const managerName = users.find(user => user.uid === project?.managerUid)?.name || "-";
@@ -130,7 +141,7 @@ function buildStatusReportData({ project, tasks, activities, state }){
       activityName: activity.name || "-",
       keyUsers: Array.isArray(activity.keyUsers) && activity.keyUsers.length ? activity.keyUsers.join(", ") : "-",
       hours: asNumber(activity.hoursWorked),
-      status: statusLabel(activity.status)
+      status: statusReportActivityLabel(activity, today)
     };
   });
 
@@ -202,8 +213,11 @@ async function fetchImageAsDataUrl(url){
   }
 }
 
-function buildReportHtml(data){
+function buildReportHtml(data, options = {}){
   const { project, client, summary } = data;
+  const includeClientImage = options.includeClientImage !== false;
+  const includeClientContactInfo = options.includeClientContactInfo !== false;
+  const bodyAttrs = includeClientContactInfo ? "" : ' class="hide-client-contact"';
   const taskRowsHtml = data.taskRows.map((task) => `
     <tr>
       <td>${escapeHtml(String(task.number))}</td>
@@ -259,13 +273,14 @@ function buildReportHtml(data){
           .info{border:1px solid #dce4f0;border-radius:16px;padding:12px 14px;background:#fff}
           .info .label{font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:#7a8599;font-weight:800}
           .info .value{margin-top:6px;font-size:17px;font-weight:700;color:#162033}
+          .hide-client-contact .project-info-grid .info:nth-last-child(-n+2){display:none}
           table{width:100%;border-collapse:collapse;background:#fff;border:1px solid #dce4f0;border-radius:16px;overflow:hidden}
           th,td{padding:10px 12px;border-bottom:1px solid #e8eef6;text-align:left;font-size:12px;vertical-align:top}
           th{background:#f5f8fd;color:#5d687b;font-size:11px;letter-spacing:.08em;text-transform:uppercase}
           .footer{padding:0 30px 28px;color:#6a7588;font-size:12px}
         </style>
       </head>
-      <body>
+      <body${bodyAttrs}>
         <div class="report">
           <div class="hero">
             <div class="hero-top">
@@ -279,12 +294,12 @@ function buildReportHtml(data){
                   <span class="pill">Prazo final <strong>${escapeHtml(project.endDate)}</strong></span>
                 </div>
               </div>
-              ${client.photoURL ? `<img class="client-logo" src="${escapeHtml(client.photoURL)}" alt="Logo do cliente" />` : `<div class="client-logo-fallback">${escapeHtml((client.name || "C").trim().slice(0, 1).toUpperCase())}</div>`}
+              ${includeClientImage ? (client.photoURL ? `<img class="client-logo" src="${escapeHtml(client.photoURL)}" alt="Logo do cliente" />` : `<div class="client-logo-fallback">${escapeHtml((client.name || "C").trim().slice(0, 1).toUpperCase())}</div>`) : ""}
             </div>
           </div>
           <div class="summary">
             <div class="card"><div class="label">Horas previstas</div><div class="value">${escapeHtml(`${project.billingHours}h`)}</div><div class="sub">Planejamento total do projeto</div></div>
-            <div class="card"><div class="label">Horas planejadas</div><div class="value">${escapeHtml(`${summary.plannedWithoutOsHours}h`)}</div><div class="sub">Atividades sem OS</div></div>
+            <div class="card"><div class="label">Horas planejadas</div><div class="value">${escapeHtml(`${summary.plannedWithoutOsHours}h`)}</div><div class="sub">Atividades planejadas</div></div>
             <div class="card"><div class="label">Horas executadas</div><div class="value">${escapeHtml(`${summary.executedActivityHours}h`)}</div><div class="sub">Consumo: ${escapeHtml(summary.projectConsumption.toFixed(1).replace(".", ","))}%</div></div>
             <div class="card"><div class="label">Atividades</div><div class="value">${escapeHtml(String(summary.activityCount))}</div><div class="sub">${escapeHtml(String(summary.pendingCount))} pendentes • ${escapeHtml(String(summary.completedCount))} concluídas</div></div>
           </div>
@@ -294,13 +309,15 @@ function buildReportHtml(data){
           </div>
           <div class="section">
             <h2>Informacoes do projeto</h2>
-            <div class="grid">
+            <div class="grid project-info-grid">
               <div class="info"><div class="label">Cliente</div><div class="value">${escapeHtml(client.name)}</div></div>
               <div class="info"><div class="label">Equipe</div><div class="value">${escapeHtml(summary.teamName)}</div></div>
               <div class="info"><div class="label">Gestor</div><div class="value">${escapeHtml(summary.managerName)}</div></div>
               <div class="info"><div class="label">Coordenador</div><div class="value">${escapeHtml(summary.coordinatorName)}</div></div>
+              ${includeClientContactInfo ? "" : "<!--"}
               <div class="info"><div class="label">Documento do cliente</div><div class="value">${escapeHtml(client.document)}</div></div>
               <div class="info"><div class="label">Contato do cliente</div><div class="value">${escapeHtml(client.email)}${client.phone && client.phone !== "-" ? ` • ${escapeHtml(client.phone)}` : ""}</div></div>
+              ${includeClientContactInfo ? "" : "-->"}
             </div>
           </div>
           <div class="section">
@@ -312,7 +329,7 @@ function buildReportHtml(data){
                   <th>Tarefa</th>
                   <th>Periodo</th>
                   <th>Horas previstas</th>
-                  <th>Horas planejadas sem OS</th>
+                  <th>Horas planejadas</th>
                   <th>Horas executadas</th>
                   <th>Atividades</th>
                 </tr>
@@ -407,7 +424,7 @@ function drawSimpleTable(doc, config){
 
 export async function downloadProjectStatusReportExcel(payload){
   const data = buildStatusReportData(payload);
-  const html = buildReportHtml(data);
+  const html = buildReportHtml(data, { includeClientImage: false, includeClientContactInfo: false });
   const blob = new Blob([html], { type: "application/vnd.ms-excel;charset=utf-8" });
   const filename = `${normalizeFileName(`status-report-${data.project.number}-${data.project.name}`)}.xls`;
   triggerDownload(blob, filename);
@@ -451,7 +468,7 @@ export async function downloadProjectStatusReportPdf(payload){
 
   const summaryCards = [
     { label: "Horas previstas", value: `${data.project.billingHours}h`, sub: "Planejamento total" },
-    { label: "Horas planejadas", value: `${summary.plannedWithoutOsHours}h`, sub: "Atividades sem OS" },
+    { label: "Horas planejadas", value: `${summary.plannedWithoutOsHours}h`, sub: "Atividades planejadas" },
     { label: "Horas executadas", value: `${summary.executedActivityHours}h`, sub: `Consumo: ${summary.projectConsumption.toFixed(1).replace(".", ",")}%` },
     { label: "Atividades", value: String(summary.activityCount), sub: `${summary.pendingCount} pendentes • ${summary.completedCount} concluidas` },
   ];
@@ -530,7 +547,7 @@ export async function downloadProjectStatusReportPdf(payload){
       { key: "name", label: "Tarefa", width: 2.1 },
       { key: "period", label: "Periodo", width: 1.4 },
       { key: "planned", label: "Horas previstas", width: .95 },
-      { key: "plannedNoOs", label: "Planejadas sem OS", width: .95 },
+      { key: "plannedNoOs", label: "Horas planejadas", width: .95 },
       { key: "worked", label: "Horas executadas", width: .98 },
       { key: "count", label: "Atividades", width: .72 }
     ],
