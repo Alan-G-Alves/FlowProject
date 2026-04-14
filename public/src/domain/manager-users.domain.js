@@ -679,6 +679,88 @@ export function getTeamNameById(state, teamId) {
   return t?.name || teamId;
 }
 
+function getManagerSortableUsers(users, state) {
+  const sortKey = state?._mgrUsersSortKey || "name";
+  const sortDir = state?._mgrUsersSortDir === "desc" ? "desc" : "asc";
+  const dir = sortDir === "desc" ? -1 : 1;
+
+  const getTeamsLabel = (u) => {
+    const teamIds = Array.isArray(u.teamIds) ? u.teamIds : (u.teamId ? [u.teamId] : []);
+    return teamIds.map((teamId) => getTeamNameById(state, teamId)).join(", ");
+  };
+
+  const getValue = (u) => {
+    switch (sortKey) {
+      case "number":
+        return Number(u.number || 0);
+      case "email":
+        return u.email || "";
+      case "hourlyRate":
+        return Number(u.hourlyRate || 0);
+      case "teams":
+        return getTeamsLabel(u);
+      case "softSkills":
+        return Array.isArray(u.softSkills) ? u.softSkills.join(", ") : "";
+      case "hardSkills":
+        return Array.isArray(u.hardSkills) ? u.hardSkills.join(", ") : "";
+      case "feedbackCount":
+        return Number(u.feedbackCount || 0);
+      case "status":
+        return u.active === false ? "Inativo" : "Ativo";
+      case "name":
+      default:
+        return u.name || "";
+    }
+  };
+
+  return [...users].sort((a, b) => {
+    if (sortKey !== "status") {
+      const activeCompare = Number(a.active === false) - Number(b.active === false);
+      if (activeCompare !== 0) return activeCompare;
+    }
+
+    const avRaw = getValue(a);
+    const bvRaw = getValue(b);
+    let result = 0;
+    if (typeof avRaw === "number" || typeof bvRaw === "number") {
+      result = ((Number(avRaw) || 0) - (Number(bvRaw) || 0)) * dir;
+    } else {
+      result = String(avRaw || "").localeCompare(String(bvRaw || ""), "pt-BR", { numeric: true, sensitivity: "base" }) * dir;
+    }
+    if (result !== 0) return result;
+
+    return String(a.name || "").localeCompare(String(b.name || ""), "pt-BR", { numeric: true, sensitivity: "base" });
+  });
+}
+
+function initManagerUsersTableSorting(deps) {
+  const { refs, state } = deps;
+  const table = refs.mgrUsersTbody?.closest("table");
+  if (!table) return;
+
+  const headers = Array.from(table.querySelectorAll("thead th.sortable[data-mgr-sort]"));
+  for (const th of headers) {
+    if (!th.dataset.boundMgrSort) {
+      th.dataset.boundMgrSort = "1";
+      th.addEventListener("click", () => {
+        const key = th.dataset.mgrSort || "name";
+        if (state._mgrUsersSortKey === key) {
+          state._mgrUsersSortDir = state._mgrUsersSortDir === "desc" ? "asc" : "desc";
+        } else {
+          state._mgrUsersSortKey = key;
+          state._mgrUsersSortDir = "asc";
+        }
+        state._mgrUsersPage = 1;
+        loadManagerUsers(deps);
+      });
+    }
+    const isSorted = (state._mgrUsersSortKey || "name") === th.dataset.mgrSort;
+    th.classList.toggle("is-sorted", isSorted);
+    th.classList.toggle("asc", isSorted && (state._mgrUsersSortDir || "asc") === "asc");
+    th.classList.toggle("desc", isSorted && state._mgrUsersSortDir === "desc");
+  }
+}
+
 export async function loadManagerUsers(deps) {
   const { refs, state, db } = deps;
   if (!refs.mgrUsersTbody) return;
@@ -760,23 +842,27 @@ export async function loadManagerUsers(deps) {
     }
 
     return true;
-  }).sort((a,b)=> (a.name||"").localeCompare(b.name||""));
+  });
+  if (!state._mgrUsersSortKey) state._mgrUsersSortKey = "name";
+  if (!state._mgrUsersSortDir) state._mgrUsersSortDir = "asc";
+  const sorted = getManagerSortableUsers(filtered, state);
+  initManagerUsersTableSorting(deps);
 
   if (mySeq !== state._mgrUsersLoadSeq) return; // evita render duplicado
 
-  if (filtered.length === 0){
+  if (sorted.length === 0){
     show(refs.mgrUsersEmpty);
     if (refs.mgrUsersPagination) refs.mgrUsersPagination.innerHTML = "";
     return;
   }
 
   // ===== Paginação =====
-  const totalPages = Math.max(1, Math.ceil(filtered.length / ITEMS_PER_PAGE));
+  const totalPages = Math.max(1, Math.ceil(sorted.length / ITEMS_PER_PAGE));
   state._mgrUsersPage = Math.min(Math.max(1, Number(state._mgrUsersPage || 1)), totalPages);
 
   const startIdx = (state._mgrUsersPage - 1) * ITEMS_PER_PAGE;
   const endIdx = startIdx + ITEMS_PER_PAGE;
-  const pageItems = filtered.slice(startIdx, endIdx);
+  const pageItems = sorted.slice(startIdx, endIdx);
 
   if (refs.mgrUsersPagination) {
     // Render de botões (compacto)
@@ -795,7 +881,7 @@ export async function loadManagerUsers(deps) {
     };
 
     parts.push(`<div class="page-meta">
-      <span>Mostrando <b>${Math.min(endIdx, filtered.length)}</b> de <b>${filtered.length}</b></span>
+      <span>Mostrando <b>${Math.min(endIdx, sorted.length)}</b> de <b>${sorted.length}</b></span>
       <button class="icon-btn xs btn-download" data-act="export" title="Baixar Excel" aria-label="Baixar Excel">
         <svg viewBox="0 0 24 24" width="18" height="18" fill="none" xmlns="http://www.w3.org/2000/svg">
           <path d="M12 3v10" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
@@ -834,14 +920,14 @@ export async function loadManagerUsers(deps) {
       });
     });
 
-    // Exporta lista filtrada (respeita busca)
+    // Exporta lista filtrada e ordenada (respeita busca)
     const exportBtn = refs.mgrUsersPagination.querySelector('[data-act="export"]');
     if (exportBtn){
       exportBtn.addEventListener("click", (ev) => {
         ev.preventDefault();
         ev.stopPropagation();
         try{
-          exportTechniciansToExcel(deps, filtered);
+          exportTechniciansToExcel(deps, sorted);
         }catch(err){
           console.error(err);
           alert("Não foi possível exportar.");

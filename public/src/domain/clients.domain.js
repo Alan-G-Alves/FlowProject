@@ -192,6 +192,78 @@ function exportClientsToExcel(deps, items){
   URL.revokeObjectURL(url);
 }
 
+function getSortableClients(clients, state){
+  const sortKey = state?._clientsSortKey || "name";
+  const sortDir = state?._clientsSortDir === "desc" ? "desc" : "asc";
+  const dir = sortDir === "desc" ? -1 : 1;
+
+  const getValue = (client) => {
+    switch (sortKey){
+      case "number":
+        return Number(client.number || 0);
+      case "document":
+        return client.cpfCnpj || "";
+      case "keyUser":
+        return getClientKeyUsers(client).map(getClientKeyUserLabel).join(", ");
+      case "projectsCount":
+        return Number(client.projectsCount || 0);
+      case "status":
+        return client.active === false ? "Inativo" : "Ativo";
+      case "name":
+      default:
+        return client.name || "";
+    }
+  };
+
+  return [...clients].sort((a, b) => {
+    if (sortKey !== "status"){
+      const activeCompare = Number(a.active === false) - Number(b.active === false);
+      if (activeCompare !== 0) return activeCompare;
+    }
+
+    const avRaw = getValue(a);
+    const bvRaw = getValue(b);
+    let result = 0;
+    if (typeof avRaw === "number" || typeof bvRaw === "number"){
+      result = ((Number(avRaw) || 0) - (Number(bvRaw) || 0)) * dir;
+    } else {
+      result = String(avRaw || "").localeCompare(String(bvRaw || ""), "pt-BR", { numeric: true, sensitivity: "base" }) * dir;
+    }
+    if (result !== 0) return result;
+
+    return String(a.name || "").localeCompare(String(b.name || ""), "pt-BR", { numeric: true, sensitivity: "base" });
+  });
+}
+
+function initClientsTableSorting(deps){
+  const { refs, state } = deps;
+  const table = refs.clientsTbody?.closest("table");
+  if (!table) return;
+
+  const headers = Array.from(table.querySelectorAll("thead th.sortable[data-client-sort]"));
+  for (const th of headers){
+    if (!th.dataset.boundClientSort){
+      th.dataset.boundClientSort = "1";
+      th.addEventListener("click", () => {
+        const key = th.dataset.clientSort || "name";
+        if (state._clientsSortKey === key){
+          state._clientsSortDir = state._clientsSortDir === "desc" ? "asc" : "desc";
+        } else {
+          state._clientsSortKey = key;
+          state._clientsSortDir = "asc";
+        }
+        state._clientsPage = 1;
+        renderClientsTable(deps);
+      });
+    }
+
+    const isSorted = (state._clientsSortKey || "name") === th.dataset.clientSort;
+    th.classList.toggle("is-sorted", isSorted);
+    th.classList.toggle("asc", isSorted && (state._clientsSortDir || "asc") === "asc");
+    th.classList.toggle("desc", isSorted && state._clientsSortDir === "desc");
+  }
+}
+
 async function computeNextClientNumber(db, companyId){
   // Estratégia simples (igual projects.domain): busca o maior "number" e soma +1.
   let next = 1;
@@ -551,12 +623,17 @@ function renderClientsTable(deps){
     return terms.every(t => hay.includes(t));
   });
 
+  if (!state._clientsSortKey) state._clientsSortKey = "name";
+  if (!state._clientsSortDir) state._clientsSortDir = "asc";
+  const sorted = getSortableClients(filtered, state);
+  initClientsTableSorting(deps);
+
   // index by id (para delegação)
   const byId = {};
-  for (const c of filtered) byId[c.id] = c;
+  for (const c of sorted) byId[c.id] = c;
   state._clientsById = byId;
 
-  if (filtered.length === 0){
+  if (sorted.length === 0){
     if (refs.clientsTbody) refs.clientsTbody.innerHTML = "";
     show(refs.clientsEmpty);
     if (refs.clientsPagination) refs.clientsPagination.innerHTML = "";
@@ -565,11 +642,11 @@ function renderClientsTable(deps){
   hide(refs.clientsEmpty);
 
   // Paginação
-  const totalPages = Math.max(1, Math.ceil(filtered.length / ITEMS_PER_PAGE));
+  const totalPages = Math.max(1, Math.ceil(sorted.length / ITEMS_PER_PAGE));
   state._clientsPage = Math.min(Math.max(1, Number(state._clientsPage || 1)), totalPages);
 
   const startIdx = (state._clientsPage - 1) * ITEMS_PER_PAGE;
-  const pageItems = filtered.slice(startIdx, startIdx + ITEMS_PER_PAGE);
+  const pageItems = sorted.slice(startIdx, startIdx + ITEMS_PER_PAGE);
 
   if (refs.clientsPagination){
     const cur = state._clientsPage;
@@ -586,7 +663,7 @@ function renderClientsTable(deps){
     };
 
     parts.push(`<div class="page-meta">
-      <span>Mostrando <b>${Math.min(startIdx + pageItems.length, filtered.length)}</b> de <b>${filtered.length}</b></span>
+      <span>Mostrando <b>${Math.min(startIdx + pageItems.length, sorted.length)}</b> de <b>${sorted.length}</b></span>
       <button class="icon-btn xs btn-download" data-act="export" title="Baixar Excel" aria-label="Baixar Excel">
         <svg viewBox="0 0 24 24" width="18" height="18" fill="none" xmlns="http://www.w3.org/2000/svg">
           <path d="M12 3v10" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
@@ -633,7 +710,7 @@ function renderClientsTable(deps){
         ev.preventDefault();
         ev.stopPropagation();
         try{
-          exportClientsToExcel(deps, filtered);
+          exportClientsToExcel(deps, sorted);
         }catch(err){
           console.error(err);
           alert("Não foi possível exportar.");

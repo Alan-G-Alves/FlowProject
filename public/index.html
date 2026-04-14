@@ -455,15 +455,15 @@
 <table>
 <thead>
 <tr>
-<th style="width:70px;">ID</th>
-<th>Nome</th>
-<th>E-mail</th>
-<th>Valor/Hora</th>
-<th>Equipes</th>
-<th>Soft Skills</th>
-<th>Hard Skills</th>
-<th style="width:110px;">Feedback</th>
-<th>Status</th>
+  <th class="sortable" data-mgr-sort="number" style="width:70px;">ID</th>
+  <th class="sortable" data-mgr-sort="name">Nome</th>
+  <th class="sortable" data-mgr-sort="email">E-mail</th>
+  <th class="sortable" data-mgr-sort="hourlyRate">Valor/Hora</th>
+  <th class="sortable" data-mgr-sort="teams">Equipes</th>
+  <th class="sortable" data-mgr-sort="softSkills">Soft Skills</th>
+  <th class="sortable" data-mgr-sort="hardSkills">Hard Skills</th>
+  <th class="sortable" data-mgr-sort="feedbackCount" style="width:110px;">Feedback</th>
+  <th class="sortable" data-mgr-sort="status">Status</th>
 <th style="width:110px;">Acoes</th>
 </tr>
 </thead>
@@ -551,12 +551,12 @@
 <table>
 <thead>
 <tr>
-<th style="width:70px;">ID</th>
-<th>Nome</th>
-<th>CNPJ/CPF</th>
-<th>Key user</th>
-<th style="width:110px;">Projetos</th>
-<th style="width:110px;">Status</th>
+<th class="sortable" data-client-sort="number" style="width:70px;">ID</th>
+<th class="sortable" data-client-sort="name">Nome</th>
+<th class="sortable" data-client-sort="document">CNPJ/CPF</th>
+<th class="sortable" data-client-sort="keyUser">Key user</th>
+<th class="sortable" data-client-sort="projectsCount" style="width:110px;">Projetos</th>
+<th class="sortable" data-client-sort="status" style="width:110px;">Status</th>
 <th style="width:110px;">Acoes</th>
 </tr>
 </thead>
@@ -2158,7 +2158,7 @@
   </div>
 </div>
 
-<script src="./app.js?v=1776052715" type="module"></script>
+<script src="./app.js?v=1776052720" type="module"></script>
 <script>
   // Toggle senha (somente UI)
   document.addEventListener("click", function(e){

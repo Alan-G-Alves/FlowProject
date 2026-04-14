@@ -52,6 +52,22 @@ function formatPercent(value){
   return `${asNumber(value).toFixed(1).replace(".", ",")}%`;
 }
 
+function imageFormatForPdf(value){
+  const raw = String(value || "").toLowerCase();
+  if (raw.includes("image/jpeg") || raw.includes("image/jpg") || raw.includes(".jpg") || raw.includes(".jpeg")) return "JPEG";
+  if (raw.includes("image/webp") || raw.includes(".webp")) return "WEBP";
+  return "PNG";
+}
+
+function getLocalCompanyLogoReportDataUrl(companyId){
+  if (!companyId || typeof localStorage === "undefined") return "";
+  try{
+    return localStorage.getItem(`fp_company_logo_report_${companyId}`) || "";
+  }catch(_){
+    return "";
+  }
+}
+
 function statusLabel(status){
   const raw = String(status || "").trim().toLowerCase();
   const map = {
@@ -121,6 +137,8 @@ function buildStatusReportData({ project, tasks, activities, state }){
   const teams = Array.isArray(state?.teams) ? state.teams : [];
   const clients = Array.isArray(state?._clientsCache) ? state._clientsCache : [];
   const client = clients.find(item => item.id === project?.clientId) || null;
+  const company = state?.company || {};
+  const companyId = state?.companyId || "";
   const taskMap = new Map((Array.isArray(tasks) ? tasks : []).map(task => [task.id, task]));
   const sortedActivities = Array.isArray(activities)
     ? [...activities].sort((a, b) => String(a.workDate || "").localeCompare(String(b.workDate || "")))
@@ -219,6 +237,11 @@ function buildStatusReportData({ project, tasks, activities, state }){
       photoURL: client?.photoURL || "",
       reportPhotoDataUrl: client?.reportPhotoDataUrl || ""
     },
+    company: {
+      name: company?.displayName || company?.name || "FlowProject",
+      logoURL: company?.logoURL || "logof.png",
+      logoReportDataUrl: company?.logoReportDataUrl || getLocalCompanyLogoReportDataUrl(companyId)
+    },
     summary: {
       teamName,
       managerName,
@@ -252,9 +275,7 @@ async function fetchImageAsDataUrl(url){
   if (/^https?:\/\//i.test(url)){
     try{
       const parsed = new URL(url, window.location.href);
-      if (parsed.origin !== window.location.origin){
-        return "";
-      }
+      if (parsed.origin !== window.location.origin) return "";
     }catch(_){
       return "";
     }
@@ -275,8 +296,8 @@ async function fetchImageAsDataUrl(url){
 }
 
 function buildReportHtml(data, options = {}){
-  const { project, client, summary } = data;
-  const includeClientImage = options.includeClientImage !== false;
+  const { project, client, company, summary } = data;
+  const includeCompanyLogo = options.includeClientImage !== false;
   const includeClientContactInfo = options.includeClientContactInfo !== false;
   const bodyAttrs = includeClientContactInfo ? "" : ' class="hide-client-contact"';
   const taskRowsHtml = data.taskRows.map((task) => `
@@ -312,8 +333,8 @@ function buildReportHtml(data, options = {}){
           .report{max-width:1120px;margin:0 auto;background:#fff;border:1px solid #dbe5f1;border-radius:24px;overflow:hidden}
           .hero{padding:28px 30px;background:linear-gradient(135deg,#edf4ff,#ffffff 58%);border-bottom:1px solid #e5edf7}
           .hero-top{display:flex;justify-content:space-between;gap:24px;align-items:flex-start}
-          .client-logo{width:82px;height:82px;border-radius:22px;object-fit:cover;border:1px solid #d8e3f2;background:#fff}
-          .client-logo-fallback{width:82px;height:82px;border-radius:22px;display:flex;align-items:center;justify-content:center;background:linear-gradient(135deg,#dfeaff,#f7faff);border:1px solid #d8e3f2;color:#4b5a74;font-size:26px;font-weight:800}
+          .company-logo{width:82px;height:82px;border-radius:22px;object-fit:contain;border:1px solid #d8e3f2;background:#fff;padding:8px}
+          .company-logo-fallback{width:82px;height:82px;border-radius:22px;display:flex;align-items:center;justify-content:center;background:linear-gradient(135deg,#dfeaff,#f7faff);border:1px solid #d8e3f2;color:#4b5a74;font-size:26px;font-weight:800}
           .eyebrow{font-size:12px;letter-spacing:.22em;text-transform:uppercase;color:#6d58e4;font-weight:800}
           h1{margin:8px 0 8px;font-size:34px;line-height:1.04}
           .subtitle{margin:0;color:#5e687b;font-size:15px}
@@ -363,7 +384,7 @@ function buildReportHtml(data, options = {}){
                   <span class="pill">Prazo final <strong>${escapeHtml(project.endDate)}</strong></span>
                 </div>
               </div>
-              ${includeClientImage ? (client.photoURL ? `<img class="client-logo" src="${escapeHtml(client.photoURL)}" alt="Logo do cliente" />` : `<div class="client-logo-fallback">${escapeHtml((client.name || "C").trim().slice(0, 1).toUpperCase())}</div>`) : ""}
+              ${includeCompanyLogo ? (company.logoReportDataUrl || company.logoURL ? `<img class="company-logo" src="${escapeHtml(company.logoReportDataUrl || company.logoURL)}" alt="Logo da empresa" />` : `<div class="company-logo-fallback">${escapeHtml((company.name || "F").trim().slice(0, 1).toUpperCase())}</div>`) : ""}
             </div>
           </div>
           <div class="summary">
@@ -1105,7 +1126,7 @@ export async function downloadProjectStatusReportPdf(payload){
   const data = buildStatusReportData(payload);
   const { jsPDF } = await import("https://cdn.jsdelivr.net/npm/jspdf@2.5.1/+esm");
   const doc = new jsPDF({ unit: "mm", format: "a4", compress: true });
-  const logoDataUrl = data.client.reportPhotoDataUrl || await fetchImageAsDataUrl(data.client.photoURL);
+  const logoDataUrl = data.company.logoReportDataUrl || await fetchImageAsDataUrl(data.company.logoURL);
   const pageWidth = doc.internal.pageSize.getWidth();
   const summary = data.summary;
 
@@ -1113,14 +1134,14 @@ export async function downloadProjectStatusReportPdf(payload){
   doc.roundedRect(10, 10, pageWidth - 20, 40, 8, 8, "F");
 
   if (logoDataUrl){
-    doc.addImage(logoDataUrl, "PNG", 14, 15, 24, 24);
+    doc.addImage(logoDataUrl, imageFormatForPdf(logoDataUrl || data.company.logoURL), 14, 15, 24, 24);
   } else {
     doc.setFillColor(255, 255, 255);
     doc.roundedRect(14, 15, 24, 24, 5, 5, "F");
     doc.setTextColor(86, 99, 130);
     doc.setFont("helvetica", "bold");
     doc.setFontSize(16);
-    doc.text(String((data.client.name || "C").trim().slice(0, 1).toUpperCase()), 26, 30, { align: "center" });
+    doc.text(String((data.company.name || "F").trim().slice(0, 1).toUpperCase()), 26, 30, { align: "center" });
   }
 
   doc.setTextColor(101, 82, 219);

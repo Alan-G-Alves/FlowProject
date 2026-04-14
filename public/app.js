@@ -47,13 +47,13 @@ import * as refs from "./src/ui/refs.js?v=1776052715";
 import * as companiesDomain from "./src/domain/companies.domain.js?v=1770332251";
 import * as teamsDomain from "./src/domain/teams.domain.js?v=1772614200";
 import * as usersDomain from "./src/domain/users.domain.js?v=1772622200";
-import * as managerUsersDomain from "./src/domain/manager-users.domain.js?v=1776040900";
-import * as clientsDomain from "./src/domain/clients.domain.js?v=1770332252";
+import * as managerUsersDomain from "./src/domain/manager-users.domain.js?v=1776052719";
+import * as clientsDomain from "./src/domain/clients.domain.js?v=1776052720";
 import * as projectsDomain from "./src/domain/projects.domain.js?v=1772626200";
 import * as myActivitiesDomain from "./src/domain/my-activities.domain.js?v=1772711400";
 import * as myFeedbacksDomain from "./src/domain/my-feedbacks.domain.js?v=1776040900";
 import * as osApprovalsDomain from "./src/domain/os-approvals.domain.js?v=1772711400";
-import * as projectWorkspaceDomain from "./src/domain/project-workspace.domain.js?v=1776052712";
+import * as projectWorkspaceDomain from "./src/domain/project-workspace.domain.js?v=1776052718";
 import * as reportsDomain from "./src/domain/reports.domain.js?v=1776052700";
 import * as profileModal from "./src/ui/modals/profile.modal.js?v=1770332251";
 import * as topbar from "./src/ui/topbar.js?v=1770332251";
@@ -957,6 +957,43 @@ function previewCompanyBrand(){
   }
 }
 
+function buildCompanyLogoReportDataUrl(file){
+  return new Promise((resolve) => {
+    if (!file) return resolve("");
+    const reader = new FileReader();
+    reader.onerror = () => resolve("");
+    reader.onload = () => {
+      const image = new Image();
+      image.onerror = () => resolve("");
+      image.onload = () => {
+        const maxSize = 360;
+        const ratio = Math.min(maxSize / image.width, maxSize / image.height, 1);
+        const width = Math.max(1, Math.round(image.width * ratio));
+        const height = Math.max(1, Math.round(image.height * ratio));
+        const canvas = document.createElement("canvas");
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext("2d");
+        ctx.fillStyle = "#ffffff";
+        ctx.fillRect(0, 0, width, height);
+        ctx.drawImage(image, 0, 0, width, height);
+        resolve(canvas.toDataURL("image/jpeg", 0.86));
+      };
+      image.src = String(reader.result || "");
+    };
+    reader.readAsDataURL(file);
+  });
+}
+
+function storeCompanyLogoReportDataUrl(companyId, dataUrl){
+  if (!companyId || typeof localStorage === "undefined") return;
+  try{
+    const key = `fp_company_logo_report_${companyId}`;
+    if (dataUrl) localStorage.setItem(key, dataUrl);
+    else localStorage.removeItem(key);
+  }catch(_){}
+}
+
 async function saveCompanyBrand(){
   clearAlert(refs.companyBrandAlert);
   if (!isCompanyAdmin()) return setAlert(refs.companyBrandAlert, "Acesso restrito.");
@@ -971,19 +1008,24 @@ async function saveCompanyBrand(){
   try{
     let logoURL = (state.company?.logoURL || "").toString();
     let logoPath = (state.company?.logoPath || "").toString();
+    let logoReportDataUrl = (state.company?.logoReportDataUrl || "").toString();
     if (file){
       logoPath = `companyLogos/${state.companyId}/brandLogo`;
       const ref = storageRef(storage, logoPath);
       await uploadBytes(ref, file, { contentType: file.type || "image/png" });
       logoURL = await getDownloadURL(ref);
+      logoReportDataUrl = await buildCompanyLogoReportDataUrl(file);
+      storeCompanyLogoReportDataUrl(state.companyId, logoReportDataUrl);
     }
     await updateDoc(doc(db, "companies", state.companyId), {
       displayName,
       logoURL,
       logoPath,
+      logoReportDataUrl,
       updatedAt: serverTimestamp()
     });
-    state.company = { ...(state.company || {}), displayName, logoURL, logoPath };
+    state.company = { ...(state.company || {}), displayName, logoURL, logoPath, logoReportDataUrl };
+    storeCompanyLogoReportDataUrl(state.companyId, logoReportDataUrl);
     renderSidebarBrand(state.company);
     closeCompanyBrandModal();
   }catch(err){
@@ -1002,9 +1044,11 @@ async function resetCompanyBrand(){
       displayName,
       logoURL: "",
       logoPath: "",
+      logoReportDataUrl: "",
       updatedAt: serverTimestamp()
     });
-    state.company = { ...(state.company || {}), displayName, logoURL: "", logoPath: "" };
+    storeCompanyLogoReportDataUrl(state.companyId, "");
+    state.company = { ...(state.company || {}), displayName, logoURL: "", logoPath: "", logoReportDataUrl: "" };
     renderSidebarBrand(state.company);
     closeCompanyBrandModal();
   }catch(err){
