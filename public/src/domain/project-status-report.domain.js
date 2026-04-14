@@ -628,8 +628,57 @@ function xlsxNumber(value, style = ""){
   return { value: asNumber(value), type: "Number", style };
 }
 
+function xlsxHeader(value){
+  return xlsxText(value, "2");
+}
+
+function xlsxTotalText(value){
+  return xlsxText(value, "3");
+}
+
+function xlsxTotalNumber(value){
+  return xlsxNumber(value, "3");
+}
+
+function buildTechSummaryRows(activityRows){
+  const map = new Map();
+  (Array.isArray(activityRows) ? activityRows : []).forEach((activity) => {
+    const techs = String(activity.techNames || "Sem tecnico")
+      .split(",")
+      .map(item => item.trim())
+      .filter(Boolean);
+    const names = techs.length ? techs : ["Sem tecnico"];
+    const sharedHours = asNumber(activity.hours) / names.length;
+    names.forEach((name) => {
+      if (!map.has(name)){
+        map.set(name, {
+          name,
+          plannedHours: 0,
+          executedHours: 0,
+          inProgress: 0,
+          concluded: 0,
+          delayed: 0,
+          activities: 0
+        });
+      }
+      const item = map.get(name);
+      item.activities += 1;
+      if (activity.status === "Concluida"){
+        item.executedHours += sharedHours;
+        item.concluded += 1;
+      } else {
+        item.plannedHours += sharedHours;
+        if (activity.status === "Atrasada") item.delayed += 1;
+        else item.inProgress += 1;
+      }
+    });
+  });
+  return [...map.values()].sort((a, b) => a.name.localeCompare(b.name, "pt-BR"));
+}
+
 function buildXlsxWorkbookFiles(data){
   const { project, client, summary } = data;
+  const techSummary = buildTechSummaryRows(data.activityRows);
   const summaryRows = [
     [xlsxText("Status Report do Projeto", "1")],
     [xlsxText("Projeto", "1"), xlsxText(project.name)],
@@ -639,76 +688,102 @@ function buildXlsxWorkbookFiles(data){
     [xlsxText("Prazo final", "1"), xlsxText(project.endDate)],
     [xlsxText("Gerado em", "1"), xlsxText(data.generatedAt.toLocaleString("pt-BR"))],
     [],
-    [xlsxText("Indicador", "1"), xlsxText("Valor", "1")],
-    [xlsxText("Horas previstas"), xlsxText(formatHours(project.billingHours))],
-    [xlsxText("Horas planejadas"), xlsxText(formatHours(summary.plannedWithoutOsHours))],
-    [xlsxText("Horas executadas"), xlsxText(formatHours(summary.executedActivityHours))],
-    [xlsxText("Consumo"), xlsxText(formatPercent(summary.projectConsumption))],
+    [xlsxHeader("Indicador"), xlsxHeader("Valor")],
+    [xlsxText("Horas previstas"), xlsxNumber(project.billingHours)],
+    [xlsxText("Horas planejadas"), xlsxNumber(summary.plannedWithoutOsHours)],
+    [xlsxText("Horas executadas"), xlsxNumber(summary.executedActivityHours)],
+    [xlsxText("Consumo (%)"), xlsxNumber(summary.projectConsumption)],
     [xlsxText("Atividades em andamento"), xlsxNumber(summary.inProgressCount)],
     [xlsxText("Atividades concluidas"), xlsxNumber(summary.concludedCount)],
     [xlsxText("Atividades atrasadas"), xlsxNumber(summary.delayedCount)],
     [],
     [xlsxText("Resumo executivo", "1")],
-    [xlsxText(summary.executiveSummary)],
-    [],
-    [xlsxText("Pontos de atencao", "1")],
-    ...(data.attentionRows.length
-      ? [
-          [xlsxText("Data", "1"), xlsxText("Dias em atraso", "1"), xlsxText("Tarefa", "1"), xlsxText("Atividade", "1"), xlsxText("Responsavel tecnico", "1"), xlsxText("Horas", "1")],
-          ...data.attentionRows.map(activity => [
-            xlsxText(activity.date),
-            xlsxNumber(activity.daysOverdue),
-            xlsxText(`#${activity.taskNumber}`),
-            xlsxText(activity.activityName),
-            xlsxText(activity.techNames),
-            xlsxText(formatHours(activity.hours))
-          ])
-        ]
-      : [[xlsxText("Nenhum ponto critico identificado no momento.")]])
+    [xlsxText(summary.executiveSummary)]
   ];
 
   const taskRows = [
-    [xlsxText("#", "1"), xlsxText("Tarefa", "1"), xlsxText("Periodo", "1"), xlsxText("Horas previstas", "1"), xlsxText("Horas planejadas", "1"), xlsxText("Horas executadas", "1"), xlsxText("Atividades", "1")],
+    [xlsxHeader("#"), xlsxHeader("Tarefa"), xlsxHeader("Periodo"), xlsxHeader("Horas previstas"), xlsxHeader("Horas planejadas"), xlsxHeader("Horas executadas"), xlsxHeader("Atividades")],
     ...data.taskRows.map(task => [
       xlsxText(task.number),
       xlsxText(task.name),
       xlsxText(task.period),
-      xlsxText(formatHours(task.plannedHours)),
-      xlsxText(formatHours(task.plannedWithoutOsHours)),
-      xlsxText(formatHours(task.workedHours)),
+      xlsxNumber(task.plannedHours),
+      xlsxNumber(task.plannedWithoutOsHours),
+      xlsxNumber(task.workedHours),
       xlsxNumber(task.activityCount)
     ]),
     [],
     [
-      xlsxText("Totais", "1"),
+      xlsxTotalText("Totais"),
       xlsxText(""),
       xlsxText(""),
-      xlsxText(formatHours(data.taskRows.reduce((acc, task) => acc + asNumber(task.plannedHours), 0)), "1"),
-      xlsxText(formatHours(summary.plannedWithoutOsHours), "1"),
-      xlsxText(formatHours(summary.executedActivityHours), "1"),
-      xlsxNumber(summary.activityCount, "1")
+      xlsxTotalNumber(data.taskRows.reduce((acc, task) => acc + asNumber(task.plannedHours), 0)),
+      xlsxTotalNumber(summary.plannedWithoutOsHours),
+      xlsxTotalNumber(summary.executedActivityHours),
+      xlsxTotalNumber(summary.activityCount)
     ]
   ];
 
   const activityRows = [
-    [xlsxText("Data", "1"), xlsxText("Tarefa", "1"), xlsxText("Atividade", "1"), xlsxText("Tecnico", "1"), xlsxText("Responsavel", "1"), xlsxText("Horas", "1"), xlsxText("Status", "1")],
+    [xlsxHeader("Data"), xlsxHeader("Tarefa"), xlsxHeader("Atividade"), xlsxHeader("Tecnico"), xlsxHeader("Responsavel"), xlsxHeader("Horas"), xlsxHeader("Status")],
     ...data.activityRows.map(activity => [
       xlsxText(activity.date),
       xlsxText(`#${activity.taskNumber} - ${activity.taskName}`),
       xlsxText(activity.activityName),
       xlsxText(activity.techNames),
       xlsxText(activity.keyUsers),
-      xlsxText(formatHours(activity.hours)),
+      xlsxNumber(activity.hours),
       xlsxText(activity.status)
     ]),
     [],
-    [xlsxText("Totais", "1"), xlsxText(""), xlsxText(""), xlsxText(""), xlsxText(""), xlsxText(formatHours(data.activityRows.reduce((acc, activity) => acc + asNumber(activity.hours), 0)), "1"), xlsxText("")]
+    [xlsxTotalText("Totais"), xlsxText(""), xlsxText(""), xlsxText(""), xlsxText(""), xlsxTotalNumber(data.activityRows.reduce((acc, activity) => acc + asNumber(activity.hours), 0)), xlsxText("")]
+  ];
+
+  const attentionRows = data.attentionRows.length
+    ? [
+        [xlsxHeader("Data"), xlsxHeader("Dias em atraso"), xlsxHeader("Tarefa"), xlsxHeader("Atividade"), xlsxHeader("Responsavel tecnico"), xlsxHeader("Horas")],
+        ...data.attentionRows.map(activity => [
+          xlsxText(activity.date),
+          xlsxNumber(activity.daysOverdue),
+          xlsxText(`#${activity.taskNumber}`),
+          xlsxText(activity.activityName),
+          xlsxText(activity.techNames),
+          xlsxNumber(activity.hours)
+        ]),
+        [],
+        [xlsxTotalText("Totais"), xlsxText(""), xlsxText(""), xlsxText(""), xlsxText(""), xlsxTotalNumber(data.attentionRows.reduce((acc, activity) => acc + asNumber(activity.hours), 0))]
+      ]
+    : [[xlsxText("Nenhum ponto critico identificado no momento.")]];
+
+  const techRows = [
+    [xlsxHeader("Tecnico"), xlsxHeader("Horas planejadas"), xlsxHeader("Horas executadas"), xlsxHeader("Em andamento"), xlsxHeader("Concluidas"), xlsxHeader("Atrasadas"), xlsxHeader("Atividades")],
+    ...techSummary.map(item => [
+      xlsxText(item.name),
+      xlsxNumber(item.plannedHours),
+      xlsxNumber(item.executedHours),
+      xlsxNumber(item.inProgress),
+      xlsxNumber(item.concluded),
+      xlsxNumber(item.delayed),
+      xlsxNumber(item.activities)
+    ]),
+    [],
+    [
+      xlsxTotalText("Totais"),
+      xlsxTotalNumber(techSummary.reduce((acc, item) => acc + asNumber(item.plannedHours), 0)),
+      xlsxTotalNumber(techSummary.reduce((acc, item) => acc + asNumber(item.executedHours), 0)),
+      xlsxTotalNumber(techSummary.reduce((acc, item) => acc + asNumber(item.inProgress), 0)),
+      xlsxTotalNumber(techSummary.reduce((acc, item) => acc + asNumber(item.concluded), 0)),
+      xlsxTotalNumber(techSummary.reduce((acc, item) => acc + asNumber(item.delayed), 0)),
+      xlsxTotalNumber(techSummary.reduce((acc, item) => acc + asNumber(item.activities), 0))
+    ]
   ];
 
   const sheets = [
-    { name: "Resumo", file: "sheet1.xml", xml: buildXlsxSheet(summaryRows, { widths: [28, 54, 24, 24, 16] }) },
+    { name: "Resumo", file: "sheet1.xml", xml: buildXlsxSheet(summaryRows, { freezeTopRow: true, widths: [28, 54, 24, 24, 16] }) },
     { name: "Tarefas", file: "sheet2.xml", xml: buildXlsxSheet(taskRows, { freezeTopRow: true, autoFilterColumns: 7, widths: [10, 34, 24, 18, 18, 18, 12] }) },
-    { name: "Atividades", file: "sheet3.xml", xml: buildXlsxSheet(activityRows, { freezeTopRow: true, autoFilterColumns: 7, widths: [14, 34, 42, 28, 28, 12, 16] }) }
+    { name: "Atividades", file: "sheet3.xml", xml: buildXlsxSheet(activityRows, { freezeTopRow: true, autoFilterColumns: 7, widths: [14, 34, 42, 28, 28, 12, 16] }) },
+    { name: "Pontos Atencao", file: "sheet4.xml", xml: buildXlsxSheet(attentionRows, { freezeTopRow: true, autoFilterColumns: data.attentionRows.length ? 6 : 0, widths: [14, 16, 14, 42, 28, 12] }) },
+    { name: "Resumo Tecnico", file: "sheet5.xml", xml: buildXlsxSheet(techRows, { freezeTopRow: true, autoFilterColumns: 7, widths: [30, 18, 18, 16, 14, 14, 12] }) }
   ];
 
   const workbookSheets = sheets.map((sheet, index) => `<sheet name="${escapeXmlAttr(sheet.name)}" sheetId="${index + 1}" r:id="rId${index + 1}"/>`).join("");
@@ -743,11 +818,28 @@ ${workbookRels}
 </Relationships>`,
     "xl/styles.xml": `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">
-<fonts count="2"><font><sz val="11"/><name val="Calibri"/></font><font><b/><sz val="11"/><name val="Calibri"/></font></fonts>
-<fills count="2"><fill><patternFill patternType="none"/></fill><fill><patternFill patternType="gray125"/></fill></fills>
-<borders count="1"><border><left/><right/><top/><bottom/><diagonal/></border></borders>
+<fonts count="3">
+<font><sz val="11"/><name val="Calibri"/></font>
+<font><b/><sz val="11"/><name val="Calibri"/></font>
+<font><b/><sz val="11"/><color rgb="FFFFFFFF"/><name val="Calibri"/></font>
+</fonts>
+<fills count="4">
+<fill><patternFill patternType="none"/></fill>
+<fill><patternFill patternType="gray125"/></fill>
+<fill><patternFill patternType="solid"><fgColor rgb="FF1F5B99"/><bgColor indexed="64"/></patternFill></fill>
+<fill><patternFill patternType="solid"><fgColor rgb="FFE8EEF6"/><bgColor indexed="64"/></patternFill></fill>
+</fills>
+<borders count="2">
+<border><left/><right/><top/><bottom/><diagonal/></border>
+<border><left style="thin"><color rgb="FFD9E2EF"/></left><right style="thin"><color rgb="FFD9E2EF"/></right><top style="thin"><color rgb="FFD9E2EF"/></top><bottom style="thin"><color rgb="FFD9E2EF"/></bottom><diagonal/></border>
+</borders>
 <cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs>
-<cellXfs count="2"><xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/><xf numFmtId="0" fontId="1" fillId="0" borderId="0" xfId="0"/></cellXfs>
+<cellXfs count="4">
+<xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/>
+<xf numFmtId="0" fontId="1" fillId="0" borderId="0" xfId="0"/>
+<xf numFmtId="0" fontId="2" fillId="2" borderId="1" xfId="0" applyFill="1" applyBorder="1"/>
+<xf numFmtId="0" fontId="1" fillId="3" borderId="1" xfId="0" applyFill="1" applyBorder="1"/>
+</cellXfs>
 </styleSheet>`,
     "docProps/core.xml": `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <cp:coreProperties xmlns:cp="http://schemas.openxmlformats.org/package/2006/metadata/core-properties" xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:dcterms="http://purl.org/dc/terms/" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
