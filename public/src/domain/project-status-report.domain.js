@@ -135,8 +135,24 @@ function buildStatusReportData({ project, tasks, activities, state }){
   const concludedCount = sortedActivities.filter(activity => statusReportActivityLabel(activity, today) === "Concluida").length;
   const delayedCount = sortedActivities.filter(activity => statusReportActivityLabel(activity, today) === "Atrasada").length;
   const teamName = teams.find(team => team.id === project?.teamId)?.name || "-";
-  const managerName = users.find(user => user.uid === project?.managerUid)?.name || "-";
+  const managerUser = users.find(user => user.uid === project?.managerUid) || null;
+  const managerName = managerUser?.name || "-";
+  const managerEmail = managerUser?.email || "-";
+  const managerPhone = managerUser?.phone || "-";
   const coordinatorName = users.find(user => user.uid === project?.coordinatorUid)?.name || "-";
+
+  const getTechNames = (activity) => {
+    if (Array.isArray(activity.techNames) && activity.techNames.length){
+      return activity.techNames.filter(Boolean).join(", ");
+    }
+    const techIds = Array.isArray(activity.techUids) ? activity.techUids.filter(Boolean) : [];
+    const names = techIds
+      .map(uid => users.find(user => user.uid === uid))
+      .filter(Boolean)
+      .map(user => user.name || user.email || user.uid)
+      .filter(Boolean);
+    return names.length ? names.join(", ") : "-";
+  };
 
   const taskRows = (Array.isArray(tasks) ? tasks : []).map((task) => {
     const taskActivities = sortedActivities.filter(activity => activity.taskId === task.id);
@@ -164,6 +180,7 @@ function buildStatusReportData({ project, tasks, activities, state }){
       taskNumber: task?.taskNumber || "-",
       taskName: task?.name || activity.taskName || "-",
       activityName: activity.name || "-",
+      techNames: getTechNames(activity),
       keyUsers: Array.isArray(activity.keyUsers) && activity.keyUsers.length ? activity.keyUsers.join(", ") : "-",
       hours: asNumber(activity.hoursWorked),
       status: statusReportActivityLabel(activity, today)
@@ -196,6 +213,8 @@ function buildStatusReportData({ project, tasks, activities, state }){
     summary: {
       teamName,
       managerName,
+      managerEmail,
+      managerPhone,
       coordinatorName,
       taskCount: taskRows.length,
       activityCount: activityRows.length,
@@ -267,6 +286,7 @@ function buildReportHtml(data, options = {}){
       <td>${escapeHtml(activity.date)}</td>
       <td>#${escapeHtml(String(activity.taskNumber))} - ${escapeHtml(activity.taskName)}</td>
       <td>${escapeHtml(activity.activityName)}</td>
+      <td>${escapeHtml(activity.techNames)}</td>
       <td>${escapeHtml(activity.keyUsers)}</td>
       <td>${escapeHtml(formatHours(activity.hours))}</td>
       <td>${escapeHtml(activity.status)}</td>
@@ -359,13 +379,13 @@ function buildReportHtml(data, options = {}){
             <h2>Pontos de atencao</h2>
             ${data.attentionRows.length ? `<table>
               <thead>
-                <tr><th>Data</th><th>Tarefa</th><th>Atividade</th><th>Responsavel</th><th>Horas</th></tr>
+                <tr><th>Data</th><th>Tarefa</th><th>Atividade</th><th>Responsavel tecnico</th><th>Horas</th></tr>
               </thead>
               <tbody>${data.attentionRows.map((activity) => `<tr>
                 <td>${escapeHtml(activity.date)}</td>
                 <td>#${escapeHtml(String(activity.taskNumber))}</td>
                 <td>${escapeHtml(activity.activityName)}</td>
-                <td>${escapeHtml(activity.keyUsers)}</td>
+                <td>${escapeHtml(activity.techNames)}</td>
                 <td>${escapeHtml(formatHours(activity.hours))}</td>
               </tr>`).join("")}</tbody>
             </table>` : `<p class="subtitle">Nenhum ponto critico identificado no momento.</p>`}
@@ -408,6 +428,7 @@ function buildReportHtml(data, options = {}){
                   <th>Data</th>
                   <th>Tarefa</th>
                   <th>Atividade</th>
+                  <th>Tecnico</th>
                   <th>Key user</th>
                   <th>Horas</th>
                   <th>Status</th>
@@ -623,12 +644,12 @@ function buildXlsxWorkbookFiles(data){
     [xlsxText("Pontos de atencao", "1")],
     ...(data.attentionRows.length
       ? [
-          [xlsxText("Data", "1"), xlsxText("Tarefa", "1"), xlsxText("Atividade", "1"), xlsxText("Responsavel", "1"), xlsxText("Horas", "1")],
+          [xlsxText("Data", "1"), xlsxText("Tarefa", "1"), xlsxText("Atividade", "1"), xlsxText("Responsavel tecnico", "1"), xlsxText("Horas", "1")],
           ...data.attentionRows.map(activity => [
             xlsxText(activity.date),
             xlsxText(`#${activity.taskNumber}`),
             xlsxText(activity.activityName),
-            xlsxText(activity.keyUsers),
+            xlsxText(activity.techNames),
             xlsxText(formatHours(activity.hours))
           ])
         ]
@@ -659,23 +680,24 @@ function buildXlsxWorkbookFiles(data){
   ];
 
   const activityRows = [
-    [xlsxText("Data", "1"), xlsxText("Tarefa", "1"), xlsxText("Atividade", "1"), xlsxText("Responsavel", "1"), xlsxText("Horas", "1"), xlsxText("Status", "1")],
+    [xlsxText("Data", "1"), xlsxText("Tarefa", "1"), xlsxText("Atividade", "1"), xlsxText("Tecnico", "1"), xlsxText("Responsavel", "1"), xlsxText("Horas", "1"), xlsxText("Status", "1")],
     ...data.activityRows.map(activity => [
       xlsxText(activity.date),
       xlsxText(`#${activity.taskNumber} - ${activity.taskName}`),
       xlsxText(activity.activityName),
+      xlsxText(activity.techNames),
       xlsxText(activity.keyUsers),
       xlsxText(formatHours(activity.hours)),
       xlsxText(activity.status)
     ]),
     [],
-    [xlsxText("Totais", "1"), xlsxText(""), xlsxText(""), xlsxText(""), xlsxText(formatHours(data.activityRows.reduce((acc, activity) => acc + asNumber(activity.hours), 0)), "1"), xlsxText("")]
+    [xlsxText("Totais", "1"), xlsxText(""), xlsxText(""), xlsxText(""), xlsxText(""), xlsxText(formatHours(data.activityRows.reduce((acc, activity) => acc + asNumber(activity.hours), 0)), "1"), xlsxText("")]
   ];
 
   const sheets = [
     { name: "Resumo", file: "sheet1.xml", xml: buildXlsxSheet(summaryRows, { widths: [28, 54, 24, 24, 16] }) },
     { name: "Tarefas", file: "sheet2.xml", xml: buildXlsxSheet(taskRows, { freezeTopRow: true, autoFilterColumns: 7, widths: [10, 34, 24, 18, 18, 18, 12] }) },
-    { name: "Atividades", file: "sheet3.xml", xml: buildXlsxSheet(activityRows, { freezeTopRow: true, autoFilterColumns: 6, widths: [14, 34, 42, 28, 12, 16] }) }
+    { name: "Atividades", file: "sheet3.xml", xml: buildXlsxSheet(activityRows, { freezeTopRow: true, autoFilterColumns: 7, widths: [14, 34, 42, 28, 28, 12, 16] }) }
   ];
 
   const workbookSheets = sheets.map((sheet, index) => `<sheet name="${escapeXmlAttr(sheet.name)}" sheetId="${index + 1}" r:id="rId${index + 1}"/>`).join("");
@@ -850,7 +872,12 @@ function drawSimpleTable(doc, config){
   };
 
   const drawRow = (cells, isHeader = false) => {
-    const height = isHeader ? headerHeight : rowHeight;
+    const wrappedCells = cells.map((cell, index) => {
+      const width = colWidths[index];
+      return doc.splitTextToSize(String(cell ?? ""), Math.max(8, width - 4));
+    });
+    const maxLines = wrappedCells.reduce((max, text) => Math.max(max, Array.isArray(text) ? text.length : 1), 1);
+    const height = isHeader ? headerHeight : Math.max(rowHeight, 4 + (maxLines * 4));
     ensurePage(height);
     let x = marginX;
     for (let i = 0; i < columns.length; i += 1){
@@ -859,9 +886,15 @@ function drawSimpleTable(doc, config){
       doc.setFillColor(isHeader ? 245 : 255, isHeader ? 248 : 255, isHeader ? 253 : 255);
       doc.rect(x, cursorY, width, height, isHeader ? "FD" : "S");
       doc.setTextColor(isHeader ? 93 : 22, isHeader ? 104 : 32, isHeader ? 123 : 51);
+      if (!isHeader && columns[i]?.key === "status"){
+        const status = String(cells[i] || "");
+        if (status === "Concluida") doc.setTextColor(15, 122, 79);
+        if (status === "Atrasada") doc.setTextColor(180, 35, 24);
+        if (status === "Em Andamento") doc.setTextColor(31, 91, 153);
+      }
       doc.setFont("helvetica", isHeader ? "bold" : "normal");
       doc.setFontSize(fontSize);
-      const text = doc.splitTextToSize(String(cells[i] ?? ""), Math.max(8, width - 4));
+      const text = wrappedCells[i];
       doc.text(text, x + 2, cursorY + 5);
       x += width;
     }
@@ -887,7 +920,8 @@ function addPdfPageChrome(doc, data){
     doc.setFont("helvetica", "normal");
     doc.setFontSize(7.5);
     doc.setTextColor(102, 113, 133);
-    doc.text(`${data.project.name} | Gerado em ${data.generatedAt.toLocaleString("pt-BR")}`, 10, pageHeight - 5);
+    const managerLine = `${data.summary.managerName} | Gerente de projetos | ${data.summary.managerPhone} | ${data.summary.managerEmail}`;
+    doc.text(managerLine, 10, pageHeight - 5);
     doc.text(`Pagina ${page} de ${pageCount}`, pageWidth - 10, pageHeight - 5, { align: "right" });
     if (page > 1){
       doc.setDrawColor(225, 232, 242);
@@ -942,7 +976,6 @@ export async function downloadProjectStatusReportPdf(payload){
   doc.setFontSize(10.3);
   doc.setTextColor(94, 104, 123);
   doc.text(`Cliente: ${data.client.name}  •  Status: ${data.project.status}  •  Prazo final: ${data.project.endDate}`, 44, 34);
-  doc.text(`Gerado em ${data.generatedAt.toLocaleString("pt-BR")}`, 44, 40);
 
   const summaryCards = [
     { label: "Horas previstas", value: formatHours(data.project.billingHours), sub: "Planejamento total" },
@@ -951,40 +984,79 @@ export async function downloadProjectStatusReportPdf(payload){
     { label: "Atividades", value: String(summary.activityCount), sub: `${summary.pendingCount} pendentes • ${summary.completedCount} concluidas` },
   ];
 
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(12);
+  doc.setTextColor(22, 32, 51);
+  doc.text("Informacoes do projeto", 10, 58);
+
+  let nextY = drawSimpleTable(doc, {
+    startY: 61,
+    fontSize: 8.4,
+    columns: [
+      { key: "client", label: "Cliente", width: 1.2 },
+      { key: "team", label: "Equipe", width: 1 },
+      { key: "manager", label: "Gestor", width: 1 },
+      { key: "coordinator", label: "Coordenador", width: 1 },
+      { key: "deadline", label: "Prazo final", width: .75 },
+      { key: "status", label: "Status", width: .75 }
+    ],
+    rows: [{
+      client: data.client.name,
+      team: summary.teamName,
+      manager: summary.managerName,
+      coordinator: summary.coordinatorName,
+      deadline: data.project.endDate,
+      status: data.project.status
+    }]
+  }) + 8;
+
   let x = 10;
   summaryCards.forEach((card) => {
     doc.setFillColor(255, 255, 255);
     doc.setDrawColor(220, 228, 240);
-    doc.roundedRect(x, 56, 46, 24, 5, 5, "FD");
+    doc.roundedRect(x, nextY, 46, 24, 5, 5, "FD");
     doc.setTextColor(122, 133, 153);
     doc.setFont("helvetica", "bold");
     doc.setFontSize(8.5);
-    doc.text(card.label.toUpperCase(), x + 4, 62);
+    doc.text(card.label.toUpperCase(), x + 4, nextY + 6);
     doc.setTextColor(22, 32, 51);
     doc.setFontSize(12.5);
-    doc.text(card.value, x + 4, 69);
+    doc.text(card.value, x + 4, nextY + 13);
     doc.setTextColor(94, 104, 123);
     doc.setFont("helvetica", "normal");
     doc.setFontSize(8.5);
-    doc.text(card.sub, x + 4, 75);
+    doc.text(card.sub, x + 4, nextY + 19);
     x += 48;
   });
+
+  nextY += 32;
+  const progressWidth = pageWidth - 28;
+  const progress = Math.max(0, Math.min(100, summary.projectConsumption));
+  doc.setTextColor(22, 32, 51);
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(10);
+  doc.text(`Consumo das horas: ${formatPercent(progress)}`, 14, nextY);
+  doc.setFillColor(232, 238, 246);
+  doc.roundedRect(14, nextY + 4, progressWidth, 5, 2, 2, "F");
+  doc.setFillColor(31, 91, 153);
+  doc.roundedRect(14, nextY + 4, progressWidth * (progress / 100), 5, 2, 2, "F");
+  nextY += 18;
 
   const executiveText = doc.splitTextToSize(summary.executiveSummary, pageWidth - 30);
   const executiveBoxHeight = Math.max(20, 12 + (executiveText.length * 4));
   doc.setFillColor(248, 250, 255);
   doc.setDrawColor(220, 228, 240);
-  doc.roundedRect(10, 84, pageWidth - 20, executiveBoxHeight, 5, 5, "FD");
+  doc.roundedRect(10, nextY, pageWidth - 20, executiveBoxHeight, 5, 5, "FD");
   doc.setTextColor(122, 133, 153);
   doc.setFont("helvetica", "bold");
   doc.setFontSize(8.5);
-  doc.text("RESUMO EXECUTIVO", 14, 90);
+  doc.text("RESUMO EXECUTIVO", 14, nextY + 6);
   doc.setTextColor(36, 50, 74);
   doc.setFont("helvetica", "normal");
   doc.setFontSize(9.2);
-  doc.text(executiveText, 14, 96);
+  doc.text(executiveText, 14, nextY + 12);
 
-  const statusTitleY = 84 + executiveBoxHeight + 10;
+  const statusTitleY = nextY + executiveBoxHeight + 10;
   doc.setFont("helvetica", "bold");
   doc.setFontSize(12);
   doc.setTextColor(22, 32, 51);
@@ -1026,14 +1098,14 @@ export async function downloadProjectStatusReportPdf(payload){
         { key: "date", label: "Data", width: .75 },
         { key: "task", label: "Tarefa", width: .8 },
         { key: "activity", label: "Atividade", width: 2.2 },
-        { key: "keyUsers", label: "Responsavel", width: 1.4 },
+        { key: "techNames", label: "Responsavel tecnico", width: 1.4 },
         { key: "hours", label: "Horas", width: .55 }
       ],
       rows: data.attentionRows.map((activity) => ({
         date: activity.date,
         task: `#${activity.taskNumber}`,
         activity: activity.activityName,
-        keyUsers: activity.keyUsers,
+        techNames: activity.techNames,
         hours: formatHours(activity.hours)
       }))
     }) + 8;
@@ -1048,31 +1120,16 @@ export async function downloadProjectStatusReportPdf(payload){
   doc.setFont("helvetica", "bold");
   doc.setFontSize(12);
   doc.setTextColor(22, 32, 51);
-  const infoTitleY = attentionY;
-  doc.text("Informacoes do projeto", 10, infoTitleY);
+  doc.text("Legenda de status", 10, attentionY);
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(8.6);
+  doc.setTextColor(94, 104, 123);
+  doc.text("Em Andamento: atividade planejada ainda sem OS.", 10, attentionY + 7);
+  doc.text("Concluida: OS enviada ou aprovada.", 10, attentionY + 12);
+  doc.text("Atrasada: atividade planejada vencida sem conclusao.", 10, attentionY + 17);
 
-  let nextY = drawSimpleTable(doc, {
-    startY: infoTitleY + 3,
-    fontSize: 8.4,
-    columns: [
-      { key: "client", label: "Cliente", width: 1.2 },
-      { key: "team", label: "Equipe", width: 1 },
-      { key: "manager", label: "Gestor", width: 1 },
-      { key: "coordinator", label: "Coordenador", width: 1.05 },
-      { key: "hours", label: "Horas previstas", width: .75 },
-      { key: "planned", label: "Horas planejadas", width: .85 },
-      { key: "worked", label: "Horas executadas", width: .85 }
-    ],
-    rows: [{
-      client: data.client.name,
-      team: summary.teamName,
-      manager: summary.managerName,
-      coordinator: summary.coordinatorName,
-      hours: formatHours(data.project.billingHours),
-      planned: formatHours(summary.plannedWithoutOsHours),
-      worked: formatHours(summary.executedActivityHours)
-    }]
-  }) + 8;
+  doc.addPage();
+  nextY = 20;
 
   doc.setFont("helvetica", "bold");
   doc.setFontSize(12);
@@ -1112,9 +1169,10 @@ export async function downloadProjectStatusReportPdf(payload){
     fontSize: 7.2,
     columns: [
       { key: "date", label: "Data", width: .7 },
-      { key: "task", label: "Tarefa", width: 1.4 },
-      { key: "activityName", label: "Atividade", width: 1.9 },
-      { key: "keyUsers", label: "Key user", width: 1.4 },
+      { key: "task", label: "Tarefa", width: 1.25 },
+      { key: "activityName", label: "Atividade", width: 1.55 },
+      { key: "techNames", label: "Tecnico", width: 1.15 },
+      { key: "keyUsers", label: "Key user", width: 1.05 },
       { key: "hours", label: "Horas", width: .5 },
       { key: "status", label: "Status", width: .9 }
     ],
@@ -1122,6 +1180,7 @@ export async function downloadProjectStatusReportPdf(payload){
       date: activity.date,
       task: `#${activity.taskNumber} - ${activity.taskName}`,
       activityName: activity.activityName,
+      techNames: activity.techNames,
       keyUsers: activity.keyUsers,
       hours: formatHours(activity.hours),
       status: activity.status
