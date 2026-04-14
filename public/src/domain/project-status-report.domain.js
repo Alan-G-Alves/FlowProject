@@ -51,11 +51,16 @@ function isCompletedStatus(activity){
   return status === "os_gerada" || status === "os_aprovada";
 }
 
+function isPlannedWithoutOs(activity){
+  return !isCompletedStatus(activity);
+}
+
 function buildExecutiveSummary(data){
   const { project, summary } = data;
   const parts = [
     `O projeto está em ${project.status.toLowerCase()}.`,
-    `Foram executadas ${summary.totalActivityHours}h de ${project.billingHours}h previstas.`,
+    `Foram executadas ${summary.executedActivityHours}h de ${project.billingHours}h previstas.`,
+    `Ha ${summary.plannedWithoutOsHours}h planejadas em atividades sem OS.`,
     `Há ${summary.activityCount} atividade(s) registradas em ${summary.taskCount} tarefa(s).`,
     `${summary.completedCount} atividade(s) estão concluídas e ${summary.pendingCount} seguem pendentes.`
   ];
@@ -77,7 +82,12 @@ function buildStatusReportData({ project, tasks, activities, state }){
     ? [...activities].sort((a, b) => String(a.workDate || "").localeCompare(String(b.workDate || "")))
     : [];
   const billingHours = asNumber(project?.billingHours);
-  const totalActivityHours = sortedActivities.reduce((acc, activity) => acc + asNumber(activity.hoursWorked), 0);
+  const plannedWithoutOsHours = sortedActivities
+    .filter(activity => isPlannedWithoutOs(activity))
+    .reduce((acc, activity) => acc + asNumber(activity.hoursWorked), 0);
+  const executedActivityHours = sortedActivities
+    .filter(activity => isCompletedStatus(activity))
+    .reduce((acc, activity) => acc + asNumber(activity.hoursWorked), 0);
   const completedCount = sortedActivities.filter(activity => isCompletedStatus(activity)).length;
   const pendingCount = sortedActivities.length - completedCount;
   const today = new Date();
@@ -94,12 +104,18 @@ function buildStatusReportData({ project, tasks, activities, state }){
 
   const taskRows = (Array.isArray(tasks) ? tasks : []).map((task) => {
     const taskActivities = sortedActivities.filter(activity => activity.taskId === task.id);
-    const hoursWorked = taskActivities.reduce((acc, activity) => acc + asNumber(activity.hoursWorked), 0);
+    const plannedWithoutOs = taskActivities
+      .filter(activity => isPlannedWithoutOs(activity))
+      .reduce((acc, activity) => acc + asNumber(activity.hoursWorked), 0);
+    const hoursWorked = taskActivities
+      .filter(activity => isCompletedStatus(activity))
+      .reduce((acc, activity) => acc + asNumber(activity.hoursWorked), 0);
     return {
       number: task.taskNumber || "-",
       name: task.name || "-",
       period: `${formatDate(task.startDate)} a ${formatDate(task.endDate)}`,
       plannedHours: asNumber(task.plannedHours),
+      plannedWithoutOsHours: plannedWithoutOs,
       workedHours: hoursWorked,
       activityCount: taskActivities.length
     };
@@ -143,11 +159,13 @@ function buildStatusReportData({ project, tasks, activities, state }){
       coordinatorName,
       taskCount: taskRows.length,
       activityCount: activityRows.length,
-      totalActivityHours,
+      plannedWithoutOsHours,
+      executedActivityHours,
+      totalActivityHours: executedActivityHours,
       completedCount,
       pendingCount,
       overdueCount,
-      projectConsumption: billingHours > 0 ? ((totalActivityHours / billingHours) * 100) : 0
+      projectConsumption: billingHours > 0 ? ((executedActivityHours / billingHours) * 100) : 0
     },
     taskRows,
     activityRows
@@ -192,6 +210,7 @@ function buildReportHtml(data){
       <td>${escapeHtml(task.name)}</td>
       <td>${escapeHtml(task.period)}</td>
       <td>${escapeHtml(`${task.plannedHours}h`)}</td>
+      <td>${escapeHtml(`${task.plannedWithoutOsHours}h`)}</td>
       <td>${escapeHtml(`${task.workedHours}h`)}</td>
       <td>${escapeHtml(String(task.activityCount))}</td>
     </tr>
@@ -265,9 +284,9 @@ function buildReportHtml(data){
           </div>
           <div class="summary">
             <div class="card"><div class="label">Horas previstas</div><div class="value">${escapeHtml(`${project.billingHours}h`)}</div><div class="sub">Planejamento total do projeto</div></div>
-            <div class="card"><div class="label">Horas executadas</div><div class="value">${escapeHtml(`${summary.totalActivityHours}h`)}</div><div class="sub">Consumo: ${escapeHtml(summary.projectConsumption.toFixed(1).replace(".", ","))}%</div></div>
+            <div class="card"><div class="label">Horas planejadas</div><div class="value">${escapeHtml(`${summary.plannedWithoutOsHours}h`)}</div><div class="sub">Atividades sem OS</div></div>
+            <div class="card"><div class="label">Horas executadas</div><div class="value">${escapeHtml(`${summary.executedActivityHours}h`)}</div><div class="sub">Consumo: ${escapeHtml(summary.projectConsumption.toFixed(1).replace(".", ","))}%</div></div>
             <div class="card"><div class="label">Atividades</div><div class="value">${escapeHtml(String(summary.activityCount))}</div><div class="sub">${escapeHtml(String(summary.pendingCount))} pendentes • ${escapeHtml(String(summary.completedCount))} concluídas</div></div>
-            <div class="card"><div class="label">Tarefas</div><div class="value">${escapeHtml(String(summary.taskCount))}</div><div class="sub">${escapeHtml(String(summary.overdueCount))} atividade(s) atrasada(s)</div></div>
           </div>
           <div class="executive-box">
             <div class="label">Resumo executivo</div>
@@ -293,6 +312,7 @@ function buildReportHtml(data){
                   <th>Tarefa</th>
                   <th>Periodo</th>
                   <th>Horas previstas</th>
+                  <th>Horas planejadas sem OS</th>
                   <th>Horas executadas</th>
                   <th>Atividades</th>
                 </tr>
@@ -431,9 +451,9 @@ export async function downloadProjectStatusReportPdf(payload){
 
   const summaryCards = [
     { label: "Horas previstas", value: `${data.project.billingHours}h`, sub: "Planejamento total" },
-    { label: "Horas executadas", value: `${summary.totalActivityHours}h`, sub: `Consumo: ${summary.projectConsumption.toFixed(1).replace(".", ",")}%` },
+    { label: "Horas planejadas", value: `${summary.plannedWithoutOsHours}h`, sub: "Atividades sem OS" },
+    { label: "Horas executadas", value: `${summary.executedActivityHours}h`, sub: `Consumo: ${summary.projectConsumption.toFixed(1).replace(".", ",")}%` },
     { label: "Atividades", value: String(summary.activityCount), sub: `${summary.pendingCount} pendentes • ${summary.completedCount} concluidas` },
-    { label: "Tarefas", value: String(summary.taskCount), sub: `${summary.overdueCount} atividade(s) atrasada(s)` }
   ];
 
   let x = 10;
@@ -455,9 +475,11 @@ export async function downloadProjectStatusReportPdf(payload){
     x += 48;
   });
 
+  const executiveText = doc.splitTextToSize(summary.executiveSummary, pageWidth - 30);
+  const executiveBoxHeight = Math.max(20, 12 + (executiveText.length * 4));
   doc.setFillColor(248, 250, 255);
   doc.setDrawColor(220, 228, 240);
-  doc.roundedRect(10, 84, pageWidth - 20, 20, 5, 5, "FD");
+  doc.roundedRect(10, 84, pageWidth - 20, executiveBoxHeight, 5, 5, "FD");
   doc.setTextColor(122, 133, 153);
   doc.setFont("helvetica", "bold");
   doc.setFontSize(8.5);
@@ -465,16 +487,16 @@ export async function downloadProjectStatusReportPdf(payload){
   doc.setTextColor(36, 50, 74);
   doc.setFont("helvetica", "normal");
   doc.setFontSize(9.2);
-  const executiveText = doc.splitTextToSize(summary.executiveSummary, pageWidth - 30);
   doc.text(executiveText, 14, 96);
 
   doc.setFont("helvetica", "bold");
   doc.setFontSize(12);
   doc.setTextColor(22, 32, 51);
-  doc.text("Informacoes do projeto", 10, 114);
+  const infoTitleY = 84 + executiveBoxHeight + 10;
+  doc.text("Informacoes do projeto", 10, infoTitleY);
 
   let nextY = drawSimpleTable(doc, {
-    startY: 117,
+    startY: infoTitleY + 3,
     fontSize: 8.4,
     columns: [
       { key: "client", label: "Cliente", width: 1.2 },
@@ -482,6 +504,7 @@ export async function downloadProjectStatusReportPdf(payload){
       { key: "manager", label: "Gestor", width: 1 },
       { key: "coordinator", label: "Coordenador", width: 1.05 },
       { key: "hours", label: "Horas previstas", width: .75 },
+      { key: "planned", label: "Horas planejadas", width: .85 },
       { key: "worked", label: "Horas executadas", width: .85 }
     ],
     rows: [{
@@ -490,7 +513,8 @@ export async function downloadProjectStatusReportPdf(payload){
       manager: summary.managerName,
       coordinator: summary.coordinatorName,
       hours: `${data.project.billingHours}h`,
-      worked: `${summary.totalActivityHours}h`
+      planned: `${summary.plannedWithoutOsHours}h`,
+      worked: `${summary.executedActivityHours}h`
     }]
   }) + 8;
 
@@ -506,6 +530,7 @@ export async function downloadProjectStatusReportPdf(payload){
       { key: "name", label: "Tarefa", width: 2.1 },
       { key: "period", label: "Periodo", width: 1.4 },
       { key: "planned", label: "Horas previstas", width: .95 },
+      { key: "plannedNoOs", label: "Planejadas sem OS", width: .95 },
       { key: "worked", label: "Horas executadas", width: .98 },
       { key: "count", label: "Atividades", width: .72 }
     ],
@@ -514,6 +539,7 @@ export async function downloadProjectStatusReportPdf(payload){
       name: task.name,
       period: task.period,
       planned: `${task.plannedHours}h`,
+      plannedNoOs: `${task.plannedWithoutOsHours}h`,
       worked: `${task.workedHours}h`,
       count: String(task.activityCount)
     }))
