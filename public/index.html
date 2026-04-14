@@ -5,7 +5,7 @@
 <meta charset="utf-8"/>
 <meta content="width=device-width, initial-scale=1.0" name="viewport"/>
 <title>FlowProject</title>
-<link href="./styles.css?v=1776052715" rel="stylesheet"/>
+<link href="./styles.css?v=1776052721" rel="stylesheet"/>
 <link href="logof.png" rel="icon" type="image/png"/>
 <style>
   /* SaaS Search (My Projects Kanban) */
@@ -568,6 +568,26 @@
 <h3>Nenhum cliente encontrado</h3>
 <p class="muted">Tente ajustar a busca ou cadastre um novo cliente.</p>
 </div>
+</div>
+</div>
+</section>
+
+<section class="view" hidden="" id="viewSettings">
+<div class="container settings-page">
+<div class="page-header">
+<div>
+<h1>Configuracoes</h1>
+<p class="muted">Ajuste preferencias da sua conta, da empresa e dos fluxos que voce utiliza.</p>
+</div>
+<div class="chips">
+<span class="badge" id="settingsRoleLabel">Perfil</span>
+</div>
+</div>
+
+<div class="settings-grid" id="settingsGrid"></div>
+<div class="panel subtle" hidden="" id="settingsEmpty" style="margin-top:12px;">
+<h3>Nenhuma configuracao disponivel</h3>
+<p class="muted">Seu perfil nao possui configuracoes adicionais no momento.</p>
 </div>
 </div>
 </section>
@@ -2158,7 +2178,7 @@
   </div>
 </div>
 
-<script src="./app.js?v=1776052720" type="module"></script>
+<script src="./app.js?v=1776052721" type="module"></script>
 <script>
   // Toggle senha (somente UI)
   document.addEventListener("click", function(e){

@@ -11,6 +11,7 @@ export const viewAdmin = byId("viewAdmin");
 export const viewCompanies = byId("viewCompanies");
 export const viewManagerUsers = byId("viewManagerUsers");
 export const viewClients = byId("viewClients");
+export const viewSettings = byId("viewSettings");
 
 // Sidebar
 export const sidebar = byId("sidebar");
@@ -27,6 +28,11 @@ export const navReports = byId("navReports");
 export const navFeedbacks = byId("navFeedbacks");
 export const navConfig = byId("navConfig");
 export const navLogout = byId("navLogout");
+
+// Settings
+export const settingsRoleLabel = byId("settingsRoleLabel");
+export const settingsGrid = byId("settingsGrid");
+export const settingsEmpty = byId("settingsEmpty");
 
 // Company brand settings
 export const modalCompanyBrand = byId("modalCompanyBrand");

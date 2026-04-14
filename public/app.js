@@ -36,14 +36,14 @@ import {
 
 import { normalizeRole, humanizeRole } from "./src/utils/roles.js";
 import { show, hide, escapeHtml } from "./src/utils/dom.js";
-import { setView } from "./src/ui/router.js?v=1772634200";
+import { setView } from "./src/ui/router.js?v=1776052721";
 import { isEmailValidBasic, isCnpjValidBasic } from "./src/utils/validators.js";
 import { fetchPlatformUser, fetchCompanyIdForUser, fetchCompanyUserProfile } from "./src/services/firestore.service.js";
 import { auth, secondaryAuth, db, storage, functions, httpsCallable } from "./src/config/firebase.js";
 import { normalizePhone, normalizeCnpj, slugify } from "./src/utils/format.js";
 import { setAlert, clearAlert, clearInlineAlert, showInlineAlert } from "./src/ui/alerts.js";
 import { getCompanyDoc, listCompaniesDocs } from "./src/services/companies.service.js";
-import * as refs from "./src/ui/refs.js?v=1776052715";
+import * as refs from "./src/ui/refs.js?v=1776052721";
 import * as companiesDomain from "./src/domain/companies.domain.js?v=1770332251";
 import * as teamsDomain from "./src/domain/teams.domain.js?v=1772614200";
 import * as usersDomain from "./src/domain/users.domain.js?v=1772622200";
@@ -364,6 +364,149 @@ function syncSidebarForRole(){
   }
 }
 
+function roleLabel(){
+  if (state.isSuperAdmin) return "Superadmin";
+  const role = String(state.profile?.role || "").toLowerCase();
+  const labels = {
+    admin: "Admin",
+    gestor: "Gestor",
+    coordenador: "Coordenador",
+    tecnico: "Tecnico"
+  };
+  return labels[role] || "Usuario";
+}
+
+function settingsCard({ scope, title, desc, action, actionLabel = "Abrir" }){
+  return `
+    <article class="settings-card">
+      <span class="badge">${escapeHtml(scope)}</span>
+      <h3>${escapeHtml(title)}</h3>
+      <p>${escapeHtml(desc)}</p>
+      <button class="btn sm" type="button" data-settings-action="${escapeHtml(action)}">${escapeHtml(actionLabel)}</button>
+    </article>
+  `;
+}
+
+function renderSettingsView(){
+  if (!refs.settingsGrid) return;
+  const role = String(state.profile?.role || "").toLowerCase();
+  const isAdmin = role === "admin";
+  const isManager = role === "gestor";
+  const isCoordinator = role === "coordenador";
+  const isTech = role === "tecnico";
+  const isSuperAdmin = !!state.isSuperAdmin;
+  const cards = [];
+
+  if (refs.settingsRoleLabel) refs.settingsRoleLabel.textContent = roleLabel();
+
+  cards.push(`
+    <div class="settings-section">
+      <h2>Minha conta</h2>
+      <p>Dados pessoais, foto e telefone usados no FlowProject.</p>
+    </div>
+  `);
+  cards.push(settingsCard({
+    scope: "Conta",
+    title: "Perfil",
+    desc: "Atualize seu nome, telefone e foto de usuario.",
+    action: "profile",
+    actionLabel: "Editar perfil"
+  }));
+
+  if (isAdmin){
+    cards.push(`
+      <div class="settings-section">
+        <h2>Empresa</h2>
+        <p>Identidade visual, equipe e preferencias gerais da empresa.</p>
+      </div>
+    `);
+    cards.push(settingsCard({
+      scope: "Empresa",
+      title: "Marca da empresa",
+      desc: "Altere o nome e o logo exibidos no menu lateral e nos relatorios.",
+      action: "brand",
+      actionLabel: "Editar marca"
+    }));
+    cards.push(settingsCard({
+      scope: "Usuarios",
+      title: "Tecnicos e equipes",
+      desc: "Gerencie tecnicos, gestores, coordenadores, skills e vinculos de equipe.",
+      action: "users",
+      actionLabel: "Abrir tecnicos"
+    }));
+    cards.push(settingsCard({
+      scope: "Clientes",
+      title: "Cadastro de clientes",
+      desc: "Mantenha clientes, key users e contatos atualizados.",
+      action: "clients",
+      actionLabel: "Abrir clientes"
+    }));
+  }
+
+  if (isAdmin || isManager || isCoordinator){
+    cards.push(`
+      <div class="settings-section">
+        <h2>Operacao</h2>
+        <p>Acesso rapido aos fluxos de acompanhamento e relatorios.</p>
+      </div>
+    `);
+    cards.push(settingsCard({
+      scope: "Relatorios",
+      title: "Relatorios e indicadores",
+      desc: "Acesse os filtros e paineis de acompanhamento da operacao.",
+      action: "reports",
+      actionLabel: "Abrir relatorios"
+    }));
+    cards.push(settingsCard({
+      scope: "OS",
+      title: "OS para aprovar",
+      desc: "Revise apontamentos enviados e acompanhe aprovacoes.",
+      action: "osApprovals",
+      actionLabel: "Abrir OS"
+    }));
+  }
+
+  if (isTech){
+    cards.push(`
+      <div class="settings-section">
+        <h2>Trabalho</h2>
+        <p>Preferencias basicas e atalhos para sua rotina.</p>
+      </div>
+    `);
+    cards.push(settingsCard({
+      scope: "Atividades",
+      title: "Minhas atividades",
+      desc: "Acesse suas atividades e apontamentos em aberto.",
+      action: "myActivities",
+      actionLabel: "Abrir atividades"
+    }));
+  }
+
+  if (isSuperAdmin){
+    cards.push(`
+      <div class="settings-section">
+        <h2>Plataforma</h2>
+        <p>Atalhos administrativos do ambiente FlowProject.</p>
+      </div>
+    `);
+    cards.push(settingsCard({
+      scope: "Master",
+      title: "Empresas",
+      desc: "Gerencie empresas cadastradas, usuarios admin e status de acesso.",
+      action: "companies",
+      actionLabel: "Abrir empresas"
+    }));
+  }
+
+  refs.settingsGrid.innerHTML = cards.join("");
+  if (refs.settingsEmpty) refs.settingsEmpty.hidden = cards.length > 1;
+}
+
+function openSettingsView(){
+  setView("settings");
+  renderSettingsView();
+}
+
 function initSidebar(){
   if (!refs.sidebar) return;
 
@@ -432,7 +575,7 @@ function initSidebar(){
 
   refs.navConfig?.addEventListener("click", () => {
     setActiveNav("navConfig");
-    alert("Configuracoes gerais em breve. Para alterar a marca da empresa, clique no logo no topo do menu lateral.");
+    openSettingsView();
   });
 
   refs.sidebarBrand?.addEventListener("click", () => {
@@ -1450,6 +1593,29 @@ refs.companyBrandName?.addEventListener("input", previewCompanyBrand);
 refs.companyBrandLogoFile?.addEventListener("change", previewCompanyBrand);
 refs.btnSaveCompanyBrand?.addEventListener("click", saveCompanyBrand);
 refs.btnResetCompanyBrand?.addEventListener("click", resetCompanyBrand);
+
+refs.settingsGrid?.addEventListener("click", async (event) => {
+  const btn = event.target?.closest?.("[data-settings-action]");
+  if (!btn) return;
+  const action = btn.getAttribute("data-settings-action");
+  if (action === "profile") return openProfileModal();
+  if (action === "brand") return openCompanyBrandModal();
+  if (action === "users") {
+    setActiveNav("navAddTech");
+    return openManagerUsersView();
+  }
+  if (action === "clients") {
+    setActiveNav("navClients");
+    return openClientsView();
+  }
+  if (action === "reports") {
+    setActiveNav("navReports");
+    return openReportsView();
+  }
+  if (action === "osApprovals") return openOsApprovalsView();
+  if (action === "myActivities") return openMyActivitiesView();
+  if (action === "companies") return openCompaniesView();
+});
 
 refs.loginForm?.addEventListener("submit", async (e) => {
   e.preventDefault();

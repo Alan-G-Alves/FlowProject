@@ -14,6 +14,7 @@ const ids = {
   viewCompanies: "viewCompanies",
   viewManagerUsers: "viewManagerUsers",
   viewClients: "viewClients",
+  viewSettings: "viewSettings",
   viewMyProjects: "viewMyProjects",
   viewMyActivities: "viewMyActivities",
   viewMyFeedbacks: "viewMyFeedbacks",
@@ -32,6 +33,7 @@ export function setView(name){
   const viewCompanies = el(ids.viewCompanies);
   const viewManagerUsers = el(ids.viewManagerUsers);
   const viewClients = el(ids.viewClients);
+  const viewSettings = el(ids.viewSettings);
   const viewMyProjects = el(ids.viewMyProjects);
   const viewMyActivities = el(ids.viewMyActivities);
   const viewMyFeedbacks = el(ids.viewMyFeedbacks);
@@ -55,6 +57,7 @@ export function setView(name){
   hide(viewCompanies);
   hide(viewManagerUsers);
   hide(viewClients);
+  hide(viewSettings);
   hide(viewMyProjects);
   hide(viewMyActivities);
   hide(viewMyFeedbacks);
@@ -76,6 +79,7 @@ export function setView(name){
   if (name === "companies") show(viewCompanies);
   if (name === "managerUsers") show(viewManagerUsers);
   if (name === "clients") show(viewClients);
+  if (name === "settings") show(viewSettings);
   if (name === "myProjects") show(viewMyProjects);
   if (name === "myActivities") show(viewMyActivities);
   if (name === "myFeedbacks") show(viewMyFeedbacks);
