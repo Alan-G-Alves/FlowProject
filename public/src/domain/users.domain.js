@@ -10,7 +10,8 @@ import {
   updateDoc,
   serverTimestamp,
   query,
-  where
+  where,
+  limit
 } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore.js";
 import { getDownloadURL, ref as storageRef, uploadBytes, deleteObject } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-storage.js";
 import { show, hide } from "../utils/dom.js";
@@ -211,6 +212,27 @@ async function waitForCompanyUserDoc(db, companyId, uid, timeoutMs = 4000) {
     await new Promise((resolve) => setTimeout(resolve, 250));
   }
   return false;
+}
+
+async function findUserUidByEmailInCompany(db, companyId, email) {
+  const emailLower = normalizeText(email);
+  if (!companyId || !emailLower) return "";
+
+  const usersCol = collection(db, "companies", companyId, "users");
+
+  try {
+    const q1 = query(usersCol, where("emailLower", "==", emailLower), limit(1));
+    const snap1 = await getDocs(q1);
+    if (!snap1.empty) return snap1.docs[0].id;
+  } catch (_) {}
+
+  try {
+    const q2 = query(usersCol, where("email", "==", email), limit(1));
+    const snap2 = await getDocs(q2);
+    if (!snap2.empty) return snap2.docs[0].id;
+  } catch (_) {}
+
+  return "";
 }
 
 function initNewUserRichFields(deps) {
@@ -919,6 +941,7 @@ export function renderTeamChips(deps) {
 
 export async function createUser(deps) {
   const { refs, state, db, auth, loadUsers } = deps;
+  if (state._isCreatingUser) return;
   clearAlert(refs.createUserAlert);
 
   let uid = (refs.newUserUidEl?.value || "").trim();
@@ -949,6 +972,12 @@ export async function createUser(deps) {
     return setAlert(refs.createUserAlert, "Selecione pelo menos 1 equipe para este usuário.");
   }
 
+  const existingUid = await findUserUidByEmailInCompany(db, state.companyId, email);
+  if (existingUid && existingUid !== uid) {
+    return setAlert(refs.createUserAlert, "Este e-mail já está cadastrado nesta empresa. Use outro e-mail ou edite o usuário existente.");
+  }
+
+  state._isCreatingUser = true;
   setAlert(refs.createUserAlert, "Salvando...", "info");
 
   try {
@@ -1085,6 +1114,7 @@ export async function createUser(deps) {
       setAlert(refs.createUserAlert, "Erro ao salvar: " + (err?.message || err));
     }
   } finally {
+    state._isCreatingUser = false;
     state._newUserAvatarFile = null;
   }
 }

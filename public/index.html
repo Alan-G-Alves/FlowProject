@@ -2227,8 +2227,7 @@
       document.body.classList.toggle("is-login", !!isLogin);
     }
     sync();
-    const obs = new MutationObserver(sync);
-    const v = document.getElementById("viewLogin");
+    const obs = new MutationObserver(sync);    const v = document.getElementById("viewLogin");
     if (v) obs.observe(v, { attributes:true, attributeFilter:["hidden"] });
     setInterval(sync, 800);
   })();

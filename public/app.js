@@ -2165,26 +2165,26 @@ refs.modalCreateTeam?.addEventListener("click", (e) => {
 refs.btnReloadUsers?.addEventListener("click", () => loadUsers());
 refs.userSearch?.addEventListener("input", () => loadUsers());
 refs.userRoleFilter?.addEventListener("change", () => { loadUsers(); });
-refs.btnOpenCreateUser?.addEventListener("click", async () => {
+onOnce(refs.btnOpenCreateUser, "click", async () => {
   // garante que as equipes estão carregadas antes de abrir
   await loadTeams();
   // Preload clients cache (para seleção no modal de projeto)
   try { await loadClients(); } catch(e) { console.warn("[clients] preload falhou", e); }
   openCreateUserModal();
-});
+}, "btnOpenCreateUser");
 
-refs.btnCloseCreateUser?.addEventListener("click", () => closeCreateUserModal());
-refs.btnCancelCreateUser?.addEventListener("click", () => closeCreateUserModal());
-refs.btnCreateUser?.addEventListener("click", () => {
+onOnce(refs.btnCloseCreateUser, "click", () => closeCreateUserModal(), "btnCloseCreateUser");
+onOnce(refs.btnCancelCreateUser, "click", () => closeCreateUserModal(), "btnCancelCreateUser");
+onOnce(refs.btnCreateUser, "click", () => {
   createUser().catch(err => {
     console.error(err);
     setAlert(refs.createUserAlert, "Erro ao salvar: " + (err?.message || err));
   });
-});
+}, "btnCreateUser");
 
-refs.modalCreateUser?.addEventListener("click", (e) => {
+onOnce(refs.modalCreateUser, "click", (e) => {
   if (e.target?.dataset?.close === "true") closeCreateUserModal();
-});
+}, "modalCreateUser");
 
 refs.btnCloseCompanyDetail?.addEventListener("click", () => closeCompanyDetailModal());
 
@@ -2391,14 +2391,14 @@ refs.modalAddUsersToTeam?.addEventListener("click", (e) => {
 refs.userSearch?.addEventListener("input", () => loadUsers());
 refs.userRoleFilter?.addEventListener("change", () => { loadUsers(); });
 
-refs.btnCloseCreateUser?.addEventListener("click", () => closeCreateUserModal());
-refs.btnCancelCreateUser?.addEventListener("click", () => closeCreateUserModal());
-refs.btnCreateUser?.addEventListener("click", () => {
+onOnce(refs.btnCloseCreateUser, "click", () => closeCreateUserModal(), "btnCloseCreateUser");
+onOnce(refs.btnCancelCreateUser, "click", () => closeCreateUserModal(), "btnCancelCreateUser");
+onOnce(refs.btnCreateUser, "click", () => {
   createUser().catch(err => {
     console.error(err);
     setAlert(refs.createUserAlert, "Erro ao salvar: " + (err?.message || err));
   });
-});
+}, "btnCreateUser");
 
 
 // Edit User Teams modal events
