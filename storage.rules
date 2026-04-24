@@ -70,6 +70,39 @@ service firebase.storage {
         && (canManageUsers() || targetUid == request.auth.uid);
     }
 
+    match /expenseReceipts/{companyId}/{expenseId}/{fileName} {
+      function expenseDoc() {
+        return firestore.get(/databases/(default)/documents/companies/$(companyId)/expenses/$(expenseId));
+      }
+
+      allow read: if signedIn()
+        && companyId == myCompanyId()
+        && (
+          canManageUsers()
+          || expenseDoc().data.createdBy == request.auth.uid
+          || expenseDoc().data.techUid == request.auth.uid
+        );
+
+      allow create, update: if signedIn()
+        && companyId == myCompanyId()
+        && (
+          canManageUsers()
+          || expenseDoc().data.createdBy == request.auth.uid
+        )
+        && request.resource.size < 8 * 1024 * 1024
+        && (
+          request.resource.contentType == 'application/pdf'
+          || request.resource.contentType.matches('image/.*')
+        );
+
+      allow delete: if signedIn()
+        && companyId == myCompanyId()
+        && (
+          canManageUsers()
+          || expenseDoc().data.createdBy == request.auth.uid
+        );
+    }
+
     match /clientPhotos/{companyId}/{clientId} {
       // qualquer usuário autenticado da mesma empresa pode ver a foto do cliente
       allow read: if signedIn();

@@ -11,6 +11,7 @@ import {
 import { clearAlert, setAlert } from "../ui/alerts.js";
 import { escapeHtml, hide, show } from "../utils/dom.js";
 import { createNotifications } from "../services/notifications.service.js?v=1776052722";
+import * as expensesDomain from "./expenses.domain.js?v=1777057001";
 
 let _bound = false;
 let _currentActivity = null;
@@ -190,6 +191,13 @@ function bindEvents(deps) {
 
   refs.btnCloseMyActivityModal?.addEventListener("click", closeMyActivityModal);
   refs.btnCancelMyActivityModal?.addEventListener("click", closeMyActivityModal);
+  refs.btnOpenActivityExpense?.addEventListener("click", () => {
+    if (!_currentActivity) return;
+    expensesDomain.openActivityExpenseModal(_currentActivity, deps).catch((err) => {
+      console.error(err);
+      alert("Nao foi possivel abrir o lancamento da despesa.");
+    });
+  });
   refs.myActivityNote?.addEventListener("input", () => updateMyActivityNoteCounter(refs));
   refs.myActivityStartTime?.addEventListener("input", () => updateMyActivityComputedHours(refs));
   refs.myActivityEndTime?.addEventListener("input", () => updateMyActivityComputedHours(refs));
@@ -366,6 +374,12 @@ function closeMyActivityModal() {
   _currentModalMode = "view";
   const modal = document.getElementById("modalMyActivity");
   if (modal) modal.hidden = true;
+  const totalEl = document.getElementById("myActivityExpenseTotal");
+  const pendingEl = document.getElementById("myActivityExpensePendingCount");
+  const listEl = document.getElementById("myActivityExpensesList");
+  if (totalEl) totalEl.textContent = "R$ 0,00";
+  if (pendingEl) pendingEl.textContent = "0";
+  if (listEl) listEl.innerHTML = '<div class="my-activity-expenses-empty">Nenhuma despesa registrada para esta atividade ainda.</div>';
 }
 
 function openMyActivityModal(activityId, mode, deps) {
@@ -412,10 +426,17 @@ function openMyActivityModal(activityId, mode, deps) {
   }
   if (refs.btnSaveMyActivityModal) refs.btnSaveMyActivityModal.hidden = readOnly;
   if (refs.btnCancelMyActivityModal) refs.btnCancelMyActivityModal.textContent = readOnly ? "Fechar" : "Cancelar";
+  if (refs.btnOpenActivityExpense) refs.btnOpenActivityExpense.hidden = false;
   updateMyActivityNoteCounter(refs);
   updateMyActivityComputedHours(refs);
 
   refs.modalMyActivity.hidden = false;
+  expensesDomain.loadActivityExpenses(item, deps).catch((err) => {
+    console.error(err);
+    if (refs.myActivityExpensesList) {
+      refs.myActivityExpensesList.innerHTML = '<div class="my-activity-expenses-empty">Nao foi possivel carregar as despesas desta atividade.</div>';
+    }
+  });
 }
 
 async function saveMyActivityModal(deps) {

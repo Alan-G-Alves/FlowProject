@@ -26,6 +26,7 @@ export const navAddTech = byId("navAddTech");
 export const navClients = byId("navClients");
 export const navReports = byId("navReports");
 export const navFeedbacks = byId("navFeedbacks");
+export const navExpenses = byId("navExpenses");
 export const navConfig = byId("navConfig");
 export const navLogout = byId("navLogout");
 
@@ -402,6 +403,10 @@ export const myActivityKeyUsers = byId("myActivityKeyUsers");
 export const myActivityNote = byId("myActivityNote");
 export const myActivityNoteCounter = byId("myActivityNoteCounter");
 export const myActivityTip = byId("myActivityTip");
+export const btnOpenActivityExpense = byId("btnOpenActivityExpense");
+export const myActivityExpenseTotal = byId("myActivityExpenseTotal");
+export const myActivityExpensePendingCount = byId("myActivityExpensePendingCount");
+export const myActivityExpensesList = byId("myActivityExpensesList");
 
 // My Feedbacks
 export const viewMyFeedbacks = byId("viewMyFeedbacks");
@@ -431,6 +436,46 @@ export const osApprovalsBulkMeta = byId("osApprovalsBulkMeta");
 export const btnOsApprovalsBulkAction = byId("btnOsApprovalsBulkAction");
 export const osApprovalsList = byId("osApprovalsList");
 export const osApprovalsEmpty = byId("osApprovalsEmpty");
+
+// Expense Approvals
+export const viewExpenseApprovals = byId("viewExpenseApprovals");
+export const expenseApprovalsSearchInput = byId("expenseApprovalsSearchInput");
+export const expenseApprovalsProjectFilter = byId("expenseApprovalsProjectFilter");
+export const expenseApprovalsTypeFilter = byId("expenseApprovalsTypeFilter");
+export const expenseApprovalsChargeFilter = byId("expenseApprovalsChargeFilter");
+export const expenseApprovalsPendingCount = byId("expenseApprovalsPendingCount");
+export const expenseApprovalsApprovedCount = byId("expenseApprovalsApprovedCount");
+export const expenseApprovalsRejectedCount = byId("expenseApprovalsRejectedCount");
+export const expenseApprovalsPendingValue = byId("expenseApprovalsPendingValue");
+export const expenseApprovalsInternalValue = byId("expenseApprovalsInternalValue");
+export const expenseApprovalsClientValue = byId("expenseApprovalsClientValue");
+export const expenseApprovalsList = byId("expenseApprovalsList");
+export const expenseApprovalsEmpty = byId("expenseApprovalsEmpty");
+export const btnReloadExpenseApprovals = byId("btnReloadExpenseApprovals");
+export const btnOpenManualExpense = byId("btnOpenManualExpense");
+
+// Expense Form
+export const modalExpenseForm = byId("modalExpenseForm");
+export const btnCloseExpenseForm = byId("btnCloseExpenseForm");
+export const btnCancelExpenseForm = byId("btnCancelExpenseForm");
+export const btnSaveExpenseForm = byId("btnSaveExpenseForm");
+export const expenseFormTitle = byId("expenseFormTitle");
+export const expenseFormSubtitle = byId("expenseFormSubtitle");
+export const expenseFormAlert = byId("expenseFormAlert");
+export const expenseProjectEl = byId("expenseProject");
+export const expenseTaskEl = byId("expenseTask");
+export const expenseActivityEl = byId("expenseActivity");
+export const expenseTypeEl = byId("expenseType");
+export const expenseAmountEl = byId("expenseAmount");
+export const expenseChargedToClientEl = byId("expenseChargedToClient");
+export const expenseObservationEl = byId("expenseObservation");
+export const expenseObservationHint = byId("expenseObservationHint");
+export const expenseObservationCounter = byId("expenseObservationCounter");
+export const expenseReceiptFileEl = byId("expenseReceiptFile");
+export const expenseReceiptSummary = byId("expenseReceiptSummary");
+export const expenseReceiptPreview = byId("expenseReceiptPreview");
+export const btnRemoveExpenseReceipt = byId("btnRemoveExpenseReceipt");
+export const expenseContextBanner = byId("expenseContextBanner");
 
 // Projects
 export const viewProjects = byId("viewProjects");

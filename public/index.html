@@ -5,7 +5,7 @@
 <meta charset="utf-8"/>
 <meta content="width=device-width, initial-scale=1.0" name="viewport"/>
 <title>FlowProject</title>
-<link href="./styles.css?v=1777055918" rel="stylesheet"/>
+<link href="./styles.css?v=1777057001" rel="stylesheet"/>
 <link href="logof.png" rel="icon" type="image/png"/>
 <style>
   /* SaaS Search (My Projects Kanban) */
@@ -143,6 +143,15 @@
 <path d="M9 9h7M9 12h4" fill="none" stroke="currentColor" stroke-linecap="round" stroke-width="1.8"/>
 </svg>
 <span class="nav-label">Feedbacks</span>
+</button>
+<button class="nav-item" data-tooltip="Despesas" id="navExpenses">
+<svg aria-hidden="true" class="nav-ico-svg" viewBox="0 0 24 24">
+<path d="M4 7.5A2.5 2.5 0 0 1 6.5 5h11A2.5 2.5 0 0 1 20 7.5v9A2.5 2.5 0 0 1 17.5 19h-11A2.5 2.5 0 0 1 4 16.5v-9Z" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8"/>
+<path d="M4 9h16" fill="none" stroke="currentColor" stroke-linecap="round" stroke-width="1.8"/>
+<path d="M8 14h5" fill="none" stroke="currentColor" stroke-linecap="round" stroke-width="1.8"/>
+<path d="M8 17h3" fill="none" stroke="currentColor" stroke-linecap="round" stroke-width="1.8"/>
+</svg>
+<span class="nav-label">Despesas</span>
 </button>
 <div class="sidebar-sep"></div>
 <button class="nav-item" data-tooltip="Configuracoes" id="navConfig">
@@ -988,6 +997,87 @@
   </div>
 </section>
 
+<section class="view" hidden="" id="viewExpenseApprovals">
+  <div class="container expense-approvals-page">
+    <div class="page-header">
+      <div>
+        <h1>Aprovacao de Despesas</h1>
+        <p class="muted">Revise comprovantes, aprove despesas do projeto e acompanhe o impacto entre reembolso do cliente e custo interno.</p>
+      </div>
+      <div class="chips expense-approvals-toolbar">
+        <label class="field expense-approvals-search-field">
+          <span>Buscar despesa</span>
+          <input id="expenseApprovalsSearchInput" type="search" placeholder="Projeto, tecnico, observacao, valor ou comprovante" />
+        </label>
+        <label class="field expense-approvals-filter-field">
+          <span>Projeto</span>
+          <select id="expenseApprovalsProjectFilter">
+            <option value="">Todos</option>
+          </select>
+        </label>
+        <label class="field expense-approvals-filter-field">
+          <span>Tipo</span>
+          <select id="expenseApprovalsTypeFilter">
+            <option value="">Todos</option>
+            <option value="alimentacao">Alimentacao</option>
+            <option value="trajeto">Trajeto</option>
+            <option value="estadia">Estadia</option>
+          </select>
+        </label>
+        <label class="field expense-approvals-filter-field">
+          <span>Responsabilidade</span>
+          <select id="expenseApprovalsChargeFilter">
+            <option value="">Todos</option>
+            <option value="client">Conta do cliente</option>
+            <option value="internal">Conta propria</option>
+          </select>
+        </label>
+        <button class="btn" id="btnReloadExpenseApprovals" type="button">Atualizar</button>
+        <button class="btn primary" id="btnOpenManualExpense" type="button">+ Nova Despesa</button>
+      </div>
+    </div>
+
+    <section class="expense-approvals-summary">
+      <article class="expense-approvals-stat is-active" data-expense-status="pending" role="button" tabindex="0" aria-pressed="true">
+        <span class="expense-approvals-stat-label">Pendentes</span>
+        <strong id="expenseApprovalsPendingCount">0</strong>
+        <p class="muted">Despesas aguardando sua decisao.</p>
+      </article>
+      <article class="expense-approvals-stat" data-expense-status="approved" role="button" tabindex="0" aria-pressed="false">
+        <span class="expense-approvals-stat-label">Aprovadas</span>
+        <strong id="expenseApprovalsApprovedCount">0</strong>
+        <p class="muted">Valores ja validados pela gestao.</p>
+      </article>
+      <article class="expense-approvals-stat" data-expense-status="rejected" role="button" tabindex="0" aria-pressed="false">
+        <span class="expense-approvals-stat-label">Reprovadas</span>
+        <strong id="expenseApprovalsRejectedCount">0</strong>
+        <p class="muted">Lancamentos devolvidos para ajuste.</p>
+      </article>
+      <article class="expense-approvals-stat expense-approvals-stat--money">
+        <span class="expense-approvals-stat-label">Valor pendente</span>
+        <strong id="expenseApprovalsPendingValue">R$ 0,00</strong>
+        <p class="muted">Total em analise no momento.</p>
+      </article>
+      <article class="expense-approvals-stat expense-approvals-stat--money">
+        <span class="expense-approvals-stat-label">Custo interno aprovado</span>
+        <strong id="expenseApprovalsInternalValue">R$ 0,00</strong>
+        <p class="muted">Impacta a margem estimada do projeto.</p>
+      </article>
+      <article class="expense-approvals-stat expense-approvals-stat--money">
+        <span class="expense-approvals-stat-label">Conta do cliente</span>
+        <strong id="expenseApprovalsClientValue">R$ 0,00</strong>
+        <p class="muted">Despesas reembolsaveis pelo cliente.</p>
+      </article>
+    </section>
+
+    <div class="expense-approvals-list" id="expenseApprovalsList"></div>
+    <div class="panel subtle" hidden id="expenseApprovalsEmpty">
+      <h3>Nenhuma despesa encontrada</h3>
+      <p class="muted">Ajuste os filtros ou aguarde novos lancamentos registrados pela equipe.</p>
+    </div>
+  </div>
+</section>
+
 <div class="modal" hidden id="modalMyActivity">
   <div class="modal-backdrop" data-close-my-activity="true"></div>
   <div class="modal-card my-activity-modal-card">
@@ -1087,11 +1177,129 @@
             </div>
           </label>
         </section>
+
+        <section class="my-activity-section my-activity-section--expenses">
+          <div class="my-activity-section-head">
+            <div>
+              <div class="my-activity-section-kicker">Despesas</div>
+              <h3>Comprovantes da atividade</h3>
+            </div>
+            <button class="btn sm" id="btnOpenActivityExpense" type="button">+ Adicionar despesa</button>
+          </div>
+          <div class="my-activity-expense-summary">
+            <div class="my-activity-expense-pill">
+              <span>Total da atividade</span>
+              <strong id="myActivityExpenseTotal">R$ 0,00</strong>
+            </div>
+            <div class="my-activity-expense-pill">
+              <span>Pendentes</span>
+              <strong id="myActivityExpensePendingCount">0</strong>
+            </div>
+          </div>
+          <div class="my-activity-expenses-list" id="myActivityExpensesList"></div>
+        </section>
       </div>
     </div>
     <div class="modal-footer">
       <button class="btn ghost" id="btnCancelMyActivityModal" type="button">Fechar</button>
       <button class="btn primary" id="btnSaveMyActivityModal" type="button">Salvar apontamento</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal" hidden id="modalExpenseForm">
+  <div class="modal-backdrop" data-close-expense-form="true"></div>
+  <div class="modal-card modal-xl expense-form-modal-card">
+    <div class="modal-header expense-form-modal-head">
+      <div>
+        <h2 id="expenseFormTitle">Nova Despesa</h2>
+        <p class="muted" id="expenseFormSubtitle">Registre a despesa com contexto, valor e comprovante.</p>
+      </div>
+      <button class="btn ghost" id="btnCloseExpenseForm" type="button">X</button>
+    </div>
+    <div class="modal-body">
+      <div class="alert" hidden id="expenseFormAlert"></div>
+      <div class="form-sections">
+        <div class="form-section">
+          <div class="section-title">Contexto</div>
+          <div class="grid expense-form-grid" style="grid-template-columns: repeat(12, 1fr); gap:12px;">
+            <label class="field" style="grid-column: span 6;">
+              <span>Projeto</span>
+              <select id="expenseProject"></select>
+            </label>
+            <label class="field" style="grid-column: span 3;">
+              <span>Tarefa</span>
+              <select id="expenseTask">
+                <option value="">Nao vincular</option>
+              </select>
+            </label>
+            <label class="field" style="grid-column: span 3;">
+              <span>Atividade</span>
+              <select id="expenseActivity">
+                <option value="">Nao vincular</option>
+              </select>
+            </label>
+          </div>
+          <div class="expense-context-banner" id="expenseContextBanner" hidden></div>
+        </div>
+
+        <div class="form-section">
+          <div class="section-title">Despesa</div>
+          <div class="grid expense-form-grid" style="grid-template-columns: repeat(12, 1fr); gap:12px;">
+            <label class="field" style="grid-column: span 4;">
+              <span>Tipo</span>
+              <select id="expenseType">
+                <option value="alimentacao">Alimentacao</option>
+                <option value="trajeto">Trajeto</option>
+                <option value="estadia">Estadia</option>
+              </select>
+            </label>
+            <label class="field" style="grid-column: span 4;">
+              <span>Valor</span>
+              <input id="expenseAmount" inputmode="decimal" placeholder="R$ 0,00" />
+            </label>
+            <label class="field expense-checkbox-field" style="grid-column: span 4;">
+              <span>Responsabilidade</span>
+              <label class="expense-checkbox-card">
+                <input id="expenseChargedToClient" type="checkbox" />
+                <span>Despesa por conta do cliente</span>
+              </label>
+            </label>
+            <label class="field" style="grid-column: span 12;">
+              <span>Observacao</span>
+              <textarea id="expenseObservation" rows="4" placeholder="Explique o contexto da despesa, o motivo e o que foi utilizado. Minimo de 10 caracteres."></textarea>
+              <div class="expense-observation-meta">
+                <small id="expenseObservationHint">Descreva a despesa com clareza para facilitar a aprovacao.</small>
+                <strong id="expenseObservationCounter">0/10 minimo</strong>
+              </div>
+            </label>
+          </div>
+        </div>
+
+        <div class="form-section">
+          <div class="section-title">Comprovante</div>
+          <div class="person-attachments-card expense-receipt-card">
+            <div class="person-attachments-head">
+              <div>
+                <strong>Arquivo da despesa</strong>
+                <p class="muted">Anexe o comprovante em PDF, JPG, PNG ou WEBP.</p>
+              </div>
+              <div class="person-attachments-summary" id="expenseReceiptSummary">Nenhum comprovante</div>
+            </div>
+            <div class="person-attachments-toolbar">
+              <input id="expenseReceiptFile" class="hidden-file" type="file" accept=".pdf,image/png,image/jpeg,image/jpg,image/webp" />
+              <label class="btn sm" for="expenseReceiptFile">Selecionar comprovante</label>
+              <button class="btn ghost sm" id="btnRemoveExpenseReceipt" type="button">Remover</button>
+              <span class="muted">Arquivo obrigatorio de ate 8MB.</span>
+            </div>
+            <div class="expense-receipt-preview" id="expenseReceiptPreview"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn ghost" id="btnCancelExpenseForm" type="button">Cancelar</button>
+      <button class="btn primary" id="btnSaveExpenseForm" type="button">Salvar despesa</button>
     </div>
   </div>
 </div>
@@ -2296,7 +2504,7 @@
   </div>
 </div>
 
-<script src="./app.js?v=1777055918" type="module"></script>
+<script src="./app.js?v=1777057001" type="module"></script>
 <script>
   // Toggle senha (somente UI)
   document.addEventListener("click", function(e){

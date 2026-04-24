@@ -491,6 +491,98 @@ allow delete: if false;
           || isCoordenador(companyId);
       }
 
+      // expenses (despesas do projeto)
+      match /expenses/{expenseId} {
+        function expenseFieldsAllowed() {
+          return request.resource.data.keys().hasOnly([
+            "projectId","projectName",
+            "taskId","taskName",
+            "activityId","activityName","workDate",
+            "type","observation","amount",
+            "chargedToClient",
+            "status",
+            "receipt",
+            "source",
+            "companyId",
+            "techUid","techName",
+            "managerUid","managerName",
+            "coordinatorUid","coordinatorName",
+            "createdBy","createdByName","createdByRole",
+            "approvedBy","approvedByName","approvedByEmail","approvedAt",
+            "rejectedBy","rejectedByName","rejectedAt","rejectionReason",
+            "updatedAt","updatedBy",
+            "createdAt"
+          ]);
+        }
+
+        function expenseReceiptValid() {
+          return !("receipt" in request.resource.data)
+            || request.resource.data.receipt is map;
+        }
+
+        function expenseTypeValid() {
+          return request.resource.data.type in ["alimentacao","trajeto","estadia"];
+        }
+
+        function expenseStatusValid() {
+          return request.resource.data.status in ["pending","approved","rejected"];
+        }
+
+        function expenseBaseValid() {
+          return expenseFieldsAllowed()
+            && request.resource.data.projectId is string
+            && request.resource.data.projectId.size() > 0
+            && request.resource.data.type is string
+            && expenseTypeValid()
+            && request.resource.data.observation is string
+            && request.resource.data.observation.size() >= 10
+            && request.resource.data.amount is number
+            && request.resource.data.amount > 0
+            && request.resource.data.chargedToClient is bool
+            && request.resource.data.source in ["activity","manual"]
+            && request.resource.data.createdBy is string
+            && request.resource.data.createdBy.size() > 0
+            && request.resource.data.createdByName is string
+            && request.resource.data.createdByRole is string
+            && request.resource.data.projectName is string
+            && request.resource.data.status is string
+            && expenseStatusValid()
+            && expenseReceiptValid();
+        }
+
+        allow read: if isSuperAdmin()
+          || isCompanyAdmin(companyId)
+          || isManager(companyId)
+          || isCoordinator(companyId)
+          || isCoordenador(companyId)
+          || (isSignedIn() && companyId == myCompanyId() && resource.data.createdBy == myUid());
+
+        allow create: if (isSuperAdmin()
+          || isCompanyAdmin(companyId)
+          || isManager(companyId)
+          || isCoordinator(companyId)
+          || isCoordenador(companyId)
+          || isCompanyMember(companyId))
+          && expenseBaseValid()
+          && request.resource.data.createdBy == myUid()
+          && request.resource.data.status == "pending";
+
+        allow update: if (isSuperAdmin()
+          || isCompanyAdmin(companyId)
+          || isManager(companyId)
+          || isCoordinator(companyId)
+          || isCoordenador(companyId))
+          && expenseBaseValid();
+
+        allow update: if isCompanyMember(companyId)
+          && resource.data.createdBy == myUid()
+          && resource.data.status == "pending"
+          && request.resource.data.status == "pending"
+          && expenseBaseValid();
+
+        allow delete: if false;
+      }
+
       // notifications
       match /notifications/{notificationId} {
         allow read: if isCompanyMember(companyId)

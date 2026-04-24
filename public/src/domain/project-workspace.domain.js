@@ -14,6 +14,7 @@ import {
 import { setAlert, clearAlert } from "../ui/alerts.js";
 import { escapeHtml } from "../utils/dom.js";
 import { ensureClientsCache } from "./clients.domain.js";
+import { computeProjectExpenseSummary } from "./expenses.domain.js?v=1777057001";
 import { createNotifications } from "../services/notifications.service.js?v=1776052722";
 import { downloadProjectStatusReportExcel, downloadProjectStatusReportPdf } from "./project-status-report.domain.js?v=1776052718";
 
@@ -23,6 +24,7 @@ let _activeProject = null;
 let _tabs = [];
 let _tasks = [];
 let _activities = [];
+let _expenseSummary = null;
 let _activityModalBound = false;
 let _activityModalMode = "view";
 let _activityModalActivityId = "";
@@ -1275,6 +1277,10 @@ function renderCover(refs, project, state){
   const billingValueNumber = asNumber(project.billingValue);
   const billingValue = billingValueNumber > 0 ? formatCurrencyBRL(billingValueNumber) : "-";
   const clientHourlyRate = (billingHours > 0 && billingValueNumber > 0) ? (billingValueNumber / billingHours) : null;
+  const approvedInternalExpenses = asNumber(_expenseSummary?.approvedInternal);
+  const approvedClientExpenses = asNumber(_expenseSummary?.approvedClient);
+  const pendingExpenses = asNumber(_expenseSummary?.totalPending);
+  const approvedExpenses = asNumber(_expenseSummary?.totalApproved);
   const estimatedTechCost = _activities.reduce((acc, activity) => {
     const techIds = Array.isArray(activity.techUids) ? activity.techUids.filter(Boolean) : [];
     const plannedHours = asNumber(activity.hoursWorked);
@@ -1285,7 +1291,7 @@ function renderCover(refs, project, state){
     }, 0);
     return acc + (activityRate * plannedHours);
   }, 0);
-  const profitValue = billingValueNumber > 0 ? (billingValueNumber - estimatedTechCost) : null;
+  const profitValue = billingValueNumber > 0 ? (billingValueNumber - estimatedTechCost - approvedInternalExpenses) : null;
   const profitPercent = (billingValueNumber > 0 && profitValue !== null) ? ((profitValue / billingValueNumber) * 100) : null;
   const profitTone = profitValue === null ? "neutral" : (profitValue >= 0 ? "positive" : "negative");
   const projectCompletion = billingHours > 0 ? Math.min(100, Math.round((executedActivityHours / billingHours) * 100)) : 0;
@@ -1314,6 +1320,11 @@ function renderCover(refs, project, state){
             <strong>${escapeHtml(String(pendingActivities))}</strong>
             <span class="project-cover-meta">${escapeHtml(String(overdueActivities))} atrasada(s)</span>
           </div>
+          <div class="project-cover-kpi">
+            <span class="project-cover-kpi-label">Despesas pendentes</span>
+            <strong>${escapeHtml(formatCurrencyBRL(pendingExpenses))}</strong>
+            <span class="project-cover-meta">${escapeHtml(String(asNumber(_expenseSummary?.countPending)))} lancamento(s)</span>
+          </div>
         </div>
       </div>
       <div class="project-cover-badges">
@@ -1325,7 +1336,12 @@ function renderCover(refs, project, state){
           <div class="project-cover-highlight project-cover-highlight--profit project-cover-highlight--${escapeHtml(profitTone)}">
             <span class="project-cover-highlight-label">Margem estimada</span>
             <strong>${escapeHtml(profitValue !== null ? formatCurrencyBRL(profitValue) : "-")}</strong>
-            <span class="project-cover-highlight-meta">${escapeHtml(profitPercent !== null ? `${profitPercent.toFixed(1).replace(".", ",")}%` : "Sem base suficiente")}</span>
+            <span class="project-cover-highlight-meta">${escapeHtml(profitPercent !== null ? `${profitPercent.toFixed(1).replace(".", ",")}% apos despesas internas aprovadas` : "Sem base suficiente")}</span>
+          </div>
+          <div class="project-cover-highlight project-cover-highlight--deadline">
+            <span class="project-cover-highlight-label">Despesas</span>
+            <strong>${escapeHtml(formatCurrencyBRL(approvedExpenses))}</strong>
+            <span class="project-cover-highlight-meta">${escapeHtml(`Internas ${formatCurrencyBRL(approvedInternalExpenses)} • Cliente ${formatCurrencyBRL(approvedClientExpenses)}`)}</span>
           </div>
           <div class="project-cover-highlight project-cover-highlight--deadline">
             <span class="project-cover-highlight-label">Prazo final</span>
@@ -1803,6 +1819,15 @@ async function loadProjectData(deps, projectId){
 
   const aSnap = await getDocs(query(collection(db, `companies/${companyId}/activities`), where("projectId", "==", projectId)));
   _activities = aSnap.docs.map(d => ({ id: d.id, ...d.data() })).sort((a,b) => String(a.workDate || "").localeCompare(String(b.workDate || "")));
+  _expenseSummary = await computeProjectExpenseSummary(db, companyId, projectId).catch(() => ({
+    totalApproved: 0,
+    totalPending: 0,
+    approvedInternal: 0,
+    approvedClient: 0,
+    countPending: 0,
+    countApproved: 0,
+    countRejected: 0
+  }));
 }
 
 async function saveTask(deps){

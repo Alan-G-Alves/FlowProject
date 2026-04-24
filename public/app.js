@@ -37,7 +37,7 @@ import {
 
 import { normalizeRole, humanizeRole } from "./src/utils/roles.js";
 import { show, hide, escapeHtml } from "./src/utils/dom.js";
-import { setView } from "./src/ui/router.js?v=1776052722";
+import { setView } from "./src/ui/router.js?v=1777057001";
 import { isEmailValidBasic, isCnpjValidBasic } from "./src/utils/validators.js";
 import { fetchPlatformUser, fetchCompanyIdForUser, fetchCompanyUserProfile } from "./src/services/firestore.service.js";
 import { auth, secondaryAuth, db, storage, functions, httpsCallable } from "./src/config/firebase.js";
@@ -45,17 +45,18 @@ import { normalizePhone, normalizeCnpj, slugify } from "./src/utils/format.js";
 import { setAlert, clearAlert, clearInlineAlert, showInlineAlert } from "./src/ui/alerts.js";
 import { getCompanyDoc, listCompaniesDocs } from "./src/services/companies.service.js";
 import { createNotification } from "./src/services/notifications.service.js?v=1776052722";
-import * as refs from "./src/ui/refs.js?v=1776052724";
+import * as refs from "./src/ui/refs.js?v=1777057001";
 import * as companiesDomain from "./src/domain/companies.domain.js?v=1770332251";
 import * as teamsDomain from "./src/domain/teams.domain.js?v=1772614200";
 import * as usersDomain from "./src/domain/users.domain.js?v=1777055918";
 import * as managerUsersDomain from "./src/domain/manager-users.domain.js?v=1777055918";
 import * as clientsDomain from "./src/domain/clients.domain.js?v=1776052720";
 import * as projectsDomain from "./src/domain/projects.domain.js?v=1772626200";
-import * as myActivitiesDomain from "./src/domain/my-activities.domain.js?v=1776052722";
+import * as myActivitiesDomain from "./src/domain/my-activities.domain.js?v=1777057001";
 import * as myFeedbacksDomain from "./src/domain/my-feedbacks.domain.js?v=1776040900";
 import * as osApprovalsDomain from "./src/domain/os-approvals.domain.js?v=1776052722";
-import * as projectWorkspaceDomain from "./src/domain/project-workspace.domain.js?v=1776052722";
+import * as expensesDomain from "./src/domain/expenses.domain.js?v=1777057001";
+import * as projectWorkspaceDomain from "./src/domain/project-workspace.domain.js?v=1777057001";
 import * as reportsDomain from "./src/domain/reports.domain.js?v=1776052700";
 import * as profileModal from "./src/ui/modals/profile.modal.js?v=1770332251";
 import * as topbar from "./src/ui/topbar.js?v=1770332251";
@@ -336,7 +337,7 @@ async function callHttpFunctionWithAuth(functionName, payload){
 }
 
 function setActiveNav(activeId){
-  const items = [refs.navHome, refs.navAddTech, refs.navClients, refs.navReports, refs.navFeedbacks, refs.navConfig].filter(Boolean);
+  const items = [refs.navHome, refs.navAddTech, refs.navClients, refs.navReports, refs.navFeedbacks, refs.navExpenses, refs.navConfig].filter(Boolean);
   for (const el of items){
     if (el.hidden) {
       el.classList.remove("active");
@@ -353,15 +354,18 @@ function syncSidebarForRole(){
   const hideTechMenu = isSuperAdmin || currentRole === "tecnico";
   const hideClientsMenu = isSuperAdmin || currentRole === "tecnico";
   const hideFeedbacksMenu = isSuperAdmin;
+  const hideExpensesMenu = isSuperAdmin || !["admin", "gestor", "coordenador"].includes(currentRole);
   const sidebarSep = document.querySelector(".sidebar-nav .sidebar-sep");
 
   document.body.classList.toggle("is-superadmin", isSuperAdmin);
   if (refs.navAddTech) refs.navAddTech.hidden = hideTechMenu;
   if (refs.navClients) refs.navClients.hidden = hideClientsMenu;
   if (refs.navFeedbacks) refs.navFeedbacks.hidden = hideFeedbacksMenu;
+  if (refs.navExpenses) refs.navExpenses.hidden = hideExpensesMenu;
   if (refs.navAddTech) refs.navAddTech.style.display = hideTechMenu ? "none" : "";
   if (refs.navClients) refs.navClients.style.display = hideClientsMenu ? "none" : "";
   if (refs.navFeedbacks) refs.navFeedbacks.style.display = hideFeedbacksMenu ? "none" : "";
+  if (refs.navExpenses) refs.navExpenses.style.display = hideExpensesMenu ? "none" : "";
   if (sidebarSep) sidebarSep.hidden = false;
 
   if (isSuperAdmin) {
@@ -469,6 +473,13 @@ function renderSettingsView(){
       action: "osApprovals",
       actionLabel: "Abrir OS"
     }));
+    cards.push(settingsCard({
+      scope: "Despesas",
+      title: "Despesas para aprovar",
+      desc: "Centralize comprovantes, aprovacoes e impacto financeiro por projeto.",
+      action: "expenses",
+      actionLabel: "Abrir despesas"
+    }));
   }
 
   if (isTech){
@@ -564,6 +575,10 @@ function initSidebar(){
   refs.navFeedbacks?.addEventListener("click", () => {
     setActiveNav("navFeedbacks");
     openMyFeedbacksView();
+  });
+  refs.navExpenses?.addEventListener("click", () => {
+    setActiveNav("navExpenses");
+    openExpenseApprovalsView();
   });
   refs.navAddTech?.addEventListener("click", () => {
     setActiveNav("navAddTech");
@@ -1688,7 +1703,7 @@ const getProjectsDeps = () => ({
 });
 
 const getMyActivitiesDeps = () => ({
-  refs, state, db, auth, setView
+  refs, state, db, auth, storage, setView
 });
 
 const getMyFeedbacksDeps = () => ({
@@ -1697,6 +1712,10 @@ const getMyFeedbacksDeps = () => ({
 
 const getOsApprovalsDeps = () => ({
   refs, state, db, auth, setView
+});
+
+const getExpensesDeps = () => ({
+  refs, state, db, storage, auth, setView
 });
 
 async function openProjectWorkspace(projectId) {
@@ -1771,6 +1790,22 @@ async function openOsApprovalsView() {
 
 async function loadOsApprovals() {
   await osApprovalsDomain.loadOsApprovals(getOsApprovalsDeps());
+}
+
+async function openExpenseApprovalsView() {
+  try{
+    await ensureCompanyContext();
+  }catch(err){
+    console.error("openExpenseApprovalsView: ensureCompanyContext falhou:", err);
+    alert("Nao foi possivel identificar a empresa do usuario. Faca logout e login novamente.");
+    return;
+  }
+
+  expensesDomain.openExpenseApprovalsView(getExpensesDeps());
+}
+
+async function loadExpenseApprovals() {
+  await expensesDomain.loadExpenseApprovals(getExpensesDeps());
 }
 
 function openProjectsView() {
@@ -1955,6 +1990,10 @@ refs.settingsGrid?.addEventListener("click", async (event) => {
     return openReportsView();
   }
   if (action === "osApprovals") return openOsApprovalsView();
+  if (action === "expenses") {
+    setActiveNav("navExpenses");
+    return openExpenseApprovalsView();
+  }
   if (action === "myActivities") return openMyActivitiesView();
   if (action === "companies") return openCompaniesView();
 });
