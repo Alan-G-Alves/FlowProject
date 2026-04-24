@@ -43,6 +43,29 @@ service firebase.storage {
 
     
     // Fotos de Clientes (SEM extensão): clientPhotos/{companyId}/{clientId}
+    match /userAttachments/{companyId}/{targetUid}/{fileName} {
+      allow read: if signedIn()
+        && companyId == myCompanyId()
+        && (targetUid == request.auth.uid || targetExistsInMyCompany(targetUid));
+
+      allow create, update: if signedIn()
+        && companyId == myCompanyId()
+        && canManageUsers()
+        && targetExistsInMyCompany(targetUid)
+        && request.resource.size < 8 * 1024 * 1024
+        && (
+          request.resource.contentType == 'application/pdf'
+          || request.resource.contentType == 'application/msword'
+          || request.resource.contentType == 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+          || request.resource.contentType.matches('image/.*')
+        );
+
+      allow delete: if signedIn()
+        && companyId == myCompanyId()
+        && canManageUsers()
+        && targetExistsInMyCompany(targetUid);
+    }
+
     match /clientPhotos/{companyId}/{clientId} {
       // qualquer usuário autenticado da mesma empresa pode ver a foto do cliente
       allow read: if signedIn();

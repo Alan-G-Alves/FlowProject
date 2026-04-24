@@ -3,13 +3,17 @@
 
 import { show, hide } from "../utils/dom.js";
 
-function revealAlert(el){
+function revealAlert(el, options = {}){
   if (!el) return;
   el.setAttribute("tabindex", "-1");
 
-  try {
-    el.scrollIntoView({ behavior: "smooth", block: "center", inline: "nearest" });
-  } catch (_) {}
+  const insideModal = !!el.closest(".modal, .modal-card, .modal-body");
+  const shouldScroll = options.scroll !== false && !insideModal;
+  if (shouldScroll) {
+    try {
+      el.scrollIntoView({ behavior: "smooth", block: "center", inline: "nearest" });
+    } catch (_) {}
+  }
 
   try {
     el.focus({ preventScroll: true });
@@ -45,7 +49,7 @@ export function setAlert(el, msg, type = "error"){
   }
 
   show(el);
-  revealAlert(el);
+  revealAlert(el, { scroll: type !== "info" });
 }
 
 

@@ -1314,6 +1314,32 @@
 </div>
 </div>
 <div class="form-section">
+<div class="section-title">Documentacao e perfil</div>
+<div class="grid person-extra-grid" style="grid-template-columns: repeat(12, 1fr); gap:12px;">
+<label class="field" style="grid-column: span 7;">
+<span>Endereco</span>
+<textarea id="newUserAddress" rows="3" placeholder="Rua, numero, bairro, cidade - UF"></textarea>
+</label>
+<label class="field" style="grid-column: span 5;">
+<span>Data de nascimento</span>
+<input id="newUserBirthDate" type="date"/>
+</label>
+<div class="person-age-card" style="grid-column: span 4;">
+<span class="person-age-label">Idade</span>
+<strong id="newUserAgePreview">Preencha a data</strong>
+<small>Calculada automaticamente.</small>
+</div>
+<label class="field" style="grid-column: span 4;">
+<span>CPF</span>
+<input id="newUserCpf" inputmode="numeric" maxlength="14" placeholder="000.000.000-00"/>
+</label>
+<label class="field" style="grid-column: span 4;">
+<span>CNPJ</span>
+<input id="newUserCnpj" inputmode="numeric" maxlength="18" placeholder="00.000.000/0000-00"/>
+</label>
+</div>
+</div>
+<div class="form-section">
 <div class="section-title">Skills</div>
 <div class="grid" style="grid-template-columns: repeat(12, 1fr); gap:12px;">
 <div class="field" style="grid-column: span 12;">
@@ -1333,6 +1359,24 @@
 <small class="muted">Dica: Enter ou virgula para criar o chip. Clique no chip para remover.</small>
 </div>
 </div>
+</div>
+</div>
+<div class="form-section">
+<div class="section-title">Anexos</div>
+<div class="person-attachments-card">
+<div class="person-attachments-head">
+<div>
+<strong>Arquivos do cadastro</strong>
+<p class="muted">Anexe curriculo, RG, certificados e outros documentos. Ate 6 arquivos.</p>
+</div>
+<div class="person-attachments-summary" id="newUserAttachmentsSummary">0/6 arquivos</div>
+</div>
+<div class="person-attachments-toolbar">
+<input id="newUserAttachments" class="hidden-file" type="file" multiple accept=".pdf,.doc,.docx,image/png,image/jpeg,image/jpg,image/webp" />
+<label class="btn sm" for="newUserAttachments">Selecionar arquivos</label>
+<span class="muted">PDF, DOC, DOCX, JPG, PNG ou WEBP ate 8MB por arquivo.</span>
+</div>
+<div class="person-attachments-list" id="newUserAttachmentsList"></div>
 </div>
 </div>
 <div class="alert" hidden="" id="createUserAlert"></div>
@@ -1414,6 +1458,33 @@
       </div>
 
       <div class="form-section">
+        <div class="section-title">Documentacao e perfil</div>
+        <div class="grid person-extra-grid" style="grid-template-columns: repeat(12, 1fr); gap:12px;">
+          <label class="field" style="grid-column: span 7;">
+            <span>Endereco</span>
+            <textarea id="techAddress" rows="3" placeholder="Rua, numero, bairro, cidade - UF"></textarea>
+          </label>
+          <label class="field" style="grid-column: span 5;">
+            <span>Data de nascimento</span>
+            <input id="techBirthDate" type="date"/>
+          </label>
+          <div class="person-age-card" style="grid-column: span 4;">
+            <span class="person-age-label">Idade</span>
+            <strong id="techAgePreview">Preencha a data</strong>
+            <small>Calculada automaticamente.</small>
+          </div>
+          <label class="field" style="grid-column: span 4;">
+            <span>CPF</span>
+            <input id="techCpf" inputmode="numeric" maxlength="14" placeholder="000.000.000-00"/>
+          </label>
+          <label class="field" style="grid-column: span 4;">
+            <span>CNPJ</span>
+            <input id="techCnpj" inputmode="numeric" maxlength="18" placeholder="00.000.000/0000-00"/>
+          </label>
+        </div>
+      </div>
+
+      <div class="form-section">
         <div class="section-title">Skills</div>
 
         <div class="grid" style="grid-template-columns: repeat(12, 1fr); gap:12px;">
@@ -1444,6 +1515,25 @@
         <span>Selecione as equipes do técnico</span>
         <div class="chips-select" id="mgrTeamChips"></div>
         <small class="muted">Escolha uma ou mais equipes para vincular o técnico.</small>
+      </div>
+    </div>
+
+    <div class="form-section">
+      <div class="section-title">Anexos</div>
+      <div class="person-attachments-card">
+        <div class="person-attachments-head">
+          <div>
+            <strong>Arquivos do tecnico</strong>
+            <p class="muted">Anexe curriculo, certificados, documentos e comprovantes.</p>
+          </div>
+          <div class="person-attachments-summary" id="techAttachmentsSummary">0/6 arquivos</div>
+        </div>
+        <div class="person-attachments-toolbar">
+          <input id="techAttachments" class="hidden-file" type="file" multiple accept=".pdf,.doc,.docx,image/png,image/jpeg,image/jpg,image/webp" />
+          <label class="btn sm" for="techAttachments">Selecionar arquivos</label>
+          <span class="muted">PDF, DOC, DOCX, JPG, PNG ou WEBP ate 8MB por arquivo.</span>
+        </div>
+        <div class="person-attachments-list" id="techAttachmentsList"></div>
       </div>
     </div>
 

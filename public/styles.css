@@ -7385,6 +7385,182 @@ button.chip-more{
   justify-content: flex-end;
 }
 
+.field textarea{
+  width: 100%;
+  min-height: 94px;
+  padding: 12px 14px;
+  border-radius: 14px;
+  border: 1px solid rgba(15,23,42,.12);
+  background: rgba(255,255,255,.92);
+  font: inherit;
+  color: #0f172a;
+  resize: vertical;
+  transition: border-color .2s ease, box-shadow .2s ease, background .2s ease;
+}
+
+.field textarea:focus{
+  outline: none;
+  border-color: rgba(59,130,246,.45);
+  box-shadow: 0 0 0 4px rgba(59,130,246,.12);
+  background: #fff;
+}
+
+.person-extra-grid{
+  align-items: start;
+}
+
+.person-age-card{
+  min-height: 100%;
+  display:flex;
+  flex-direction:column;
+  justify-content:center;
+  gap: 4px;
+  padding: 14px 16px;
+  border-radius: 18px;
+  border: 1px solid rgba(59,130,246,.14);
+  background:
+    radial-gradient(circle at top right, rgba(59,130,246,.10), transparent 40%),
+    linear-gradient(180deg, rgba(240,249,255,.9), rgba(255,255,255,.98));
+}
+
+.person-age-label{
+  font-size: 11px;
+  letter-spacing: .12em;
+  text-transform: uppercase;
+  color: rgba(15,23,42,.56);
+  font-weight: 800;
+}
+
+.person-age-card strong{
+  font-size: 24px;
+  line-height: 1;
+  color: #0f172a;
+  letter-spacing: -.03em;
+}
+
+.person-age-card strong[data-empty="1"]{
+  font-size: 18px;
+  color: rgba(15,23,42,.50);
+}
+
+.person-age-card small{
+  color: rgba(15,23,42,.58);
+}
+
+.person-attachments-card{
+  display:flex;
+  flex-direction:column;
+  gap: 14px;
+  padding: 16px;
+  border-radius: 18px;
+  border: 1px solid rgba(12,18,32,.08);
+  background:
+    radial-gradient(circle at top left, rgba(16,185,129,.08), transparent 35%),
+    linear-gradient(180deg, rgba(255,255,255,.94), rgba(248,250,252,.98));
+}
+
+.person-attachments-head{
+  display:flex;
+  align-items:flex-start;
+  justify-content:space-between;
+  gap: 12px;
+  flex-wrap:wrap;
+}
+
+.person-attachments-head strong{
+  display:block;
+  color:#0f172a;
+}
+
+.person-attachments-head p{
+  margin: 4px 0 0 0;
+}
+
+.person-attachments-summary{
+  min-width: 110px;
+  padding: 8px 12px;
+  border-radius: 999px;
+  background: rgba(15,23,42,.05);
+  color: rgba(15,23,42,.72);
+  font-size: 12px;
+  font-weight: 800;
+  text-align:center;
+}
+
+.person-attachments-toolbar{
+  display:flex;
+  align-items:center;
+  gap: 12px;
+  flex-wrap:wrap;
+}
+
+.person-attachments-list{
+  display:flex;
+  flex-direction:column;
+  gap: 10px;
+}
+
+.person-attachment-item{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap: 12px;
+  padding: 12px 14px;
+  border-radius: 16px;
+  border: 1px solid rgba(12,18,32,.08);
+  background: rgba(255,255,255,.88);
+}
+
+.person-attachment-item.is-new{
+  border-color: rgba(59,130,246,.18);
+  box-shadow: inset 0 0 0 1px rgba(59,130,246,.06);
+}
+
+.person-attachment-meta{
+  min-width: 0;
+  display:flex;
+  flex-direction:column;
+  gap: 3px;
+}
+
+.person-attachment-meta strong,
+.person-attachment-meta span{
+  overflow:hidden;
+  text-overflow:ellipsis;
+  white-space:nowrap;
+}
+
+.person-attachment-meta span{
+  font-size: 12px;
+  color: rgba(15,23,42,.56);
+}
+
+.person-attachment-actions{
+  display:flex;
+  align-items:center;
+  gap: 8px;
+  flex-wrap:wrap;
+}
+
+.person-attachment-remove{
+  color: #b91c1c;
+}
+
+.person-attachment-empty{
+  padding: 14px;
+  border-radius: 16px;
+  border: 1px dashed rgba(148,163,184,.45);
+  color: rgba(15,23,42,.56);
+  background: rgba(248,250,252,.85);
+  text-align:center;
+}
+
+@media (max-width: 900px){
+  .person-age-card{
+    grid-column: span 12 !important;
+  }
+}
+
 /* input file escondido (clicamos via botão) */
 input[type="file"].hidden-file{
   position:absolute;

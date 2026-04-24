@@ -218,6 +218,11 @@ export const newUserRoleEl = byId("newUserRole");
 export const newUserEmailEl = byId("newUserEmail");
 export const newUserPhoneEl = byId("newUserPhone");
 export const newUserActiveEl = byId("newUserActive");
+export const newUserAddressEl = byId("newUserAddress");
+export const newUserBirthDateEl = byId("newUserBirthDate");
+export const newUserAgePreview = byId("newUserAgePreview");
+export const newUserCpfEl = byId("newUserCpf");
+export const newUserCnpjEl = byId("newUserCnpj");
 export const newUserSoftSkillInputEl = byId("newUserSoftSkillInput");
 export const newUserSoftSkillChips = byId("newUserSoftSkillChips");
 export const newUserHardSkillInputEl = byId("newUserHardSkillInput");
@@ -228,6 +233,9 @@ export const newUserAvatarPreviewFallback = byId("newUserAvatarPreviewFallback")
 export const newUserAvatarFileEl = byId("newUserAvatarFile");
 export const btnNewUserRemovePhoto = byId("btnNewUserRemovePhoto");
 export const newUserPhotoFileName = byId("newUserPhotoFileName");
+export const newUserAttachmentsEl = byId("newUserAttachments");
+export const newUserAttachmentsList = byId("newUserAttachmentsList");
+export const newUserAttachmentsSummary = byId("newUserAttachmentsSummary");
 export const teamChipsEl = byId("teamChips");
 export const createUserAlert = byId("createUserAlert");
 
@@ -313,6 +321,11 @@ export const techEmailEl = byId("techEmail");
 export const techPhoneEl = byId("techPhone");
 export const techHourlyRateEl = byId("techHourlyRate");
 export const techActiveEl = byId("techActive");
+export const techAddressEl = byId("techAddress");
+export const techBirthDateEl = byId("techBirthDate");
+export const techAgePreview = byId("techAgePreview");
+export const techCpfEl = byId("techCpf");
+export const techCnpjEl = byId("techCnpj");
 export const mgrTeamChipsEl = byId("mgrTeamChips");
 export const createTechAlert = byId("createTechAlert");
 
@@ -328,6 +341,9 @@ export const techAvatarPreviewFallback = byId("techAvatarPreviewFallback");
 export const techAvatarFileEl = byId("techAvatarFile");
 export const btnTechRemovePhoto = byId("btnTechRemovePhoto");
 export const techPhotoFileName = byId("techPhotoFileName");
+export const techAttachmentsEl = byId("techAttachments");
+export const techAttachmentsList = byId("techAttachmentsList");
+export const techAttachmentsSummary = byId("techAttachmentsSummary");
 
 // Managed teams modal
 export const modalManagedTeams = byId("modalManagedTeams");

@@ -181,6 +181,143 @@ async function waitForCompanyUserDoc(db, companyId, uid, timeoutMs = 4000){
   return false;
 }
 
+function updateTechAttachmentsSummary(refs, items){
+  if (!refs?.techAttachmentsSummary) return;
+  const total = Array.isArray(items) ? items.length : 0;
+  refs.techAttachmentsSummary.textContent = `${total}/${PERSON_ATTACHMENT_MAX_FILES} arquivos`;
+}
+
+function renderTechAttachments(deps){
+  const { refs, state } = deps;
+  const items = Array.isArray(state._techAttachmentsDraft) ? state._techAttachmentsDraft : [];
+  updateTechAttachmentsSummary(refs, items);
+  renderAttachmentList(refs.techAttachmentsList, items, {
+    readOnly: refs.btnCreateTech?.style.display === "none",
+    emptyText: "Nenhum arquivo anexado para este tecnico.",
+    onRemove: (item) => {
+      state._techAttachmentsDraft = items.filter((entry) => entry.id !== item.id);
+      if (!item?.isNew && item?.path) {
+        state._techRemovedAttachments = [...(state._techRemovedAttachments || []), item];
+      }
+      renderTechAttachments(deps);
+    }
+  });
+}
+
+function collectTechExtraFields(refs){
+  const birthDate = String(refs.techBirthDateEl?.value || "").trim();
+  const age = calculateAgeFromBirthDate(birthDate);
+  return {
+    address: sanitizeAddress(refs.techAddressEl?.value || ""),
+    cpf: formatCpf(refs.techCpfEl?.value || ""),
+    cnpj: formatCnpj(refs.techCnpjEl?.value || ""),
+    birthDate,
+    ...(age === null ? {} : { age })
+  };
+}
+
+function initTechRichFields(deps){
+  const { refs, state } = deps;
+
+  bindMaskedInput(refs.techCpfEl, formatCpf, "boundTechCpf");
+  bindMaskedInput(refs.techCnpjEl, formatCnpj, "boundTechCnpj");
+  bindAgePreview(refs.techBirthDateEl, refs.techAgePreview, "boundTechAge");
+
+  if (refs.techNameEl && refs.techAvatarPreviewFallback){
+    if (!refs.techNameEl.dataset.boundAvatar){
+      refs.techNameEl.dataset.boundAvatar = "1";
+      refs.techNameEl.addEventListener("input", () => {
+        if (refs.techAvatarPreviewImg && refs.techAvatarPreviewImg.style.display !== "none") return;
+        refs.techAvatarPreviewFallback.textContent = initialsFromName(refs.techNameEl.value);
+      });
+    }
+    if (!refs.techAvatarPreviewImg || refs.techAvatarPreviewImg.style.display === "none") {
+      refs.techAvatarPreviewFallback.textContent = initialsFromName(refs.techNameEl.value);
+    }
+  }
+
+  if (refs.techAvatarFileEl && refs.techAvatarPreviewImg && refs.techAvatarPreviewFallback){
+    if (!refs.techAvatarFileEl.dataset.bound){
+      refs.techAvatarFileEl.dataset.bound = "1";
+      refs.techAvatarFileEl.addEventListener("change", async (e) => {
+        const file = e.target.files && e.target.files[0];
+        if (!file) return;
+        setTechPhotoFileName(refs, file.name || "Arquivo selecionado");
+        await deleteTempAvatarIfAny(deps);
+        state._techAvatarFile = file;
+        setAlert(refs.createTechAlert, "Enviando foto...", "info");
+
+        try{
+          const { tempAvatarPath, tempAvatarURL } = await uploadTempAvatarForDraft(deps, file);
+          state._techTempAvatarPath = tempAvatarPath;
+          state._techTempAvatarURL = tempAvatarURL;
+          refs.techAvatarPreviewImg.src = tempAvatarURL;
+          refs.techAvatarPreviewImg.style.display = "block";
+          refs.techAvatarPreviewFallback.textContent = "";
+          clearAlert(refs.createTechAlert);
+        }catch(err){
+          console.warn("temp avatar upload failed", err);
+          state._techTempAvatarPath = "";
+          state._techTempAvatarURL = "";
+          setAlert(refs.createTechAlert, "Não foi possível enviar a foto: " + (err?.message || err), "error");
+        }
+
+        e.target.value = "";
+      });
+    }
+  }
+
+  if (refs.btnTechRemovePhoto && refs.techAvatarPreviewImg && refs.techAvatarPreviewFallback){
+    if (!refs.btnTechRemovePhoto.dataset.bound){
+      refs.btnTechRemovePhoto.dataset.bound = "1";
+      refs.btnTechRemovePhoto.addEventListener("click", () => {
+        state._techAvatarFile = null;
+        deleteTempAvatarIfAny(deps);
+        setTechPhotoFileName(refs, "Nenhum arquivo selecionado");
+        refs.techAvatarPreviewImg.style.display = "none";
+        refs.techAvatarPreviewImg.src = "";
+        refs.techAvatarPreviewFallback.textContent = initialsFromName(refs.techNameEl?.value || "");
+      });
+    }
+  }
+
+  if (refs.techAttachmentsEl && !refs.techAttachmentsEl.dataset.boundAttachments){
+    refs.techAttachmentsEl.dataset.boundAttachments = "1";
+    refs.techAttachmentsEl.addEventListener("change", (e) => {
+      const result = addAttachmentFiles(state._techAttachmentsDraft || [], e.target.files || []);
+      if (result.error){
+        setAlert(refs.createTechAlert, result.error, "error");
+      } else {
+        state._techAttachmentsDraft = result.items;
+        renderTechAttachments(deps);
+      }
+      e.target.value = "";
+    });
+  }
+
+  renderTechAttachments(deps);
+}
+
+async function syncTechAttachments(deps, uid){
+  const { state, storage, db } = deps;
+  const draftItems = Array.isArray(state._techAttachmentsDraft) ? state._techAttachmentsDraft : [];
+  const removedItems = Array.isArray(state._techRemovedAttachments) ? state._techRemovedAttachments : [];
+
+  const attachments = await uploadAttachmentDrafts({
+    storage,
+    companyId: state.companyId,
+    uid,
+    draftItems
+  });
+
+  await updateDoc(doc(db, "companies", state.companyId, "users", uid), { attachments });
+  await deleteStoredAttachments({ storage, items: removedItems });
+
+  state._techAttachmentsDraft = toAttachmentDrafts(attachments);
+  state._techRemovedAttachments = [];
+  return attachments;
+}
+
 function setCreateTechModalMode(deps, mode, tech){
   const { refs, state } = deps;
   const modal = refs.modalCreateTech;
@@ -206,9 +343,14 @@ function setCreateTechModalMode(deps, mode, tech){
   if (refs.techNameEl) refs.techNameEl.disabled = disableAll;
   if (refs.techPhoneEl) refs.techPhoneEl.disabled = disableAll;
   if (refs.techActiveEl) refs.techActiveEl.disabled = disableAll;
+  if (refs.techAddressEl) refs.techAddressEl.disabled = disableAll;
+  if (refs.techBirthDateEl) refs.techBirthDateEl.disabled = disableAll;
+  if (refs.techCpfEl) refs.techCpfEl.disabled = disableAll;
+  if (refs.techCnpjEl) refs.techCnpjEl.disabled = disableAll;
   if (refs.techSoftSkillInputEl) refs.techSoftSkillInputEl.disabled = disableAll;
   if (refs.techHardSkillInputEl) refs.techHardSkillInputEl.disabled = disableAll;
   if (refs.techAvatarFileEl) refs.techAvatarFileEl.disabled = disableAll;
+  if (refs.techAttachmentsEl) refs.techAttachmentsEl.disabled = disableAll;
   // chips removíveis ficam desativados via pointer-events no wrapper
   if (refs.techSoftSkillChips) refs.techSoftSkillChips.classList.toggle("readonly", disableAll);
   if (refs.techHardSkillChips) refs.techHardSkillChips.classList.toggle("readonly", disableAll);
@@ -236,6 +378,14 @@ export function openViewTechModal(deps, techUser){
   refs.techNameEl.value = techUser?.name || "";
   refs.techEmailEl.value = techUser?.email || "";
   refs.techPhoneEl.value = techUser?.phone || "";
+  if (refs.techAddressEl) refs.techAddressEl.value = techUser?.address || "";
+  if (refs.techBirthDateEl) refs.techBirthDateEl.value = techUser?.birthDate || "";
+  if (refs.techCpfEl) refs.techCpfEl.value = formatCpf(techUser?.cpf || "");
+  if (refs.techCnpjEl) refs.techCnpjEl.value = formatCnpj(techUser?.cnpj || "");
+  if (refs.techAddressEl) refs.techAddressEl.value = techUser?.address || "";
+  if (refs.techBirthDateEl) refs.techBirthDateEl.value = techUser?.birthDate || "";
+  if (refs.techCpfEl) refs.techCpfEl.value = formatCpf(techUser?.cpf || "");
+  if (refs.techCnpjEl) refs.techCnpjEl.value = formatCnpj(techUser?.cnpj || "");
   
   if (refs.techHourlyRateEl) refs.techHourlyRateEl.value = formatDecimalInput(techUser?.hourlyRate);refs.techActiveEl.value = (techUser?.active === false) ? "false" : "true";
 
@@ -255,6 +405,8 @@ export function openViewTechModal(deps, techUser){
   state._techAvatarFile = null;
   state._techTempAvatarPath = "";
   state._techTempAvatarURL = "";
+  state._techAttachmentsDraft = toAttachmentDrafts(techUser?.attachments);
+  state._techRemovedAttachments = [];
   if (refs.techAvatarFileEl) refs.techAvatarFileEl.value = "";
   const url = (techUser?.photoURL || "").toString().trim();
   setTechPhotoFileName(refs, url ? "Foto atual" : "Nenhum arquivo selecionado");
@@ -269,6 +421,7 @@ export function openViewTechModal(deps, techUser){
       refs.techAvatarPreviewFallback.textContent = initialsFromName(techUser?.name || "");
     }
   }
+  initTechRichFields(deps);
 
   const modal = refs.modalCreateTech;
   modal.hidden = false;
@@ -380,6 +533,8 @@ export function openEditTechModal(deps, techUser){
   state._techAvatarFile = null;
   state._techTempAvatarPath = "";
   state._techTempAvatarURL = "";
+  state._techAttachmentsDraft = toAttachmentDrafts(techUser?.attachments);
+  state._techRemovedAttachments = [];
   if (refs.techAvatarFileEl) refs.techAvatarFileEl.value = "";
   const url = (techUser?.photoURL || "").toString().trim();
   setTechPhotoFileName(refs, url ? "Foto atual" : "Nenhum arquivo selecionado");
@@ -394,6 +549,7 @@ export function openEditTechModal(deps, techUser){
       refs.techAvatarPreviewFallback.textContent = initialsFromName(techUser?.name || "");
     }
   }
+  initTechRichFields(deps);
 
   // abre modal (garante visibilidade mesmo se estiver dentro de container hidden)
   const modal = refs.modalCreateTech;
@@ -448,7 +604,7 @@ export async function updateTech(deps){
 
   const name = (refs.techNameEl.value || "").trim();
   const phone = normalizePhone(refs.techPhoneEl.value || "");
-  
+  const extraFields = collectTechExtraFields(refs);
   const hourlyRate = refs.techHourlyRateEl ? parseBRDecimalToNumber(refs.techHourlyRateEl.value) : null;
 const active = (refs.techActiveEl.value || "true") === "true";
   const softSkills = uniqClean((state._techSoftSkillsDraft && state._techSoftSkillsDraft.length)
@@ -506,6 +662,8 @@ const active = (refs.techActiveEl.value || "true") === "true";
     name,
     phone,
     ...(refs.techHourlyRateEl ? { hourlyRate } : {}),
+    ...extraFields,
+    ...(extraFields.birthDate ? {} : { age: deleteField() }),
     active,
     teamIds: selectedTeamIds,
     teamId: selectedTeamIds[0] || "",
@@ -515,6 +673,8 @@ const active = (refs.techActiveEl.value || "true") === "true";
   };
 
   await updateDoc(userRef, patch);
+  setAlert(refs.createTechAlert, "Sincronizando anexos...", "info");
+  await syncTechAttachments(deps, uid);
 
   // fecha modal e recarrega
   setAlert(refs.createTechAlert, "Salvo!", "success");
@@ -595,7 +755,7 @@ async function getFeedbackCount(db, companyId, uid){
   }
 }
 
-import { collection, getDocs, doc, setDoc, updateDoc, serverTimestamp, query, where, limit , orderBy, increment, getDoc} from "https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore.js";
+import { collection, getDocs, doc, setDoc, updateDoc, serverTimestamp, query, where, limit , orderBy, increment, getDoc, deleteField} from "https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore.js";
 import { ref as storageRef, uploadBytes, getDownloadURL, deleteObject } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-storage.js";
 import { setAlert, clearAlert } from "../ui/alerts.js";
 import { humanizeRole } from "../utils/roles.js";
@@ -603,6 +763,20 @@ import { show, hide, escapeHtml } from "../utils/dom.js";
 import { isEmailValidBasic } from "../utils/validators.js";
 import { normalizePhone } from "../utils/format.js";
 import { createNotifications } from "../services/notifications.service.js?v=1776052722";
+import {
+  bindMaskedInput,
+  bindAgePreview,
+  calculateAgeFromBirthDate,
+  formatCpf,
+  formatCnpj,
+  sanitizeAddress,
+  toAttachmentDrafts,
+  addAttachmentFiles,
+  renderAttachmentList,
+  uploadAttachmentDrafts,
+  deleteStoredAttachments,
+  PERSON_ATTACHMENT_MAX_FILES
+} from "../utils/person-records.js";
 
 
 
@@ -1272,6 +1446,8 @@ export function openCreateTechModal(deps) {
   state._techAvatarFile = null;
   state._techTempAvatarPath = "";
   state._techTempAvatarURL = "";
+  state._techAttachmentsDraft = [];
+  state._techRemovedAttachments = [];
   if (refs.techAvatarFileEl) refs.techAvatarFileEl.value = "";
   setTechPhotoFileName(refs, "Nenhum arquivo selecionado");
   if (refs.techAvatarPreviewImg && refs.techAvatarPreviewFallback){
@@ -1292,9 +1468,16 @@ export function openCreateTechModal(deps) {
   refs.techNameEl.value = "";
   refs.techEmailEl.value = "";
   refs.techPhoneEl.value = "";
+  if (refs.techAddressEl) refs.techAddressEl.value = "";
+  if (refs.techBirthDateEl) refs.techBirthDateEl.value = "";
+  if (refs.techCpfEl) refs.techCpfEl.value = "";
+  if (refs.techCnpjEl) refs.techCnpjEl.value = "";
   
   if (refs.techHourlyRateEl) refs.techHourlyRateEl.value = "";
 refs.techActiveEl.value = "true";
+  bindMaskedInput(refs.techCpfEl, formatCpf, "boundTechCpf");
+  bindMaskedInput(refs.techCnpjEl, formatCnpj, "boundTechCnpj");
+  bindAgePreview(refs.techBirthDateEl, refs.techAgePreview, "boundTechAge");
 
   // atualiza fallback com base no nome enquanto digita
   if (refs.techNameEl && refs.techAvatarPreviewFallback){
@@ -1359,6 +1542,22 @@ refs.techActiveEl.value = "true";
     }
   }
 
+  if (refs.techAttachmentsEl && !refs.techAttachmentsEl.dataset.boundAttachments){
+    refs.techAttachmentsEl.dataset.boundAttachments = "1";
+    refs.techAttachmentsEl.addEventListener("change", (e) => {
+      const result = addAttachmentFiles(state._techAttachmentsDraft || [], e.target.files || []);
+      if (result.error){
+        setAlert(refs.createTechAlert, result.error, "error");
+      } else {
+        state._techAttachmentsDraft = result.items;
+        renderTechAttachments(deps);
+      }
+      e.target.value = "";
+    });
+  }
+
+  renderTechAttachments(deps);
+
   state.mgrSelectedTeamIds = [];
   ensureTeamsForChips()
     .then(() => renderMgrTeamChips(deps))
@@ -1382,6 +1581,8 @@ export function closeCreateTechModal(refs, state) {
   // limpa modo edição (se recebeu state)
   if (state){
     state._mgrEditingTechUid = null;
+    state._techAttachmentsDraft = [];
+    state._techRemovedAttachments = [];
   }
 
   // garante que o email volta a ser editável no próximo "Novo Técnico"
@@ -1454,6 +1655,7 @@ async function createTech(deps) {
   const email = (refs.techEmailEl.value || "").trim();
   const phone = normalizePhone(refs.techPhoneEl.value || "");
   const hourlyRate = refs.techHourlyRateEl ? parseBRDecimalToNumber(refs.techHourlyRateEl.value) : null;
+  const extraFields = collectTechExtraFields(refs);
 
   const active = (refs.techActiveEl.value || "true") === "true";
 
@@ -1494,6 +1696,7 @@ async function createTech(deps) {
     emailLower: normalizeText(email),
     phone,
     ...(hourlyRate === null ? {} : { hourlyRate }),
+    ...extraFields,
     active,
     teamIds: selectedTeamIds,
     teamId: selectedTeamIds[0] || "",
@@ -1539,6 +1742,10 @@ async function createTech(deps) {
 
       // A criação e a escrita no Firestore são feitas pela Cloud Function (Admin SDK).
       // Mantemos o modal aberto para o usuário copiar o link de redefinição.
+      if ((state._techAttachmentsDraft || []).length){
+        setAlert(refs.createTechAlert, "Enviando anexos...", "info");
+        await syncTechAttachments(deps, uid);
+      }
       await loadManagerUsers(deps);
 
       const numLabel = data?.number ? `#${data.number} ` : "";
@@ -1567,6 +1774,11 @@ async function createTech(deps) {
       }catch(errUp){
         console.warn("avatar upload failed", errUp);
       }
+    }
+
+    if ((state._techAttachmentsDraft || []).length){
+      setAlert(refs.createTechAlert, "Enviando anexos...", "info");
+      await syncTechAttachments(deps, uid);
     }
 
     await deleteTempAvatarIfAny(deps);

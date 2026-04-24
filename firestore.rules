@@ -72,7 +72,7 @@ service cloud.firestore {
 
     function userFieldsAllowed() {
       return request.resource.data.keys().hasOnly([
-        "name","role","teamId","teamIds","managedTeamIds","email","emailLower","phone","active","softSkills","hardSkills","feedbackCount","number","createdAt","createdBy","photoURL","hourlyRate"]);
+        "name","role","teamId","teamIds","managedTeamIds","email","emailLower","phone","active","softSkills","hardSkills","feedbackCount","number","createdAt","createdBy","photoURL","hourlyRate","address","cpf","cnpj","birthDate","age","attachments"]);
     }
 
     function roleValid() {
@@ -89,6 +89,36 @@ service cloud.firestore {
 
     function phoneValid() {
       return request.resource.data.phone is string;
+    }
+
+    function addressOptionalValid() {
+      return !("address" in request.resource.data)
+        || request.resource.data.address is string;
+    }
+
+    function cpfOptionalValid() {
+      return !("cpf" in request.resource.data)
+        || request.resource.data.cpf is string;
+    }
+
+    function cnpjOptionalValid() {
+      return !("cnpj" in request.resource.data)
+        || request.resource.data.cnpj is string;
+    }
+
+    function birthDateOptionalValid() {
+      return !("birthDate" in request.resource.data)
+        || request.resource.data.birthDate is string;
+    }
+
+    function ageOptionalValid() {
+      return !("age" in request.resource.data)
+        || request.resource.data.age is int;
+    }
+
+    function attachmentsOptionalValid() {
+      return !("attachments" in request.resource.data)
+        || request.resource.data.attachments is list;
     }
 
     function activeValid() {
@@ -270,6 +300,11 @@ match /counters/{counterId} {
             && roleValid()
             && emailValid()
             && phoneValid()
+            && addressOptionalValid()
+            && cpfOptionalValid()
+            && cnpjOptionalValid()
+            && birthDateOptionalValid()
+            && ageOptionalValid()
             && hourlyRateOptionalValid()
             && activeValid()
             && createdAtOptionalValid()
@@ -277,6 +312,7 @@ match /counters/{counterId} {
             && teamIdOptionalValid()
             && teamIdsOptionalValid()
             && managedTeamIdsOptionalValid()
+            && attachmentsOptionalValid()
             && userTeamsRuleValid();
         }
 
@@ -289,10 +325,13 @@ match /counters/{counterId} {
         allow update: if isSignedIn()
           && uid == myUid()
           && companyId == myCompanyId()
-          && request.resource.data.diff(resource.data).changedKeys().hasOnly(["name","phone","photoURL","hourlyRate"])
+          && request.resource.data.diff(resource.data).changedKeys().hasOnly(["name","phone","photoURL","hourlyRate","address","birthDate","age"])
           && userFieldsAllowed()
           && nameValid()
           && phoneValid()
+            && addressOptionalValid()
+            && birthDateOptionalValid()
+            && ageOptionalValid()
             && hourlyRateOptionalValid();
 
         // gestor: pode criar/atualizar técnico (técnico pertence à empresa, não ao escopo do gestor)

@@ -11,7 +11,8 @@ import {
   serverTimestamp,
   query,
   where,
-  limit
+  limit,
+  deleteField
 } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore.js";
 import { getDownloadURL, ref as storageRef, uploadBytes, deleteObject } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-storage.js";
 import { show, hide } from "../utils/dom.js";
@@ -19,6 +20,20 @@ import { setAlert, clearAlert } from "../ui/alerts.js";
 import { normalizeRole } from "../utils/roles.js";
 import { normalizePhone } from "../utils/format.js";
 import { isEmailValidBasic } from "../utils/validators.js";
+import {
+  bindMaskedInput,
+  bindAgePreview,
+  calculateAgeFromBirthDate,
+  formatCpf,
+  formatCnpj,
+  sanitizeAddress,
+  toAttachmentDrafts,
+  addAttachmentFiles,
+  renderAttachmentList,
+  uploadAttachmentDrafts,
+  deleteStoredAttachments,
+  PERSON_ATTACHMENT_MAX_FILES
+} from "../utils/person-records.js";
 
 // Helper para mostrar link de redefinição de senha
 function setAlertWithResetLink(alertEl, msg, email, resetLink) {
@@ -214,6 +229,61 @@ async function waitForCompanyUserDoc(db, companyId, uid, timeoutMs = 4000) {
   return false;
 }
 
+function updateUserAttachmentsSummary(refs, items) {
+  if (!refs?.newUserAttachmentsSummary) return;
+  const total = Array.isArray(items) ? items.length : 0;
+  refs.newUserAttachmentsSummary.textContent = `${total}/${PERSON_ATTACHMENT_MAX_FILES} arquivos`;
+}
+
+function renderUserAttachments(deps) {
+  const { refs, state } = deps;
+  const items = Array.isArray(state._newUserAttachmentsDraft) ? state._newUserAttachmentsDraft : [];
+  updateUserAttachmentsSummary(refs, items);
+  renderAttachmentList(refs.newUserAttachmentsList, items, {
+    readOnly: state._adminUserModalMode === "view",
+    emptyText: "Nenhum arquivo anexado para este usuario.",
+    onRemove: (item) => {
+      state._newUserAttachmentsDraft = items.filter((entry) => entry.id !== item.id);
+      if (!item?.isNew && item?.path) {
+        state._newUserRemovedAttachments = [...(state._newUserRemovedAttachments || []), item];
+      }
+      renderUserAttachments(deps);
+    }
+  });
+}
+
+function collectUserExtraFields(refs) {
+  const birthDate = String(refs.newUserBirthDateEl?.value || "").trim();
+  const age = calculateAgeFromBirthDate(birthDate);
+  return {
+    address: sanitizeAddress(refs.newUserAddressEl?.value || ""),
+    cpf: formatCpf(refs.newUserCpfEl?.value || ""),
+    cnpj: formatCnpj(refs.newUserCnpjEl?.value || ""),
+    birthDate,
+    ...(age === null ? {} : { age })
+  };
+}
+
+async function syncUserAttachments(deps, uid) {
+  const { state, storage, db } = deps;
+  const draftItems = Array.isArray(state._newUserAttachmentsDraft) ? state._newUserAttachmentsDraft : [];
+  const removedItems = Array.isArray(state._newUserRemovedAttachments) ? state._newUserRemovedAttachments : [];
+
+  const attachments = await uploadAttachmentDrafts({
+    storage,
+    companyId: state.companyId,
+    uid,
+    draftItems
+  });
+
+  await updateDoc(doc(db, "companies", state.companyId, "users", uid), { attachments });
+  await deleteStoredAttachments({ storage, items: removedItems });
+
+  state._newUserAttachmentsDraft = toAttachmentDrafts(attachments);
+  state._newUserRemovedAttachments = [];
+  return attachments;
+}
+
 async function findUserUidByEmailInCompany(db, companyId, email) {
   const emailLower = normalizeText(email);
   if (!companyId || !emailLower) return "";
@@ -240,6 +310,9 @@ function initNewUserRichFields(deps) {
 
   setupChipInput(refs.newUserSoftSkillInputEl, refs.newUserSoftSkillChips, state, "_newUserSoftSkillsDraft", "soft");
   setupChipInput(refs.newUserHardSkillInputEl, refs.newUserHardSkillChips, state, "_newUserHardSkillsDraft", "hard");
+  bindMaskedInput(refs.newUserCpfEl, formatCpf, "boundCpf");
+  bindMaskedInput(refs.newUserCnpjEl, formatCnpj, "boundCnpj");
+  bindAgePreview(refs.newUserBirthDateEl, refs.newUserAgePreview, "boundUserAge");
 
   if (refs.newUserNameEl && refs.newUserAvatarPreviewFallback && !refs.newUserNameEl.dataset.boundAvatar) {
     refs.newUserNameEl.dataset.boundAvatar = "1";
@@ -294,6 +367,22 @@ function initNewUserRichFields(deps) {
       }
     });
   }
+
+  if (refs.newUserAttachmentsEl && !refs.newUserAttachmentsEl.dataset.bound) {
+    refs.newUserAttachmentsEl.dataset.bound = "1";
+    refs.newUserAttachmentsEl.addEventListener("change", (e) => {
+      const result = addAttachmentFiles(state._newUserAttachmentsDraft || [], e.target.files || []);
+      if (result.error) {
+        setAlert(refs.createUserAlert, result.error, "error");
+      } else {
+        state._newUserAttachmentsDraft = result.items;
+        renderUserAttachments(deps);
+      }
+      e.target.value = "";
+    });
+  }
+
+  renderUserAttachments(deps);
 }
 
 /** =========================
@@ -780,9 +869,14 @@ function setCreateUserModalMode(deps, mode, user = null) {
   if (refs.newUserEmailEl) refs.newUserEmailEl.disabled = isEdit || isView;
   if (refs.newUserPhoneEl) refs.newUserPhoneEl.disabled = isView;
   if (refs.newUserActiveEl) refs.newUserActiveEl.disabled = isView;
+  if (refs.newUserAddressEl) refs.newUserAddressEl.disabled = isView;
+  if (refs.newUserBirthDateEl) refs.newUserBirthDateEl.disabled = isView;
+  if (refs.newUserCpfEl) refs.newUserCpfEl.disabled = isView;
+  if (refs.newUserCnpjEl) refs.newUserCnpjEl.disabled = isView;
   if (refs.newUserSoftSkillInputEl) refs.newUserSoftSkillInputEl.disabled = isView;
   if (refs.newUserHardSkillInputEl) refs.newUserHardSkillInputEl.disabled = isView;
   if (refs.newUserAvatarFileEl) refs.newUserAvatarFileEl.disabled = isView;
+  if (refs.newUserAttachmentsEl) refs.newUserAttachmentsEl.disabled = isView;
   if (refs.btnNewUserRemovePhoto) refs.btnNewUserRemovePhoto.disabled = isView;
   if (refs.teamChipsEl) refs.teamChipsEl.classList.toggle("readonly", isView);
   if (refs.newUserSoftSkillChips) refs.newUserSoftSkillChips.classList.toggle("readonly", isView);
@@ -801,10 +895,16 @@ function fillCreateUserModal(user, deps) {
   refs.newUserEmailEl.value = user?.email || "";
   refs.newUserPhoneEl.value = user?.phone || "";
   refs.newUserActiveEl.value = (user?.active === false) ? "false" : "true";
+  if (refs.newUserAddressEl) refs.newUserAddressEl.value = user?.address || "";
+  if (refs.newUserBirthDateEl) refs.newUserBirthDateEl.value = user?.birthDate || "";
+  if (refs.newUserCpfEl) refs.newUserCpfEl.value = formatCpf(user?.cpf || "");
+  if (refs.newUserCnpjEl) refs.newUserCnpjEl.value = formatCnpj(user?.cnpj || "");
 
   state.selectedTeamIds = Array.isArray(user?.teamIds) ? [...user.teamIds] : (user?.teamId ? [user.teamId] : []);
   state._newUserSoftSkillsDraft = Array.isArray(user?.softSkills) ? [...user.softSkills] : [];
   state._newUserHardSkillsDraft = Array.isArray(user?.hardSkills) ? [...user.hardSkills] : [];
+  state._newUserAttachmentsDraft = toAttachmentDrafts(user?.attachments);
+  state._newUserRemovedAttachments = [];
   state._newUserAvatarFile = null;
   state._newUserTempAvatarPath = "";
   state._newUserTempAvatarURL = "";
@@ -862,11 +962,17 @@ export function openCreateUserModal(deps) {
   refs.newUserEmailEl.value = "";
   refs.newUserPhoneEl.value = "";
   refs.newUserActiveEl.value = "true";
+  if (refs.newUserAddressEl) refs.newUserAddressEl.value = "";
+  if (refs.newUserBirthDateEl) refs.newUserBirthDateEl.value = "";
+  if (refs.newUserCpfEl) refs.newUserCpfEl.value = "";
+  if (refs.newUserCnpjEl) refs.newUserCnpjEl.value = "";
   if (refs.newUserSoftSkillInputEl) refs.newUserSoftSkillInputEl.value = "";
   if (refs.newUserHardSkillInputEl) refs.newUserHardSkillInputEl.value = "";
 
   state._newUserSoftSkillsDraft = [];
   state._newUserHardSkillsDraft = [];
+  state._newUserAttachmentsDraft = [];
+  state._newUserRemovedAttachments = [];
   state._newUserAvatarFile = null;
   state._newUserTempAvatarPath = "";
   state._newUserTempAvatarURL = "";
@@ -897,6 +1003,8 @@ export function closeCreateUserModal(depsOrRefs) {
     state._newUserAvatarFile = null;
     state._newUserSoftSkillsDraft = [];
     state._newUserHardSkillsDraft = [];
+    state._newUserAttachmentsDraft = [];
+    state._newUserRemovedAttachments = [];
     state._adminEditingUserUid = null;
     state._adminUserModalMode = "create";
     state._newUserPhotoRemoved = false;
@@ -950,6 +1058,7 @@ export async function createUser(deps) {
   const email = (refs.newUserEmailEl?.value || "").trim();
   const phone = normalizePhone(refs.newUserPhoneEl?.value || "");
   const active = (refs.newUserActiveEl?.value || "true") === "true";
+  const extraFields = collectUserExtraFields(refs);
   const teamIds = Array.from(new Set(state.selectedTeamIds || []));
   const softSkills = uniqClean((state._newUserSoftSkillsDraft && state._newUserSoftSkillsDraft.length)
     ? state._newUserSoftSkillsDraft
@@ -1044,10 +1153,16 @@ export async function createUser(deps) {
             teamIds,
             teamId: teamIds[0] || "",
             softSkills,
-            hardSkills
+            hardSkills,
+            ...extraFields
           }, { merge: true });
         } catch (mergeErr) {
           console.warn("merge user extra fields failed", mergeErr);
+        }
+
+        if ((state._newUserAttachmentsDraft || []).length) {
+          setAlert(refs.createUserAlert, "Enviando anexos...", "info");
+          await syncUserAttachments(deps, uid);
         }
 
         await loadUsers(deps);
@@ -1078,6 +1193,7 @@ export async function createUser(deps) {
       teamId: teamIds[0] || "",
       softSkills,
       hardSkills,
+      ...extraFields,
       createdAt: serverTimestamp(),
       createdBy: auth.currentUser.uid
     });
@@ -1095,6 +1211,11 @@ export async function createUser(deps) {
       } catch (errUp) {
         console.warn("avatar upload failed", errUp);
       }
+    }
+
+    if ((state._newUserAttachmentsDraft || []).length) {
+      setAlert(refs.createUserAlert, "Enviando anexos...", "info");
+      await syncUserAttachments(deps, uid);
     }
 
     closeCreateUserModal(deps);
@@ -1127,6 +1248,7 @@ async function updateCompanyUser(deps) {
   const email = (refs.newUserEmailEl?.value || "").trim();
   const phone = normalizePhone(refs.newUserPhoneEl?.value || "");
   const active = (refs.newUserActiveEl?.value || "true") === "true";
+  const extraFields = collectUserExtraFields(refs);
   const teamIds = Array.from(new Set(state.selectedTeamIds || []));
   const softSkills = uniqClean((state._newUserSoftSkillsDraft && state._newUserSoftSkillsDraft.length)
     ? state._newUserSoftSkillsDraft
@@ -1154,7 +1276,9 @@ async function updateCompanyUser(deps) {
       teamIds,
       teamId: teamIds[0] || "",
       softSkills,
-      hardSkills
+      hardSkills,
+      ...extraFields,
+      ...(extraFields.birthDate ? {} : { age: deleteField() })
     };
 
     if (state._newUserPhotoRemoved) payload.photoURL = "";
@@ -1173,6 +1297,9 @@ async function updateCompanyUser(deps) {
         console.warn("avatar upload failed", errUp);
       }
     }
+
+    setAlert(refs.createUserAlert, "Sincronizando anexos...", "info");
+    await syncUserAttachments(deps, uid);
 
     closeCreateUserModal(deps);
     await loadUsers(deps);
