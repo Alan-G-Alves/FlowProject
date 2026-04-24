@@ -43,15 +43,20 @@ service firebase.storage {
 
     
     // Fotos de Clientes (SEM extensão): clientPhotos/{companyId}/{clientId}
+    // Anexos de usuÃ¡rios: userAttachments/{companyId}/{targetUid}/{fileName}
+    //
+    // Nota: nÃ£o exigimos que o doc do usuÃ¡rio alvo exista no Firestore para permitir o upload,
+    // pois no fluxo de criaÃ§Ã£o ele pode ainda nÃ£o ter sido gravado/propagado (causando 403).
+    // A proteÃ§Ã£o principal aqui Ã©: estar autenticado + companyId do path == minha empresa
+    // + (admin/gestor/coordenador OU o prÃ³prio usuÃ¡rio).
     match /userAttachments/{companyId}/{targetUid}/{fileName} {
       allow read: if signedIn()
         && companyId == myCompanyId()
-        && (targetUid == request.auth.uid || targetExistsInMyCompany(targetUid));
+        && (canManageUsers() || targetUid == request.auth.uid);
 
       allow create, update: if signedIn()
         && companyId == myCompanyId()
-        && canManageUsers()
-        && targetExistsInMyCompany(targetUid)
+        && (canManageUsers() || targetUid == request.auth.uid)
         && request.resource.size < 8 * 1024 * 1024
         && (
           request.resource.contentType == 'application/pdf'
@@ -62,8 +67,7 @@ service firebase.storage {
 
       allow delete: if signedIn()
         && companyId == myCompanyId()
-        && canManageUsers()
-        && targetExistsInMyCompany(targetUid);
+        && (canManageUsers() || targetUid == request.auth.uid);
     }
 
     match /clientPhotos/{companyId}/{clientId} {

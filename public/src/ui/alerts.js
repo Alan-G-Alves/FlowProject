@@ -15,9 +15,11 @@ function revealAlert(el, options = {}){
     } catch (_) {}
   }
 
-  try {
-    el.focus({ preventScroll: true });
-  } catch (_) {}
+  if (!insideModal) {
+    try {
+      el.focus({ preventScroll: true });
+    } catch (_) {}
+  }
 
   el.style.boxShadow = "0 0 0 4px rgba(37,99,235,.10)";
   setTimeout(() => {

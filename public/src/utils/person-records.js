@@ -28,6 +28,17 @@ const PERSON_ATTACHMENT_ALLOWED_EXTENSIONS = [
   ".webp"
 ];
 
+function guessContentTypeFromName(filename) {
+  const name = String(filename || "").toLowerCase();
+  if (name.endsWith(".pdf")) return "application/pdf";
+  if (name.endsWith(".doc")) return "application/msword";
+  if (name.endsWith(".docx")) return "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
+  if (name.endsWith(".png")) return "image/png";
+  if (name.endsWith(".webp")) return "image/webp";
+  if (name.endsWith(".jpg") || name.endsWith(".jpeg")) return "image/jpeg";
+  return "";
+}
+
 export function normalizeDigits(value, maxLen = 32) {
   return String(value || "").replace(/\D+/g, "").slice(0, maxLen);
 }
@@ -284,14 +295,34 @@ export async function uploadAttachmentDrafts({ storage, companyId, uid, draftIte
     const id = `att_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
     const path = `userAttachments/${companyId}/${uid}/${id}_${safeAttachmentName(file.name)}`;
     const ref = storageRef(storage, path);
-    await uploadBytes(ref, file, { contentType: file.type || "application/octet-stream" });
+    const inferredType = (String(file.type || "").trim() || guessContentTypeFromName(file.name) || "application/octet-stream").toLowerCase();
+
+    // Retry a few times because Storage rules may depend on recent Firestore writes.
+    let delay = 600;
+    let lastErr = null;
+    for (let attempt = 0; attempt < 6; attempt++) {
+      try {
+        await uploadBytes(ref, file, { contentType: inferredType });
+        lastErr = null;
+        break;
+      } catch (err) {
+        lastErr = err;
+        const code = String(err?.code || "");
+        const msg = String(err?.message || "").toLowerCase();
+        const retryable = code === "storage/unauthorized" || msg.includes("unauthorized") || msg.includes("permission") || msg.includes("forbidden");
+        if (!retryable || attempt >= 5) throw err;
+        await new Promise((r) => setTimeout(r, delay));
+        delay = Math.min(Math.round(delay * 1.6), 4000);
+      }
+    }
+    if (lastErr) throw lastErr;
     const url = await getDownloadURL(ref);
 
     uploaded.push({
       id,
       name: file.name,
       size: Number(file.size || 0),
-      contentType: String(file.type || "").trim(),
+      contentType: inferredType,
       path,
       url,
       uploadedAt: new Date().toISOString()

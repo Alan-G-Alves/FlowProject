@@ -252,6 +252,16 @@ function renderUserAttachments(deps) {
   });
 }
 
+function preserveModalScrollDuring(deps, fn, prevScrollTop = null) {
+  const bodyEl = deps?.refs?.modalCreateUser?.querySelector?.(".modal-body");
+  const prev = (typeof prevScrollTop === "number") ? prevScrollTop : (bodyEl ? bodyEl.scrollTop : 0);
+  fn();
+  if (!bodyEl) return;
+  requestAnimationFrame(() => {
+    try { bodyEl.scrollTop = prev; } catch (_) {}
+  });
+}
+
 function collectUserExtraFields(refs) {
   const birthDate = String(refs.newUserBirthDateEl?.value || "").trim();
   const age = calculateAgeFromBirthDate(birthDate);
@@ -324,28 +334,44 @@ function initNewUserRichFields(deps) {
 
   if (refs.newUserAvatarFileEl && !refs.newUserAvatarFileEl.dataset.bound) {
     refs.newUserAvatarFileEl.dataset.bound = "1";
+    // Captura scroll antes do seletor de arquivo abrir (evita "pular" e deixar o modal branco).
+    refs.newUserAvatarFileEl.addEventListener("click", () => {
+      const bodyEl = refs.modalCreateUser?.querySelector?.(".modal-body");
+      state._newUserModalScrollTop = bodyEl ? bodyEl.scrollTop : 0;
+    });
     refs.newUserAvatarFileEl.addEventListener("change", async (e) => {
       const file = e.target.files && e.target.files[0];
       if (!file) return;
-      setNewUserPhotoFileName(refs, file.name || "Arquivo selecionado");
+      const restoreScroll = typeof state._newUserModalScrollTop === "number" ? state._newUserModalScrollTop : null;
+      preserveModalScrollDuring(deps, () => {
+        setNewUserPhotoFileName(refs, file.name || "Arquivo selecionado");
+        state._newUserAvatarFile = file;
+        state._newUserPhotoRemoved = false;
+        setAlert(refs.createUserAlert, "Enviando foto...", "info");
+      }, restoreScroll);
+
       await deleteTempAvatarIfAny(deps);
-      state._newUserAvatarFile = file;
-      state._newUserPhotoRemoved = false;
-      setAlert(refs.createUserAlert, "Enviando foto...", "info");
+
       try {
         const { tempAvatarPath, tempAvatarURL } = await uploadTempAvatarForDraft(deps, file);
         state._newUserTempAvatarPath = tempAvatarPath;
         state._newUserTempAvatarURL = tempAvatarURL;
-        if (refs.newUserAvatarPreviewImg) {
-          refs.newUserAvatarPreviewImg.src = tempAvatarURL;
-          refs.newUserAvatarPreviewImg.style.display = "block";
-        }
-        if (refs.newUserAvatarPreviewFallback) refs.newUserAvatarPreviewFallback.textContent = "";
-        clearAlert(refs.createUserAlert);
+        preserveModalScrollDuring(deps, () => {
+          if (refs.newUserAvatarPreviewImg) {
+            refs.newUserAvatarPreviewImg.src = tempAvatarURL;
+            refs.newUserAvatarPreviewImg.style.display = "block";
+          }
+          if (refs.newUserAvatarPreviewFallback) refs.newUserAvatarPreviewFallback.textContent = "";
+          clearAlert(refs.createUserAlert);
+        }, restoreScroll);
       } catch (err) {
         state._newUserTempAvatarPath = "";
         state._newUserTempAvatarURL = "";
-        setAlert(refs.createUserAlert, "Nao foi possivel enviar a foto: " + (err?.message || err), "error");
+        preserveModalScrollDuring(deps, () => {
+          setAlert(refs.createUserAlert, "Nao foi possivel enviar a foto: " + (err?.message || err), "error");
+        }, restoreScroll);
+      } finally {
+        state._newUserModalScrollTop = null;
       }
       e.target.value = "";
     });
@@ -370,14 +396,22 @@ function initNewUserRichFields(deps) {
 
   if (refs.newUserAttachmentsEl && !refs.newUserAttachmentsEl.dataset.bound) {
     refs.newUserAttachmentsEl.dataset.bound = "1";
+    refs.newUserAttachmentsEl.addEventListener("click", () => {
+      const bodyEl = refs.modalCreateUser?.querySelector?.(".modal-body");
+      state._newUserModalScrollTop = bodyEl ? bodyEl.scrollTop : 0;
+    });
     refs.newUserAttachmentsEl.addEventListener("change", (e) => {
       const result = addAttachmentFiles(state._newUserAttachmentsDraft || [], e.target.files || []);
-      if (result.error) {
-        setAlert(refs.createUserAlert, result.error, "error");
-      } else {
-        state._newUserAttachmentsDraft = result.items;
-        renderUserAttachments(deps);
-      }
+      const restoreScroll = typeof state._newUserModalScrollTop === "number" ? state._newUserModalScrollTop : null;
+      preserveModalScrollDuring(deps, () => {
+        if (result.error) {
+          setAlert(refs.createUserAlert, result.error, "error");
+        } else {
+          state._newUserAttachmentsDraft = result.items;
+          renderUserAttachments(deps);
+        }
+      }, restoreScroll);
+      state._newUserModalScrollTop = null;
       e.target.value = "";
     });
   }
@@ -1158,11 +1192,17 @@ export async function createUser(deps) {
           }, { merge: true });
         } catch (mergeErr) {
           console.warn("merge user extra fields failed", mergeErr);
+          setAlert(refs.createUserAlert, "Usuário criado, mas falhou ao salvar campos extras (verifique Firestore Rules).", "error");
         }
 
         if ((state._newUserAttachmentsDraft || []).length) {
-          setAlert(refs.createUserAlert, "Enviando anexos...", "info");
-          await syncUserAttachments(deps, uid);
+          try {
+            setAlert(refs.createUserAlert, "Enviando anexos...", "info");
+            await syncUserAttachments(deps, uid);
+          } catch (attErr) {
+            console.warn("attachments upload failed", attErr);
+            setAlert(refs.createUserAlert, "Usuário criado, mas falhou ao enviar anexos: " + (attErr?.message || attErr), "error");
+          }
         }
 
         await loadUsers(deps);
@@ -1214,8 +1254,13 @@ export async function createUser(deps) {
     }
 
     if ((state._newUserAttachmentsDraft || []).length) {
-      setAlert(refs.createUserAlert, "Enviando anexos...", "info");
-      await syncUserAttachments(deps, uid);
+      try {
+        setAlert(refs.createUserAlert, "Enviando anexos...", "info");
+        await syncUserAttachments(deps, uid);
+      } catch (attErr) {
+        console.warn("attachments upload failed", attErr);
+        setAlert(refs.createUserAlert, "Usuário salvo, mas falhou ao enviar anexos: " + (attErr?.message || attErr), "error");
+      }
     }
 
     closeCreateUserModal(deps);
@@ -1298,8 +1343,13 @@ async function updateCompanyUser(deps) {
       }
     }
 
-    setAlert(refs.createUserAlert, "Sincronizando anexos...", "info");
-    await syncUserAttachments(deps, uid);
+    try {
+      setAlert(refs.createUserAlert, "Sincronizando anexos...", "info");
+      await syncUserAttachments(deps, uid);
+    } catch (attErr) {
+      console.warn("attachments upload failed", attErr);
+      return setAlert(refs.createUserAlert, "Dados salvos, mas falhou ao enviar anexos: " + (attErr?.message || attErr), "error");
+    }
 
     closeCreateUserModal(deps);
     await loadUsers(deps);

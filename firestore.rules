@@ -70,9 +70,35 @@ service cloud.firestore {
         && myCompanyUserDoc(companyId).data.active == true;
     }
 
-    function userFieldsAllowed() {
+    // Campos conhecidos do documento companies/{companyId}/users/{uid}.
+    //
+    // Importante: para UPDATE, nÃ£o podemos exigir que o documento tenha *apenas* esses campos,
+    // porque existem documentos legados com chaves extras. EntÃ£o, no UPDATE validamos apenas
+    // as chaves que estÃ£o sendo alteradas/adicionadas/removidas.
+    function userFieldsAllowedOnCreate() {
       return request.resource.data.keys().hasOnly([
-        "name","role","teamId","teamIds","managedTeamIds","email","emailLower","phone","active","softSkills","hardSkills","feedbackCount","number","createdAt","createdBy","photoURL","hourlyRate","address","cpf","cnpj","birthDate","age","attachments"]);
+        "name","role","teamId","teamIds","managedTeamIds",
+        "email","emailLower","phone","active",
+        "softSkills","hardSkills",
+        "feedbackCount","number",
+        "createdAt","createdBy",
+        "photoURL","hourlyRate",
+        "address","cpf","cnpj","birthDate","age",
+        "attachments"
+      ]);
+    }
+
+    function userFieldsAllowedOnUpdate() {
+      return request.resource.data.diff(resource.data).changedKeys().hasOnly([
+        "name","role","teamId","teamIds","managedTeamIds",
+        "email","emailLower","phone","active",
+        "softSkills","hardSkills",
+        "feedbackCount","number",
+        "createdAt","createdBy",
+        "photoURL","hourlyRate",
+        "address","cpf","cnpj","birthDate","age",
+        "attachments"
+      ]);
     }
 
     function roleValid() {
@@ -295,12 +321,12 @@ match /counters/{counterId} {
           || (isSignedIn() && uid == myUid() && companyId == myCompanyId());
 
         function userWriteValid() {
-          return userFieldsAllowed()
-            && nameValid()
-            && roleValid()
-            && emailValid()
-            && phoneValid()
-            && addressOptionalValid()
+          return ((resource == null && userFieldsAllowedOnCreate()) || (resource != null && userFieldsAllowedOnUpdate()))
+             && nameValid()
+             && roleValid()
+             && emailValid()
+             && phoneValid()
+             && addressOptionalValid()
             && cpfOptionalValid()
             && cnpjOptionalValid()
             && birthDateOptionalValid()
@@ -326,11 +352,11 @@ match /counters/{counterId} {
           && uid == myUid()
           && companyId == myCompanyId()
           && request.resource.data.diff(resource.data).changedKeys().hasOnly(["name","phone","photoURL","hourlyRate","address","birthDate","age"])
-          && userFieldsAllowed()
-          && nameValid()
-          && phoneValid()
-            && addressOptionalValid()
-            && birthDateOptionalValid()
+            && ((resource == null && userFieldsAllowedOnCreate()) || (resource != null && userFieldsAllowedOnUpdate()))
+            && nameValid()
+            && phoneValid()
+              && addressOptionalValid()
+              && birthDateOptionalValid()
             && ageOptionalValid()
             && hourlyRateOptionalValid();
 

@@ -450,7 +450,7 @@ a{ color: inherit; }
 .modal-card{
   position:relative;
   width: min(820px, calc(100% - 24px));
-  margin: 60px auto;
+  margin: clamp(12px, 6vh, 60px) auto;
   border-radius: var(--radius-2, 18px);
   border: 1px solid var(--border, rgba(12,18,32,.10));
   background: rgba(255,255,255,.92);
@@ -4537,6 +4537,8 @@ body.reports-card-maximized{
 }
 .modal-card.modal-xl .modal-body{
   overflow:auto;
+  flex: 1 1 auto;
+  min-height: 0; /* permite overflow funcionar em flex containers */
 }
 
 .client-projects-modal-card .modal-header{
@@ -7563,11 +7565,18 @@ button.chip-more{
 
 /* input file escondido (clicamos via botão) */
 input[type="file"].hidden-file{
-  position:absolute;
-  width:1px;
-  height:1px;
-  opacity:0;
-  pointer-events:none;
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
+  opacity: 0;
+  pointer-events: none;
 }
 
 /* =============================

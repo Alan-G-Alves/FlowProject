@@ -204,6 +204,16 @@ function renderTechAttachments(deps){
   });
 }
 
+function preserveTechModalScrollDuring(deps, fn, prevScrollTop = null){
+  const bodyEl = deps?.refs?.modalCreateTech?.querySelector?.(".modal-body");
+  const prev = (typeof prevScrollTop === "number") ? prevScrollTop : (bodyEl ? bodyEl.scrollTop : 0);
+  fn();
+  if (!bodyEl) return;
+  requestAnimationFrame(() => {
+    try { bodyEl.scrollTop = prev; } catch (_) {}
+  });
+}
+
 function collectTechExtraFields(refs){
   const birthDate = String(refs.techBirthDateEl?.value || "").trim();
   const age = calculateAgeFromBirthDate(birthDate);
@@ -239,22 +249,33 @@ function initTechRichFields(deps){
   if (refs.techAvatarFileEl && refs.techAvatarPreviewImg && refs.techAvatarPreviewFallback){
     if (!refs.techAvatarFileEl.dataset.bound){
       refs.techAvatarFileEl.dataset.bound = "1";
+      // Captura scroll antes do seletor de arquivo abrir (evita pulo/bug de rolagem no modal).
+      refs.techAvatarFileEl.addEventListener("click", () => {
+        const bodyEl = refs.modalCreateTech?.querySelector?.(".modal-body");
+        state._techModalScrollTop = bodyEl ? bodyEl.scrollTop : 0;
+      });
       refs.techAvatarFileEl.addEventListener("change", async (e) => {
         const file = e.target.files && e.target.files[0];
         if (!file) return;
-        setTechPhotoFileName(refs, file.name || "Arquivo selecionado");
+        const restoreScroll = typeof state._techModalScrollTop === "number" ? state._techModalScrollTop : null;
+        preserveTechModalScrollDuring(deps, () => {
+          setTechPhotoFileName(refs, file.name || "Arquivo selecionado");
+          state._techAvatarFile = file;
+          setAlert(refs.createTechAlert, "Enviando foto...", "info");
+        }, restoreScroll);
+
         await deleteTempAvatarIfAny(deps);
-        state._techAvatarFile = file;
-        setAlert(refs.createTechAlert, "Enviando foto...", "info");
 
         try{
           const { tempAvatarPath, tempAvatarURL } = await uploadTempAvatarForDraft(deps, file);
           state._techTempAvatarPath = tempAvatarPath;
           state._techTempAvatarURL = tempAvatarURL;
-          refs.techAvatarPreviewImg.src = tempAvatarURL;
-          refs.techAvatarPreviewImg.style.display = "block";
-          refs.techAvatarPreviewFallback.textContent = "";
-          clearAlert(refs.createTechAlert);
+          preserveTechModalScrollDuring(deps, () => {
+            refs.techAvatarPreviewImg.src = tempAvatarURL;
+            refs.techAvatarPreviewImg.style.display = "block";
+            refs.techAvatarPreviewFallback.textContent = "";
+            clearAlert(refs.createTechAlert);
+          }, restoreScroll);
         }catch(err){
           console.warn("temp avatar upload failed", err);
           state._techTempAvatarPath = "";
@@ -262,6 +283,7 @@ function initTechRichFields(deps){
           setAlert(refs.createTechAlert, "Não foi possível enviar a foto: " + (err?.message || err), "error");
         }
 
+        state._techModalScrollTop = null;
         e.target.value = "";
       });
     }
@@ -283,14 +305,22 @@ function initTechRichFields(deps){
 
   if (refs.techAttachmentsEl && !refs.techAttachmentsEl.dataset.boundAttachments){
     refs.techAttachmentsEl.dataset.boundAttachments = "1";
+    refs.techAttachmentsEl.addEventListener("click", () => {
+      const bodyEl = refs.modalCreateTech?.querySelector?.(".modal-body");
+      state._techModalScrollTop = bodyEl ? bodyEl.scrollTop : 0;
+    });
     refs.techAttachmentsEl.addEventListener("change", (e) => {
       const result = addAttachmentFiles(state._techAttachmentsDraft || [], e.target.files || []);
-      if (result.error){
-        setAlert(refs.createTechAlert, result.error, "error");
-      } else {
-        state._techAttachmentsDraft = result.items;
-        renderTechAttachments(deps);
-      }
+      const restoreScroll = typeof state._techModalScrollTop === "number" ? state._techModalScrollTop : null;
+      preserveTechModalScrollDuring(deps, () => {
+        if (result.error){
+          setAlert(refs.createTechAlert, result.error, "error");
+        } else {
+          state._techAttachmentsDraft = result.items;
+          renderTechAttachments(deps);
+        }
+      }, restoreScroll);
+      state._techModalScrollTop = null;
       e.target.value = "";
     });
   }
@@ -1728,6 +1758,7 @@ async function createTech(deps) {
         await setDoc(doc(db, "companies", state.companyId, "users", uid), baseUserData, { merge: true });
       }catch(errMerge){
         console.warn("merge user extra fields failed", errMerge);
+        setAlert(refs.createTechAlert, "Técnico criado, mas falhou ao salvar campos extras (verifique Firestore Rules).", "error");
       }
       try{
         await setDoc(doc(db, "userCompanies", uid), { companyId: state.companyId }, { merge: true });
@@ -1743,8 +1774,13 @@ async function createTech(deps) {
       // A criação e a escrita no Firestore são feitas pela Cloud Function (Admin SDK).
       // Mantemos o modal aberto para o usuário copiar o link de redefinição.
       if ((state._techAttachmentsDraft || []).length){
-        setAlert(refs.createTechAlert, "Enviando anexos...", "info");
-        await syncTechAttachments(deps, uid);
+        try{
+          setAlert(refs.createTechAlert, "Enviando anexos...", "info");
+          await syncTechAttachments(deps, uid);
+        }catch(attErr){
+          console.warn("attachments upload failed", attErr);
+          setAlert(refs.createTechAlert, "Técnico criado, mas falhou ao enviar anexos: " + (attErr?.message || attErr), "error");
+        }
       }
       await loadManagerUsers(deps);
 
@@ -1777,8 +1813,13 @@ async function createTech(deps) {
     }
 
     if ((state._techAttachmentsDraft || []).length){
-      setAlert(refs.createTechAlert, "Enviando anexos...", "info");
-      await syncTechAttachments(deps, uid);
+      try{
+        setAlert(refs.createTechAlert, "Enviando anexos...", "info");
+        await syncTechAttachments(deps, uid);
+      }catch(attErr){
+        console.warn("attachments upload failed", attErr);
+        setAlert(refs.createTechAlert, "Técnico salvo, mas falhou ao enviar anexos: " + (attErr?.message || attErr), "error");
+      }
     }
 
     await deleteTempAvatarIfAny(deps);
