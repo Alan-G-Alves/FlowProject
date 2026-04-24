@@ -25,6 +25,8 @@ export async function loadTeams(deps) {
   const { refs, state, db, openTeamDetailsModal, updateAdminSummary } = deps;
   if (!refs.teamsGrid) return;
 
+  const loadToken = (state._teamsLoadToken || 0) + 1;
+  state._teamsLoadToken = loadToken;
   refs.teamsGrid.innerHTML = "";
   hide(refs.teamsEmpty);
 
@@ -47,6 +49,7 @@ export async function loadTeams(deps) {
 
   state.teams = filtered.sort((a, b) => (a.name || "").localeCompare(b.name || ""));
   if (typeof updateAdminSummary === "function") updateAdminSummary(deps);
+  if (state._teamsLoadToken !== loadToken) return;
 
   if (state.teams.length === 0) {
     show(refs.teamsEmpty);
@@ -278,25 +281,31 @@ export function closeCreateTeamModal(refs) {
 
 export async function createTeam(deps) {
   const { refs, state, db, auth, getNextTeamId, loadTeams } = deps;
+  if (state._isCreatingTeam) return;
   clearAlert(refs.createTeamAlert);
 
   const name = (refs.teamNameEl.value || "").trim();
   if (!name) return setAlert(refs.createTeamAlert, "Informe o nome da equipe.");
 
+  state._isCreatingTeam = true;
   setAlert(refs.createTeamAlert, "Salvando...", "info");
 
-  const teamId = await getNextTeamId();
+  try {
+    const teamId = await getNextTeamId();
 
-  await setDoc(doc(db, "companies", state.companyId, "teams", teamId), {
-    name,
-    active: true,
-    number: parseInt(teamId.replace("#", ""), 10) || null,
-    createdAt: serverTimestamp(),
-    createdBy: auth.currentUser.uid
-  });
+    await setDoc(doc(db, "companies", state.companyId, "teams", teamId), {
+      name,
+      active: true,
+      number: parseInt(teamId.replace("#", ""), 10) || null,
+      createdAt: serverTimestamp(),
+      createdBy: auth.currentUser.uid
+    });
 
-  closeCreateTeamModal(refs);
-  await loadTeams();
+    closeCreateTeamModal(refs);
+    await loadTeams();
+  } finally {
+    state._isCreatingTeam = false;
+  }
 }
 
 /**

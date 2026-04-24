@@ -2135,7 +2135,7 @@ refs.companyUsersSearch?.addEventListener("input", () => companiesDomain.handleC
 // Teams events
 refs.btnReloadTeams?.addEventListener("click", () => loadTeams());
 refs.teamSearch?.addEventListener("input", () => loadTeams());
-refs.btnOpenCreateTeam?.addEventListener("click", () => openCreateTeamModal());
+onOnce(refs.btnOpenCreateTeam, "click", () => openCreateTeamModal(), "btnOpenCreateTeam");
 
 refs.teamNameEl?.addEventListener("input", () => {
   const slug = slugify(refs.teamNameEl.value);
@@ -2148,18 +2148,18 @@ refs.teamIdEl?.addEventListener("input", () => {
   refs.teamIdEl.dataset.auto = "false";
 });
 
-refs.btnCloseCreateTeam?.addEventListener("click", () => closeCreateTeamModal());
-refs.btnCancelCreateTeam?.addEventListener("click", () => closeCreateTeamModal());
-refs.btnCreateTeam?.addEventListener("click", () => {
+onOnce(refs.btnCloseCreateTeam, "click", () => closeCreateTeamModal(), "btnCloseCreateTeam");
+onOnce(refs.btnCancelCreateTeam, "click", () => closeCreateTeamModal(), "btnCancelCreateTeam");
+onOnce(refs.btnCreateTeam, "click", () => {
   createTeam().catch(err => {
     console.error(err);
     setAlert(refs.createTeamAlert, "Erro ao salvar: " + (err?.message || err));
   });
-});
+}, "btnCreateTeam");
 
-refs.modalCreateTeam?.addEventListener("click", (e) => {
+onOnce(refs.modalCreateTeam, "click", (e) => {
   if (e.target?.dataset?.close === "true") closeCreateTeamModal();
-});
+}, "modalCreateTeam");
 
 // Users events
 refs.btnReloadUsers?.addEventListener("click", () => loadUsers());
@@ -2341,14 +2341,14 @@ refs.teamIdEl?.addEventListener("input", () => {
   refs.teamIdEl.dataset.auto = "false";
 });
 
-refs.btnCloseCreateTeam?.addEventListener("click", () => closeCreateTeamModal());
-refs.btnCancelCreateTeam?.addEventListener("click", () => closeCreateTeamModal());
-refs.btnCreateTeam?.addEventListener("click", () => {
+onOnce(refs.btnCloseCreateTeam, "click", () => closeCreateTeamModal(), "btnCloseCreateTeam");
+onOnce(refs.btnCancelCreateTeam, "click", () => closeCreateTeamModal(), "btnCancelCreateTeam");
+onOnce(refs.btnCreateTeam, "click", () => {
   createTeam().catch(err => {
     console.error(err);
     setAlert(refs.createTeamAlert, "Erro ao salvar: " + (err?.message || err));
   });
-});
+}, "btnCreateTeam");
 
 // Team Details modal events
 refs.btnCloseTeamDetails?.addEventListener("click", () => {
