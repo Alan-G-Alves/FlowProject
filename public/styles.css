@@ -1857,6 +1857,48 @@ a{ color: inherit; }
 }
 .pwd-toggle:hover{ opacity: 1; }
 
+.pwd-wrap input{
+  padding-right: 54px;
+}
+.pwd-toggle{
+  right: 8px;
+  border-radius: 12px;
+  width: 40px;
+  height: 40px;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  padding: 0;
+  color: rgba(12,18,32,.56);
+  opacity: .9;
+  transition: background .15s ease, color .15s ease, transform .12s ease;
+}
+.pwd-toggle:hover{
+  background: rgba(12,18,32,.05);
+  color: rgba(12,18,32,.82);
+}
+.pwd-toggle:active{
+  transform: translateY(-50%) scale(.96);
+}
+.pwd-toggle:focus-visible{
+  outline: 3px solid rgba(59,130,246,.18);
+  outline-offset: 2px;
+}
+.pwd-toggle-eye{
+  width: 20px;
+  height: 20px;
+  display:block;
+}
+.pwd-toggle-eye-closed{
+  display:none;
+}
+.pwd-toggle.is-visible .pwd-toggle-eye-open{
+  display:none;
+}
+.pwd-toggle.is-visible .pwd-toggle-eye-closed{
+  display:block;
+}
+
 
 .login-row{
   display:flex;
