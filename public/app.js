@@ -167,6 +167,12 @@ const state = {
 };
 
 let _notificationsUnsub = null;
+let _dashboardRemindersUnsub = null;
+let _dashboardAgendaCursor = new Date();
+_dashboardAgendaCursor.setDate(1);
+let _dashboardReminders = [];
+let _dashboardReminderUsers = [];
+let _activeReminderDetailId = "";
 
 // Guard: evita salvar projeto duas vezes (double click / duplo binding)
 let _isCreatingProject = false;
@@ -612,7 +618,7 @@ function initSidebar(){
   refs.navHome?.addEventListener("click", () => {
     setActiveNav("navHome");
     setView("dashboard");
-    loadDashboardAgenda().catch((err) => console.warn("[dashboard-agenda]", err));
+    refreshDashboardHomeWidgets();
   });
   refs.navReports?.addEventListener("click", () => {
     setActiveNav("navReports");
@@ -761,6 +767,17 @@ function stopNotificationsListener(){
   }
   state._notificationsCache = [];
   renderNotifications([]);
+}
+
+function stopDashboardRemindersListener(){
+  if (typeof _dashboardRemindersUnsub === "function") {
+    _dashboardRemindersUnsub();
+    _dashboardRemindersUnsub = null;
+  }
+  _dashboardReminders = [];
+  if (refs.dashboardRemindersList && refs.dashboardRemindersEmpty) {
+    renderDashboardReminders([]);
+  }
 }
 
 function formatNotificationTime(value){
@@ -1142,6 +1159,21 @@ refs.profilePhotoFile?.addEventListener("change", async (e) => {
   }
 });
 
+function refreshDashboardHomeWidgets(){
+  loadDashboardAgenda().catch((err) => console.warn("[dashboard-agenda]", err));
+  loadDashboardReminders().catch((err) => console.warn("[dashboard-reminders]", err));
+}
+
+function sortDashboardReminders(items){
+  return [...items].sort((a, b) => {
+    if (isReminderViewed(a) !== isReminderViewed(b)) return isReminderViewed(a) ? 1 : -1;
+    if (String(a.dueDate || "") !== String(b.dueDate || "")) return String(a.dueDate || "").localeCompare(String(b.dueDate || ""));
+    const aTime = typeof a.createdAt?.toMillis === "function" ? a.createdAt.toMillis() : 0;
+    const bTime = typeof b.createdAt?.toMillis === "function" ? b.createdAt.toMillis() : 0;
+    return bTime - aTime;
+  });
+}
+
 function renderDashboardCards(profile){
   if (!refs.dashCards) return;
   refs.dashCards.innerHTML = "";
@@ -1232,9 +1264,7 @@ function renderDashboardCards(profile){
     refs.dashCards.appendChild(el);
   }
 
-  loadDashboardAgenda().catch((err) => {
-    console.warn("[dashboard-agenda]", err);
-  });
+  refreshDashboardHomeWidgets();
 }
 
 function getMonthKey(date){
@@ -1245,12 +1275,54 @@ function getDateKeyLocal(date){
   return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
 }
 
-function renderDashboardCalendar(dateCountMap, currentDate = new Date()){
+function formatDashboardMonthLabel(date){
+  const label = date.toLocaleDateString("pt-BR", { month: "long", year: "numeric" });
+  return label.charAt(0).toUpperCase() + label.slice(1);
+}
+
+function shiftDashboardAgendaMonth(offset){
+  const next = new Date(_dashboardAgendaCursor.getFullYear(), _dashboardAgendaCursor.getMonth() + offset, 1);
+  _dashboardAgendaCursor = next;
+  loadDashboardAgenda().catch((err) => console.warn("[dashboard-agenda]", err));
+}
+
+function getCurrentDashboardRole(){
+  return String(state.profile?.role || "").trim().toLowerCase();
+}
+
+function attachCalendarTooltips(){
   if (!refs.dashboardCalendar) return;
+  
+  const daysWithTooltip = refs.dashboardCalendar.querySelectorAll('[data-has-tooltip="true"]');
+  
+  daysWithTooltip.forEach((dayEl) => {
+    const tooltip = dayEl.querySelector(".calendar-tooltip");
+    if (!tooltip) return;
+    
+    // Show on mouseenter
+    dayEl.addEventListener("mouseenter", (e) => {
+      tooltip.style.display = "block";
+      tooltip.style.opacity = "1";
+      tooltip.style.visibility = "visible";
+    });
+    
+    // Hide on mouseleave
+    dayEl.addEventListener("mouseleave", (e) => {
+      tooltip.style.display = "none";
+      tooltip.style.opacity = "0";
+      tooltip.style.visibility = "hidden";
+    });
+  });
+}
+
+function renderDashboardCalendar(dateCountMap, currentDate = new Date(), activitiesByDate = new Map()){
+  if (!refs.dashboardCalendar) return;
+  const currentRole = getCurrentDashboardRole();
+  const showManagerInTooltip = currentRole === "tecnico";
 
   const year = currentDate.getFullYear();
   const month = currentDate.getMonth();
-  const monthLabel = currentDate.toLocaleDateString("pt-BR", { month: "long", year: "numeric" });
+  const monthLabel = formatDashboardMonthLabel(currentDate);
   const firstDay = new Date(year, month, 1);
   const daysInMonth = new Date(year, month + 1, 0).getDate();
   const startOffset = firstDay.getDay();
@@ -1258,7 +1330,7 @@ function renderDashboardCalendar(dateCountMap, currentDate = new Date()){
   const weekdays = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sab"];
 
   if (refs.dashboardAgendaMonth) {
-    refs.dashboardAgendaMonth.textContent = monthLabel.charAt(0).toUpperCase() + monthLabel.slice(1);
+    refs.dashboardAgendaMonth.textContent = monthLabel;
   }
 
   const cells = [];
@@ -1274,16 +1346,38 @@ function renderDashboardCalendar(dateCountMap, currentDate = new Date()){
     const date = new Date(year, month, day);
     const key = getDateKeyLocal(date);
     const count = dateCountMap.get(key) || 0;
+    const dayActivities = activitiesByDate.get(key) || [];
     const classes = [
       "dashboard-calendar-day",
       key === todayKey ? "is-today" : "",
       count > 0 ? "has-activity" : ""
     ].filter(Boolean).join(" ");
 
+    // Build tooltip content if there are activities
+    let tooltipHtml = "";
+    if (count > 0 && dayActivities.length > 0) {
+      const tooltipItems = dayActivities.slice(0, 5).map((act) => {
+        const hoursStr = act.hours > 0 ? `${act.hours}h` : "0h";
+        return `<div class="calendar-tooltip-item">
+          <div class="calendar-tooltip-project">${escapeHtml(act.projectName)}</div>
+          <div class="calendar-tooltip-activity">${escapeHtml(act.name)}</div>
+          <div class="calendar-tooltip-details">${hoursStr} • ${escapeHtml(act.managerName)}</div>
+        </div>`;
+      }).join("");
+      
+      const moreText = dayActivities.length > 5 ? `<div class="calendar-tooltip-more">+${dayActivities.length - 5} mais...</div>` : "";
+      
+      tooltipHtml = `<div class="calendar-tooltip${showManagerInTooltip ? "" : " is-compact"}">
+        <div class="calendar-tooltip-title">Atividades do dia</div>
+        <div class="calendar-tooltip-list">${tooltipItems}${moreText}</div>
+      </div>`;
+    }
+
     cells.push(`
-      <div class="${classes}">
+      <div class="${classes}" ${tooltipHtml ? 'data-has-tooltip="true"' : ''}>
         <span class="dashboard-calendar-number">${escapeHtml(String(day))}</span>
         ${count > 0 ? `<span class="dashboard-calendar-count">${escapeHtml(String(count))} atividade${count > 1 ? "s" : ""}</span>` : ""}
+        ${tooltipHtml}
       </div>
     `);
   }
@@ -1294,6 +1388,9 @@ function renderDashboardCalendar(dateCountMap, currentDate = new Date()){
   }
 
   refs.dashboardCalendar.innerHTML = cells.join("");
+  
+  // Attach tooltip event listeners
+  attachCalendarTooltips();
 }
 
 async function loadDashboardAgenda(){
@@ -1309,33 +1406,382 @@ async function loadDashboardAgenda(){
 
   const uid = auth.currentUser?.uid || "";
   if (!state.companyId || !uid) {
-    renderDashboardCalendar(new Map());
+    renderDashboardCalendar(new Map(), _dashboardAgendaCursor, new Map());
     if (refs.dashboardAgendaSubtitle) refs.dashboardAgendaSubtitle.textContent = "Entre para visualizar suas atividades do mes atual.";
     return;
   }
 
-  const now = new Date();
-  const monthKey = getMonthKey(now);
-  const activitiesSnap = await getDocs(query(
-    collection(db, "companies", state.companyId, "activities"),
-    where("techUids", "array-contains", uid)
-  ));
+  const selectedMonth = new Date(_dashboardAgendaCursor.getFullYear(), _dashboardAgendaCursor.getMonth(), 1);
+  const monthKey = getMonthKey(selectedMonth);
+  const currentRole = getCurrentDashboardRole();
+  const activitiesRef = collection(db, "companies", state.companyId, "activities");
+  const projectsRef = collection(db, "companies", state.companyId, "projects");
+  const activitiesQuery = currentRole === "tecnico"
+    ? query(activitiesRef, where("techUids", "array-contains", uid))
+    : activitiesRef;
+  const [activitiesSnap, projectsSnap] = await Promise.all([
+    getDocs(activitiesQuery),
+    getDocs(projectsRef)
+  ]);
+  const projects = projectsSnap.docs.map((docSnap) => ({ id: docSnap.id, ...docSnap.data() }));
+  const projectsById = new Map(projects.map((project) => [project.id, project]));
+  const usersByUid = new Map((Array.isArray(state._usersCache) ? state._usersCache : []).map((user) => [user.uid, user]));
+  const managedProjectIds = currentRole === "gestor"
+    ? new Set(projects.filter((project) => String(project?.managerUid || "") === uid).map((project) => project.id))
+    : new Set();
 
   const counts = new Map();
+  const activitiesByDate = new Map();
   activitiesSnap.docs.forEach((docSnap) => {
     const activity = docSnap.data() || {};
+    const project = projectsById.get(activity.projectId) || null;
+    if (currentRole === "gestor") {
+      const belongsToManager = String(activity.managerUid || "") === uid
+        || Boolean(project && managedProjectIds.has(project.id));
+      if (!belongsToManager) return;
+    } else if (currentRole !== "tecnico") {
+      const assignedTechs = Array.isArray(activity.techUids) ? activity.techUids : [];
+      if (!assignedTechs.includes(uid)) return;
+    }
+    const manager = usersByUid.get(project?.managerUid || "") || null;
+    activity.projectName = project?.name || activity.projectName || "Projeto nao identificado";
+    activity.managerName = project?.managerName || manager?.name || activity.managerName || activity.createdByName || "Gestor nao identificado";
     const workDate = String(activity.workDate || "").slice(0, 10);
     if (!workDate || !workDate.startsWith(monthKey)) return;
+    
+    // Count for display
     counts.set(workDate, (counts.get(workDate) || 0) + 1);
+    
+    // Store full activity data for tooltip
+    if (!activitiesByDate.has(workDate)) {
+      activitiesByDate.set(workDate, []);
+    }
+    activitiesByDate.get(workDate).push({
+      id: docSnap.id,
+      name: activity.name || "Atividade sem nome",
+      projectName: activity.projectName || "Projeto não identificado",
+      hours: activity.hoursWorked || activity.hours || 0,
+      managerName: activity.managerName || activity.createdByName || "Gestor não identificado"
+    });
   });
 
   const total = Array.from(counts.values()).reduce((acc, count) => acc + count, 0);
   if (refs.dashboardAgendaSubtitle) {
+    const label = formatDashboardMonthLabel(selectedMonth);
     refs.dashboardAgendaSubtitle.textContent = total
-      ? `${total} atividade(s) planejada(s) para voce neste mes.`
-      : "Nenhuma atividade planejada para voce neste mes.";
+      ? `${total} atividade(s) planejada(s) para voce em ${label}.`
+      : `Nenhuma atividade planejada para voce em ${label}.`;
   }
-  renderDashboardCalendar(counts, now);
+  renderDashboardCalendar(counts, selectedMonth, activitiesByDate);
+}
+
+function canBroadcastDashboardReminder(){
+  const role = getCurrentDashboardRole();
+  return role === "admin" || role === "gestor";
+}
+
+const DASHBOARD_REMINDER_COLORS = new Set(["sun", "mint", "rose", "sky", "lavender"]);
+
+function normalizeReminderColor(value){
+  const color = String(value || "").trim().toLowerCase();
+  return DASHBOARD_REMINDER_COLORS.has(color) ? color : "sun";
+}
+
+function isReminderViewed(reminder){
+  return Boolean(reminder?.viewed || reminder?.viewedAt);
+}
+
+function isReminderDueToday(reminder){
+  return String(reminder?.dueDate || "") === getDateKeyLocal(new Date());
+}
+
+function isReminderOverdue(reminder){
+  const todayKey = getDateKeyLocal(new Date());
+  return String(reminder?.dueDate || "") < todayKey && !isReminderViewed(reminder);
+}
+
+function formatReminderDateShort(value){
+  if (!value) return "-";
+  const [year, month, day] = String(value).split("-").map(Number);
+  if (!year || !month || !day) return String(value);
+  return new Date(year, month - 1, day).toLocaleDateString("pt-BR", {
+    day: "2-digit",
+    month: "short"
+  });
+}
+
+function formatReminderDateLong(value){
+  if (!value) return "-";
+  const [year, month, day] = String(value).split("-").map(Number);
+  if (!year || !month || !day) return String(value);
+  const label = new Date(year, month - 1, day).toLocaleDateString("pt-BR", {
+    weekday: "long",
+    day: "2-digit",
+    month: "long",
+    year: "numeric"
+  });
+  return label.charAt(0).toUpperCase() + label.slice(1);
+}
+
+function getReminderStatusLabel(reminder){
+  if (isReminderDueToday(reminder) && !isReminderViewed(reminder)) return "Alerta de hoje";
+  if (isReminderOverdue(reminder)) return "Atrasado";
+  if (isReminderViewed(reminder)) return "Visualizado";
+  return "Pendente";
+}
+
+async function loadDashboardReminderUsers(){
+  if (!canBroadcastDashboardReminder()) return [];
+  if (_dashboardReminderUsers.length) return _dashboardReminderUsers;
+  let users = Array.isArray(state._usersCache) ? [...state._usersCache] : [];
+  if (!users.length) {
+    const usersSnap = await getDocs(collection(db, "companies", state.companyId, "users"));
+    users = usersSnap.docs.map((docSnap) => ({ uid: docSnap.id, ...docSnap.data() }));
+    state._usersCache = users;
+  }
+  const currentUid = auth.currentUser?.uid || "";
+  _dashboardReminderUsers = users
+    .filter((user) => user?.uid && user.active !== false)
+    .sort((a, b) => {
+      if (a.uid === currentUid) return -1;
+      if (b.uid === currentUid) return 1;
+      return String(a.name || "").localeCompare(String(b.name || ""), "pt-BR");
+    });
+  return _dashboardReminderUsers;
+}
+
+function updateReminderToggleAllLabel(){
+  if (!refs.btnReminderToggleAllUsers || !refs.reminderTargetsList) return;
+  const options = Array.from(refs.reminderTargetsList.querySelectorAll("input[type='checkbox']"));
+  const checkedCount = options.filter((input) => input.checked).length;
+  refs.btnReminderToggleAllUsers.textContent = checkedCount === options.length && options.length ? "Limpar selecao" : "Selecionar todos";
+}
+
+function renderDashboardReminderTargetOptions(users){
+  if (!refs.reminderTargetsList) return;
+  const currentUid = auth.currentUser?.uid || "";
+  refs.reminderTargetsList.innerHTML = users.length
+    ? users.map((user) => `
+        <label class="reminder-target-option">
+          <input type="checkbox" value="${escapeHtml(user.uid)}" ${user.uid === currentUid ? "checked" : ""} />
+          <div>
+            <strong>${escapeHtml(user.name || user.email || "Usuario")}</strong>
+            <span>${escapeHtml(humanizeRole(user.role || "tecnico"))}${user.uid === currentUid ? " - voce" : ""}</span>
+          </div>
+        </label>
+      `).join("")
+    : '<div class="reminder-self-hint">Nenhum usuario elegivel encontrado para receber lembretes.</div>';
+  updateReminderToggleAllLabel();
+}
+
+function getSelectedReminderRecipients(){
+  const currentUid = auth.currentUser?.uid || "";
+  const currentName = state.profile?.name || auth.currentUser?.email || "Voce";
+  if (!canBroadcastDashboardReminder()) {
+    return [{ uid: currentUid, name: currentName }];
+  }
+  const selected = Array.from(refs.reminderTargetsList?.querySelectorAll("input[type='checkbox']:checked") || [])
+    .map((input) => {
+      const user = _dashboardReminderUsers.find((item) => item.uid === input.value);
+      return user ? { uid: user.uid, name: user.name || user.email || "Usuario" } : null;
+    })
+    .filter(Boolean);
+  return Array.from(new Map(selected.map((item) => [item.uid, item])).values());
+}
+
+function closeReminderComposer(){
+  if (refs.modalReminderComposer) refs.modalReminderComposer.hidden = true;
+  clearAlert(refs.reminderComposerAlert);
+}
+
+async function openReminderComposer(){
+  if (!refs.modalReminderComposer) return;
+  clearAlert(refs.reminderComposerAlert);
+  if (refs.reminderDateInput) refs.reminderDateInput.value = getDateKeyLocal(new Date());
+  if (refs.reminderColorOptions) {
+    const defaultColor = refs.reminderColorOptions.querySelector("input[value='sun']");
+    if (defaultColor) defaultColor.checked = true;
+  }
+  if (refs.reminderMessageInput) refs.reminderMessageInput.value = "";
+  if (canBroadcastDashboardReminder()) {
+    if (refs.reminderTargetsWrap) refs.reminderTargetsWrap.hidden = false;
+    if (refs.reminderSelfHintWrap) refs.reminderSelfHintWrap.hidden = true;
+    const users = await loadDashboardReminderUsers();
+    renderDashboardReminderTargetOptions(users);
+    if (refs.btnReminderToggleAllUsers) refs.btnReminderToggleAllUsers.hidden = users.length <= 1;
+  } else {
+    if (refs.reminderTargetsWrap) refs.reminderTargetsWrap.hidden = true;
+    if (refs.reminderSelfHintWrap) refs.reminderSelfHintWrap.hidden = false;
+    if (refs.reminderSelfHint) refs.reminderSelfHint.textContent = "Este lembrete sera salvo apenas no seu mural.";
+  }
+  refs.modalReminderComposer.hidden = false;
+}
+
+function getSelectedReminderColor(){
+  const selected = refs.reminderColorOptions?.querySelector("input[name='reminderColor']:checked");
+  return normalizeReminderColor(selected?.value || "sun");
+}
+
+function closeReminderDetail(){
+  _activeReminderDetailId = "";
+  if (refs.modalReminderDetail) refs.modalReminderDetail.hidden = true;
+}
+
+async function saveDashboardReminder(){
+  const companyId = state.companyId;
+  const currentUid = auth.currentUser?.uid || "";
+  if (!companyId || !currentUid) return;
+  const dueDate = String(refs.reminderDateInput?.value || "").slice(0, 10);
+  const noteColor = getSelectedReminderColor();
+  const message = String(refs.reminderMessageInput?.value || "").trim();
+  const recipients = getSelectedReminderRecipients();
+  if (!dueDate) {
+    setAlert(refs.reminderComposerAlert, "Selecione a data do lembrete.");
+    return;
+  }
+  if (message.length < 4) {
+    setAlert(refs.reminderComposerAlert, "Digite uma mensagem com pelo menos 4 caracteres.");
+    return;
+  }
+  if (!recipients.length) {
+    setAlert(refs.reminderComposerAlert, "Selecione pelo menos um destinatario.");
+    return;
+  }
+  setAlert(refs.reminderComposerAlert, "Salvando...", "info");
+  const batch = writeBatch(db);
+  const createdByName = state.profile?.name || auth.currentUser?.email || "Usuario";
+  const createdByRole = normalizeRole(state.profile?.role || "tecnico");
+  recipients.forEach((recipient, index) => {
+    const reminderId = `rem-${Date.now()}-${index}-${Math.random().toString(36).slice(2, 8)}`;
+    const reminderRef = doc(db, "companies", companyId, "reminders", reminderId);
+    batch.set(reminderRef, {
+      recipientUid: recipient.uid,
+      recipientName: recipient.name || "",
+      dueDate,
+      noteColor,
+      message,
+      viewed: false,
+      viewedBy: "",
+      createdBy: currentUid,
+      createdByName,
+      createdByRole,
+      createdAt: serverTimestamp(),
+      updatedAt: serverTimestamp(),
+      updatedBy: currentUid
+    });
+  });
+  await batch.commit();
+  closeReminderComposer();
+  await loadDashboardReminders();
+}
+
+function renderDashboardReminders(reminders){
+  if (!refs.dashboardRemindersList || !refs.dashboardRemindersEmpty) return;
+  const openCount = reminders.filter((item) => !isReminderViewed(item)).length;
+  const todayCount = reminders.filter((item) => isReminderDueToday(item) && !isReminderViewed(item)).length;
+  if (refs.dashboardRemindersOpenCount) refs.dashboardRemindersOpenCount.textContent = String(openCount);
+  if (refs.dashboardRemindersTodayCount) refs.dashboardRemindersTodayCount.textContent = String(todayCount);
+  if (refs.dashboardRemindersTotalCount) refs.dashboardRemindersTotalCount.textContent = String(reminders.length);
+  if (refs.dashboardRemindersSubtitle) {
+    refs.dashboardRemindersSubtitle.textContent = reminders.length
+      ? `${openCount} lembrete(s) aguardando sua atencao.`
+      : "Anotacoes importantes e lembretes compartilhados aparecerao aqui.";
+  }
+  refs.dashboardRemindersEmpty.hidden = reminders.length > 0;
+  refs.dashboardRemindersList.innerHTML = reminders.map((reminder) => {
+    const noteColor = normalizeReminderColor(reminder.noteColor);
+    const classes = [
+      "reminder-note",
+      `note-color-${noteColor}`,
+      isReminderViewed(reminder) ? "is-viewed" : "",
+      isReminderDueToday(reminder) && !isReminderViewed(reminder) ? "is-alert" : "",
+      isReminderOverdue(reminder) ? "is-overdue" : ""
+    ].filter(Boolean).join(" ");
+    return `
+      <article class="${classes}" role="button" tabindex="0" data-reminder-id="${escapeHtml(reminder.id)}">
+        <button class="reminder-note-delete" type="button" data-delete-reminder="${escapeHtml(reminder.id)}" aria-label="Excluir lembrete" title="Excluir lembrete">x</button>
+        <span class="reminder-note-date">${escapeHtml(formatReminderDateShort(reminder.dueDate))}</span>
+        <div class="reminder-note-message">${escapeHtml(reminder.message || "")}</div>
+        <div class="reminder-note-footer">
+          <span class="reminder-note-author">Por ${escapeHtml(reminder.createdByName || "Usuario")}</span>
+          <span class="reminder-note-status">${escapeHtml(getReminderStatusLabel(reminder))}</span>
+        </div>
+        <span class="reminder-note-fold" aria-hidden="true"></span>
+      </article>
+    `;
+  }).join("");
+}
+
+async function loadDashboardReminders(){
+  if (!refs.dashboardReminders || !refs.dashboardRemindersList) return;
+  stopDashboardRemindersListener();
+  if (state.isSuperAdmin) {
+    refs.dashboardReminders.hidden = true;
+    return;
+  }
+  refs.dashboardReminders.hidden = false;
+  const companyId = state.companyId;
+  const currentUid = auth.currentUser?.uid || "";
+  if (!companyId || !currentUid) {
+    _dashboardReminders = [];
+    renderDashboardReminders([]);
+    return;
+  }
+  const remindersQuery = query(
+    collection(db, "companies", companyId, "reminders"),
+    where("recipientUid", "==", currentUid)
+  );
+  _dashboardRemindersUnsub = onSnapshot(remindersQuery, (snap) => {
+    _dashboardReminders = sortDashboardReminders(
+      snap.docs.map((docSnap) => ({ id: docSnap.id, ...docSnap.data() }))
+    );
+    renderDashboardReminders(_dashboardReminders);
+  }, (err) => {
+    console.warn("[dashboard-reminders:listen]", err);
+    _dashboardReminders = [];
+    renderDashboardReminders([]);
+  });
+}
+
+async function markReminderAsViewed(reminderId){
+  const reminder = _dashboardReminders.find((item) => item.id === reminderId);
+  const currentUid = auth.currentUser?.uid || "";
+  if (!reminder || reminder.recipientUid !== currentUid || isReminderViewed(reminder)) return reminder;
+  await updateDoc(doc(db, "companies", state.companyId, "reminders", reminderId), {
+    viewed: true,
+    viewedAt: serverTimestamp(),
+    viewedBy: currentUid,
+    updatedAt: serverTimestamp(),
+    updatedBy: currentUid
+  });
+  reminder.viewed = true;
+  reminder.viewedAt = new Date();
+  reminder.viewedBy = currentUid;
+  renderDashboardReminders(_dashboardReminders);
+  return reminder;
+}
+
+async function openReminderDetail(reminderId){
+  let reminder = _dashboardReminders.find((item) => item.id === reminderId);
+  if (!reminder || !refs.modalReminderDetail) return;
+  reminder = await markReminderAsViewed(reminderId);
+  _activeReminderDetailId = reminderId;
+  if (refs.reminderDetailMeta) refs.reminderDetailMeta.textContent = `Criado por ${reminder.createdByName || "Usuario"} para ${reminder.recipientName || "voce"}.`;
+  if (refs.reminderDetailDate) refs.reminderDetailDate.textContent = formatReminderDateLong(reminder.dueDate);
+  if (refs.reminderDetailMessage) refs.reminderDetailMessage.textContent = reminder.message || "-";
+  if (refs.reminderDetailAuthor) refs.reminderDetailAuthor.textContent = `Criado por: ${reminder.createdByName || "Usuario"}`;
+  if (refs.reminderDetailRecipient) refs.reminderDetailRecipient.textContent = `Destinatario: ${reminder.recipientName || "Voce"}`;
+  refs.modalReminderDetail.hidden = false;
+}
+
+async function deleteDashboardReminder(reminderId){
+  const reminder = _dashboardReminders.find((item) => item.id === reminderId);
+  if (!reminder || !state.companyId) return;
+  if (!confirm("Deseja excluir este lembrete?")) return;
+  await deleteDoc(doc(db, "companies", state.companyId, "reminders", reminderId));
+  _dashboardReminders = _dashboardReminders.filter((item) => item.id !== reminderId);
+  renderDashboardReminders(_dashboardReminders);
+  if (_activeReminderDetailId === reminderId) closeReminderDetail();
 }
 
 /** =========================
@@ -2008,6 +2454,7 @@ initNotificationsUi();
 onAuthStateChanged(auth, async (user) => {
   clearAlert(refs.loginAlert);
   stopNotificationsListener();
+  stopDashboardRemindersListener();
 
   state.companyId = null;
   state.company = null;
@@ -2069,6 +2516,12 @@ onAuthStateChanged(auth, async (user) => {
 
     state.companyId = companyId;
     localStorage.setItem("currentCompanyId", companyId);
+    state._usersCache = [];
+    _dashboardReminderUsers = [];
+    _dashboardReminders = [];
+    _activeReminderDetailId = "";
+    _dashboardAgendaCursor = new Date();
+    _dashboardAgendaCursor.setDate(1);
 
     state.profile = profile;
     await loadCurrentCompanyBrand();
@@ -2092,6 +2545,55 @@ onAuthStateChanged(auth, async (user) => {
  *  ========================= */
 refs.btnCloseCompanyBrand?.addEventListener("click", closeCompanyBrandModal);
 refs.btnCancelCompanyBrand?.addEventListener("click", closeCompanyBrandModal);
+refs.btnDashboardAgendaPrevMonth?.addEventListener("click", () => shiftDashboardAgendaMonth(-1));
+refs.btnDashboardAgendaNextMonth?.addEventListener("click", () => shiftDashboardAgendaMonth(1));
+refs.btnOpenReminderComposer?.addEventListener("click", () => {
+  openReminderComposer().catch((err) => console.warn("[dashboard-reminders:open]", err));
+});
+refs.btnCloseReminderComposer?.addEventListener("click", closeReminderComposer);
+refs.btnCancelReminderComposer?.addEventListener("click", closeReminderComposer);
+refs.btnSaveReminder?.addEventListener("click", () => {
+  saveDashboardReminder().catch((err) => {
+    console.warn("[dashboard-reminders:save]", err);
+    setAlert(refs.reminderComposerAlert, "Nao foi possivel salvar o lembrete.");
+  });
+});
+refs.btnReminderToggleAllUsers?.addEventListener("click", () => {
+  const options = Array.from(refs.reminderTargetsList?.querySelectorAll("input[type='checkbox']") || []);
+  const shouldSelectAll = options.some((input) => !input.checked);
+  options.forEach((input) => { input.checked = shouldSelectAll; });
+  updateReminderToggleAllLabel();
+});
+refs.reminderTargetsList?.addEventListener("change", () => updateReminderToggleAllLabel());
+refs.modalReminderComposer?.addEventListener("click", (event) => {
+  if (event.target?.matches?.("[data-close-reminder-composer='true']")) closeReminderComposer();
+});
+refs.dashboardRemindersList?.addEventListener("click", (event) => {
+  const deleteButton = event.target?.closest?.("[data-delete-reminder]");
+  if (deleteButton) {
+    deleteDashboardReminder(deleteButton.getAttribute("data-delete-reminder")).catch((err) => console.warn("[dashboard-reminders:delete]", err));
+    return;
+  }
+  const note = event.target?.closest?.("[data-reminder-id]");
+  if (!note) return;
+  openReminderDetail(note.getAttribute("data-reminder-id")).catch((err) => console.warn("[dashboard-reminders:detail]", err));
+});
+refs.dashboardRemindersList?.addEventListener("keydown", (event) => {
+  if (event.key !== "Enter" && event.key !== " ") return;
+  const note = event.target?.closest?.("[data-reminder-id]");
+  if (!note) return;
+  event.preventDefault();
+  openReminderDetail(note.getAttribute("data-reminder-id")).catch((err) => console.warn("[dashboard-reminders:detail]", err));
+});
+refs.modalReminderDetail?.addEventListener("click", (event) => {
+  if (event.target?.matches?.("[data-close-reminder-detail='true']")) closeReminderDetail();
+});
+refs.btnCloseReminderDetail?.addEventListener("click", closeReminderDetail);
+refs.btnAcknowledgeReminderDetail?.addEventListener("click", closeReminderDetail);
+refs.btnDeleteReminderDetail?.addEventListener("click", () => {
+  if (!_activeReminderDetailId) return;
+  deleteDashboardReminder(_activeReminderDetailId).catch((err) => console.warn("[dashboard-reminders:delete]", err));
+});
 refs.modalCompanyBrand?.addEventListener("click", (event) => {
   if (event.target?.matches?.("[data-close-company-brand='true']")) closeCompanyBrandModal();
 });
@@ -2174,17 +2676,17 @@ refs.navLogout?.addEventListener("click", async (e) => {
 // Dashboard navigation
 refs.btnBackToDashboard?.addEventListener("click", () => {
   setView("dashboard");
-  loadDashboardAgenda().catch((err) => console.warn("[dashboard-agenda]", err));
+  refreshDashboardHomeWidgets();
 });
 refs.btnBackFromAdmin?.addEventListener("click", () => {
   setView("dashboard");
-  loadDashboardAgenda().catch((err) => console.warn("[dashboard-agenda]", err));
+  refreshDashboardHomeWidgets();
 });
 
 // Gestor Users view
 refs.btnBackFromManagerUsers?.addEventListener("click", () => {
   setView("dashboard");
-  loadDashboardAgenda().catch((err) => console.warn("[dashboard-agenda]", err));
+  refreshDashboardHomeWidgets();
 });
 refs.btnReloadMgrUsers?.addEventListener("click", () => loadManagerUsers());
 refs.mgrUserSearch?.addEventListener("input", () => loadManagerUsers());
@@ -2440,7 +2942,7 @@ refs.modalCompanyDetail?.addEventListener("click", (e) => {
 // My Projects (Kanban) events
 refs.btnBackFromMyProjects?.addEventListener("click", () => {
   setView("dashboard");
-  loadDashboardAgenda().catch((err) => console.warn("[dashboard-agenda]", err));
+  refreshDashboardHomeWidgets();
 });
 refs.btnOpenCreateProjectFromKanban?.addEventListener("click", async () => {
   await loadTeams();
@@ -2451,7 +2953,7 @@ refs.btnOpenCreateProjectFromKanban?.addEventListener("click", async () => {
 // My Activities events
 refs.btnBackFromMyActivities?.addEventListener("click", () => {
   setView("dashboard");
-  loadDashboardAgenda().catch((err) => console.warn("[dashboard-agenda]", err));
+  refreshDashboardHomeWidgets();
 });
 refs.btnReloadMyActivities?.addEventListener("click", () => loadMyActivities());
 refs.myActivitiesSearchInput?.addEventListener("input", () => loadMyActivities());
@@ -2466,7 +2968,7 @@ refs.btnClearMyActivitiesPeriod?.addEventListener("click", () => {
 // Projects events
 refs.btnBackFromProjects?.addEventListener("click", () => {
   setView("dashboard");
-  loadDashboardAgenda().catch((err) => console.warn("[dashboard-agenda]", err));
+  refreshDashboardHomeWidgets();
 });
 refs.btnReloadProjects?.addEventListener("click", () => loadProjects());
 refs.projectSearch?.addEventListener("input", () => loadProjects());

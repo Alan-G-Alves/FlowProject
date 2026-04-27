@@ -1988,6 +1988,7 @@ async function saveActivity(taskId, deps){
     .reduce((acc, a) => acc + asNumber(a.hoursWorked), 0);
   const newActivitiesHours = dates.length * selectedTechs.length * hoursWorked;
   const availableHours = Math.max(0, plannedHours - currentWorked);
+  const activeManagerName = ((state._usersCache || []).find((u) => u.uid === _activeProject?.managerUid)?.name || _activeProject?.managerName || "").trim();
 
   if (plannedHours > 0 && newActivitiesHours > availableHours){
     setAlert(
@@ -2003,6 +2004,9 @@ async function saveActivity(taskId, deps){
       const actId = `act-${Date.now()}-${Math.random().toString(36).slice(2,7)}`;
       await setDoc(doc(db, `companies/${companyId}/activities`, actId), {
         projectId: _activeProject.id,
+        projectName: _activeProject.name || "",
+        managerUid: _activeProject.managerUid || "",
+        managerName: activeManagerName,
         taskId,
         taskName: task.name || "",
         name,
@@ -2014,6 +2018,7 @@ async function saveActivity(taskId, deps){
         note,
         status: "sem_os",
         createdBy: uid,
+        createdByName: state.profile?.name || "",
         createdByRole: creatorRole,
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp(),

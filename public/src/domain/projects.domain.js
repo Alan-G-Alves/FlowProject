@@ -846,6 +846,7 @@ export async function createProject(deps) {
   const clientId = refs.projectClientEl?.value || "";
   const clientName = clientId ? ((state._clientsCache||[]).find(c=>c.id===clientId)?.name || "") : "";
   const clientNumber = clientId ? ((state._clientsCache||[]).find(c=>c.id===clientId)?.number ?? "") : "";
+  const managerName = ((state._usersCache || []).find((u) => u.uid === managerUid)?.name || "").trim();
   // CobranÃ§a (inputs atuais do modal)
   const billingValue = _parseBRLToNumber(refs.projectBillingValueAmountEl?.value || "");
   const billingHours = _parseHoursToNumber(refs.projectBillingHoursAmountEl?.value || "");
@@ -911,6 +912,7 @@ export async function createProject(deps) {
       name,
       description,
       managerUid,
+      managerName,
       coordinatorUid: coordinatorUid || "",
       teamId: teamId || "",
       clientId: clientId || "",
@@ -1322,6 +1324,7 @@ export async function updateProject(deps) {
   const billingHours = _parseHoursToNumber(refs.editProjectBillingHoursAmountEl?.value || "");
   const techUids = Array.isArray(_editSelectedTechUids) ? [..._editSelectedTechUids] : [];
   const client = clientId ? (state._clientsCache || []).find(c => c.id === clientId) : null;
+  const managerName = ((state._usersCache || []).find((u) => u.uid === managerUid)?.name || "").trim();
 
   if (!name) {
     setAlert(refs.editProjectAlert, "Informe o nome do projeto.");
@@ -1360,6 +1363,7 @@ export async function updateProject(deps) {
       clientNumber: client?.number ?? "",
       teamId,
       managerUid,
+      managerName,
       coordinatorUid: coordinatorUid || "",
       status,
       priority,

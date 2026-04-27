@@ -211,18 +211,158 @@
 </div>
 </div>
 <div class="grid" id="dashCards"></div>
-<section class="dashboard-agenda" id="dashboardAgenda">
-  <div class="dashboard-agenda-head">
-    <div>
-      <h2>Minhas Agendas</h2>
-      <p class="muted" id="dashboardAgendaSubtitle">Atividades planejadas para o mes atual.</p>
+<div class="dashboard-home-grid">
+  <section class="dashboard-agenda" id="dashboardAgenda">
+    <div class="dashboard-agenda-head">
+      <div>
+        <h2>Minhas Agendas</h2>
+        <p class="muted" id="dashboardAgendaSubtitle">Atividades planejadas para o mes atual.</p>
+      </div>
+      <div class="dashboard-agenda-month-nav">
+        <button class="icon-btn sm dashboard-agenda-month-btn" id="btnDashboardAgendaPrevMonth" type="button" aria-label="Mes anterior" title="Mes anterior">
+          <span aria-hidden="true">&lt;</span>
+        </button>
+        <strong id="dashboardAgendaMonth">Mes atual</strong>
+        <button class="icon-btn sm dashboard-agenda-month-btn" id="btnDashboardAgendaNextMonth" type="button" aria-label="Proximo mes" title="Proximo mes">
+          <span aria-hidden="true">&gt;</span>
+        </button>
+      </div>
     </div>
-    <strong id="dashboardAgendaMonth">Mes atual</strong>
-  </div>
-  <div class="dashboard-calendar" id="dashboardCalendar"></div>
-</section>
+    <div class="dashboard-calendar" id="dashboardCalendar"></div>
+  </section>
+  <aside class="dashboard-reminders" id="dashboardReminders">
+    <div class="dashboard-reminders-head">
+      <div>
+        <h2>Mural de Lembretes</h2>
+        <p class="muted" id="dashboardRemindersSubtitle">Anotacoes importantes e lembretes compartilhados.</p>
+      </div>
+      <button class="icon-btn dashboard-reminders-add-btn" id="btnOpenReminderComposer" type="button" title="Adicionar lembrete" aria-label="Adicionar lembrete">
+        <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+          <defs>
+            <linearGradient id="fpGradReminderAdd" x1="0" y1="0" x2="24" y2="24" gradientUnits="userSpaceOnUse">
+              <stop stop-color="rgb(119, 59, 246)"/>
+              <stop offset="1" stop-color="rgb(100, 102, 251)"/>
+            </linearGradient>
+          </defs>
+          <circle cx="12" cy="12" r="9" stroke="url(#fpGradReminderAdd)" stroke-width="2.2"></circle>
+          <path d="M12 7.5v9M7.5 12h9" stroke="url(#fpGradReminderAdd)" stroke-width="2.2" stroke-linecap="round"></path>
+        </svg>
+      </button>
+    </div>
+    <div class="dashboard-reminders-board">
+      <div class="dashboard-reminders-list" id="dashboardRemindersList"></div>
+      <div class="dashboard-reminders-empty" hidden id="dashboardRemindersEmpty">
+        <strong>Nenhum lembrete por aqui.</strong>
+        <span>Crie um post-it para voce ou compartilhe lembretes com a equipe.</span>
+      </div>
+    </div>
+  </aside>
 </div>
-</section><section class="view" hidden="" id="viewReports">
+</div>
+</section>
+<div class="modal" hidden="" id="modalReminderComposer">
+  <div class="modal-backdrop" data-close-reminder-composer="true"></div>
+  <div class="modal-card reminder-composer-modal-card">
+    <div class="modal-header">
+      <div>
+        <h2>Novo lembrete</h2>
+        <p class="muted">Crie um post-it com data e mensagem para aparecer no mural.</p>
+      </div>
+      <button class="btn ghost" id="btnCloseReminderComposer" type="button">X</button>
+    </div>
+    <div class="modal-body">
+      <div class="reminder-composer-sheet">
+        <div class="alert" hidden id="reminderComposerAlert"></div>
+        <div class="grid reminder-composer-grid">
+          <label class="field" style="grid-column: span 4;">
+            <span>Data do lembrete</span>
+            <input id="reminderDateInput" type="date" />
+          </label>
+          <div class="field reminder-target-field" id="reminderTargetsWrap" style="grid-column: span 8;" hidden>
+            <span>Destinatarios</span>
+            <div class="reminder-targets-toolbar">
+              <span class="reminder-targets-hint">Selecione quem vai receber este lembrete.</span>
+              <button class="btn ghost sm" id="btnReminderToggleAllUsers" type="button">Selecionar todos</button>
+            </div>
+            <div class="reminder-targets-list" id="reminderTargetsList"></div>
+          </div>
+          <div class="field reminder-target-field" id="reminderSelfHintWrap" style="grid-column: span 8;">
+            <span>Destinatario</span>
+            <div class="reminder-self-hint" id="reminderSelfHint">Este lembrete sera salvo apenas no seu mural.</div>
+          </div>
+          <div class="field reminder-color-field" style="grid-column: span 12;">
+            <span>Cor do post-it</span>
+            <div class="reminder-color-options" id="reminderColorOptions" role="radiogroup" aria-label="Cor do post-it">
+              <label class="reminder-color-option is-default">
+                <input type="radio" name="reminderColor" value="sun" checked />
+                <span class="reminder-color-swatch reminder-color-swatch--sun"></span>
+                <strong>Amarelo</strong>
+                <small>Padrao</small>
+              </label>
+              <label class="reminder-color-option">
+                <input type="radio" name="reminderColor" value="mint" />
+                <span class="reminder-color-swatch reminder-color-swatch--mint"></span>
+                <strong>Verde</strong>
+                <small>Leve</small>
+              </label>
+              <label class="reminder-color-option">
+                <input type="radio" name="reminderColor" value="rose" />
+                <span class="reminder-color-swatch reminder-color-swatch--rose"></span>
+                <strong>Rosa</strong>
+                <small>Suave</small>
+              </label>
+              <label class="reminder-color-option">
+                <input type="radio" name="reminderColor" value="sky" />
+                <span class="reminder-color-swatch reminder-color-swatch--sky"></span>
+                <strong>Azul</strong>
+                <small>Frio</small>
+              </label>
+              <label class="reminder-color-option">
+                <input type="radio" name="reminderColor" value="lavender" />
+                <span class="reminder-color-swatch reminder-color-swatch--lavender"></span>
+                <strong>Lilas</strong>
+                <small>Calmo</small>
+              </label>
+            </div>
+          </div>
+          <label class="field reminder-message-field" style="grid-column: span 12;">
+            <span>Mensagem / lembrete</span>
+            <textarea id="reminderMessageInput" maxlength="500" placeholder="Ex.: revisar apontamentos do cliente, confirmar reuniao, lembrar de aprovar despesas..."></textarea>
+          </label>
+        </div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn" id="btnCancelReminderComposer" type="button">Cancelar</button>
+      <button class="btn primary" id="btnSaveReminder" type="button">Salvar lembrete</button>
+    </div>
+  </div>
+</div>
+<div class="modal" hidden="" id="modalReminderDetail">
+  <div class="modal-backdrop" data-close-reminder-detail="true"></div>
+  <div class="modal-card reminder-detail-modal-card">
+    <div class="modal-header">
+      <div>
+        <h2>Lembrete</h2>
+        <p class="muted" id="reminderDetailMeta">Detalhes do lembrete.</p>
+      </div>
+      <button class="btn ghost" id="btnCloseReminderDetail" type="button">X</button>
+    </div>
+    <div class="modal-body">
+      <div class="reminder-detail-date" id="reminderDetailDate">-</div>
+      <div class="reminder-detail-message" id="reminderDetailMessage">-</div>
+      <div class="reminder-detail-footer">
+        <span id="reminderDetailAuthor">-</span>
+        <span id="reminderDetailRecipient">-</span>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn danger" id="btnDeleteReminderDetail" type="button">Excluir</button>
+      <button class="btn primary" id="btnAcknowledgeReminderDetail" type="button">Fechar</button>
+    </div>
+  </div>
+</div>
+<section class="view" hidden="" id="viewReports">
 <div class="container">
 <div class="page-header">
 <div>

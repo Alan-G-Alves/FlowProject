@@ -593,6 +593,57 @@ allow delete: if false;
       }
 
       // notifications
+      match /reminders/{reminderId} {
+        allow read: if isCompanyMember(companyId)
+          && resource.data.recipientUid == myUid();
+
+        allow create: if isCompanyMember(companyId)
+          && request.resource.data.keys().hasOnly([
+            "recipientUid", "recipientName",
+            "dueDate", "noteColor", "message",
+            "viewed", "viewedAt", "viewedBy",
+            "createdBy", "createdByName", "createdByRole",
+            "createdAt", "updatedAt", "updatedBy"
+          ])
+          && request.resource.data.createdBy == myUid()
+          && request.resource.data.updatedBy == myUid()
+          && request.resource.data.recipientUid is string
+          && request.resource.data.recipientUid.size() > 0
+          && request.resource.data.recipientName is string
+          && request.resource.data.dueDate is string
+          && request.resource.data.dueDate.size() == 10
+          && request.resource.data.noteColor is string
+          && request.resource.data.noteColor in ["sun", "mint", "rose", "sky", "lavender"]
+          && request.resource.data.message is string
+          && request.resource.data.message.size() >= 4
+          && request.resource.data.viewed == false
+          && request.resource.data.viewedBy is string
+          && request.resource.data.createdByName is string
+          && request.resource.data.createdByRole is string
+          && (
+            request.resource.data.recipientUid == myUid()
+            || isCompanyAdmin(companyId)
+            || isManager(companyId)
+          );
+
+        allow update: if isCompanyMember(companyId)
+          && resource.data.recipientUid == myUid()
+          && request.resource.data.diff(resource.data).changedKeys().hasOnly(["viewed", "viewedAt", "viewedBy", "updatedAt", "updatedBy"])
+          && request.resource.data.viewed == true
+          && request.resource.data.viewedBy == myUid()
+          && request.resource.data.updatedBy == myUid()
+          && request.resource.data.updatedAt is timestamp
+          && request.resource.data.viewedAt is timestamp;
+
+        allow delete: if isCompanyMember(companyId)
+          && (
+            resource.data.recipientUid == myUid()
+            || resource.data.createdBy == myUid()
+            || isCompanyAdmin(companyId)
+            || isManager(companyId)
+          );
+      }
+
       match /notifications/{notificationId} {
         allow read: if isCompanyMember(companyId)
           && resource.data.recipientUid == myUid();
