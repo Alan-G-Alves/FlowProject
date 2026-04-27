@@ -11,7 +11,7 @@ import {
 import { clearAlert, setAlert } from "../ui/alerts.js";
 import { escapeHtml, hide, show } from "../utils/dom.js";
 import { createNotifications } from "../services/notifications.service.js?v=1776052722";
-import * as expensesDomain from "./expenses.domain.js?v=1777057001";
+import * as expensesDomain from "./expenses.domain.js?v=1777057012";
 
 let _bound = false;
 let _currentActivity = null;
@@ -59,29 +59,20 @@ function parseTimeToMinutes(value) {
 }
 
 function updateMyActivityComputedHours(refs) {
-  if (!refs?.myActivityComputedHours || !refs?.myActivityComputedHoursHint) return;
+  if (!refs?.myActivityComputedHours) return;
   const start = refs.myActivityStartTime?.value || "";
   const end = refs.myActivityEndTime?.value || "";
   const breakTime = refs.myActivityBreakTime?.value || "01:00";
   const total = diffHours(start, end, breakTime);
-  const planned = asNumber(_currentActivity?.activity?.hoursWorked);
 
   refs.myActivityComputedHours.textContent = formatHours(total);
-  refs.myActivityComputedHours.classList.toggle("is-over", total > 0 && planned > 0 && total > planned);
+  refs.myActivityComputedHours.classList.toggle("is-over", total > 0 && asNumber(_currentActivity?.activity?.hoursWorked) > 0 && total > asNumber(_currentActivity?.activity?.hoursWorked));
+}
 
-  if (!start || !end) {
-    refs.myActivityComputedHoursHint.textContent = "Informe inicio e fim para calcular o total.";
-    return;
-  }
-  if (total <= 0) {
-    refs.myActivityComputedHoursHint.textContent = "Horario invalido. O total precisa ser maior que zero apos descontar o descanso.";
-    return;
-  }
-  if (planned > 0) {
-    refs.myActivityComputedHoursHint.textContent = `Previsto para a atividade: ${formatHours(planned)}. Descanso aplicado: ${breakTime}.`;
-    return;
-  }
-  refs.myActivityComputedHoursHint.textContent = `Total calculado com base no intervalo informado, descontando ${breakTime}.`;
+function setMyActivityModalError(refs, message) {
+  setAlert(refs.myActivityModalAlert, message, "error");
+  const body = refs.myActivityModalAlert?.closest?.(".modal-body");
+  if (body) body.scrollTo({ top: 0, behavior: "smooth" });
 }
 
 function fmtDate(value) {
@@ -152,6 +143,14 @@ function buildSearchText(item) {
   ].join(" "));
 }
 
+function isWithinActivityPeriod(item, startDate, endDate) {
+  const workDate = String(item?.activity?.workDate || "").slice(0, 10);
+  if (!workDate) return !startDate && !endDate;
+  if (startDate && workDate < startDate) return false;
+  if (endDate && workDate > endDate) return false;
+  return true;
+}
+
 function bindEvents(deps) {
   if (_bound) return;
   _bound = true;
@@ -193,10 +192,12 @@ function bindEvents(deps) {
   refs.btnCancelMyActivityModal?.addEventListener("click", closeMyActivityModal);
   refs.btnOpenActivityExpense?.addEventListener("click", () => {
     if (!_currentActivity) return;
-    expensesDomain.openActivityExpenseModal(_currentActivity, deps).catch((err) => {
-      console.error(err);
-      alert("Nao foi possivel abrir o lancamento da despesa.");
-    });
+    expensesDomain.addActivityExpenseDraft(refs);
+  });
+  refs.myActivityExpenseDrafts?.addEventListener("click", (ev) => {
+    const removeBtn = ev.target?.closest?.("[data-remove-activity-expense-draft]");
+    if (!removeBtn) return;
+    expensesDomain.removeActivityExpenseDraft(refs, removeBtn.getAttribute("data-remove-activity-expense-draft"));
   });
   refs.myActivityNote?.addEventListener("input", () => updateMyActivityNoteCounter(refs));
   refs.myActivityStartTime?.addEventListener("input", () => updateMyActivityComputedHours(refs));
@@ -380,6 +381,10 @@ function closeMyActivityModal() {
   if (totalEl) totalEl.textContent = "R$ 0,00";
   if (pendingEl) pendingEl.textContent = "0";
   if (listEl) listEl.innerHTML = '<div class="my-activity-expenses-empty">Nenhuma despesa registrada para esta atividade ainda.</div>';
+  expensesDomain.resetActivityExpenseDrafts({
+    myActivityExpenseComposer: document.getElementById("myActivityExpenseComposer"),
+    myActivityExpenseDrafts: document.getElementById("myActivityExpenseDrafts")
+  });
 }
 
 function openMyActivityModal(activityId, mode, deps) {
@@ -398,13 +403,12 @@ function openMyActivityModal(activityId, mode, deps) {
     ? "Confira os detalhes completos da atividade."
     : "Preencha seu apontamento. Ao salvar, a atividade vai para OS Enviada e segue para aprovacao do gestor.";
 
-  if (refs.myActivityProject) refs.myActivityProject.value = item.projectName || "";
-  if (refs.myActivityClient) refs.myActivityClient.value = item.clientName || "-";
-  if (refs.myActivityTask) refs.myActivityTask.value = item.taskName || "";
-  if (refs.myActivityName) refs.myActivityName.value = item.activity.name || "";
-  if (refs.myActivityDate) refs.myActivityDate.value = fmtDate(item.activity.workDate);
-  if (refs.myActivityHours) refs.myActivityHours.value = `${item.activity.hoursWorked || 0}h`;
-  if (refs.myActivityStatus) refs.myActivityStatus.value = statusMeta.label;
+  if (refs.myActivityProject) refs.myActivityProject.textContent = item.projectName || "-";
+  if (refs.myActivityClient) refs.myActivityClient.textContent = item.clientName || "-";
+  if (refs.myActivityTask) refs.myActivityTask.textContent = item.taskName || "-";
+  if (refs.myActivityName) refs.myActivityName.textContent = item.activity.name || "Atividade";
+  if (refs.myActivityDate) refs.myActivityDate.textContent = fmtDate(item.activity.workDate);
+  if (refs.myActivityHours) refs.myActivityHours.textContent = `${item.activity.hoursWorked || 0}h`;
   if (refs.myActivityStatusBadge) {
     refs.myActivityStatusBadge.textContent = statusMeta.label;
     refs.myActivityStatusBadge.className = `my-activity-status-badge my-activity-status-badge--${statusMeta.itemCls}`;
@@ -412,7 +416,9 @@ function openMyActivityModal(activityId, mode, deps) {
   if (refs.myActivityStartTime) refs.myActivityStartTime.value = item.activity.startTime || "";
   if (refs.myActivityEndTime) refs.myActivityEndTime.value = item.activity.endTime || "";
   if (refs.myActivityBreakTime) refs.myActivityBreakTime.value = item.activity.breakTime || "01:00";
-  if (refs.myActivityKeyUsers) refs.myActivityKeyUsers.value = Array.isArray(item.activity.keyUsers) ? item.activity.keyUsers.join(", ") : "";
+  if (refs.myActivityKeyUsers) refs.myActivityKeyUsers.textContent = Array.isArray(item.activity.keyUsers) && item.activity.keyUsers.length
+    ? item.activity.keyUsers.join(", ")
+    : "-";
   if (refs.myActivityNote) refs.myActivityNote.value = item.activity.note || "";
 
   if (refs.myActivityStartTime) refs.myActivityStartTime.disabled = readOnly;
@@ -425,8 +431,12 @@ function openMyActivityModal(activityId, mode, deps) {
       : "Preencha inicio, fim e uma observacao completa para enviar ao gestor.";
   }
   if (refs.btnSaveMyActivityModal) refs.btnSaveMyActivityModal.hidden = readOnly;
-  if (refs.btnCancelMyActivityModal) refs.btnCancelMyActivityModal.textContent = readOnly ? "Fechar" : "Cancelar";
-  if (refs.btnOpenActivityExpense) refs.btnOpenActivityExpense.hidden = false;
+  if (refs.btnCancelMyActivityModal) {
+    refs.btnCancelMyActivityModal.textContent = readOnly ? "Fechar" : "Cancelar";
+    refs.btnCancelMyActivityModal.hidden = !readOnly;
+  }
+  if (refs.btnOpenActivityExpense) refs.btnOpenActivityExpense.hidden = readOnly;
+  expensesDomain.resetActivityExpenseDrafts(refs);
   updateMyActivityNoteCounter(refs);
   updateMyActivityComputedHours(refs);
 
@@ -455,51 +465,80 @@ async function saveMyActivityModal(deps) {
   const isAssigned = Array.isArray(_currentActivity.activity.techUids) && _currentActivity.activity.techUids.includes(currentUid);
 
   if (!isAssigned) {
-    setAlert(refs.myActivityModalAlert, "Esta atividade nao esta vinculada ao tecnico logado.", "error");
+    setMyActivityModalError(refs, "Esta atividade nao esta vinculada ao tecnico logado.");
     return;
   }
   if (hoursDiff <= 0) {
-    setAlert(refs.myActivityModalAlert, "Informe hora inicio e fim validas.", "error");
+    setMyActivityModalError(refs, "Informe hora inicio e fim validas.");
     return;
   }
   if (hoursDiff > maxHours) {
-    setAlert(refs.myActivityModalAlert, `O apontamento nao pode ultrapassar ${maxHours}h previstas para a atividade.`, "error");
+    setMyActivityModalError(refs, `O apontamento nao pode ultrapassar ${maxHours}h previstas para a atividade.`);
     return;
   }
   if (note.length < 50) {
-    setAlert(refs.myActivityModalAlert, "A observacao precisa ter no minimo 50 caracteres.", "error");
+    setMyActivityModalError(refs, "A observacao precisa ter no minimo 50 caracteres.");
     return;
   }
 
-  await updateDoc(doc(db, `companies/${state.companyId}/activities`, _currentActivity.activity.id), {
-    startTime: start,
-    endTime: end,
-    breakTime,
-    workedHours: hoursDiff,
-    note,
-    status: "os_gerada",
-    techFilledAt: serverTimestamp(),
-    techFilledBy: currentUid,
-    updatedAt: serverTimestamp(),
-    updatedBy: currentUid
-  });
+  let expenseDrafts = [];
+  try {
+    expenseDrafts = expensesDomain.validateActivityExpenseDrafts(refs);
+  } catch (err) {
+    setMyActivityModalError(refs, err?.message || "Revise as despesas adicionadas.");
+    return;
+  }
 
-  await createNotifications(db, state.companyId, [_currentActivity.managerUid, _currentActivity.coordinatorUid], {
-    type: "os_submitted",
-    title: "OS enviada para aprovacao",
-    message: `${state.profile?.name || "Tecnico"} enviou apontamento em ${_currentActivity.projectName || "um projeto"}.`,
-    entityType: "activity",
-    entityId: _currentActivity.activity.id,
-    activityId: _currentActivity.activity.id,
-    projectId: _currentActivity.projectId || "",
-    taskId: _currentActivity.taskId || "",
-    createdBy: currentUid,
-    createdByName: state.profile?.name || "",
-    createdByEmail: auth?.currentUser?.email || ""
-  }).catch((err) => console.warn("[notifications:os-submitted]", err));
+  const saveButton = refs.btnSaveMyActivityModal;
+  const originalSaveLabel = saveButton?.textContent || "Salvar apontamento";
+  if (saveButton) {
+    saveButton.disabled = true;
+    saveButton.textContent = expenseDrafts.length ? "Salvando apontamento e despesas..." : "Salvando apontamento...";
+  }
 
-  closeMyActivityModal();
-  await loadMyActivities(deps);
+  try {
+    await updateDoc(doc(db, `companies/${state.companyId}/activities`, _currentActivity.activity.id), {
+      startTime: start,
+      endTime: end,
+      breakTime,
+      workedHours: hoursDiff,
+      note,
+      status: "os_gerada",
+      techFilledAt: serverTimestamp(),
+      techFilledBy: currentUid,
+      updatedAt: serverTimestamp(),
+      updatedBy: currentUid
+    });
+
+    if (expenseDrafts.length) {
+      await expensesDomain.saveActivityExpenseDrafts(_currentActivity, deps, expenseDrafts);
+    }
+
+    await createNotifications(db, state.companyId, [_currentActivity.managerUid, _currentActivity.coordinatorUid], {
+      type: "os_submitted",
+      title: "OS enviada para aprovacao",
+      message: `${state.profile?.name || "Tecnico"} enviou apontamento em ${_currentActivity.projectName || "um projeto"}.`,
+      entityType: "activity",
+      entityId: _currentActivity.activity.id,
+      activityId: _currentActivity.activity.id,
+      projectId: _currentActivity.projectId || "",
+      taskId: _currentActivity.taskId || "",
+      createdBy: currentUid,
+      createdByName: state.profile?.name || "",
+      createdByEmail: auth?.currentUser?.email || ""
+    }).catch((err) => console.warn("[notifications:os-submitted]", err));
+
+    closeMyActivityModal();
+    await loadMyActivities(deps);
+  } catch (err) {
+    console.error(err);
+    setMyActivityModalError(refs, err?.message || "Nao foi possivel salvar o apontamento. Tente novamente.");
+  } finally {
+    if (saveButton) {
+      saveButton.disabled = false;
+      saveButton.textContent = originalSaveLabel;
+    }
+  }
 }
 
 export function openMyActivitiesView(deps) {
@@ -556,7 +595,16 @@ export async function loadMyActivities(deps) {
   });
 
   const queryText = normalizeText(refs.myActivitiesSearchInput?.value || "");
-  const filtered = enriched.filter((item) => !queryText || buildSearchText(item).includes(queryText));
+  let periodStart = String(refs.myActivitiesStartDateInput?.value || "").slice(0, 10);
+  let periodEnd = String(refs.myActivitiesEndDateInput?.value || "").slice(0, 10);
+  if (periodStart && periodEnd && periodStart > periodEnd) {
+    [periodStart, periodEnd] = [periodEnd, periodStart];
+  }
+  const filtered = enriched.filter((item) => {
+    if (queryText && !buildSearchText(item).includes(queryText)) return false;
+    if (!isWithinActivityPeriod(item, periodStart, periodEnd)) return false;
+    return true;
+  });
   const statusFiltered = applyStatusFilter(filtered);
 
   statusFiltered.sort((a, b) => {

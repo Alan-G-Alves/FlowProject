@@ -136,23 +136,54 @@ function buildExecutiveHtml(data){
 }
 
 function buildGenericReportHtml(payload){
+  const metaRows = (payload.meta || []).map((item) => `
+    <tr>
+      <th>${escapeHtml(item.label)}</th>
+      <td>${escapeHtml(item.value)}</td>
+    </tr>
+  `).join("");
+
   const summaryCards = (payload.summary || []).map((item) => `
     <div class="card"><div class="card-label">${escapeHtml(item.label)}</div><div class="card-value">${escapeHtml(item.value)}</div></div>
   `).join("");
 
   const sections = (payload.tables || []).map((table) => {
-    const header = table.columns.map((column) => `<th>${escapeHtml(column.label)}</th>`).join("");
+    const columns = table.excelColumns || table.columns || [];
+    const cellClass = (column) => {
+      const classes = [];
+      if (column.type) classes.push(`cell-${column.type}`);
+      if (column.align) classes.push(`align-${column.align}`);
+      return classes.length ? ` class="${escapeHtml(classes.join(" "))}"` : "";
+    };
+    const cellStyle = (column) => {
+      if (column.type === "currency") return ` style="mso-number-format:'R\\$ #,##0.00';"`;
+      if (column.type === "number") return ` style="mso-number-format:'0.00';"`;
+      if (column.type === "date") return ` style="mso-number-format:'dd/mm/yyyy';"`;
+      return "";
+    };
+    const renderCell = (row, column, tag = "td") => {
+      const raw = row[column.key] ?? "";
+      return `<${tag}${cellClass(column)}${cellStyle(column)}>${escapeHtml(raw)}</${tag}>`;
+    };
+    const header = columns.map((column) => `<th${cellClass(column)}>${escapeHtml(column.label)}</th>`).join("");
     const rows = (table.rows || []).map((row) => `
       <tr>
-        ${table.columns.map((column) => `<td>${escapeHtml(row[column.key] ?? "")}</td>`).join("")}
+        ${columns.map((column) => renderCell(row, column)).join("")}
+      </tr>
+    `).join("");
+    const footerRows = (table.footerRows || []).map((row) => `
+      <tr class="total-row">
+        ${columns.map((column, index) => renderCell(row, column, index === 0 ? "th" : "td")).join("")}
       </tr>
     `).join("");
     return `
       <div class="section">
         <h2>${escapeHtml(table.title)}</h2>
+        ${table.subtitle ? `<p>${escapeHtml(table.subtitle)}</p>` : ""}
         <table>
           <thead><tr>${header}</tr></thead>
-          <tbody>${rows || `<tr><td colspan="${table.columns.length}">Sem dados para os filtros atuais.</td></tr>`}</tbody>
+          <tbody>${rows || `<tr><td colspan="${columns.length}">Sem dados para os filtros atuais.</td></tr>`}</tbody>
+          ${footerRows ? `<tfoot>${footerRows}</tfoot>` : ""}
         </table>
       </div>
     `;
@@ -173,6 +204,11 @@ function buildGenericReportHtml(payload){
           table { width: 100%; border-collapse: collapse; margin-top: 12px; }
           th, td { border: 1px solid #dbe3ef; padding: 8px; text-align: left; font-size: 12px; vertical-align: top; }
           th { background: #f3f7ff; }
+          tfoot th, tfoot td, .total-row th, .total-row td { background: #eaf2ff; font-weight: bold; }
+          .meta { width: auto; min-width: 420px; margin-top: 12px; }
+          .meta th { width: 150px; }
+          .cell-currency, .cell-number, .align-right { text-align: right; }
+          .align-center { text-align: center; }
           .section { margin-top: 22px; }
         </style>
       </head>
@@ -180,6 +216,7 @@ function buildGenericReportHtml(payload){
         <h1>${escapeHtml(payload.title)}</h1>
         <p>${escapeHtml(payload.subtitle || "")}</p>
         <p>Gerado em ${escapeHtml(payload.generatedAtLabel || new Date().toLocaleString("pt-BR"))}</p>
+        ${metaRows ? `<table class="meta"><tbody>${metaRows}</tbody></table>` : ""}
         ${summaryCards ? `<div class="summary">${summaryCards}</div>` : ""}
         ${sections}
       </body>

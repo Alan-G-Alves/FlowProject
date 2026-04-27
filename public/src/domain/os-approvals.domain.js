@@ -14,6 +14,8 @@ let _bound = false;
 let _itemsCache = [];
 let _statusFilter = "pending";
 let _selectedIds = new Set();
+let _currentPage = 1;
+const OS_APPROVALS_PAGE_SIZE = 8;
 
 function normalizeText(value) {
   return String(value || "")
@@ -144,11 +146,39 @@ function updateBulkBar(refs, visibleItems) {
   }
 }
 
+function getPageSlice(items) {
+  const totalPages = Math.max(1, Math.ceil(items.length / OS_APPROVALS_PAGE_SIZE));
+  _currentPage = Math.min(Math.max(1, Number(_currentPage || 1)), totalPages);
+  const startIndex = (_currentPage - 1) * OS_APPROVALS_PAGE_SIZE;
+  return {
+    totalPages,
+    pageItems: items.slice(startIndex, startIndex + OS_APPROVALS_PAGE_SIZE),
+    startRow: items.length ? startIndex + 1 : 0,
+    endRow: Math.min(items.length, startIndex + OS_APPROVALS_PAGE_SIZE)
+  };
+}
+
+function renderPagination(refs, items) {
+  if (!refs.osApprovalsPagination) return;
+  const { totalPages, startRow, endRow } = getPageSlice(items);
+  refs.osApprovalsPagination.hidden = items.length === 0;
+  refs.osApprovalsPagination.innerHTML = items.length ? `
+    <span>${escapeHtml(String(startRow))}-${escapeHtml(String(endRow))} de ${escapeHtml(String(items.length))} OS</span>
+    <div>
+      <button type="button" data-os-approvals-page="prev" ${_currentPage <= 1 ? "disabled" : ""}>Anterior</button>
+      <strong>Pagina ${escapeHtml(String(_currentPage))} de ${escapeHtml(String(totalPages))}</strong>
+      <button type="button" data-os-approvals-page="next" ${_currentPage >= totalPages ? "disabled" : ""}>Proxima</button>
+    </div>
+  ` : "";
+}
+
 function renderList(refs, items) {
   if (!refs.osApprovalsList) return;
   refs.osApprovalsList.innerHTML = "";
+  const { pageItems } = getPageSlice(items);
+  renderPagination(refs, items);
 
-  if (!items.length) {
+  if (!pageItems.length) {
     show(refs.osApprovalsEmpty);
     updateBulkBar(refs, []);
     return;
@@ -156,7 +186,7 @@ function renderList(refs, items) {
 
   hide(refs.osApprovalsEmpty);
 
-  const html = items.map((item) => {
+  const html = pageItems.map((item) => {
     const selected = _selectedIds.has(item.id);
     const noteShort = truncateText(item.note || "", 240);
     const plannedHours = Number(item.hoursWorked || 0);
@@ -235,7 +265,7 @@ function renderList(refs, items) {
   }).join("");
 
   refs.osApprovalsList.innerHTML = html;
-  updateBulkBar(refs, items);
+  updateBulkBar(refs, pageItems);
 }
 
 function render(refs) {
@@ -302,6 +332,7 @@ function bindEvents(deps) {
     const apply = () => {
       _statusFilter = card.getAttribute("data-os-approvals-status") || "pending";
       _selectedIds = new Set();
+      _currentPage = 1;
       render(refs);
     };
     card.addEventListener("click", apply);
@@ -313,26 +344,33 @@ function bindEvents(deps) {
     });
   });
 
-  refs.osApprovalsSearchInput?.addEventListener("input", () => render(refs));
+  refs.osApprovalsSearchInput?.addEventListener("input", () => {
+    _currentPage = 1;
+    render(refs);
+  });
   refs.osApprovalsManagerFilter?.addEventListener("change", () => {
     _selectedIds = new Set();
+    _currentPage = 1;
     render(refs);
   });
   refs.osApprovalsProjectFilter?.addEventListener("change", () => {
     _selectedIds = new Set();
+    _currentPage = 1;
     render(refs);
   });
   refs.osApprovalsSelectAll?.addEventListener("change", () => {
     const visible = filteredItems(refs);
+    const { pageItems } = getPageSlice(visible);
     if (refs.osApprovalsSelectAll.checked) {
-      visible.forEach((item) => _selectedIds.add(item.id));
+      pageItems.forEach((item) => _selectedIds.add(item.id));
     } else {
-      visible.forEach((item) => _selectedIds.delete(item.id));
+      pageItems.forEach((item) => _selectedIds.delete(item.id));
     }
     render(refs);
   });
   refs.btnOsApprovalsBulkAction?.addEventListener("click", async () => {
-    const visible = filteredItems(refs).filter((item) => _selectedIds.has(item.id));
+    const { pageItems } = getPageSlice(filteredItems(refs));
+    const visible = pageItems.filter((item) => _selectedIds.has(item.id));
     if (!visible.length) return;
     const nextStatus = _statusFilter === "approved" ? "os_gerada" : "os_aprovada";
     await updateApprovalStatus(visible.map((item) => item.id), nextStatus, deps);
@@ -346,6 +384,13 @@ function bindEvents(deps) {
     if (!id) return;
     if (checkbox.checked) _selectedIds.add(id);
     else _selectedIds.delete(id);
+    render(refs);
+  });
+  refs.osApprovalsPagination?.addEventListener("click", (ev) => {
+    const btn = ev.target?.closest?.("[data-os-approvals-page]");
+    if (!btn) return;
+    const direction = btn.getAttribute("data-os-approvals-page");
+    _currentPage = direction === "prev" ? Math.max(1, _currentPage - 1) : _currentPage + 1;
     render(refs);
   });
   refs.osApprovalsList?.addEventListener("click", async (ev) => {
@@ -389,6 +434,10 @@ export async function loadOsApprovals(deps) {
   const role = String(state.profile?.role || "").toLowerCase();
   if (!companyId || !currentUid) {
     refs.osApprovalsList.innerHTML = "";
+    if (refs.osApprovalsPagination) {
+      refs.osApprovalsPagination.innerHTML = "";
+      refs.osApprovalsPagination.hidden = true;
+    }
     show(refs.osApprovalsEmpty);
     return;
   }

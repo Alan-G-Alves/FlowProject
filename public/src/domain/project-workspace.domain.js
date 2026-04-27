@@ -1280,7 +1280,6 @@ function renderCover(refs, project, state){
   const approvedInternalExpenses = asNumber(_expenseSummary?.approvedInternal);
   const approvedClientExpenses = asNumber(_expenseSummary?.approvedClient);
   const pendingExpenses = asNumber(_expenseSummary?.totalPending);
-  const approvedExpenses = asNumber(_expenseSummary?.totalApproved);
   const estimatedTechCost = _activities.reduce((acc, activity) => {
     const techIds = Array.isArray(activity.techUids) ? activity.techUids.filter(Boolean) : [];
     const plannedHours = asNumber(activity.hoursWorked);
@@ -1291,6 +1290,7 @@ function renderCover(refs, project, state){
     }, 0);
     return acc + (activityRate * plannedHours);
   }, 0);
+  const projectCost = estimatedTechCost + approvedInternalExpenses;
   const profitValue = billingValueNumber > 0 ? (billingValueNumber - estimatedTechCost - approvedInternalExpenses) : null;
   const profitPercent = (billingValueNumber > 0 && profitValue !== null) ? ((profitValue / billingValueNumber) * 100) : null;
   const profitTone = profitValue === null ? "neutral" : (profitValue >= 0 ? "positive" : "negative");
@@ -1321,9 +1321,14 @@ function renderCover(refs, project, state){
             <span class="project-cover-meta">${escapeHtml(String(overdueActivities))} atrasada(s)</span>
           </div>
           <div class="project-cover-kpi">
-            <span class="project-cover-kpi-label">Despesas pendentes</span>
-            <strong>${escapeHtml(formatCurrencyBRL(pendingExpenses))}</strong>
-            <span class="project-cover-meta">${escapeHtml(String(asNumber(_expenseSummary?.countPending)))} lancamento(s)</span>
+            <span class="project-cover-kpi-label">Despesas internas</span>
+            <strong>${escapeHtml(formatCurrencyBRL(approvedInternalExpenses))}</strong>
+            <span class="project-cover-meta">Internas aprovadas</span>
+          </div>
+          <div class="project-cover-kpi">
+            <span class="project-cover-kpi-label">Custo tecnico estimado</span>
+            <strong>${escapeHtml(estimatedTechCost > 0 ? formatCurrencyBRL(estimatedTechCost) : "-")}</strong>
+            <span class="project-cover-meta">Horas planejadas</span>
           </div>
         </div>
       </div>
@@ -1340,8 +1345,8 @@ function renderCover(refs, project, state){
           </div>
           <div class="project-cover-highlight project-cover-highlight--deadline">
             <span class="project-cover-highlight-label">Despesas</span>
-            <strong>${escapeHtml(formatCurrencyBRL(approvedExpenses))}</strong>
-            <span class="project-cover-highlight-meta">${escapeHtml(`Internas ${formatCurrencyBRL(approvedInternalExpenses)} • Cliente ${formatCurrencyBRL(approvedClientExpenses)}`)}</span>
+            <strong>${escapeHtml(formatCurrencyBRL(pendingExpenses))}</strong>
+            <span class="project-cover-highlight-meta">${escapeHtml(`${String(asNumber(_expenseSummary?.countPending))} pendente(s) - Cliente ${formatCurrencyBRL(approvedClientExpenses)}`)}</span>
           </div>
           <div class="project-cover-highlight project-cover-highlight--deadline">
             <span class="project-cover-highlight-label">Prazo final</span>
@@ -1378,9 +1383,9 @@ function renderCover(refs, project, state){
         <strong>${escapeHtml(billingValue)}</strong>
       </div>
       <div class="project-cover-profit-item">
-        <span class="project-cover-label">Custo tecnico estimado</span>
-        <strong>${escapeHtml(estimatedTechCost > 0 ? formatCurrencyBRL(estimatedTechCost) : "-")}</strong>
-        <span class="project-cover-meta">Baseado nas horas planejadas</span>
+        <span class="project-cover-label">Custo do projeto</span>
+        <strong>${escapeHtml(projectCost > 0 ? formatCurrencyBRL(projectCost) : "-")}</strong>
+        <span class="project-cover-meta">Tecnico + despesas internas</span>
       </div>
       <div class="project-cover-profit-item">
         <span class="project-cover-label">Consumo das horas</span>

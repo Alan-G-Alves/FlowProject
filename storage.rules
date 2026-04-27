@@ -71,24 +71,11 @@ service firebase.storage {
     }
 
     match /expenseReceipts/{companyId}/{expenseId}/{fileName} {
-      function expenseDoc() {
-        return firestore.get(/databases/(default)/documents/companies/$(companyId)/expenses/$(expenseId));
-      }
-
       allow read: if signedIn()
-        && companyId == myCompanyId()
-        && (
-          canManageUsers()
-          || expenseDoc().data.createdBy == request.auth.uid
-          || expenseDoc().data.techUid == request.auth.uid
-        );
+        && companyId == myCompanyId();
 
       allow create, update: if signedIn()
         && companyId == myCompanyId()
-        && (
-          canManageUsers()
-          || expenseDoc().data.createdBy == request.auth.uid
-        )
         && request.resource.size < 8 * 1024 * 1024
         && (
           request.resource.contentType == 'application/pdf'
@@ -97,10 +84,7 @@ service firebase.storage {
 
       allow delete: if signedIn()
         && companyId == myCompanyId()
-        && (
-          canManageUsers()
-          || expenseDoc().data.createdBy == request.auth.uid
-        );
+        && canManageUsers();
     }
 
     match /clientPhotos/{companyId}/{clientId} {

@@ -1,6 +1,8 @@
 ﻿import {
   collection,
-  getDocs
+  getDocs,
+  query,
+  where
 } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore.js";
 
 import {
@@ -13,6 +15,7 @@ import {
 let _bound = false;
 const REPORT_NOTE_PREVIEW_LIMIT = 140;
 const ACTIVITY_TECH_PAGE_SIZE = 8;
+const EXPENSE_REPORT_PAGE_SIZE = 8;
 
 const REPORT_CARD_KEYS = [
   "overview",
@@ -22,7 +25,7 @@ const REPORT_CARD_KEYS = [
   "clients",
   "schedule",
   "activityTech",
-  "timeline"
+  "expenseReport"
 ];
 
 const CARD_FILTER_CONFIG = {
@@ -33,8 +36,28 @@ const CARD_FILTER_CONFIG = {
   clients: ["period", "teamId", "status"],
   schedule: ["period", "clientId", "projectId"],
   activityTech: ["period", "clientId", "projectId", "techId", "activityStatus"],
-  timeline: ["period", "clientId", "projectId"]
+  expenseReport: ["period", "expenseUserId", "expenseApproverId"]
 };
+
+function normalizeReportPermissions(value){
+  const source = value && typeof value === "object" ? value : {};
+  const roles = ["admin", "gestor", "coordenador", "tecnico"];
+  return Object.fromEntries(roles.map((role) => {
+    const roleSource = source[role] && typeof source[role] === "object" ? source[role] : {};
+    return [
+      role,
+      Object.fromEntries(REPORT_CARD_KEYS.map((key) => [key, roleSource[key] !== false]))
+    ];
+  }));
+}
+
+function getVisibleReportKeys(state){
+  if (state?.isSuperAdmin) return REPORT_CARD_KEYS.slice();
+  const role = String(state?.profile?.role || "").toLowerCase();
+  const permissions = normalizeReportPermissions(state?.company?.reportPermissions);
+  const rolePermissions = permissions[role] || {};
+  return REPORT_CARD_KEYS.filter((key) => rolePermissions[key] !== false);
+}
 
 function asNumber(value){
   const amount = Number(value);
@@ -60,6 +83,60 @@ function formatDateBr(value){
   const date = parseDateOnly(value);
   if (!date) return "-";
   return date.toLocaleDateString("pt-BR");
+}
+
+function formatDateTimeBr(value){
+  if (!value) return "-";
+  try {
+    if (value?.toDate) return value.toDate().toLocaleString("pt-BR");
+  } catch (_) {}
+  if (value instanceof Date && !Number.isNaN(value.getTime())) return value.toLocaleString("pt-BR");
+  return String(value || "-");
+}
+
+function formatExpenseDate(value){
+  if (!value) return "-";
+  try {
+    if (value?.toDate) return value.toDate().toLocaleDateString("pt-BR");
+  } catch (_) {}
+  return formatDateBr(value);
+}
+
+function expenseTypeLabel(type){
+  const map = {
+    alimentacao: "Alimentacao",
+    trajeto: "Trajeto",
+    estadia: "Estadia"
+  };
+  return map[String(type || "").toLowerCase()] || "Despesa";
+}
+
+function expenseStatusLabel(status){
+  const map = {
+    pending: "Pendente",
+    approved: "Aprovada",
+    rejected: "Reprovada"
+  };
+  return map[String(status || "").toLowerCase()] || "Pendente";
+}
+
+function getExpenseResponsibleName(item){
+  return String(item?.techName || item?.createdByName || "Usuario").trim() || "Usuario";
+}
+
+function getExpenseApproverName(item){
+  return String(item?.approvedByName || item?.rejectedByName || "").trim() || "-";
+}
+
+function getExpenseApprovalDateLabel(item){
+  const status = String(item?.status || "").toLowerCase();
+  if (status === "approved") return formatDateTimeBr(item?.approvedAt);
+  if (status === "rejected") return formatDateTimeBr(item?.rejectedAt);
+  return "-";
+}
+
+function expenseSourceLabel(source){
+  return String(source || "").toLowerCase() === "activity" ? "Atividade" : "Manual";
 }
 
 function parseDateOnly(value){
@@ -350,26 +427,83 @@ function refsFrom(deps){
   };
 }
 
+function userRoleByUid(users, uid){
+  const user = users.find((entry) => String(entry.uid || entry.id || "") === String(uid || ""));
+  return String(user?.role || "").toLowerCase();
+}
+
+function canViewExpenseForReports(item, role, currentUid, users){
+  const normalizedRole = String(role || "").toLowerCase();
+  const ownerUids = [item.createdBy, item.techUid].map((value) => String(value || "")).filter(Boolean);
+  const isOwnExpense = ownerUids.includes(String(currentUid || ""));
+  if (normalizedRole === "admin") return true;
+  if (normalizedRole === "gestor" || normalizedRole === "coordenador") {
+    const ownerRole = userRoleByUid(users, item.createdBy || item.techUid);
+    return isOwnExpense || ownerRole === "tecnico" || String(item.createdByRole || "").toLowerCase() === "tecnico";
+  }
+  return isOwnExpense;
+}
+
+async function fetchExpensesForReports(db, companyId, role, currentUid){
+  const expensesPath = `companies/${companyId}/expenses`;
+  if (role === "admin") return getDocs(collection(db, expensesPath));
+  if (role === "gestor" || role === "coordenador") {
+    const snaps = await Promise.all([
+      getDocs(query(collection(db, expensesPath), where("createdBy", "==", currentUid))),
+      getDocs(query(collection(db, expensesPath), where("createdByRole", "==", "tecnico")))
+    ]);
+    const docsById = new Map();
+    snaps.forEach((snap) => snap.docs.forEach((docSnap) => docsById.set(docSnap.id, docSnap)));
+    return { docs: Array.from(docsById.values()) };
+  }
+  return getDocs(query(collection(db, expensesPath), where("createdBy", "==", currentUid)));
+}
+
 async function ensureReportsCache(deps, { force = false } = {}){
-  const { db, state } = deps;
+  const { db, state, auth } = deps;
   const companyId = state?.companyId;
   if (!db || !companyId) return null;
   if (!force && state._reportsCacheLoaded && state._reportsCache) return state._reportsCache;
+  const currentUid = auth?.currentUser?.uid || "";
+  const role = String(state?.profile?.role || "").toLowerCase();
+  state._reportsCurrentUid = currentUid;
+  state._reportsRole = role;
 
-  const [projectsSnap, tasksSnap, activitiesSnap, clientsSnap, usersSnap] = await Promise.all([
+  const usersPromise = role === "tecnico"
+    ? Promise.resolve({
+        docs: [{
+          id: currentUid,
+          data: () => ({ ...(state.profile || {}), role: "tecnico" })
+        }]
+      })
+    : getDocs(collection(db, `companies/${companyId}/users`));
+
+  const [projectsSnap, tasksSnap, activitiesSnap, clientsSnap, usersSnap, expensesSnap] = await Promise.all([
     getDocs(collection(db, `companies/${companyId}/projects`)),
     getDocs(collection(db, `companies/${companyId}/tasks`)),
     getDocs(collection(db, `companies/${companyId}/activities`)),
     getDocs(collection(db, `companies/${companyId}/clients`)),
-    getDocs(collection(db, `companies/${companyId}/users`))
+    usersPromise,
+    fetchExpensesForReports(db, companyId, role, currentUid)
   ]);
+
+  const users = usersSnap.docs.map((d) => ({ uid: d.id, id: d.id, ...d.data() }));
 
   const cache = {
     projects: projectsSnap.docs.map((d) => ({ id: d.id, ...d.data() })),
     tasks: tasksSnap.docs.map((d) => ({ id: d.id, ...d.data() })),
-    activities: activitiesSnap.docs.map((d) => ({ id: d.id, ...d.data() })),
+    activities: activitiesSnap.docs
+      .map((d) => ({ id: d.id, ...d.data() }))
+      .filter((activity) => {
+        if (role !== "tecnico") return true;
+        const techUids = Array.isArray(activity.techUids) ? activity.techUids : [];
+        return techUids.includes(currentUid) || String(activity.techUid || "") === currentUid || String(activity.createdBy || "") === currentUid;
+      }),
     clients: clientsSnap.docs.map((d) => ({ id: d.id, ...d.data() })),
-    users: usersSnap.docs.map((d) => ({ uid: d.id, id: d.id, ...d.data() }))
+    users,
+    expenses: expensesSnap.docs
+      .map((d) => ({ id: d.id, ...d.data() }))
+      .filter((item) => canViewExpenseForReports(item, role, currentUid, users))
   };
   state._usersCache = cache.users;
   state._reportsCache = cache;
@@ -415,7 +549,8 @@ function getBaseFilteredData(cache, refs){
     tasks: cache.tasks.slice(),
     activities: cache.activities.slice(),
     period: refs.reportsPeriodFilter?.value || "30d",
-    clients: cache.clients
+    clients: cache.clients,
+    expenses: Array.isArray(cache.expenses) ? cache.expenses.slice() : []
   };
 }
 
@@ -465,6 +600,8 @@ function defaultWidgetFilters(baseData){
     status: "all",
     projectId: "all",
     techId: "all",
+    expenseUserId: "all",
+    expenseApproverId: "all",
     activityStatus: "all",
     startDate: startDate.toISOString().slice(0, 10),
     endDate
@@ -481,6 +618,14 @@ function getDefaultWidgetFilters(cardKey, baseData){
       projectId: "all",
       techId: "all",
       activityStatus: "all"
+    };
+  }
+  if (cardKey === "expenseReport") {
+    return {
+      ...defaults,
+      period: "all",
+      expenseUserId: "all",
+      expenseApproverId: "all"
     };
   }
   return defaults;
@@ -525,6 +670,12 @@ function getCardProjectOptions(baseData, filters){
 }
 
 function getTechFilterOptions(baseData, state){
+  const role = String(state?.profile?.role || state?._reportsRole || "").toLowerCase();
+  const currentUid = state?._reportsCurrentUid || "";
+  if (role === "tecnico" && currentUid) {
+    const user = (Array.isArray(state?._usersCache) ? state._usersCache : []).find((entry) => (entry.uid || entry.id) === currentUid);
+    return [{ value: currentUid, label: user?.name || user?.email || "Meus dados" }];
+  }
   const fromUsers = Array.isArray(state?._usersCache) ? state._usersCache : [];
   const idsFromActivities = new Set();
   baseData.activities.forEach((activity) => {
@@ -550,6 +701,40 @@ function getTechFilterOptions(baseData, state){
   return [{ value: "all", label: "Todos os tecnicos" }].concat(
     options.sort((a, b) => String(a.label || "").localeCompare(String(b.label || "")))
   );
+}
+
+function getExpenseUserOptions(baseData){
+  const usersMap = new Map();
+  (baseData.expenses || []).forEach((item) => {
+    const key = String(item.createdBy || item.techUid || "").trim();
+    const label = getExpenseResponsibleName(item);
+    if (key && !usersMap.has(key)) usersMap.set(key, label);
+  });
+  return [{ value: "all", label: "Todos os usuarios" }].concat(
+    Array.from(usersMap.entries())
+      .sort((a, b) => String(a[1]).localeCompare(String(b[1])))
+      .map(([value, label]) => ({ value, label }))
+  );
+}
+
+function getExpenseApproverOptions(baseData){
+  const approversMap = new Map();
+  (baseData.expenses || []).forEach((item) => {
+    const key = String(item.approvedBy || item.rejectedBy || "").trim();
+    const label = getExpenseApproverName(item);
+    if (key && label && label !== "-" && !approversMap.has(key)) approversMap.set(key, label);
+  });
+  return [{ value: "all", label: "Todos os aprovadores" }].concat(
+    Array.from(approversMap.entries())
+      .sort((a, b) => String(a[1]).localeCompare(String(b[1])))
+      .map(([value, label]) => ({ value, label }))
+  );
+}
+
+function getOptionLabel(options, value, fallback = "Todos"){
+  const raw = String(value || "all");
+  if (raw === "all") return fallback;
+  return options.find((item) => String(item.value) === raw)?.label || raw;
 }
 
 function getScopedData(baseData, filters){
@@ -607,6 +792,54 @@ function getScopedData(baseData, filters){
   };
 }
 
+function getExpenseReportRows(baseData, filters){
+  const period = filters?.period || "all";
+  const fallbackRange = getPeriodRange(baseData.period || "30d");
+  const customStart = parseDateOnly(filters?.startDate);
+  const customEnd = parseDateOnly(filters?.endDate);
+  const { start, end } = period === "custom"
+    ? {
+      start: customStart || fallbackRange.start,
+      end: customEnd || fallbackRange.end
+    }
+    : getPeriodRange(period);
+  const expenseUserId = filters?.expenseUserId || "all";
+  const expenseApproverId = filters?.expenseApproverId || "all";
+
+  return (baseData.expenses || [])
+    .filter((item) => {
+      const workDate = parseDateOnly(item.workDate);
+      if (period !== "all" && !inRange(workDate, start, end)) return false;
+      if (expenseUserId !== "all" && ![item.createdBy, item.techUid].includes(expenseUserId)) return false;
+      if (expenseApproverId !== "all" && ![item.approvedBy, item.rejectedBy].includes(expenseApproverId)) return false;
+      return true;
+    })
+    .sort((a, b) => {
+      const aDate = String(a.workDate || "");
+      const bDate = String(b.workDate || "");
+      if (aDate !== bDate) return bDate.localeCompare(aDate);
+      const aCreated = a.createdAt?.toMillis ? a.createdAt.toMillis() : 0;
+      const bCreated = b.createdAt?.toMillis ? b.createdAt.toMillis() : 0;
+      return bCreated - aCreated;
+    });
+}
+
+function buildExpenseExportRows(rows){
+  return rows.map((item) => ({
+    responsible: getExpenseResponsibleName(item),
+    approver: getExpenseApproverName(item),
+    type: expenseTypeLabel(item.type),
+    amount: formatCurrency(item.amount),
+    amountValue: asNumber(item.amount),
+    expenseDate: formatExpenseDate(item.workDate),
+    approvalDate: getExpenseApprovalDateLabel(item),
+    status: expenseStatusLabel(item.status),
+    project: item.projectName || "-",
+    task: item.taskName || "-",
+    source: expenseSourceLabel(item.source)
+  }));
+}
+
 function buildCardFilterBar(baseData, state, cardKey){
   const filters = ensureWidgetFilters(state, baseData)[cardKey] || defaultWidgetFilters(baseData);
   const config = CARD_FILTER_CONFIG[cardKey] || ["period", "clientId", "projectId"];
@@ -632,6 +865,8 @@ function buildCardFilterBar(baseData, state, cardKey){
     status: statusOptions(),
     projectId: projectOptions,
     techId: getTechFilterOptions(baseData, state),
+    expenseUserId: getExpenseUserOptions(baseData),
+    expenseApproverId: getExpenseApproverOptions(baseData),
     activityStatus: [
       { value: "all", label: "Todos os status" },
       { value: "pending", label: "Planejada / sem OS" },
@@ -648,6 +883,8 @@ function buildCardFilterBar(baseData, state, cardKey){
     status: "Status",
     projectId: "Projeto",
     techId: "Tecnico",
+    expenseUserId: "Usuario",
+    expenseApproverId: "Aprovador",
     activityStatus: "Status da atividade"
   };
 
@@ -816,13 +1053,17 @@ function renderReportActivitiesModal(metricKey, refs, state, cache){
 }
 
 function buildActivityTechRows(activityTechData, cache, state){
+  const isTech = String(state?.profile?.role || state?._reportsRole || "").toLowerCase() === "tecnico";
+  const currentUid = state?._reportsCurrentUid || "";
   const usersByUid = new Map(((cache?.users || state?._usersCache || [])).map((user) => [user.uid || user.id, user]));
   const tasksById = Object.fromEntries((cache?.tasks || []).map((task) => [task.id, task]));
   const projectsById = Object.fromEntries((cache?.projects || []).map((project) => [project.id, project]));
   const clientsById = Object.fromEntries((cache?.clients || []).map((client) => [client.id, client]));
 
   return activityTechData.activities.flatMap((activity) => {
-    const techIds = Array.isArray(activity.techUids) && activity.techUids.length ? activity.techUids : [""];
+    const allTechIds = Array.isArray(activity.techUids) && activity.techUids.length ? activity.techUids : [activity.techUid || ""];
+    const techIds = isTech && currentUid ? allTechIds.filter((uid) => uid === currentUid) : allTechIds;
+    if (!techIds.length) return [];
     const techNames = Array.isArray(activity.techNames) ? activity.techNames : [];
     return techIds.map((techUid, index) => {
       const user = usersByUid.get(techUid) || {};
@@ -912,8 +1153,10 @@ function buildReportsExportPayloads({
   activityTechTotals,
   activityTechHeaderName,
   activityTechHeaderRate,
-  timelineData,
-  recentActivities
+  expenseRows,
+  expenseFilters,
+  expenseUserLabel,
+  expenseApproverLabel
 }){
   const generatedAtLabel = new Date().toLocaleString("pt-BR");
   const suffix = new Date().toISOString().slice(0, 10);
@@ -1108,24 +1351,61 @@ function buildReportsExportPayloads({
         }))
       }]
     },
-    timeline: {
-      title: "Ultimas atividades registradas",
-      subtitle: `Periodo analisado: ${getPeriodExportLabel(timelineData, periodLabelMap)}`,
+    expenseReport: {
+      title: "Relatorio de Despesas",
+      subtitle: `Periodo analisado: ${getPeriodExportLabel(expenseFilters || { period: "all" }, periodLabelMap)}`,
       generatedAtLabel,
-      fileName: `ultimas-atividades-${suffix}`,
-      summary: [{ label: "Atividades no periodo", value: String(timelineData.activities.length) }],
+      fileName: `relatorio-despesas-${suffix}`,
+      meta: [
+        { label: "Periodo", value: getPeriodExportLabel(expenseFilters || { period: "all" }, periodLabelMap) },
+        { label: "Usuario", value: expenseUserLabel || "Todos os usuarios" },
+        { label: "Aprovador", value: expenseApproverLabel || "Todos os aprovadores" },
+        { label: "Observacao", value: "Valores exportados como numero para permitir soma, filtro e tabela dinamica no Excel." }
+      ],
+      summary: [
+        { label: "Registros", value: String(expenseRows.length) },
+        { label: "Valor total", value: formatCurrency(expenseRows.reduce((sum, item) => sum + asNumber(item.amount), 0)) },
+        { label: "Valor aprovado", value: formatCurrency(expenseRows.filter((item) => String(item.status || "").toLowerCase() === "approved").reduce((sum, item) => sum + asNumber(item.amount), 0)) }
+      ],
       tables: [{
-        title: "Ultimas atividades",
-        columns: activityColumns,
-        rows: recentActivities.map((activity) => ({
-          date: formatDateBr(activity.date),
-          project: activity.projectName,
-          task: activity.taskName,
-          activity: activity.title,
-          tech: "-",
-          status: activity.status?.label || "-",
-          hours: formatHours(activity.hours)
-        }))
+        title: "Despesas",
+        rowHeight: 10,
+        pdfColumns: [
+          { key: "responsible", label: "Responsavel", width: 1.25 },
+          { key: "approver", label: "Aprovador", width: 1.05 },
+          { key: "type", label: "Tipo", width: .8 },
+          { key: "amount", label: "Valor", width: .85 },
+          { key: "expenseDate", label: "Data desp.", width: .8 },
+          { key: "approvalDate", label: "Data aprov.", width: .8 },
+          { key: "status", label: "Status", width: .85 }
+        ],
+        excelColumns: [
+          { key: "responsible", label: "Responsavel", width: 1.2 },
+          { key: "approver", label: "Aprovador", width: 1 },
+          { key: "type", label: "Tipo da despesa", width: .9 },
+          { key: "amountValue", label: "Valor da despesa", width: .9, type: "currency", align: "right" },
+          { key: "expenseDate", label: "Data da despesa", width: .85, type: "date" },
+          { key: "approvalDate", label: "Data da aprovacao", width: .85 },
+          { key: "status", label: "Status", width: .8 },
+          { key: "project", label: "Projeto", width: 1.25 },
+          { key: "task", label: "Tarefa", width: 1 },
+          { key: "source", label: "Origem", width: .75 }
+        ],
+        columns: [
+          { key: "responsible", label: "Responsavel", width: 1.2 },
+          { key: "approver", label: "Aprovador", width: 1 },
+          { key: "type", label: "Tipo da despesa", width: .9 },
+          { key: "amount", label: "Valor da despesa", width: .9 },
+          { key: "expenseDate", label: "Data da despesa", width: .85 },
+          { key: "approvalDate", label: "Data da aprovacao", width: .85 },
+          { key: "status", label: "Status", width: .8 },
+          { key: "project", label: "Projeto", width: 1.25 }
+        ],
+        rows: buildExpenseExportRows(expenseRows),
+        footerRows: [{
+          responsible: "Total",
+          amountValue: expenseRows.reduce((sum, item) => sum + asNumber(item.amount), 0)
+        }]
       }]
     }
   };
@@ -1217,8 +1497,18 @@ function buildExecutiveExportPayload({
 function renderReports(cache, refs, state){
   if (!refs.reportsGrid) return;
 
+  const visibleReports = new Set(getVisibleReportKeys(state));
+  if (!visibleReports.size) {
+    refs.reportsGrid.innerHTML = `<section class="reports-card reports-card--loading"><p class="muted">Nenhum relatorio esta habilitado para o seu perfil. Fale com o admin da empresa.</p></section>`;
+    return;
+  }
+
   const baseData = getBaseFilteredData(cache, refs);
   ensureWidgetFilters(state, baseData);
+  if (String(state?.profile?.role || state?._reportsRole || "").toLowerCase() === "tecnico" && state?._reportsCurrentUid) {
+    state._reportsWidgetFilters.activityTech.techId = state._reportsCurrentUid;
+    state._reportsWidgetFilters.expenseReport.expenseUserId = state._reportsCurrentUid;
+  }
   const clientsById = Object.fromEntries(cache.clients.map((client) => [client.id, client]));
   const tasksById = Object.fromEntries(baseData.tasks.map((task) => [task.id, task]));
   const periodLabelMap = {
@@ -1238,7 +1528,6 @@ function renderReports(cache, refs, state){
   const clientsData = getScopedData(baseData, state._reportsWidgetFilters.clients);
   const scheduleData = getScopedData(baseData, state._reportsWidgetFilters.schedule);
   const activityTechData = getScopedData(baseData, state._reportsWidgetFilters.activityTech);
-  const timelineData = getScopedData(baseData, state._reportsWidgetFilters.timeline);
   const operationalDrilldown = getOperationalDrilldownMeta(state);
 
   const overviewPlannedHours = overviewData.projects.reduce((acc, project) => acc + getProjectPlannedHours(project), 0);
@@ -1299,7 +1588,10 @@ function renderReports(cache, refs, state){
   const activityTechSelected = activityTechFilters.techId && activityTechFilters.techId !== "all"
     ? (cache.users || []).find((user) => (user.uid || user.id) === activityTechFilters.techId)
     : null;
-  const activityTechHeaderName = activityTechSelected?.name || activityTechSelected?.email || "Todos os tecnicos";
+  const activityTechSelf = String(state?.profile?.role || state?._reportsRole || "").toLowerCase() === "tecnico"
+    ? (cache.users || []).find((user) => (user.uid || user.id) === state?._reportsCurrentUid)
+    : null;
+  const activityTechHeaderName = activityTechSelf?.name || activityTechSelf?.email || activityTechSelected?.name || activityTechSelected?.email || "Todos os tecnicos";
   const activityTechHeaderRate = activityTechSelected
     ? formatCurrency(activityTechSelected.hourlyRate)
     : "Valores por tecnico na lista";
@@ -1315,6 +1607,26 @@ function renderReports(cache, refs, state){
   );
   const activityTechStartRow = activityTechRows.length ? ((activityTechCurrentPage - 1) * ACTIVITY_TECH_PAGE_SIZE) + 1 : 0;
   const activityTechEndRow = Math.min(activityTechRows.length, activityTechCurrentPage * ACTIVITY_TECH_PAGE_SIZE);
+  const expenseFilters = state._reportsWidgetFilters.expenseReport || getDefaultWidgetFilters("expenseReport", baseData);
+  const expenseRows = getExpenseReportRows(baseData, expenseFilters);
+  const expenseTotals = expenseRows.reduce((acc, item) => {
+    acc.total += asNumber(item.amount);
+    if (String(item.status || "").toLowerCase() === "approved") acc.approved += asNumber(item.amount);
+    if (String(item.status || "").toLowerCase() === "pending") acc.pending += asNumber(item.amount);
+    return acc;
+  }, { total: 0, approved: 0, pending: 0 });
+  const expenseTotalPages = Math.max(1, Math.ceil(expenseRows.length / EXPENSE_REPORT_PAGE_SIZE));
+  const expenseCurrentPage = Math.min(
+    Math.max(1, Number(state._expenseReportPage || 1)),
+    expenseTotalPages
+  );
+  state._expenseReportPage = expenseCurrentPage;
+  const expensePageRows = expenseRows.slice(
+    (expenseCurrentPage - 1) * EXPENSE_REPORT_PAGE_SIZE,
+    expenseCurrentPage * EXPENSE_REPORT_PAGE_SIZE
+  );
+  const expenseStartRow = expenseRows.length ? ((expenseCurrentPage - 1) * EXPENSE_REPORT_PAGE_SIZE) + 1 : 0;
+  const expenseEndRow = Math.min(expenseRows.length, expenseCurrentPage * EXPENSE_REPORT_PAGE_SIZE);
 
   state._reportsMetricActivityMap = {
     completed: {
@@ -1390,19 +1702,6 @@ function renderReports(cache, refs, state){
   }, {})).sort((a, b) => b.hours - a.hours).slice(0, 5);
   const maxClientHours = Math.max(1, ...topClients.map((item) => item.hours));
 
-  const recentActivities = timelineData.activities.slice().sort((a, b) => String(b.workDate || "").localeCompare(String(a.workDate || ""))).slice(0, 8).map((activity) => {
-    const project = timelineData.projects.find((item) => item.id === activity.projectId);
-    const task = tasksById[activity.taskId];
-    return {
-      date: activity.workDate,
-      title: activity.name || "Atividade",
-      projectName: project?.name || "Projeto",
-      taskName: task?.name || activity.taskName || "Tarefa",
-      hours: asNumber(activity.hoursWorked),
-      status: statusInfo(isCompletedActivity(activity) ? "go-live" : (activity.status || "em-andamento"))
-    };
-  });
-
   state._reportsExecutiveExportPayload = buildExecutiveExportPayload({
     state,
     overviewData,
@@ -1448,12 +1747,14 @@ function renderReports(cache, refs, state){
     activityTechTotals,
     activityTechHeaderName,
     activityTechHeaderRate,
-    timelineData,
-    recentActivities
+    expenseRows,
+    expenseFilters,
+    expenseUserLabel: getOptionLabel(getExpenseUserOptions(baseData), expenseFilters.expenseUserId, "Todos os usuarios"),
+    expenseApproverLabel: getOptionLabel(getExpenseApproverOptions(baseData), expenseFilters.expenseApproverId, "Todos os aprovadores")
   });
 
   refs.reportsGrid.innerHTML = `
-    <section class="reports-card reports-card--hero">
+    <section class="reports-card reports-card--hero" data-report-section="overview">
       <div class="reports-card-head">
         <div>
           <div class="reports-card-kicker">Visao executiva</div>
@@ -1470,7 +1771,7 @@ function renderReports(cache, refs, state){
       <div class="reports-kpis">
         ${getKpiMetaCard("Projetos monitorados", String(overviewData.projects.length), "Com filtros ativos", "statuses", "neutral")}
         ${getKpiMetaCard("Horas previstas", formatHours(overviewPlannedHours), "Total de horas dos projetos", "execution", "planned")}
-        ${getKpiMetaCard("Horas executadas", formatHours(overviewWorkedHours), `Somente atividades com OS gerada/aprovada • Media por tarefa: ${formatHours(overviewAvgHoursPerTask)}`, "timeline", "worked")}
+        ${getKpiMetaCard("Horas executadas", formatHours(overviewWorkedHours), `Somente atividades com OS gerada/aprovada • Media por tarefa: ${formatHours(overviewAvgHoursPerTask)}`, "execution", "worked")}
         ${getKpiMetaCard("Atividades pendentes", String(overviewPending), `${String(overviewOverdue)} atrasadas`, "metrics", "danger")}
       </div>
     </section>
@@ -1644,13 +1945,80 @@ function renderReports(cache, refs, state){
       </div>
     </section>
 
-    <section class="reports-card reports-card--timeline" data-report-section="timeline">
-      <div class="reports-card-head"><div><div class="reports-card-kicker">Movimentacao recente</div><h3>Ultimas atividades registradas</h3></div>${buildReportExportTools("timeline")}${buildCardFilterBar(baseData, state, "timeline")}</div>
-      <div class="reports-timeline">
-        ${recentActivities.length ? recentActivities.map((activity) => `<div class="reports-timeline-item"><div class="reports-timeline-dot reports-timeline-dot--${escapeHtml(activity.status.tone)}"></div><div class="reports-timeline-body"><strong>${escapeHtml(activity.title)}</strong><span>${escapeHtml(activity.projectName)} • ${escapeHtml(activity.taskName)}</span></div><div class="reports-timeline-meta"><b>${escapeHtml(formatHours(activity.hours))}</b><span>${escapeHtml(activity.date || "-")}</span></div></div>`).join("") : `<p class="muted">Ainda nao ha atividades no periodo filtrado.</p>`}
+    <section class="reports-card reports-card--expense-report" data-report-section="expenseReport">
+      <div class="reports-card-head">
+        <div>
+          <div class="reports-card-kicker">Financeiro</div>
+          <h3>Relatorio de Despesas</h3>
+          <p class="muted">Responsavel, aprovador, tipo, valor, data da despesa e data da aprovacao.</p>
+        </div>
+        ${buildReportExportTools("expenseReport")}
+        ${buildCardFilterBar(baseData, state, "expenseReport")}
+      </div>
+      <div class="reports-activity-tech-summary reports-expense-summary">
+        <article>
+          <span>Registros</span>
+          <strong>${escapeHtml(String(expenseRows.length))}</strong>
+        </article>
+        <article>
+          <span>Valor total</span>
+          <strong>${escapeHtml(formatCurrency(expenseTotals.total))}</strong>
+        </article>
+        <article>
+          <span>Valor aprovado</span>
+          <strong>${escapeHtml(formatCurrency(expenseTotals.approved))}</strong>
+        </article>
+        <article>
+          <span>Valor pendente</span>
+          <strong>${escapeHtml(formatCurrency(expenseTotals.pending))}</strong>
+        </article>
+      </div>
+      <div class="expense-report-table-wrap">
+        <table class="expense-report-table">
+          <thead>
+            <tr>
+              <th>Responsavel</th>
+              <th>Aprovador</th>
+              <th>Tipo da despesa</th>
+              <th>Valor da despesa</th>
+              <th>Data da despesa</th>
+              <th>Data da aprovacao</th>
+              <th>Status</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${expensePageRows.length ? expensePageRows.map((item) => `
+              <tr>
+                <td><strong>${escapeHtml(getExpenseResponsibleName(item))}</strong><span>${escapeHtml(item.projectName || "Projeto")}</span></td>
+                <td>${escapeHtml(getExpenseApproverName(item))}</td>
+                <td>${escapeHtml(expenseTypeLabel(item.type))}</td>
+                <td><strong>${escapeHtml(formatCurrency(item.amount))}</strong></td>
+                <td>${escapeHtml(formatExpenseDate(item.workDate))}</td>
+                <td>${escapeHtml(getExpenseApprovalDateLabel(item))}</td>
+                <td><span class="expense-status-pill ${escapeHtml(String(item.status || "pending").toLowerCase())}">${escapeHtml(expenseStatusLabel(item.status))}</span></td>
+              </tr>
+            `).join("") : `
+              <tr>
+                <td colspan="7" class="expense-report-empty-cell">Nenhuma despesa encontrada com os filtros atuais.</td>
+              </tr>
+            `}
+          </tbody>
+        </table>
+      </div>
+      <div class="reports-activity-tech-pagination">
+        <span>${escapeHtml(String(expenseStartRow))}-${escapeHtml(String(expenseEndRow))} de ${escapeHtml(String(expenseRows.length))} despesas</span>
+        <div>
+          <button type="button" data-expense-report-page="prev" ${expenseCurrentPage <= 1 ? "disabled" : ""}>Anterior</button>
+          <strong>Pagina ${escapeHtml(String(expenseCurrentPage))} de ${escapeHtml(String(expenseTotalPages))}</strong>
+          <button type="button" data-expense-report-page="next" ${expenseCurrentPage >= expenseTotalPages ? "disabled" : ""}>Proxima</button>
+        </div>
       </div>
     </section>
   `;
+  refs.reportsGrid.querySelectorAll("[data-report-section]").forEach((card) => {
+    const key = card.getAttribute("data-report-section");
+    if (key && !visibleReports.has(key)) card.remove();
+  });
   enhanceReportCards(refs);
 }
 
@@ -1705,6 +2073,7 @@ function bindOnce(deps){
       deps.state._reportsWidgetFilters[cardKey][filterKey] = target.value || "all";
     }
     if (cardKey === "activityTech") deps.state._activityTechPage = 1;
+    if (cardKey === "expenseReport") deps.state._expenseReportPage = 1;
     if (["clientId", "teamId", "status"].includes(filterKey)) deps.state._reportsWidgetFilters[cardKey].projectId = "all";
     if (filterKey === "period" && target.value !== "custom"){
       const defaults = defaultWidgetFilters({ period: target.value || "30d" });
@@ -1737,6 +2106,16 @@ function bindOnce(deps){
       const direction = pageTrigger.getAttribute("data-activity-tech-page");
       const current = Number(deps.state._activityTechPage || 1);
       deps.state._activityTechPage = direction === "prev" ? Math.max(1, current - 1) : current + 1;
+      renderReports(deps.state._reportsCache, refs, deps.state);
+      return;
+    }
+    const expensePageTrigger = target.closest("[data-expense-report-page]");
+    if (expensePageTrigger){
+      event.preventDefault();
+      event.stopPropagation();
+      const direction = expensePageTrigger.getAttribute("data-expense-report-page");
+      const current = Number(deps.state._expenseReportPage || 1);
+      deps.state._expenseReportPage = direction === "prev" ? Math.max(1, current - 1) : current + 1;
       renderReports(deps.state._reportsCache, refs, deps.state);
       return;
     }

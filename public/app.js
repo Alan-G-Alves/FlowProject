@@ -45,17 +45,17 @@ import { normalizePhone, normalizeCnpj, slugify } from "./src/utils/format.js";
 import { setAlert, clearAlert, clearInlineAlert, showInlineAlert } from "./src/ui/alerts.js";
 import { getCompanyDoc, listCompaniesDocs } from "./src/services/companies.service.js";
 import { createNotification } from "./src/services/notifications.service.js?v=1776052722";
-import * as refs from "./src/ui/refs.js?v=1777057001";
+import * as refs from "./src/ui/refs.js?v=1777057012";
 import * as companiesDomain from "./src/domain/companies.domain.js?v=1770332251";
 import * as teamsDomain from "./src/domain/teams.domain.js?v=1772614200";
 import * as usersDomain from "./src/domain/users.domain.js?v=1777055918";
 import * as managerUsersDomain from "./src/domain/manager-users.domain.js?v=1777055918";
 import * as clientsDomain from "./src/domain/clients.domain.js?v=1776052720";
 import * as projectsDomain from "./src/domain/projects.domain.js?v=1772626200";
-import * as myActivitiesDomain from "./src/domain/my-activities.domain.js?v=1777057001";
+import * as myActivitiesDomain from "./src/domain/my-activities.domain.js?v=1777057008";
 import * as myFeedbacksDomain from "./src/domain/my-feedbacks.domain.js?v=1776040900";
 import * as osApprovalsDomain from "./src/domain/os-approvals.domain.js?v=1776052722";
-import * as expensesDomain from "./src/domain/expenses.domain.js?v=1777057001";
+import * as expensesDomain from "./src/domain/expenses.domain.js?v=1777057012";
 import * as projectWorkspaceDomain from "./src/domain/project-workspace.domain.js?v=1777057001";
 import * as reportsDomain from "./src/domain/reports.domain.js?v=1776052700";
 import * as profileModal from "./src/ui/modals/profile.modal.js?v=1770332251";
@@ -184,6 +184,45 @@ const DEFAULT_BRAND = {
   name: "FlowProject",
   logoURL: "logof.png"
 };
+
+const REPORT_PERMISSION_ROLES = [
+  { key: "admin", label: "Admin" },
+  { key: "gestor", label: "Gestor" },
+  { key: "coordenador", label: "Coordenador" },
+  { key: "tecnico", label: "Tecnico" }
+];
+
+const REPORT_PERMISSION_ITEMS = [
+  { key: "overview", label: "Painel consolidado de projetos" },
+  { key: "metrics", label: "Saude operacional do periodo" },
+  { key: "statuses", label: "Projetos por status" },
+  { key: "execution", label: "Horas previstas x executadas" },
+  { key: "clients", label: "Clientes com maior volume executado" },
+  { key: "schedule", label: "Cronograma de projeto por periodo" },
+  { key: "activityTech", label: "Relatorio de Atividade x Tecnico", note: "Tecnico ve apenas os proprios dados." },
+  { key: "expenseReport", label: "Relatorio de Despesas", note: "Tecnico ve apenas as proprias despesas." }
+];
+
+function getDefaultReportPermissions(){
+  return Object.fromEntries(
+    REPORT_PERMISSION_ROLES.map((role) => [
+      role.key,
+      Object.fromEntries(REPORT_PERMISSION_ITEMS.map((item) => [item.key, true]))
+    ])
+  );
+}
+
+function normalizeReportPermissions(value){
+  const defaults = getDefaultReportPermissions();
+  const source = value && typeof value === "object" ? value : {};
+  for (const role of REPORT_PERMISSION_ROLES) {
+    const roleSource = source[role.key] && typeof source[role.key] === "object" ? source[role.key] : {};
+    for (const item of REPORT_PERMISSION_ITEMS) {
+      defaults[role.key][item.key] = roleSource[item.key] !== false;
+    }
+  }
+  return defaults;
+}
 
 function getCompanyBrand(company = state.company){
   const name = (company?.displayName || company?.name || DEFAULT_BRAND.name).toString().trim() || DEFAULT_BRAND.name;
@@ -354,7 +393,7 @@ function syncSidebarForRole(){
   const hideTechMenu = isSuperAdmin || currentRole === "tecnico";
   const hideClientsMenu = isSuperAdmin || currentRole === "tecnico";
   const hideFeedbacksMenu = isSuperAdmin;
-  const hideExpensesMenu = isSuperAdmin || !["admin", "gestor", "coordenador"].includes(currentRole);
+  const hideExpensesMenu = isSuperAdmin || !["admin", "gestor", "coordenador", "tecnico"].includes(currentRole);
   const sidebarSep = document.querySelector(".sidebar-nav .sidebar-sep");
 
   document.body.classList.toggle("is-superadmin", isSuperAdmin);
@@ -435,6 +474,13 @@ function renderSettingsView(){
       desc: "Altere o nome e o logo exibidos no menu lateral e nos relatorios.",
       action: "brand",
       actionLabel: "Editar marca"
+    }));
+    cards.push(settingsCard({
+      scope: "Relatorios",
+      title: "Permissoes de relatorios",
+      desc: "Defina quais relatorios cada perfil da empresa pode visualizar.",
+      action: "reportPermissions",
+      actionLabel: "Configurar"
     }));
     cards.push(settingsCard({
       scope: "Usuarios",
@@ -1421,6 +1467,89 @@ function isCompanyAdmin(){
   return !state.isSuperAdmin && String(state.profile?.role || "").toLowerCase() === "admin";
 }
 
+function closeReportPermissionsModal(){
+  hide(refs.modalReportPermissions);
+  clearAlert(refs.reportPermissionsAlert);
+}
+
+function renderReportPermissionsTable(){
+  if (!refs.reportPermissionsTableBody) return;
+  const permissions = normalizeReportPermissions(state.company?.reportPermissions);
+  refs.reportPermissionsTableBody.innerHTML = REPORT_PERMISSION_ITEMS.map((report) => `
+    <tr>
+      <th>
+        <strong>${escapeHtml(report.label)}</strong>
+        ${report.note ? `<span>${escapeHtml(report.note)}</span>` : ""}
+      </th>
+      ${REPORT_PERMISSION_ROLES.map((role) => `
+        <td>
+          <label class="report-permission-check">
+            <input
+              type="checkbox"
+              data-report-permission-role="${escapeHtml(role.key)}"
+              data-report-permission-key="${escapeHtml(report.key)}"
+              ${permissions[role.key]?.[report.key] !== false ? "checked" : ""}
+            />
+            <span>${escapeHtml(role.label)}</span>
+          </label>
+        </td>
+      `).join("")}
+    </tr>
+  `).join("");
+}
+
+async function openReportPermissionsModal(){
+  clearAlert(refs.reportPermissionsAlert);
+  if (!isCompanyAdmin()){
+    alert("Acesso restrito: somente admin da empresa pode configurar relatorios.");
+    return;
+  }
+  if (!state.company && state.companyId) await loadCurrentCompanyBrand();
+  renderReportPermissionsTable();
+  show(refs.modalReportPermissions);
+}
+
+function readReportPermissionsForm(){
+  const permissions = getDefaultReportPermissions();
+  const inputs = Array.from(refs.reportPermissionsTableBody?.querySelectorAll?.("[data-report-permission-role][data-report-permission-key]") || []);
+  for (const input of inputs) {
+    const role = input.getAttribute("data-report-permission-role");
+    const key = input.getAttribute("data-report-permission-key");
+    if (!role || !key || !permissions[role]) continue;
+    permissions[role][key] = input.checked === true;
+  }
+  return permissions;
+}
+
+async function saveReportPermissions(){
+  clearAlert(refs.reportPermissionsAlert);
+  if (!isCompanyAdmin()) return setAlert(refs.reportPermissionsAlert, "Acesso restrito.");
+  if (!state.companyId) return setAlert(refs.reportPermissionsAlert, "Empresa nao identificada.");
+  const permissions = readReportPermissionsForm();
+  try{
+    await updateDoc(doc(db, "companies", state.companyId), {
+      reportPermissions: permissions,
+      updatedAt: serverTimestamp()
+    });
+    state.company = { ...(state.company || {}), reportPermissions: permissions };
+    state._reportsCacheLoaded = false;
+    setAlert(refs.reportPermissionsAlert, "Permissoes de relatorios salvas com sucesso.", "success");
+  }catch(err){
+    console.error("[report-permissions:save]", err);
+    setAlert(refs.reportPermissionsAlert, err?.message || "Nao foi possivel salvar as permissoes.");
+  }
+}
+
+function resetReportPermissionsForm(){
+  const permissions = getDefaultReportPermissions();
+  if (!refs.reportPermissionsTableBody) return;
+  refs.reportPermissionsTableBody.querySelectorAll("[data-report-permission-role][data-report-permission-key]").forEach((input) => {
+    const role = input.getAttribute("data-report-permission-role");
+    const key = input.getAttribute("data-report-permission-key");
+    input.checked = permissions[role]?.[key] !== false;
+  });
+}
+
 function closeCompanyBrandModal(){
   hide(refs.modalCompanyBrand);
   clearAlert(refs.companyBrandAlert);
@@ -1644,11 +1773,11 @@ async function loadClients(){
 }
 
 async function openReportsView(){
-  await reportsDomain.openReportsView({ refs, state, db, setView, openMyActivitiesView, openProjectsView });
+  await reportsDomain.openReportsView({ refs, state, db, auth, setView, openMyActivitiesView, openProjectsView });
 }
 
 async function loadReports(opts = {}){
-  await reportsDomain.loadReports({ refs, state, db, setView, openMyActivitiesView, openProjectsView }, opts);
+  await reportsDomain.loadReports({ refs, state, db, auth, setView, openMyActivitiesView, openProjectsView }, opts);
 }
 
 function openCreateTechModal() {
@@ -1966,10 +2095,17 @@ refs.btnCancelCompanyBrand?.addEventListener("click", closeCompanyBrandModal);
 refs.modalCompanyBrand?.addEventListener("click", (event) => {
   if (event.target?.matches?.("[data-close-company-brand='true']")) closeCompanyBrandModal();
 });
+refs.btnCloseReportPermissions?.addEventListener("click", closeReportPermissionsModal);
+refs.btnCancelReportPermissions?.addEventListener("click", closeReportPermissionsModal);
+refs.modalReportPermissions?.addEventListener("click", (event) => {
+  if (event.target?.matches?.("[data-close-report-permissions='true']")) closeReportPermissionsModal();
+});
 refs.companyBrandName?.addEventListener("input", previewCompanyBrand);
 refs.companyBrandLogoFile?.addEventListener("change", previewCompanyBrand);
 refs.btnSaveCompanyBrand?.addEventListener("click", saveCompanyBrand);
 refs.btnResetCompanyBrand?.addEventListener("click", resetCompanyBrand);
+refs.btnSaveReportPermissions?.addEventListener("click", saveReportPermissions);
+refs.btnResetReportPermissions?.addEventListener("click", resetReportPermissionsForm);
 
 refs.settingsGrid?.addEventListener("click", async (event) => {
   const btn = event.target?.closest?.("[data-settings-action]");
@@ -1977,6 +2113,7 @@ refs.settingsGrid?.addEventListener("click", async (event) => {
   const action = btn.getAttribute("data-settings-action");
   if (action === "profile") return openProfileModal();
   if (action === "brand") return openCompanyBrandModal();
+  if (action === "reportPermissions") return openReportPermissionsModal();
   if (action === "users") {
     setActiveNav("navAddTech");
     return openManagerUsersView();
@@ -2318,6 +2455,13 @@ refs.btnBackFromMyActivities?.addEventListener("click", () => {
 });
 refs.btnReloadMyActivities?.addEventListener("click", () => loadMyActivities());
 refs.myActivitiesSearchInput?.addEventListener("input", () => loadMyActivities());
+refs.myActivitiesStartDateInput?.addEventListener("change", () => loadMyActivities());
+refs.myActivitiesEndDateInput?.addEventListener("change", () => loadMyActivities());
+refs.btnClearMyActivitiesPeriod?.addEventListener("click", () => {
+  if (refs.myActivitiesStartDateInput) refs.myActivitiesStartDateInput.value = "";
+  if (refs.myActivitiesEndDateInput) refs.myActivitiesEndDateInput.value = "";
+  loadMyActivities();
+});
 
 // Projects events
 refs.btnBackFromProjects?.addEventListener("click", () => {

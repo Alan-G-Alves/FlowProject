@@ -47,6 +47,15 @@ export const companyBrandLogoFile = byId("companyBrandLogoFile");
 export const companyBrandPreviewImg = byId("companyBrandPreviewImg");
 export const companyBrandPreviewName = byId("companyBrandPreviewName");
 
+// Report permissions settings
+export const modalReportPermissions = byId("modalReportPermissions");
+export const reportPermissionsAlert = byId("reportPermissionsAlert");
+export const reportPermissionsTableBody = byId("reportPermissionsTableBody");
+export const btnCloseReportPermissions = byId("btnCloseReportPermissions");
+export const btnCancelReportPermissions = byId("btnCancelReportPermissions");
+export const btnSaveReportPermissions = byId("btnSaveReportPermissions");
+export const btnResetReportPermissions = byId("btnResetReportPermissions");
+
 // Login
 export const loginForm = byId("loginForm");
 export const emailEl = byId("email");
@@ -373,6 +382,9 @@ export const viewMyActivities = byId("viewMyActivities");
 export const btnBackFromMyActivities = byId("btnBackFromMyActivities");
 export const btnReloadMyActivities = byId("btnReloadMyActivities");
 export const myActivitiesSearchInput = byId("myActivitiesSearchInput");
+export const myActivitiesStartDateInput = byId("myActivitiesStartDateInput");
+export const myActivitiesEndDateInput = byId("myActivitiesEndDateInput");
+export const btnClearMyActivitiesPeriod = byId("btnClearMyActivitiesPeriod");
 export const myActivitiesTotalCount = byId("myActivitiesTotalCount");
 export const myActivitiesPendingCount = byId("myActivitiesPendingCount");
 export const myActivitiesGeneratedCount = byId("myActivitiesGeneratedCount");
@@ -392,18 +404,18 @@ export const myActivityTask = byId("myActivityTask");
 export const myActivityName = byId("myActivityName");
 export const myActivityDate = byId("myActivityDate");
 export const myActivityHours = byId("myActivityHours");
-export const myActivityStatus = byId("myActivityStatus");
 export const myActivityStatusBadge = byId("myActivityStatusBadge");
 export const myActivityStartTime = byId("myActivityStartTime");
 export const myActivityEndTime = byId("myActivityEndTime");
 export const myActivityBreakTime = byId("myActivityBreakTime");
 export const myActivityComputedHours = byId("myActivityComputedHours");
-export const myActivityComputedHoursHint = byId("myActivityComputedHoursHint");
 export const myActivityKeyUsers = byId("myActivityKeyUsers");
 export const myActivityNote = byId("myActivityNote");
 export const myActivityNoteCounter = byId("myActivityNoteCounter");
 export const myActivityTip = byId("myActivityTip");
 export const btnOpenActivityExpense = byId("btnOpenActivityExpense");
+export const myActivityExpenseComposer = byId("myActivityExpenseComposer");
+export const myActivityExpenseDrafts = byId("myActivityExpenseDrafts");
 export const myActivityExpenseTotal = byId("myActivityExpenseTotal");
 export const myActivityExpensePendingCount = byId("myActivityExpensePendingCount");
 export const myActivityExpensesList = byId("myActivityExpensesList");
@@ -435,6 +447,7 @@ export const osApprovalsSelectAll = byId("osApprovalsSelectAll");
 export const osApprovalsBulkMeta = byId("osApprovalsBulkMeta");
 export const btnOsApprovalsBulkAction = byId("btnOsApprovalsBulkAction");
 export const osApprovalsList = byId("osApprovalsList");
+export const osApprovalsPagination = byId("osApprovalsPagination");
 export const osApprovalsEmpty = byId("osApprovalsEmpty");
 
 // Expense Approvals
@@ -442,7 +455,10 @@ export const viewExpenseApprovals = byId("viewExpenseApprovals");
 export const expenseApprovalsSearchInput = byId("expenseApprovalsSearchInput");
 export const expenseApprovalsProjectFilter = byId("expenseApprovalsProjectFilter");
 export const expenseApprovalsTypeFilter = byId("expenseApprovalsTypeFilter");
-export const expenseApprovalsChargeFilter = byId("expenseApprovalsChargeFilter");
+export const expenseApprovalsUserFilter = byId("expenseApprovalsUserFilter");
+export const expenseApprovalsApproverFilter = byId("expenseApprovalsApproverFilter");
+export const expenseApprovalsStartDateInput = byId("expenseApprovalsStartDateInput");
+export const expenseApprovalsEndDateInput = byId("expenseApprovalsEndDateInput");
 export const expenseApprovalsPendingCount = byId("expenseApprovalsPendingCount");
 export const expenseApprovalsApprovedCount = byId("expenseApprovalsApprovedCount");
 export const expenseApprovalsRejectedCount = byId("expenseApprovalsRejectedCount");
@@ -450,8 +466,8 @@ export const expenseApprovalsPendingValue = byId("expenseApprovalsPendingValue")
 export const expenseApprovalsInternalValue = byId("expenseApprovalsInternalValue");
 export const expenseApprovalsClientValue = byId("expenseApprovalsClientValue");
 export const expenseApprovalsList = byId("expenseApprovalsList");
+export const expenseApprovalsPagination = byId("expenseApprovalsPagination");
 export const expenseApprovalsEmpty = byId("expenseApprovalsEmpty");
-export const btnReloadExpenseApprovals = byId("btnReloadExpenseApprovals");
 export const btnOpenManualExpense = byId("btnOpenManualExpense");
 
 // Expense Form

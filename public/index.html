@@ -5,7 +5,7 @@
 <meta charset="utf-8"/>
 <meta content="width=device-width, initial-scale=1.0" name="viewport"/>
 <title>FlowProject</title>
-<link href="./styles.css?v=1777057001" rel="stylesheet"/>
+<link href="./styles.css?v=1777057013" rel="stylesheet"/>
 <link href="logof.png" rel="icon" type="image/png"/>
 <style>
   /* SaaS Search (My Projects Kanban) */
@@ -138,19 +138,11 @@
 <span class="nav-label">Relatorios</span>
 </button>
 <button class="nav-item" data-tooltip="Feedbacks" id="navFeedbacks">
-<svg aria-hidden="true" class="nav-ico-svg nav-ico-feedback" viewBox="0 0 24 24">
-<path d="M6 7.5A3.5 3.5 0 0 1 9.5 4h8A3.5 3.5 0 0 1 21 7.5v5A3.5 3.5 0 0 1 17.5 16H12l-4.2 3.3c-.7.5-1.8 0-1.8-.9V16A3.5 3.5 0 0 1 2.5 12.5v-5A3.5 3.5 0 0 1 6 4h.2" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8"/>
-<path d="M9 9h7M9 12h4" fill="none" stroke="currentColor" stroke-linecap="round" stroke-width="1.8"/>
-</svg>
+<img alt="" class="nav-ico" src="feedback.png"/>
 <span class="nav-label">Feedbacks</span>
 </button>
 <button class="nav-item" data-tooltip="Despesas" id="navExpenses">
-<svg aria-hidden="true" class="nav-ico-svg" viewBox="0 0 24 24">
-<path d="M4 7.5A2.5 2.5 0 0 1 6.5 5h11A2.5 2.5 0 0 1 20 7.5v9A2.5 2.5 0 0 1 17.5 19h-11A2.5 2.5 0 0 1 4 16.5v-9Z" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8"/>
-<path d="M4 9h16" fill="none" stroke="currentColor" stroke-linecap="round" stroke-width="1.8"/>
-<path d="M8 14h5" fill="none" stroke="currentColor" stroke-linecap="round" stroke-width="1.8"/>
-<path d="M8 17h3" fill="none" stroke="currentColor" stroke-linecap="round" stroke-width="1.8"/>
-</svg>
+<img alt="" class="nav-ico" src="despesa.png"/>
 <span class="nav-label">Despesas</span>
 </button>
 <div class="sidebar-sep"></div>
@@ -834,6 +826,15 @@
           <span>Buscar atividade</span>
           <input id="myActivitiesSearchInput" type="search" placeholder="Projeto, tarefa, atividade, data ou status" />
         </label>
+        <label class="field my-activities-period-field">
+          <span>Inicio</span>
+          <input id="myActivitiesStartDateInput" type="date" />
+        </label>
+        <label class="field my-activities-period-field">
+          <span>Fim</span>
+          <input id="myActivitiesEndDateInput" type="date" />
+        </label>
+        <button class="btn ghost sm my-activities-clear-period" id="btnClearMyActivitiesPeriod" type="button">Limpar periodo</button>
       </div>
     </div>
 
@@ -990,6 +991,7 @@
     </section>
 
     <div class="os-approvals-list" id="osApprovalsList"></div>
+    <div class="reports-activity-tech-pagination" id="osApprovalsPagination" aria-label="Paginacao de aprovacoes de OS"></div>
     <div class="panel subtle" hidden id="osApprovalsEmpty">
       <h3>Nenhuma OS encontrada</h3>
       <p class="muted">Ajuste os filtros ou aguarde novos apontamentos enviados pelos tecnicos.</p>
@@ -1025,14 +1027,19 @@
           </select>
         </label>
         <label class="field expense-approvals-filter-field">
-          <span>Responsabilidade</span>
-          <select id="expenseApprovalsChargeFilter">
+          <span>Usuario</span>
+          <select id="expenseApprovalsUserFilter">
             <option value="">Todos</option>
-            <option value="client">Conta do cliente</option>
-            <option value="internal">Conta propria</option>
           </select>
         </label>
-        <button class="btn" id="btnReloadExpenseApprovals" type="button">Atualizar</button>
+        <label class="field expense-approvals-date-field">
+          <span>Inicio</span>
+          <input id="expenseApprovalsStartDateInput" type="date" />
+        </label>
+        <label class="field expense-approvals-date-field">
+          <span>Fim</span>
+          <input id="expenseApprovalsEndDateInput" type="date" />
+        </label>
         <button class="btn primary" id="btnOpenManualExpense" type="button">+ Nova Despesa</button>
       </div>
     </div>
@@ -1071,6 +1078,7 @@
     </section>
 
     <div class="expense-approvals-list" id="expenseApprovalsList"></div>
+    <div class="reports-activity-tech-pagination" id="expenseApprovalsPagination" aria-label="Paginacao de aprovacoes de despesas"></div>
     <div class="panel subtle" hidden id="expenseApprovalsEmpty">
       <h3>Nenhuma despesa encontrada</h3>
       <p class="muted">Ajuste os filtros ou aguarde novos lancamentos registrados pela equipe.</p>
@@ -1100,36 +1108,40 @@
             <span class="my-activity-status-badge" id="myActivityStatusBadge">Sem OS</span>
           </div>
 
-          <div class="my-activity-modal-grid">
-            <label class="field">
-              <span>Projeto</span>
-              <input id="myActivityProject" disabled />
-            </label>
-            <label class="field">
-              <span>Cliente</span>
-              <input id="myActivityClient" disabled />
-            </label>
-            <label class="field">
-              <span>Tarefa</span>
-              <input id="myActivityTask" disabled />
-            </label>
-            <label class="field span-2">
-              <span>Atividade</span>
-              <input id="myActivityName" disabled />
-            </label>
-            <label class="field">
-              <span>Data</span>
-              <input id="myActivityDate" disabled />
-            </label>
-            <label class="field">
-              <span>Horas previstas</span>
-              <input id="myActivityHours" disabled />
-            </label>
-            <label class="field span-2">
-              <span>Key users</span>
-              <textarea id="myActivityKeyUsers" rows="2" disabled></textarea>
-            </label>
+          <div class="my-activity-context-hero">
+            <div class="my-activity-context-main">
+              <div class="my-activity-context-topline">
+                <div>
+                  <div class="my-activity-context-label">Atividade</div>
+                  <h4 id="myActivityName">-</h4>
+                </div>
+                <div class="my-activity-hours-focus">
+                  <span class="my-activity-hours-focus-label">Hora prevista</span>
+                  <strong id="myActivityHours">0h</strong>
+                </div>
+              </div>
+              <div class="my-activity-context-chips">
+                <div class="my-activity-context-chip">
+                  <span>Projeto</span>
+                  <strong id="myActivityProject">-</strong>
+                </div>
+                <div class="my-activity-context-chip">
+                  <span>Cliente</span>
+                  <strong id="myActivityClient">-</strong>
+                </div>
+                <div class="my-activity-context-chip">
+                  <span>Tarefa</span>
+                  <strong id="myActivityTask">-</strong>
+                </div>
+                <div class="my-activity-context-chip">
+                  <span>Data</span>
+                  <strong id="myActivityDate">-</strong>
+                </div>
+              </div>
+            </div>
           </div>
+
+          <div class="my-activity-key-users-line"><span>Key users</span><p id="myActivityKeyUsers">-</p></div>
         </section>
 
         <section class="my-activity-section my-activity-section--worklog">
@@ -1138,7 +1150,6 @@
               <div class="my-activity-section-kicker">Apontamento</div>
               <h3>Seu registro tecnico</h3>
             </div>
-            <div class="my-activity-tip" id="myActivityTip">Preencha inicio, fim e observacao para enviar ao gestor.</div>
           </div>
 
           <div class="my-activity-time-grid">
@@ -1154,23 +1165,15 @@
               <span>Descanso</span>
               <input id="myActivityBreakTime" type="time" value="01:00" />
             </label>
-            <label class="field">
-              <span>Status atual</span>
-              <input id="myActivityStatus" disabled />
-            </label>
-          </div>
-
-          <div class="my-activity-hours-summary">
-            <div class="my-activity-hours-card">
-              <span class="my-activity-hours-label">Horas apontadas</span>
+            <div class="my-activity-inline-hours">
+              <span class="my-activity-inline-hours-label">Horas apontadas</span>
               <strong id="myActivityComputedHours">0h</strong>
             </div>
-            <div class="my-activity-hours-hint" id="myActivityComputedHoursHint">Informe inicio e fim para calcular o total.</div>
           </div>
 
           <label class="field span-2 my-activity-note-field">
             <span>Observacao do tecnico</span>
-            <textarea id="myActivityNote" rows="6" placeholder="Descreva o que foi realizado, dificuldades, resultado, validacoes feitas e qualquer contexto importante. Minimo de 50 caracteres."></textarea>
+            <textarea id="myActivityNote" rows="4" placeholder="Descreva o que foi realizado, dificuldades, resultado, validacoes feitas e qualquer contexto importante. Minimo de 50 caracteres."></textarea>
             <div class="my-activity-note-meta">
               <small>Ao salvar, a atividade vai para <b>OS Enviada</b> e segue para aprovacao do gestor.</small>
               <strong id="myActivityNoteCounter">0/50 minimo</strong>
@@ -1182,9 +1185,12 @@
           <div class="my-activity-section-head">
             <div>
               <div class="my-activity-section-kicker">Despesas</div>
-              <h3>Comprovantes da atividade</h3>
+              <h3>Comprovantes da Despesa</h3>
             </div>
             <button class="btn sm" id="btnOpenActivityExpense" type="button">+ Adicionar despesa</button>
+          </div>
+          <div class="my-activity-expense-composer" hidden id="myActivityExpenseComposer">
+            <div class="my-activity-expense-drafts" id="myActivityExpenseDrafts"></div>
           </div>
           <div class="my-activity-expense-summary">
             <div class="my-activity-expense-pill">
@@ -2460,6 +2466,48 @@
 </section>
 
 
+<!-- MODAL: Permissoes de Relatorios -->
+<div class="modal" hidden id="modalReportPermissions">
+  <div class="modal-backdrop" data-close-report-permissions="true"></div>
+  <div class="modal-card report-permissions-modal-card">
+    <div class="modal-header">
+      <div>
+        <h2>Permissoes de relatorios</h2>
+        <p class="muted">Defina quais relatorios cada perfil pode visualizar.</p>
+      </div>
+      <button class="btn ghost" id="btnCloseReportPermissions" type="button">X</button>
+    </div>
+
+    <div class="modal-body">
+      <div class="alert" hidden id="reportPermissionsAlert"></div>
+      <div class="report-permissions-hint">
+        Tecnicos sempre visualizam apenas os proprios dados em Atividade x Tecnico e Relatorio de Despesas.
+      </div>
+      <div class="report-permissions-table-wrap">
+        <table class="report-permissions-table">
+          <thead>
+            <tr>
+              <th>Relatorio</th>
+              <th>Admin</th>
+              <th>Gestor</th>
+              <th>Coordenador</th>
+              <th>Tecnico</th>
+            </tr>
+          </thead>
+          <tbody id="reportPermissionsTableBody"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="modal-footer">
+      <button class="btn ghost" id="btnResetReportPermissions" type="button">Liberar todos</button>
+      <button class="btn ghost" id="btnCancelReportPermissions" type="button">Cancelar</button>
+      <button class="btn primary" id="btnSaveReportPermissions" type="button">Salvar</button>
+    </div>
+  </div>
+</div>
+
+
 <!-- MODAL: Marca da Empresa -->
 <div class="modal" hidden id="modalCompanyBrand">
   <div class="modal-backdrop" data-close-company-brand="true"></div>
@@ -2504,7 +2552,7 @@
   </div>
 </div>
 
-<script src="./app.js?v=1777057001" type="module"></script>
+<script src="./app.js?v=1777057012" type="module"></script>
 <script>
   // Toggle senha (somente UI)
   document.addEventListener("click", function(e){

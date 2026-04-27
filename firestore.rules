@@ -250,7 +250,7 @@ service cloud.firestore {
         && request.resource.data.createdBy == myUid();
 
       allow update: if isSuperAdmin()
-        && request.resource.data.keys().hasOnly(["name", "cnpj", "active", "createdAt", "createdBy", "number", "displayName", "logoURL", "logoPath", "logoReportDataUrl", "updatedAt"])
+        && request.resource.data.keys().hasOnly(["name", "cnpj", "active", "createdAt", "createdBy", "number", "displayName", "logoURL", "logoPath", "logoReportDataUrl", "reportPermissions", "updatedAt"])
         && request.resource.data.name is string
         && request.resource.data.name.size() > 0
         && request.resource.data.cnpj is string
@@ -259,11 +259,12 @@ service cloud.firestore {
         && (!("number" in request.resource.data) || request.resource.data.number is int);
 
       allow update: if isCompanyAdmin(companyId)
-        && request.resource.data.diff(resource.data).changedKeys().hasOnly(["displayName", "logoURL", "logoPath", "logoReportDataUrl", "updatedAt"])
+        && request.resource.data.diff(resource.data).changedKeys().hasOnly(["displayName", "logoURL", "logoPath", "logoReportDataUrl", "reportPermissions", "updatedAt"])
         && (!("displayName" in request.resource.data) || request.resource.data.displayName is string)
         && (!("logoURL" in request.resource.data) || request.resource.data.logoURL is string)
         && (!("logoPath" in request.resource.data) || request.resource.data.logoPath is string)
         && (!("logoReportDataUrl" in request.resource.data) || request.resource.data.logoReportDataUrl is string)
+        && (!("reportPermissions" in request.resource.data) || request.resource.data.reportPermissions is map)
         && (!("updatedAt" in request.resource.data) || request.resource.data.updatedAt is timestamp);
 
       allow delete: if false;
@@ -508,8 +509,8 @@ allow delete: if false;
             "managerUid","managerName",
             "coordinatorUid","coordinatorName",
             "createdBy","createdByName","createdByRole",
-            "approvedBy","approvedByName","approvedByEmail","approvedAt",
-            "rejectedBy","rejectedByName","rejectedAt","rejectionReason",
+            "approvedBy","approvedByName","approvedByEmail","approvedByRole","approvedAt",
+            "rejectedBy","rejectedByName","rejectedByRole","rejectedAt","rejectionReason",
             "updatedAt","updatedBy",
             "createdAt"
           ]);
@@ -552,9 +553,13 @@ allow delete: if false;
 
         allow read: if isSuperAdmin()
           || isCompanyAdmin(companyId)
-          || isManager(companyId)
-          || isCoordinator(companyId)
-          || isCoordenador(companyId)
+          || (
+            (isManager(companyId) || isCoordinator(companyId) || isCoordenador(companyId))
+            && (
+              resource.data.createdBy == myUid()
+              || (("createdByRole" in resource.data) && resource.data.createdByRole == "tecnico")
+            )
+          )
           || (isSignedIn() && companyId == myCompanyId() && resource.data.createdBy == myUid());
 
         allow create: if (isSuperAdmin()
@@ -569,9 +574,13 @@ allow delete: if false;
 
         allow update: if (isSuperAdmin()
           || isCompanyAdmin(companyId)
-          || isManager(companyId)
-          || isCoordinator(companyId)
-          || isCoordenador(companyId))
+          || (
+            (isManager(companyId) || isCoordinator(companyId) || isCoordenador(companyId))
+            && (
+              resource.data.createdBy == myUid()
+              || (("createdByRole" in resource.data) && resource.data.createdByRole == "tecnico")
+            )
+          ))
           && expenseBaseValid();
 
         allow update: if isCompanyMember(companyId)
