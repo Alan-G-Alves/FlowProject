@@ -455,15 +455,24 @@ export const myActivityExpensesList = byId("myActivityExpensesList");
 // My Feedbacks
 export const viewMyFeedbacks = byId("viewMyFeedbacks");
 export const myFeedbacksSearchInput = byId("myFeedbacksSearchInput");
+export const myFeedbacksPageTitle = byId("myFeedbacksPageTitle");
+export const myFeedbacksPageSubtitle = byId("myFeedbacksPageSubtitle");
+export const myFeedbacksModeWrap = byId("myFeedbacksModeWrap");
+export const btnMyFeedbacksModeReceived = byId("btnMyFeedbacksModeReceived");
+export const btnMyFeedbacksModeApplied = byId("btnMyFeedbacksModeApplied");
 export const myFeedbacksHeadline = byId("myFeedbacksHeadline");
 export const myFeedbacksIntro = byId("myFeedbacksIntro");
 export const myFeedbacksTotalCount = byId("myFeedbacksTotalCount");
 export const myFeedbacksAverageScore = byId("myFeedbacksAverageScore");
 export const myFeedbacksPositiveCount = byId("myFeedbacksPositiveCount");
 export const myFeedbacksLatestDate = byId("myFeedbacksLatestDate");
+export const myFeedbacksSectionTitle = byId("myFeedbacksSectionTitle");
 export const myFeedbacksListMeta = byId("myFeedbacksListMeta");
 export const myFeedbacksList = byId("myFeedbacksList");
 export const myFeedbacksEmpty = byId("myFeedbacksEmpty");
+export const myFeedbacksEmptyTitle = byId("myFeedbacksEmptyTitle");
+export const myFeedbacksEmptyText = byId("myFeedbacksEmptyText");
+export const myFeedbacksPagination = byId("myFeedbacksPagination");
 
 // OS Approvals
 export const viewOsApprovals = byId("viewOsApprovals");

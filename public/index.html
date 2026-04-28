@@ -1024,10 +1024,14 @@
   <div class="container my-feedbacks-page">
     <div class="page-header">
       <div>
-        <h1>Meus Feedbacks</h1>
-        <p class="muted">Acompanhe suas avaliacoes, reconhecimentos e pontos de evolucao em um painel organizado.</p>
+        <h1 id="myFeedbacksPageTitle">Meus Feedbacks</h1>
+        <p class="muted" id="myFeedbacksPageSubtitle">Acompanhe suas avaliacoes, reconhecimentos e pontos de evolucao em um painel organizado.</p>
       </div>
       <div class="chips my-feedbacks-toolbar">
+        <div class="my-feedbacks-mode-wrap" hidden id="myFeedbacksModeWrap">
+          <button class="my-feedbacks-mode-btn is-active" data-feedbacks-mode="received" id="btnMyFeedbacksModeReceived" type="button">Recebidos</button>
+          <button class="my-feedbacks-mode-btn" data-feedbacks-mode="applied" id="btnMyFeedbacksModeApplied" type="button">Aplicados</button>
+        </div>
         <label class="field my-feedbacks-search-field">
           <span>Buscar feedback</span>
           <input id="myFeedbacksSearchInput" type="search" placeholder="Nota, avaliador, data ou observacao" />
@@ -1069,15 +1073,16 @@
       <div class="my-feedbacks-list-head">
         <div>
           <div class="my-feedbacks-list-kicker">Timeline</div>
-          <h3>Historico de feedbacks</h3>
+          <h3 id="myFeedbacksSectionTitle">Historico de feedbacks</h3>
         </div>
         <div class="my-feedbacks-list-meta" id="myFeedbacksListMeta">0 feedbacks encontrados</div>
       </div>
       <div class="my-feedbacks-list" id="myFeedbacksList"></div>
       <div class="panel subtle my-feedbacks-empty" hidden id="myFeedbacksEmpty">
-        <h3>Nenhum feedback encontrado</h3>
-        <p class="muted">Assim que um gestor ou administrador registrar um feedback para voce, ele aparecera aqui.</p>
+        <h3 id="myFeedbacksEmptyTitle">Nenhum feedback encontrado</h3>
+        <p class="muted" id="myFeedbacksEmptyText">Assim que um gestor ou administrador registrar um feedback para voce, ele aparecera aqui.</p>
       </div>
+      <div class="reports-activity-tech-pagination" hidden id="myFeedbacksPagination" aria-label="Paginacao de feedbacks"></div>
     </section>
   </div>
 </section>
