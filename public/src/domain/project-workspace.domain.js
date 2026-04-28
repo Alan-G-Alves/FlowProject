@@ -269,12 +269,16 @@ async function ensureWorkspaceContext(deps){
   }
 
   if (!Array.isArray(state._usersCache) || !state._usersCache.length){
-    const usersSnap = await getDocs(collection(db, `companies/${companyId}/users`));
-    state._usersCache = usersSnap.docs.map((d) => {
-      const data = d.data() || {};
-      return { uid: data.uid || d.id, ...data };
-    });
+    state._usersCache = [];
   }
+
+  // O custo tecnico estimado usa o valor/hora atual do tecnico.
+  // Recarregamos os usuarios para evitar cache antigo apos edicoes no cadastro.
+  const usersSnap = await getDocs(collection(db, `companies/${companyId}/users`));
+  state._usersCache = usersSnap.docs.map((d) => {
+    const data = d.data() || {};
+    return { uid: data.uid || d.id, ...data };
+  });
 }
 
 function getActivitySelectionInput(taskId, kind){

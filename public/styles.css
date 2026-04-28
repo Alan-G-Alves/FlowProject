@@ -3047,15 +3047,32 @@ body.is-superadmin #navClients{
 }
 .topbar-left{ display:none !important; }
 .topbar-right{
-  position: fixed;
-  top: 14px;
-  right: 14px;
-  display:flex;
-  align-items:center;
-  justify-content:flex-end;
-  gap: 10px;
+  position: static !important;
+  display: contents;
+  transform: none !important;
 }
-.user-menu{ position: relative; }
+.notifications-menu{
+  position: fixed !important;
+  top: 14px !important;
+  right: 68px !important;
+  z-index: 81;
+}
+.user-menu{
+  position: fixed !important;
+  top: 14px !important;
+  right: 14px !important;
+  z-index: 82;
+}
+.notifications-panel{
+  position: fixed !important;
+  top: 60px !important;
+  right: 58px !important;
+}
+.dropdown{
+  position: fixed !important;
+  top: 60px !important;
+  right: 14px !important;
+}
 
 /* ===== Ajuste vertical do header do dashboard ===== */
 
