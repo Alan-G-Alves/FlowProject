@@ -342,16 +342,16 @@ a{ color: inherit; }
   background:transparent !important;
   border:none !important;
   box-shadow:none !important;
-  width:56px;
-  height:56px;
+  width:66px;
+  height:66px;
   padding:0;
   margin-top:2px;
   flex:0 0 auto;
 }
 
 .dashboard-reminders-add-btn svg{
-  width:54px;
-  height:54px;
+  width:62px;
+  height:62px;
 }
 
 .dashboard-reminders-add-btn:hover{
@@ -397,7 +397,7 @@ a{ color: inherit; }
   display:grid;
   grid-template-columns:repeat(2, minmax(0, 1fr));
   grid-auto-flow:row;
-  gap:16px;
+  gap:10px 12px;
   align-content:start;
   align-items:start;
 }
@@ -431,12 +431,12 @@ a{ color: inherit; }
   position:relative;
   display:block;
   width:100%;
-  max-width:252px;
+  max-width:224px;
   min-height:0;
   aspect-ratio:1 / 1;
   grid-row:auto;
   justify-self:start;
-  padding:16px 16px 14px;
+  padding:14px 14px 12px;
   border:none;
   border-radius:6px 18px 12px 18px;
   text-align:left;
@@ -573,32 +573,46 @@ a{ color: inherit; }
 }
 
 .reminder-note:nth-child(5n + 1){
-  margin-top:4px;
+  margin-top:2px;
+  margin-left:8px;
 }
 
 .reminder-note:nth-child(5n + 2){
-  margin-top:18px;
+  margin-top:10px;
+  margin-right:12px;
 }
 
 .reminder-note:nth-child(6n + 3){
-  margin-top:-8px;
+  margin-top:-10px;
+  margin-left:2px;
 }
 
 .reminder-note:nth-child(7n + 4){
   grid-column:auto;
-  margin-top:10px;
+  margin-top:4px;
+  margin-right:16px;
 }
 
 .reminder-note:nth-child(9n + 5){
-  margin-top:-4px;
+  margin-top:-12px;
+  margin-left:16px;
 }
 
 .reminder-note:nth-child(11n + 7){
-  margin-top:12px;
+  margin-top:6px;
+  margin-right:4px;
 }
 
 .reminder-note:nth-child(even){
   justify-self:end;
+}
+
+.reminder-note:nth-child(3n + 2){
+  transform:rotate(1.8deg) translateY(-4px);
+}
+
+.reminder-note:nth-child(6n + 5){
+  transform:rotate(-2.2deg) translateX(6px);
 }
 
 .reminder-note.note-color-sun{
@@ -644,8 +658,8 @@ a{ color: inherit; }
   position:absolute;
   top:12px;
   right:12px;
-  width:28px;
-  height:28px;
+  width:26px;
+  height:26px;
   border:none;
   border-radius:999px;
   display:grid;
@@ -666,7 +680,7 @@ a{ color: inherit; }
   display:inline-flex;
   align-items:center;
   gap:6px;
-  font-size:10px;
+  font-size:9px;
   font-weight:900;
   text-transform:uppercase;
   letter-spacing:.14em;
@@ -683,26 +697,26 @@ a{ color: inherit; }
 }
 
 .reminder-note-message{
-  margin-top:14px;
-  font-size:15px;
-  line-height:1.38;
+  margin-top:12px;
+  font-size:14px;
+  line-height:1.34;
   color:rgba(12,18,32,.92);
   white-space:pre-wrap;
   overflow-wrap:anywhere;
 }
 
 .reminder-note-footer{
-  margin-top:14px;
+  margin-top:10px;
   display:flex;
   align-items:flex-end;
   justify-content:space-between;
-  gap:10px;
+  gap:8px;
 }
 
 .reminder-note-author,
 .reminder-note-status{
   display:block;
-  font-size:11px;
+  font-size:10px;
   color:rgba(12,18,32,.58);
 }
 
