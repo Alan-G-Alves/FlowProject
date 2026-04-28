@@ -599,7 +599,7 @@ allow delete: if false;
 
         allow create: if isCompanyMember(companyId)
           && request.resource.data.keys().hasOnly([
-            "recipientUid", "recipientName",
+            "recipientUid", "recipientName", "recipientSummary",
             "dueDate", "noteColor", "message",
             "viewed", "viewedAt", "viewedBy",
             "createdBy", "createdByName", "createdByRole",
@@ -610,6 +610,7 @@ allow delete: if false;
           && request.resource.data.recipientUid is string
           && request.resource.data.recipientUid.size() > 0
           && request.resource.data.recipientName is string
+          && request.resource.data.recipientSummary is string
           && request.resource.data.dueDate is string
           && request.resource.data.dueDate.size() == 10
           && request.resource.data.noteColor is string

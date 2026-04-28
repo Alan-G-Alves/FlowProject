@@ -710,16 +710,30 @@ a{ color: inherit; }
   gap:8px;
 }
 
+.reminder-note-author-wrap{
+  display:flex;
+  flex-direction:column;
+  gap:2px;
+  min-width:0;
+}
+
 .reminder-note-author,
+.reminder-note-recipient,
 .reminder-note-status{
   display:block;
   font-size:9px;
   color:rgba(12,18,32,.58);
 }
 
+.reminder-note-recipient{
+  white-space:normal;
+  line-height:1.25;
+}
+
 .reminder-note-status{
   font-weight:800;
   color:rgba(12,18,32,.72);
+  text-align:right;
 }
 
 .reminder-composer-modal-card{

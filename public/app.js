@@ -1589,6 +1589,20 @@ function getSelectedReminderRecipients(){
   return Array.from(new Map(selected.map((item) => [item.uid, item])).values());
 }
 
+function getReminderFirstName(value){
+  const text = String(value || "").trim();
+  if (!text) return "";
+  const [first = ""] = text.split(/\s+/);
+  return first || text;
+}
+
+function buildReminderRecipientSummary(recipients){
+  const names = recipients
+    .map((recipient) => getReminderFirstName(recipient?.name || ""))
+    .filter(Boolean);
+  return Array.from(new Set(names)).join(", ");
+}
+
 function closeReminderComposer(){
   if (refs.modalReminderComposer) refs.modalReminderComposer.hidden = true;
   clearAlert(refs.reminderComposerAlert);
@@ -1651,12 +1665,14 @@ async function saveDashboardReminder(){
   const batch = writeBatch(db);
   const createdByName = state.profile?.name || auth.currentUser?.email || "Usuario";
   const createdByRole = normalizeRole(state.profile?.role || "tecnico");
+  const recipientSummary = recipients.length > 1 ? buildReminderRecipientSummary(recipients) : "";
   recipients.forEach((recipient, index) => {
     const reminderId = `rem-${Date.now()}-${index}-${Math.random().toString(36).slice(2, 8)}`;
     const reminderRef = doc(db, "companies", companyId, "reminders", reminderId);
     batch.set(reminderRef, {
       recipientUid: recipient.uid,
       recipientName: recipient.name || "",
+      recipientSummary,
       dueDate,
       noteColor,
       message,
@@ -1703,7 +1719,10 @@ function renderDashboardReminders(reminders){
         <span class="reminder-note-date">${escapeHtml(formatReminderDateShort(reminder.dueDate))}</span>
         <div class="reminder-note-message">${escapeHtml(reminder.message || "")}</div>
         <div class="reminder-note-footer">
-          <span class="reminder-note-author">Por ${escapeHtml(reminder.createdByName || "Usuario")}</span>
+          <span class="reminder-note-author-wrap">
+            <span class="reminder-note-author">Por ${escapeHtml(reminder.createdByName || "Usuario")}</span>
+            ${reminder.recipientSummary ? `<span class="reminder-note-recipient">Para ${escapeHtml(reminder.recipientSummary)}</span>` : ""}
+          </span>
           <span class="reminder-note-status">${escapeHtml(getReminderStatusLabel(reminder))}</span>
         </div>
         <span class="reminder-note-fold" aria-hidden="true"></span>
