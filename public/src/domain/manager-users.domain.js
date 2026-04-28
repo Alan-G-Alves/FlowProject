@@ -368,6 +368,9 @@ function setCreateTechModalMode(deps, mode, tech){
   // Email não pode ser editado
   if (refs.techEmailEl) refs.techEmailEl.disabled = !!isEdit || !!isView;
 
+  const uidLabel = refs.techUidEl?.closest("label");
+  if (uidLabel) uidLabel.style.display = "none";
+
   // View mode: todos os campos readonly + esconde botão salvar
   const disableAll = !!isView;
   if (refs.techNameEl) refs.techNameEl.disabled = disableAll;
@@ -895,9 +898,14 @@ function getManagerSortableUsers(users, state) {
   };
 
   const getValue = (u) => {
+    const computedAge = Number.isFinite(Number(u.age))
+      ? Number(u.age)
+      : Number(calculateAgeFromBirthDate(u.birthDate) || 0);
     switch (sortKey) {
       case "number":
         return Number(u.number || 0);
+      case "age":
+        return computedAge;
       case "email":
         return u.email || "";
       case "hourlyRate":
@@ -1150,6 +1158,10 @@ export async function loadManagerUsers(deps) {
     }));
     const isActive = (u.active !== false);
     const statusLabel = isActive ? "Ativo" : "Inativo";
+    const ageValue = Number.isFinite(Number(u.age))
+      ? Number(u.age)
+      : calculateAgeFromBirthDate(u.birthDate);
+    const ageLabel = ageValue == null ? "—" : `${ageValue} anos`;
 
     tr.innerHTML = `
       <td><span class="badge small">#${escapeHtml(String(u.number ?? "—"))}</span></td>
@@ -1162,6 +1174,7 @@ export async function loadManagerUsers(deps) {
         </div>
       </td>
       <td>${escapeHtml(u.email || "—")}</td>
+      <td>${escapeHtml(ageLabel)}</td>
       <td>${escapeHtml(formatHourlyRate(u.hourlyRate))}</td>
       <td><span data-teams></span></td>
       <td><span data-soft></span></td>
@@ -1195,6 +1208,13 @@ export async function loadManagerUsers(deps) {
         </div>
       </td>
     `;
+
+    const renderedCells = tr.children;
+    if (renderedCells.length > 3) {
+      const emailCell = renderedCells[2];
+      const ageCell = renderedCells[3];
+      if (emailCell && ageCell) tr.insertBefore(ageCell, emailCell);
+    }
 
     tr.querySelector('[data-act="edit"]').addEventListener("click", (ev) => {
       ev.preventDefault();
@@ -1487,12 +1507,6 @@ export function openCreateTechModal(deps) {
   }
 
   refs.modalCreateTech.hidden = false;
-
-  // Não pedir UID manualmente (vamos criar no Auth via secondaryAuth)
-  try{
-    const uidLabel = refs.techUidEl?.closest("label");
-    if (uidLabel) uidLabel.style.display = "none";
-  }catch(_){}
 
   refs.techUidEl.value = "";
   refs.techNameEl.value = "";

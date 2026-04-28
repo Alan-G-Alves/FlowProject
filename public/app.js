@@ -1318,6 +1318,7 @@ function attachCalendarTooltips(){
 function renderDashboardCalendar(dateCountMap, currentDate = new Date(), activitiesByDate = new Map()){
   if (!refs.dashboardCalendar) return;
   const currentRole = getCurrentDashboardRole();
+  const isTechView = currentRole === "tecnico";
   const showManagerInTooltip = currentRole === "tecnico";
 
   const year = currentDate.getFullYear();
@@ -1357,6 +1358,11 @@ function renderDashboardCalendar(dateCountMap, currentDate = new Date(), activit
     let tooltipHtml = "";
     if (count > 0 && dayActivities.length > 0) {
       const tooltipItems = dayActivities.slice(0, 5).map((act) => {
+        if (!isTechView) {
+          return `<div class="calendar-tooltip-item">
+            <div class="calendar-tooltip-project">${escapeHtml(act.projectName)}</div>
+          </div>`;
+        }
         const hoursStr = act.hours > 0 ? `${act.hours}h` : "0h";
         return `<div class="calendar-tooltip-item">
           <div class="calendar-tooltip-project">${escapeHtml(act.projectName)}</div>
@@ -1368,7 +1374,7 @@ function renderDashboardCalendar(dateCountMap, currentDate = new Date(), activit
       const moreText = dayActivities.length > 5 ? `<div class="calendar-tooltip-more">+${dayActivities.length - 5} mais...</div>` : "";
       
       tooltipHtml = `<div class="calendar-tooltip${showManagerInTooltip ? "" : " is-compact"}">
-        <div class="calendar-tooltip-title">Atividades do dia</div>
+        <div class="calendar-tooltip-title">${isTechView ? "Atividades do dia" : "Projetos do dia"}</div>
         <div class="calendar-tooltip-list">${tooltipItems}${moreText}</div>
       </div>`;
     }
@@ -1376,7 +1382,7 @@ function renderDashboardCalendar(dateCountMap, currentDate = new Date(), activit
     cells.push(`
       <div class="${classes}" ${tooltipHtml ? 'data-has-tooltip="true"' : ''}>
         <span class="dashboard-calendar-number">${escapeHtml(String(day))}</span>
-        ${count > 0 ? `<span class="dashboard-calendar-count">${escapeHtml(String(count))} atividade${count > 1 ? "s" : ""}</span>` : ""}
+        ${count > 0 ? `<span class="dashboard-calendar-count">${escapeHtml(String(count))} ${isTechView ? `atividade${count > 1 ? "s" : ""}` : `projeto${count > 1 ? "s" : ""}`}</span>` : ""}
         ${tooltipHtml}
       </div>
     `);
@@ -1426,12 +1432,17 @@ async function loadDashboardAgenda(){
   const projects = projectsSnap.docs.map((docSnap) => ({ id: docSnap.id, ...docSnap.data() }));
   const projectsById = new Map(projects.map((project) => [project.id, project]));
   const usersByUid = new Map((Array.isArray(state._usersCache) ? state._usersCache : []).map((user) => [user.uid, user]));
+  const isTechView = currentRole === "tecnico";
   const managedProjectIds = currentRole === "gestor"
     ? new Set(projects.filter((project) => String(project?.managerUid || "") === uid).map((project) => project.id))
+    : new Set();
+  const coordinatedProjectIds = currentRole === "coordenador"
+    ? new Set(projects.filter((project) => String(project?.coordinatorUid || "") === uid).map((project) => project.id))
     : new Set();
 
   const counts = new Map();
   const activitiesByDate = new Map();
+  const projectsByDate = new Map();
   activitiesSnap.docs.forEach((docSnap) => {
     const activity = docSnap.data() || {};
     const project = projectsById.get(activity.projectId) || null;
@@ -1439,7 +1450,11 @@ async function loadDashboardAgenda(){
       const belongsToManager = String(activity.managerUid || "") === uid
         || Boolean(project && managedProjectIds.has(project.id));
       if (!belongsToManager) return;
-    } else if (currentRole !== "tecnico") {
+    } else if (currentRole === "coordenador") {
+      const belongsToCoordinator = String(project?.coordinatorUid || "") === uid
+        || Boolean(project && coordinatedProjectIds.has(project.id));
+      if (!belongsToCoordinator) return;
+    } else if (currentRole !== "tecnico" && currentRole !== "admin") {
       const assignedTechs = Array.isArray(activity.techUids) ? activity.techUids : [];
       if (!assignedTechs.includes(uid)) return;
     }
@@ -1450,11 +1465,27 @@ async function loadDashboardAgenda(){
     if (!workDate || !workDate.startsWith(monthKey)) return;
     
     // Count for display
-    counts.set(workDate, (counts.get(workDate) || 0) + 1);
+    if (isTechView) {
+      counts.set(workDate, (counts.get(workDate) || 0) + 1);
+    }
     
     // Store full activity data for tooltip
-    if (!activitiesByDate.has(workDate)) {
+    if (isTechView && !activitiesByDate.has(workDate)) {
       activitiesByDate.set(workDate, []);
+    }
+    if (!isTechView) {
+      if (!projectsByDate.has(workDate)) {
+        projectsByDate.set(workDate, new Map());
+      }
+      const projectMap = projectsByDate.get(workDate);
+      const projectKey = String(activity.projectId || project?.id || activity.projectName || docSnap.id);
+      if (!projectMap.has(projectKey)) {
+        projectMap.set(projectKey, {
+          id: projectKey,
+          projectName: activity.projectName || "Projeto nao identificado"
+        });
+      }
+      return;
     }
     activitiesByDate.get(workDate).push({
       id: docSnap.id,
@@ -1465,12 +1496,20 @@ async function loadDashboardAgenda(){
     });
   });
 
+  if (!isTechView) {
+    projectsByDate.forEach((projectMap, workDate) => {
+      const dayProjects = Array.from(projectMap.values());
+      counts.set(workDate, dayProjects.length);
+      activitiesByDate.set(workDate, dayProjects);
+    });
+  }
+
   const total = Array.from(counts.values()).reduce((acc, count) => acc + count, 0);
   if (refs.dashboardAgendaSubtitle) {
     const label = formatDashboardMonthLabel(selectedMonth);
     refs.dashboardAgendaSubtitle.textContent = total
-      ? `${total} atividade(s) planejada(s) para voce em ${label}.`
-      : `Nenhuma atividade planejada para voce em ${label}.`;
+      ? `${total} ${isTechView ? "atividade(s) planejada(s)" : "projeto(s) planejado(s)"} para voce em ${label}.`
+      : `Nenhum${isTechView ? "a atividade" : " projeto"} planejado${isTechView ? "a" : ""} para voce em ${label}.`;
   }
   renderDashboardCalendar(counts, selectedMonth, activitiesByDate);
 }
