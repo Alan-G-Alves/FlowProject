@@ -394,12 +394,8 @@ a{ color: inherit; }
 }
 
 .dashboard-reminders-list{
-  display:grid;
-  grid-template-columns:repeat(2, minmax(0, 1fr));
-  grid-auto-flow:row;
-  gap:10px 12px;
-  align-content:start;
-  align-items:start;
+  column-count:3;
+  column-gap:6px;
 }
 
 .dashboard-reminders-empty{
@@ -429,14 +425,14 @@ a{ color: inherit; }
 
 .reminder-note{
   position:relative;
-  display:block;
-  width:100%;
-  max-width:224px;
+  display:inline-block;
+  vertical-align:top;
+  width:calc(100% - 18px);
+  max-width:none;
   min-height:0;
   aspect-ratio:1 / 1;
-  grid-row:auto;
-  justify-self:start;
-  padding:14px 14px 12px;
+  margin:0 0 8px;
+  padding:12px 12px 10px;
   border:none;
   border-radius:6px 18px 12px 18px;
   text-align:left;
@@ -446,6 +442,8 @@ a{ color: inherit; }
     0 16px 24px rgba(12,18,32,.12),
     0 3px 0 rgba(255,255,255,.34) inset;
   overflow:hidden;
+  break-inside:avoid;
+  -webkit-column-break-inside:avoid;
 }
 
 .reminder-note:hover{
@@ -574,37 +572,36 @@ a{ color: inherit; }
 
 .reminder-note:nth-child(5n + 1){
   margin-top:2px;
-  margin-left:8px;
+  margin-left:4px;
 }
 
 .reminder-note:nth-child(5n + 2){
   margin-top:10px;
-  margin-right:12px;
+  margin-right:4px;
 }
 
 .reminder-note:nth-child(6n + 3){
   margin-top:-10px;
-  margin-left:2px;
+  margin-left:8px;
 }
 
 .reminder-note:nth-child(7n + 4){
-  grid-column:auto;
   margin-top:4px;
-  margin-right:16px;
+  margin-right:8px;
 }
 
 .reminder-note:nth-child(9n + 5){
   margin-top:-12px;
-  margin-left:16px;
+  margin-left:10px;
 }
 
 .reminder-note:nth-child(11n + 7){
   margin-top:6px;
-  margin-right:4px;
+  margin-right:10px;
 }
 
 .reminder-note:nth-child(even){
-  justify-self:end;
+  margin-left:2px;
 }
 
 .reminder-note:nth-child(3n + 2){
@@ -658,8 +655,8 @@ a{ color: inherit; }
   position:absolute;
   top:12px;
   right:12px;
-  width:26px;
-  height:26px;
+  width:24px;
+  height:24px;
   border:none;
   border-radius:999px;
   display:grid;
@@ -680,7 +677,7 @@ a{ color: inherit; }
   display:inline-flex;
   align-items:center;
   gap:6px;
-  font-size:9px;
+  font-size:8px;
   font-weight:900;
   text-transform:uppercase;
   letter-spacing:.14em;
@@ -698,7 +695,7 @@ a{ color: inherit; }
 
 .reminder-note-message{
   margin-top:12px;
-  font-size:14px;
+  font-size:13px;
   line-height:1.34;
   color:rgba(12,18,32,.92);
   white-space:pre-wrap;
@@ -716,7 +713,7 @@ a{ color: inherit; }
 .reminder-note-author,
 .reminder-note-status{
   display:block;
-  font-size:10px;
+  font-size:9px;
   color:rgba(12,18,32,.58);
 }
 
@@ -1272,15 +1269,15 @@ a{ color: inherit; }
     grid-template-columns:1fr;
   }
   .dashboard-reminders-list{
-    grid-auto-flow:row;
+    column-count:1;
   }
   .reminder-note{
-    grid-column:auto !important;
-    max-width:none;
+    width:100%;
     aspect-ratio:auto;
-    justify-self:stretch;
     min-height:178px;
     margin-top:0 !important;
+    margin-left:0 !important;
+    margin-right:0 !important;
   }
   .reminder-color-options{
     grid-template-columns:repeat(2, minmax(0, 1fr));
@@ -1302,6 +1299,9 @@ a{ color: inherit; }
 @media (max-width: 1180px){
   .dashboard-home-grid{
     grid-template-columns:1fr;
+  }
+  .dashboard-reminders-list{
+    column-count:2;
   }
   .reminder-color-options{
     grid-template-columns:repeat(3, minmax(0, 1fr));
