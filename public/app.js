@@ -1361,6 +1361,7 @@ function renderDashboardCalendar(dateCountMap, currentDate = new Date(), activit
         if (!isTechView) {
           return `<div class="calendar-tooltip-item">
             <div class="calendar-tooltip-project">${escapeHtml(act.projectName)}</div>
+            <div class="calendar-tooltip-activity">${escapeHtml(act.clientName || "Cliente nao identificado")}</div>
           </div>`;
         }
         const hoursStr = act.hours > 0 ? `${act.hours}h` : "0h";
@@ -1443,6 +1444,7 @@ async function loadDashboardAgenda(){
   const counts = new Map();
   const activitiesByDate = new Map();
   const projectsByDate = new Map();
+  const distinctProjectsInMonth = new Set();
   activitiesSnap.docs.forEach((docSnap) => {
     const activity = docSnap.data() || {};
     const project = projectsById.get(activity.projectId) || null;
@@ -1482,9 +1484,11 @@ async function loadDashboardAgenda(){
       if (!projectMap.has(projectKey)) {
         projectMap.set(projectKey, {
           id: projectKey,
-          projectName: activity.projectName || "Projeto nao identificado"
+          projectName: activity.projectName || "Projeto nao identificado",
+          clientName: project?.clientName || activity.clientName || "Cliente nao identificado"
         });
       }
+      distinctProjectsInMonth.add(projectKey);
       return;
     }
     activitiesByDate.get(workDate).push({
@@ -1504,7 +1508,9 @@ async function loadDashboardAgenda(){
     });
   }
 
-  const total = Array.from(counts.values()).reduce((acc, count) => acc + count, 0);
+  const total = isTechView
+    ? Array.from(counts.values()).reduce((acc, count) => acc + count, 0)
+    : distinctProjectsInMonth.size;
   if (refs.dashboardAgendaSubtitle) {
     const label = formatDashboardMonthLabel(selectedMonth);
     refs.dashboardAgendaSubtitle.textContent = total
