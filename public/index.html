@@ -5,7 +5,7 @@
 <meta charset="utf-8"/>
 <meta content="width=device-width, initial-scale=1.0" name="viewport"/>
 <title>FlowProject</title>
-<link href="./styles.css?v=1777057017" rel="stylesheet"/>
+<link href="./styles.css?v=1777057019" rel="stylesheet"/>
 <link href="logof.png" rel="icon" type="image/png"/>
 <style>
   /* SaaS Search (My Projects Kanban) */
@@ -73,6 +73,13 @@
       </div>
     </div>
   </div>
+  <button class="help-manual-btn" id="btnHelpManual" type="button" aria-haspopup="dialog" aria-expanded="false" title="Ajuda e manual">
+    <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="1.8"/>
+      <path d="M9.8 9.2a2.4 2.4 0 0 1 4.5 1.2c0 1.8-2.3 2-2.3 3.7" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+      <path d="M12 17.2h.01" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/>
+    </svg>
+  </button>
   <div class="user-menu" id="userMenu">
     <button class="avatar-btn" id="avatarBtn" aria-haspopup="menu" aria-expanded="false">
       <img id="userAvatarImg" class="avatar-img" alt="Avatar do usuario" />
@@ -109,6 +116,34 @@
 </div>
 
 </header>
+<div class="modal help-manual-modal" hidden id="modalHelpManual">
+  <div class="modal-backdrop" data-close-help-manual="true"></div>
+  <div class="modal-card help-manual-card" role="dialog" aria-modal="true" aria-labelledby="manualTitle">
+    <div class="modal-header help-manual-header">
+      <div>
+        <span class="manual-role-pill" id="manualRoleLabel">Usuario</span>
+        <h2 id="manualTitle">Manual de uso</h2>
+        <p class="muted" id="manualSubtitle">Passo a passo do sistema por perfil.</p>
+      </div>
+      <button class="btn ghost" id="btnCloseHelpManual" type="button">X</button>
+    </div>
+    <div class="manual-toolbar">
+      <label class="manual-search">
+        <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+          <path d="M10.8 18a7.2 7.2 0 1 1 0-14.4 7.2 7.2 0 0 1 0 14.4Z" stroke="currentColor" stroke-width="1.8"/>
+          <path d="M16.2 16.2 21 21" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+        </svg>
+        <input id="manualSearch" placeholder="Buscar no manual..." type="search" />
+      </label>
+    </div>
+    <div class="modal-body help-manual-body">
+      <div id="manualContent"></div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn primary" id="btnCancelHelpManual" type="button">Fechar</button>
+    </div>
+  </div>
+</div>
 <main class="main"><aside class="sidebar" hidden="" id="sidebar">
 <div class="sidebar-inner">
 <div class="sidebar-top">
@@ -2748,7 +2783,7 @@
   </div>
 </div>
 
-<script src="./app.js?v=1777057018" type="module"></script>
+<script src="./app.js?v=1777057019" type="module"></script>
 <script>
   // Toggle senha (somente UI)
   document.addEventListener("click", function(e){

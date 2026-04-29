@@ -45,7 +45,7 @@ import { normalizePhone, normalizeCnpj, slugify } from "./src/utils/format.js";
 import { setAlert, clearAlert, clearInlineAlert, showInlineAlert, showDialogAlert } from "./src/ui/alerts.js";
 import { getCompanyDoc, listCompaniesDocs } from "./src/services/companies.service.js";
 import { createNotification } from "./src/services/notifications.service.js?v=1776052722";
-import * as refs from "./src/ui/refs.js?v=1777057012";
+import * as refs from "./src/ui/refs.js?v=1777057013";
 import * as companiesDomain from "./src/domain/companies.domain.js?v=1770332251";
 import * as teamsDomain from "./src/domain/teams.domain.js?v=1772614200";
 import * as usersDomain from "./src/domain/users.domain.js?v=1777055918";
@@ -62,6 +62,7 @@ import * as profileModal from "./src/ui/modals/profile.modal.js?v=1770332251";
 import * as topbar from "./src/ui/topbar.js?v=1770332251";
 import * as sidebar from "./src/ui/sidebar.js?v=1770332251";
 import * as dashboard from "./src/ui/dashboard.js?v=1770332251";
+import { initHelpManual } from "./src/ui/help-manual.js?v=1777057019";
 import { intersects, getTeamNameById, initialFromName } from "./src/utils/helpers.js?v=1770332251";
 
 // Evita double-binding de eventos (há blocos de listeners repetidos no app.js)
@@ -3310,6 +3311,7 @@ refs.btnCloseCompanyDetail?.addEventListener("click", () => closeCompanyDetailMo
 
 // Sidebar + tooltips
 try{ initSidebar(); }catch(e){ console.warn("initSidebar falhou", e); }
+try{ initHelpManual({ refs, state }); }catch(e){ console.warn("initHelpManual falhou", e); }
 
 
 

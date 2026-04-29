@@ -78,6 +78,15 @@ export const notificationCount = byId("notificationCount");
 export const notificationsPanel = byId("notificationsPanel");
 export const notificationsList = byId("notificationsList");
 export const btnMarkAllNotificationsRead = byId("btnMarkAllNotificationsRead");
+export const btnHelpManual = byId("btnHelpManual");
+export const modalHelpManual = byId("modalHelpManual");
+export const btnCloseHelpManual = byId("btnCloseHelpManual");
+export const btnCancelHelpManual = byId("btnCancelHelpManual");
+export const manualTitle = byId("manualTitle");
+export const manualSubtitle = byId("manualSubtitle");
+export const manualRoleLabel = byId("manualRoleLabel");
+export const manualSearch = byId("manualSearch");
+export const manualContent = byId("manualContent");
 
 // Perfil modal
 export const profileModal = byId("profileModal");

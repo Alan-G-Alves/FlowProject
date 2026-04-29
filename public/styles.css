@@ -1637,6 +1637,224 @@ a{ color: inherit; }
   font-size:13px;
 }
 
+.help-manual-btn{
+  position:relative;
+  width:42px;
+  height:42px;
+  display:grid;
+  place-items:center;
+  border:0;
+  border-radius:8px;
+  background:transparent;
+  color:#2563eb;
+  cursor:pointer;
+  transition: color .12s ease, background .12s ease, transform .12s ease;
+}
+.help-manual-btn:hover{
+  color:#0f766e;
+  background:rgba(37,99,235,.08);
+  transform:translateY(-1px);
+}
+.help-manual-btn:focus-visible{
+  outline:2px solid rgba(37,99,235,.32);
+  outline-offset:2px;
+}
+.help-manual-btn svg{
+  width:24px;
+  height:24px;
+}
+
+.help-manual-modal{
+  z-index:90;
+}
+.help-manual-card{
+  width:min(980px, calc(100vw - 28px));
+  max-height:min(86vh, 820px);
+  display:flex;
+  flex-direction:column;
+  overflow:hidden;
+}
+.help-manual-header{
+  align-items:flex-start;
+  background:#f8fbff;
+  border-bottom:1px solid #e2e8f0;
+}
+.manual-role-pill,
+.manual-kicker{
+  display:inline-flex;
+  align-items:center;
+  width:max-content;
+  min-height:24px;
+  padding:4px 9px;
+  border-radius:999px;
+  background:#e6f4ff;
+  color:#075985;
+  font-size:11px;
+  font-weight:800;
+  text-transform:uppercase;
+  letter-spacing:.04em;
+}
+.manual-toolbar{
+  display:flex;
+  align-items:center;
+  gap:12px;
+  padding:12px 16px;
+  border-bottom:1px solid #e2e8f0;
+  background:#fff;
+}
+.manual-search{
+  width:min(420px, 100%);
+  min-height:40px;
+  display:flex;
+  align-items:center;
+  gap:8px;
+  padding:0 12px;
+  border:1px solid #d7e0ed;
+  border-radius:8px;
+  background:#fff;
+  color:#64748b;
+}
+.manual-search svg{
+  width:18px;
+  height:18px;
+  flex:0 0 auto;
+}
+.manual-search input{
+  width:100%;
+  border:0;
+  outline:0;
+  font-size:14px;
+  background:transparent;
+  color:#172033;
+}
+.help-manual-body{
+  overflow:auto;
+  padding:16px;
+  background:#f8fafc;
+}
+.manual-summary,
+.manual-section,
+.manual-reports,
+.manual-faq{
+  border:1px solid #e2e8f0;
+  border-radius:8px;
+  background:#fff;
+  box-shadow:0 12px 32px rgba(15,23,42,.05);
+}
+.manual-summary{
+  padding:16px;
+  margin-bottom:14px;
+}
+.manual-summary strong{
+  display:block;
+  margin-top:10px;
+  color:#172033;
+  font-size:19px;
+}
+.manual-summary p{
+  margin:8px 0 0;
+  color:#526173;
+  line-height:1.55;
+}
+.manual-section-list{
+  display:grid;
+  gap:12px;
+}
+.manual-section,
+.manual-reports,
+.manual-faq{
+  padding:15px;
+}
+.manual-reports,
+.manual-faq{
+  margin-top:12px;
+}
+.manual-section-head h3{
+  margin:0;
+  color:#172033;
+  font-size:17px;
+}
+.manual-section-head p{
+  margin:6px 0 0;
+  color:#64748b;
+  line-height:1.45;
+}
+.manual-path{
+  display:flex;
+  align-items:center;
+  flex-wrap:wrap;
+  gap:8px;
+  margin:12px 0;
+}
+.manual-path span{
+  display:inline-flex;
+  align-items:center;
+  min-height:28px;
+  padding:5px 9px;
+  border:1px solid #dbeafe;
+  border-radius:999px;
+  background:#eff6ff;
+  color:#1e3a8a;
+  font-size:12px;
+  font-weight:700;
+}
+.manual-path span + span::before{
+  content:">";
+  margin-right:8px;
+  color:#64748b;
+}
+.manual-steps{
+  margin:10px 0 0;
+  padding-left:22px;
+  color:#1f2937;
+}
+.manual-steps li{
+  margin:7px 0;
+  line-height:1.45;
+}
+.manual-note,
+.manual-inline-note{
+  margin-top:12px;
+  padding:10px 12px;
+  border-left:3px solid #0f766e;
+  border-radius:6px;
+  background:#f0fdfa;
+  color:#31504b;
+  line-height:1.45;
+}
+.manual-report-list{
+  display:flex;
+  flex-wrap:wrap;
+  gap:8px;
+  margin-top:12px;
+}
+.manual-report-list span{
+  padding:7px 10px;
+  border:1px solid #e2e8f0;
+  border-radius:8px;
+  background:#f8fafc;
+  color:#334155;
+  font-size:12px;
+  font-weight:700;
+}
+.manual-faq-item{
+  border-top:1px solid #e2e8f0;
+  padding:10px 0;
+}
+.manual-faq-item:first-of-type{
+  border-top:0;
+}
+.manual-faq-item summary{
+  cursor:pointer;
+  color:#172033;
+  font-weight:800;
+}
+.manual-faq-item p{
+  margin:8px 0 0;
+  color:#64748b;
+  line-height:1.45;
+}
+
 .settings-grid{
   display:grid;
   grid-template-columns: repeat(12, minmax(0, 1fr));
@@ -3086,6 +3304,12 @@ body.is-superadmin #navClients{
   position: fixed !important;
   top: 14px !important;
   right: 68px !important;
+  z-index: 81;
+}
+.help-manual-btn{
+  position: fixed !important;
+  top: 14px !important;
+  right: 122px !important;
   z-index: 81;
 }
 .user-menu{
