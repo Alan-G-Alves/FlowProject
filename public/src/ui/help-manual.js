@@ -508,30 +508,34 @@ function applySearch(refs){
 
 export function initHelpManual(deps){
   const { refs, state } = deps || {};
-  if (!refs?.btnHelpManual || !refs?.modalHelpManual) return;
-  if (refs.btnHelpManual.dataset.bound === "1") return;
-  refs.btnHelpManual.dataset.bound = "1";
+  if (!refs?.modalHelpManual) return;
+  const triggers = [refs.btnHelpManual, refs.navHelpManual].filter(Boolean);
+  if (!triggers.length) return;
 
   const close = () => {
     refs.modalHelpManual.hidden = true;
-    refs.btnHelpManual.setAttribute("aria-expanded", "false");
+    triggers.forEach((trigger) => trigger.setAttribute("aria-expanded", "false"));
   };
 
   const open = () => {
     renderGuide(refs, state);
     refs.modalHelpManual.hidden = false;
-    refs.btnHelpManual.setAttribute("aria-expanded", "true");
+    triggers.forEach((trigger) => trigger.setAttribute("aria-expanded", "true"));
     if (refs.manualSearch) {
       refs.manualSearch.value = "";
       window.setTimeout(() => refs.manualSearch?.focus(), 40);
     }
   };
 
-  refs.btnHelpManual.addEventListener("click", (event) => {
-    event.preventDefault();
-    event.stopPropagation();
-    if (refs.modalHelpManual.hidden) open();
-    else close();
+  triggers.forEach((trigger) => {
+    if (trigger.dataset.manualBound === "1") return;
+    trigger.dataset.manualBound = "1";
+    trigger.addEventListener("click", (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      if (refs.modalHelpManual.hidden) open();
+      else close();
+    });
   });
 
   refs.btnCloseHelpManual?.addEventListener("click", close);

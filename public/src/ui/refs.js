@@ -28,6 +28,7 @@ export const navReports = byId("navReports");
 export const navFeedbacks = byId("navFeedbacks");
 export const navExpenses = byId("navExpenses");
 export const navConfig = byId("navConfig");
+export const navHelpManual = byId("navHelpManual");
 export const navLogout = byId("navLogout");
 
 // Settings
@@ -87,6 +88,20 @@ export const manualSubtitle = byId("manualSubtitle");
 export const manualRoleLabel = byId("manualRoleLabel");
 export const manualSearch = byId("manualSearch");
 export const manualContent = byId("manualContent");
+
+// LGPD
+export const modalLgpdConsent = byId("modalLgpdConsent");
+export const lgpdConsentVersion = byId("lgpdConsentVersion");
+export const lgpdConsentSummary = byId("lgpdConsentSummary");
+export const lgpdConsentCheck = byId("lgpdConsentCheck");
+export const btnAcceptLgpd = byId("btnAcceptLgpd");
+export const lgpdConsentAlert = byId("lgpdConsentAlert");
+export const modalLgpdCenter = byId("modalLgpdCenter");
+export const btnCloseLgpdCenter = byId("btnCloseLgpdCenter");
+export const btnCancelLgpdCenter = byId("btnCancelLgpdCenter");
+export const lgpdCenterTitle = byId("lgpdCenterTitle");
+export const lgpdCenterSubtitle = byId("lgpdCenterSubtitle");
+export const lgpdCenterBody = byId("lgpdCenterBody");
 
 // Perfil modal
 export const profileModal = byId("profileModal");

@@ -45,7 +45,7 @@ import { normalizePhone, normalizeCnpj, slugify } from "./src/utils/format.js";
 import { setAlert, clearAlert, clearInlineAlert, showInlineAlert, showDialogAlert } from "./src/ui/alerts.js";
 import { getCompanyDoc, listCompaniesDocs } from "./src/services/companies.service.js";
 import { createNotification } from "./src/services/notifications.service.js?v=1776052722";
-import * as refs from "./src/ui/refs.js?v=1777057013";
+import * as refs from "./src/ui/refs.js?v=1777057020";
 import * as companiesDomain from "./src/domain/companies.domain.js?v=1770332251";
 import * as teamsDomain from "./src/domain/teams.domain.js?v=1772614200";
 import * as usersDomain from "./src/domain/users.domain.js?v=1777055918";
@@ -58,6 +58,7 @@ import * as osApprovalsDomain from "./src/domain/os-approvals.domain.js?v=177605
 import * as expensesDomain from "./src/domain/expenses.domain.js?v=1777057015";
 import * as projectWorkspaceDomain from "./src/domain/project-workspace.domain.js?v=1777057001";
 import * as reportsDomain from "./src/domain/reports.domain.js?v=1777057015";
+import * as lgpdDomain from "./src/domain/lgpd.domain.js?v=1777475100";
 import * as profileModal from "./src/ui/modals/profile.modal.js?v=1770332251";
 import * as topbar from "./src/ui/topbar.js?v=1770332251";
 import * as sidebar from "./src/ui/sidebar.js?v=1770332251";
@@ -472,6 +473,17 @@ function renderSettingsView(){
     action: "profile",
     actionLabel: "Editar perfil"
   }));
+  if (!isSuperAdmin){
+    cards.push(settingsCard({
+      scope: "LGPD",
+      title: isAdmin ? "Privacidade e LGPD" : "Meus direitos LGPD",
+      desc: isAdmin
+        ? "Gerencie termos, aceites e solicitacoes LGPD da empresa."
+        : "Consulte o aceite vigente e registre solicitacoes sobre seus dados.",
+      action: "lgpd",
+      actionLabel: isAdmin ? "Abrir central" : "Abrir"
+    }));
+  }
 
   if (isAdmin){
     cards.push(`
@@ -569,6 +581,13 @@ function renderSettingsView(){
       desc: "Gerencie empresas cadastradas, usuarios admin e status de acesso.",
       action: "companies",
       actionLabel: "Abrir empresas"
+    }));
+    cards.push(settingsCard({
+      scope: "LGPD",
+      title: "LGPD por empresa",
+      desc: "Acompanhe aceites pendentes e solicitacoes LGPD das empresas cadastradas.",
+      action: "lgpd",
+      actionLabel: "Ver LGPD"
     }));
   }
 
@@ -1325,6 +1344,12 @@ function renderDashboardCards(profile){
       desc: "Gerencie as empresas cadastradas no FlowProject.",
       badge: "Master",
       action: () => openCompaniesView()
+    });
+    cards.push({
+      title: "LGPD por Empresa",
+      desc: "Acompanhe aceites, pendencias e solicitacoes LGPD das empresas.",
+      badge: "Compliance",
+      action: () => openLgpdCenter()
     });
 
     
@@ -2426,6 +2451,14 @@ async function loadReports(opts = {}){
   await reportsDomain.loadReports({ refs, state, db, auth, setView, openMyActivitiesView, openProjectsView }, opts);
 }
 
+function getLgpdDeps(){
+  return { refs, state, db, auth };
+}
+
+async function openLgpdCenter(){
+  await lgpdDomain.openLgpdCenter(getLgpdDeps());
+}
+
 function openCreateTechModal() {
   managerUsersDomain.openCreateTechModal(getManagerUsersDeps());
 }
@@ -2733,6 +2766,7 @@ onAuthStateChanged(auth, async (user) => {
     createDailyTechnicalNotifications();
     renderDashboardCards(profile);
     setView("dashboard");
+    lgpdDomain.ensureLgpdConsent(getLgpdDeps()).catch((err) => console.warn("[lgpd:consent]", err));
   } catch (err) {
     console.error("❌ Erro no fluxo de autenticação:", err);
     setView("login");
@@ -2817,6 +2851,7 @@ refs.settingsGrid?.addEventListener("click", async (event) => {
   if (action === "profile") return openProfileModal();
   if (action === "brand") return openCompanyBrandModal();
   if (action === "reportPermissions") return openReportPermissionsModal();
+  if (action === "lgpd") return openLgpdCenter();
   if (action === "users") {
     setActiveNav("navAddTech");
     return openManagerUsersView();
@@ -3312,6 +3347,7 @@ refs.btnCloseCompanyDetail?.addEventListener("click", () => closeCompanyDetailMo
 // Sidebar + tooltips
 try{ initSidebar(); }catch(e){ console.warn("initSidebar falhou", e); }
 try{ initHelpManual({ refs, state }); }catch(e){ console.warn("initHelpManual falhou", e); }
+try{ lgpdDomain.initLgpd(getLgpdDeps()); }catch(e){ console.warn("initLgpd falhou", e); }
 
 
 

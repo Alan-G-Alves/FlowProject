@@ -680,6 +680,118 @@ allow delete: if false;
         allow delete: if false;
       }
 
+      // LGPD: configuracoes, aceites e solicitacoes por empresa
+      match /lgpd/{lgpdDocId} {
+        allow read: if isSuperAdmin() || isCompanyMember(companyId);
+
+        allow create, update: if (isSuperAdmin() || isCompanyAdmin(companyId))
+          && lgpdDocId == "settings"
+          && request.resource.data.keys().hasOnly([
+            "version", "dpoName", "dpoEmail",
+            "privacySummary", "termsSummary",
+            "updatedAt", "updatedBy"
+          ])
+          && request.resource.data.version is string
+          && request.resource.data.version.size() > 0
+          && request.resource.data.dpoName is string
+          && request.resource.data.dpoEmail is string
+          && request.resource.data.privacySummary is string
+          && request.resource.data.privacySummary.size() >= 10
+          && request.resource.data.termsSummary is string
+          && request.resource.data.termsSummary.size() >= 10
+          && request.resource.data.updatedAt is timestamp
+          && request.resource.data.updatedBy == myUid();
+
+        allow delete: if false;
+      }
+
+      match /lgpdConsents/{uid} {
+        allow read: if isSuperAdmin()
+          || isCompanyAdmin(companyId)
+          || (isSignedIn() && companyId == myCompanyId() && uid == myUid());
+
+        allow create, update: if isSignedIn()
+          && companyId == myCompanyId()
+          && uid == myUid()
+          && request.resource.data.keys().hasOnly([
+            "uid", "email", "name", "role",
+            "version", "accepted", "acceptedAt", "userAgent"
+          ])
+          && request.resource.data.uid == myUid()
+          && request.resource.data.email is string
+          && request.resource.data.name is string
+          && request.resource.data.role is string
+          && request.resource.data.version is string
+          && request.resource.data.version.size() > 0
+          && request.resource.data.accepted == true
+          && request.resource.data.acceptedAt is timestamp
+          && request.resource.data.userAgent is string;
+
+        allow delete: if false;
+      }
+
+      match /lgpdVersions/{versionId} {
+        allow read: if isSuperAdmin() || isCompanyAdmin(companyId);
+
+        allow create: if (isSuperAdmin() || isCompanyAdmin(companyId))
+          && request.resource.data.keys().hasOnly([
+            "version", "previousVersion", "dpoName", "dpoEmail",
+            "privacySummary", "termsSummary", "publishedAt",
+            "publishedBy", "publishedByEmail"
+          ])
+          && request.resource.data.version is string
+          && request.resource.data.version.size() > 0
+          && request.resource.data.previousVersion is string
+          && request.resource.data.dpoName is string
+          && request.resource.data.dpoEmail is string
+          && request.resource.data.privacySummary is string
+          && request.resource.data.privacySummary.size() >= 10
+          && request.resource.data.termsSummary is string
+          && request.resource.data.termsSummary.size() >= 10
+          && request.resource.data.publishedAt is timestamp
+          && request.resource.data.publishedBy == myUid()
+          && request.resource.data.publishedByEmail is string;
+
+        allow update, delete: if false;
+      }
+
+      match /lgpdRequests/{requestId} {
+        allow read: if isSuperAdmin()
+          || isCompanyAdmin(companyId)
+          || (isSignedIn() && companyId == myCompanyId() && resource.data.createdBy == myUid());
+
+        allow create: if isCompanyMember(companyId)
+          && request.resource.data.keys().hasOnly([
+            "type", "typeLabel", "description", "status",
+            "createdBy", "createdByName", "createdByEmail", "createdAt",
+            "updatedAt", "updatedBy"
+          ])
+          && request.resource.data.type in ["access", "correction", "export", "deletion"]
+          && request.resource.data.typeLabel is string
+          && request.resource.data.description is string
+          && request.resource.data.description.size() >= 10
+          && request.resource.data.status == "open"
+          && request.resource.data.createdBy == myUid()
+          && request.resource.data.createdByName is string
+          && request.resource.data.createdByEmail is string
+          && request.resource.data.createdAt is timestamp
+          && request.resource.data.updatedAt is timestamp
+          && request.resource.data.updatedBy == myUid();
+
+        allow update: if (isSuperAdmin() || isCompanyAdmin(companyId))
+          && request.resource.data.diff(resource.data).changedKeys().hasOnly([
+            "status", "updatedAt", "updatedBy", "closedAt"
+          ])
+          && request.resource.data.status in ["open", "reviewing", "closed"]
+          && request.resource.data.updatedAt is timestamp
+          && request.resource.data.updatedBy == myUid()
+          && (!("closedAt" in request.resource.data)
+            || request.resource.data.closedAt == null
+            || request.resource.data.closedAt is timestamp);
+
+        allow delete: if false;
+      }
+
       match /{document=**} {
         allow read, write: if false;
       }
