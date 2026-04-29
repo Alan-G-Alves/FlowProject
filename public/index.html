@@ -5,7 +5,7 @@
 <meta charset="utf-8"/>
 <meta content="width=device-width, initial-scale=1.0" name="viewport"/>
 <title>FlowProject</title>
-<link href="./styles.css?v=1777057013" rel="stylesheet"/>
+<link href="./styles.css?v=1777057017" rel="stylesheet"/>
 <link href="logof.png" rel="icon" type="image/png"/>
 <style>
   /* SaaS Search (My Projects Kanban) */
@@ -1181,6 +1181,7 @@
             <option value="alimentacao">Alimentacao</option>
             <option value="trajeto">Trajeto</option>
             <option value="estadia">Estadia</option>
+            <option value="outras">Outras</option>
           </select>
         </label>
         <label class="field expense-approvals-filter-field">
@@ -1415,6 +1416,7 @@
                 <option value="alimentacao">Alimentacao</option>
                 <option value="trajeto">Trajeto</option>
                 <option value="estadia">Estadia</option>
+                <option value="outras">Outras</option>
               </select>
             </label>
             <label class="field" style="grid-column: span 4;">
@@ -2354,70 +2356,107 @@
 <!-- MODAL: DETALHES DO PROJETO -->
 <div class="modal" hidden id="modalProjectDetail">
   <div class="modal-backdrop" data-close="true"></div>
-  <div class="modal-card">
-    <div class="modal-header">
+  <div class="modal-card modal-xl">
+    <div class="modal-header project-modal-head">
       <div>
-        <h2 id="projectDetailTitle">Projeto</h2>
-        <div style="margin-top:8px;" id="projectDetailStatus"></div>
+        <h2>Visualizar Projeto</h2>
+        <p class="muted">Consulte as informa&ccedil;&otilde;es do projeto sem alterar os dados cadastrados.</p>
       </div>
-      <button class="btn ghost" id="btnCloseProjectDetail">X</button>
+      <div class="project-detail-head-actions">
+        <div id="projectDetailStatus"></div>
+        <button class="btn ghost" id="btnCloseProjectDetail" type="button">&times;</button>
+      </div>
     </div>
     <div class="modal-body">
-      <div class="panel subtle" style="margin-bottom:12px; padding:14px;">
-        <h4 style="margin:0 0 8px 0;">Descricao</h4>
-        <p style="margin:0;" id="projectDetailDescription">-</p>
+      <div class="grid-2">
+        <div class="form-section span-12">
+          <h3 class="project-section-title">Informa&ccedil;&otilde;es do Projeto</h3>
+          <div class="grid-2">
+            <div class="field span-12">
+              <span>Nome do projeto</span>
+              <div class="project-readonly-value" id="projectDetailTitle">Projeto</div>
+            </div>
+            <div class="field span-12">
+              <span>Descri&ccedil;&atilde;o</span>
+              <div class="project-readonly-value project-readonly-text" id="projectDetailDescription">-</div>
+            </div>
+            <div class="field span-12">
+              <span>Contrato (PDF)</span>
+              <div class="project-contract-row is-readonly">
+                <div class="project-contract-file" id="projectDetailContract">-</div>
+              </div>
+            </div>
+            <div class="field span-6">
+              <span>Cliente</span>
+              <div class="project-readonly-value" id="projectDetailClient">-</div>
+            </div>
+            <div class="field span-6">
+              <span>Equipe</span>
+              <div class="project-readonly-value" id="projectDetailTeam">-</div>
+            </div>
+          </div>
+        </div>
+        <div class="form-section span-12">
+          <h3 class="project-section-title">Respons&aacute;veis</h3>
+          <div class="grid-2">
+            <div class="field span-6">
+              <span>Gestor do projeto (GP)</span>
+              <div class="project-readonly-value" id="projectDetailManager">-</div>
+            </div>
+            <div class="field span-6">
+              <span>Coordenador do projeto (CP)</span>
+              <div class="project-readonly-value" id="projectDetailCoordinator">-</div>
+            </div>
+          </div>
+        </div>
+        <div class="form-section span-12">
+          <h3 class="project-section-title">T&eacute;cnicos</h3>
+          <div class="grid-2">
+            <div class="field span-6">
+              <span>Selecionados</span>
+              <div class="project-readonly-value project-readonly-text" id="projectDetailTechs">-</div>
+            </div>
+            <div class="field span-6">
+              <span>Key users</span>
+              <div class="project-readonly-value project-readonly-text" id="projectDetailKeyUsers">-</div>
+            </div>
+          </div>
+        </div>
+        <div class="form-section span-12">
+          <h3 class="project-section-title">Planejamento</h3>
+          <div class="grid-2">
+            <div class="field span-6">
+              <span>Prioridade</span>
+              <div class="project-readonly-value project-readonly-badge" id="projectDetailPriority">-</div>
+            </div>
+            <div class="field span-3">
+              <span>In&iacute;cio</span>
+              <div class="project-readonly-value" id="projectDetailStartDate">-</div>
+            </div>
+            <div class="field span-3">
+              <span>Fim</span>
+              <div class="project-readonly-value" id="projectDetailEndDate">-</div>
+            </div>
+          </div>
+        </div>
+        <div class="form-section span-12">
+          <h3 class="project-section-title">Cobran&ccedil;a</h3>
+          <div class="grid-2">
+            <div class="field span-6">
+              <span>Valor (R$)</span>
+              <div class="project-readonly-value" id="projectDetailBillingValue">-</div>
+            </div>
+            <div class="field span-6">
+              <span>Horas</span>
+              <div class="project-readonly-value" id="projectDetailBillingHours">-</div>
+            </div>
+          </div>
+        </div>
       </div>
-      <div class="grid" style="grid-template-columns: repeat(2, 1fr); gap:12px;">
-        <div class="field">
-          <span>Cliente</span>
-          <div style="padding:10px; background:rgba(255,255,255,.7); border:1px solid var(--border); border-radius:14px;" id="projectDetailClient">-</div>
-        </div>
-        <div class="field">
-          <span>Equipe</span>
-          <div style="padding:10px; background:rgba(255,255,255,.7); border:1px solid var(--border); border-radius:14px;" id="projectDetailTeam">-</div>
-        </div>
-        <div class="field">
-          <span>Gestor</span>
-          <div style="padding:10px; background:rgba(255,255,255,.7); border:1px solid var(--border); border-radius:14px;" id="projectDetailManager">-</div>
-        </div>
-        <div class="field">
-          <span>Coordenador</span>
-          <div style="padding:10px; background:rgba(255,255,255,.7); border:1px solid var(--border); border-radius:14px;" id="projectDetailCoordinator">-</div>
-        </div>
-        <div class="field">
-          <span>Prioridade</span>
-          <div id="projectDetailPriority">-</div>
-        </div>
-        <div class="field">
-          <span>Data de inicio</span>
-          <div style="padding:10px; background:rgba(255,255,255,.7); border:1px solid var(--border); border-radius:14px;" id="projectDetailStartDate">-</div>
-        </div>
-        <div class="field">
-          <span>Data de termino</span>
-          <div style="padding:10px; background:rgba(255,255,255,.7); border:1px solid var(--border); border-radius:14px;" id="projectDetailEndDate">-</div>
-        </div>
-        <div class="field">
-          <span>Valor (R$)</span>
-          <div style="padding:10px; background:rgba(255,255,255,.7); border:1px solid var(--border); border-radius:14px;" id="projectDetailBillingValue">-</div>
-        </div>
-        <div class="field">
-          <span>Horas</span>
-          <div style="padding:10px; background:rgba(255,255,255,.7); border:1px solid var(--border); border-radius:14px;" id="projectDetailBillingHours">-</div>
-        </div>
-        <div class="field" style="grid-column: 1 / -1;">
-          <span>Tecnicos</span>
-          <div style="padding:10px; background:rgba(255,255,255,.7); border:1px solid var(--border); border-radius:14px;" id="projectDetailTechs">-</div>
-        </div>
-        <div class="field" style="grid-column: 1 / -1;">
-          <span>Key users</span>
-          <div style="padding:10px; background:rgba(255,255,255,.7); border:1px solid var(--border); border-radius:14px;" id="projectDetailKeyUsers">-</div>
-        </div>
-        <div class="field" style="grid-column: 1 / -1;">
-          <span>Contrato</span>
-          <div style="padding:10px; background:rgba(255,255,255,.7); border:1px solid var(--border); border-radius:14px;" id="projectDetailContract">-</div>
-        </div>
-      </div>
-      <div class="alert" hidden id="projectDetailAlert" style="margin-top:12px;"></div>
+      <div class="alert" hidden id="projectDetailAlert"></div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn" id="btnCancelProjectDetail" type="button">Fechar</button>
     </div>
   </div>
 </div>
@@ -2709,7 +2748,7 @@
   </div>
 </div>
 
-<script src="./app.js?v=1777057012" type="module"></script>
+<script src="./app.js?v=1777057017" type="module"></script>
 <script>
   // Toggle senha (somente UI)
   document.addEventListener("click", function(e){

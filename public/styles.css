@@ -4061,6 +4061,14 @@ body.is-superadmin #navClients{
   color: rgba(12,18,32,.95);
 }
 
+.expense-approval-client{
+  margin:2px 0 0;
+  font-size:11px;
+  font-weight:800;
+  line-height:1.25;
+  color: rgba(12,18,32,.72);
+}
+
 .expense-approval-type{
   color: var(--action-primary, rgb(119, 59, 246));
   font-weight:900;
@@ -6679,13 +6687,15 @@ body.reports-card-maximized{
 
 /* Create Project - refresh visual */
 .create-project-modal-card,
-#modalCreateProject .modal-card{
+#modalCreateProject .modal-card,
+#modalProjectDetail .modal-card{
   border-radius: 20px;
   border: 1px solid rgba(12,18,32,.08);
   box-shadow: 0 26px 60px rgba(12,18,32,.18);
 }
 
-#modalCreateProject .project-modal-head{
+#modalCreateProject .project-modal-head,
+#modalProjectDetail .project-modal-head{
   padding: 18px 20px 16px;
   border-bottom: 1px solid rgba(12,18,32,.08);
   background:
@@ -6693,22 +6703,26 @@ body.reports-card-maximized{
     linear-gradient(135deg, rgba(248,250,252,.98), rgba(255,255,255,.94));
 }
 
-#modalCreateProject .project-modal-head h2{
+#modalCreateProject .project-modal-head h2,
+#modalProjectDetail .project-modal-head h2{
   font-size: 38px;
   letter-spacing: -0.02em;
   margin: 0;
 }
 
-#modalCreateProject .modal-body{
+#modalCreateProject .modal-body,
+#modalProjectDetail .modal-body{
   padding: 16px 20px 18px;
 }
 
-#modalCreateProject .modal-footer{
+#modalCreateProject .modal-footer,
+#modalProjectDetail .modal-footer{
   padding: 14px 20px;
   border-top: 1px solid rgba(12,18,32,.08);
 }
 
-#modalCreateProject .project-section-title{
+#modalCreateProject .project-section-title,
+#modalProjectDetail .project-section-title{
   margin: 0 0 12px 0;
   font-size: 12px;
   font-weight: 800;
@@ -6717,7 +6731,8 @@ body.reports-card-maximized{
   color: rgba(119,59,246,.76);
 }
 
-#modalCreateProject .form-section{
+#modalCreateProject .form-section,
+#modalProjectDetail .form-section{
   border: 1px solid rgba(12,18,32,.06);
   border-radius: 16px;
   background: linear-gradient(180deg, rgba(255,255,255,.76), rgba(255,255,255,.64));
@@ -6740,7 +6755,8 @@ body.reports-card-maximized{
   box-shadow: 0 0 0 4px rgba(119,59,246,.12);
 }
 
-#modalCreateProject .project-contract-row{
+#modalCreateProject .project-contract-row,
+#modalProjectDetail .project-contract-row{
   display: flex;
   align-items: center;
   gap: 10px;
@@ -6757,7 +6773,8 @@ body.reports-card-maximized{
   gap: 8px;
 }
 
-#modalCreateProject .project-contract-file{
+#modalCreateProject .project-contract-file,
+#modalProjectDetail .project-contract-file{
   max-width: 320px;
   white-space: nowrap;
   overflow: hidden;
@@ -6788,8 +6805,54 @@ body.reports-card-maximized{
   transform: translateY(-1px);
 }
 
-#modalCreateProject .modal-footer .btn{
+#modalCreateProject .modal-footer .btn,
+#modalProjectDetail .modal-footer .btn{
   min-width: 128px;
+}
+
+#modalProjectDetail .project-detail-head-actions{
+  display:flex;
+  align-items:center;
+  gap:10px;
+}
+
+#modalProjectDetail .project-readonly-value{
+  min-height: 40px;
+  display:flex;
+  align-items:center;
+  padding: 10px 12px;
+  border-radius: 12px;
+  border: 1px solid rgba(12,18,32,.10);
+  background: rgba(255,255,255,.72);
+  color: rgba(12,18,32,.82);
+  font-size: 13px;
+  line-height: 1.35;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.76);
+}
+
+#modalProjectDetail .project-readonly-text{
+  align-items:flex-start;
+  min-height: 72px;
+  white-space: pre-wrap;
+}
+
+#modalProjectDetail .project-readonly-badge{
+  gap:8px;
+  flex-wrap:wrap;
+}
+
+#modalProjectDetail .project-contract-row.is-readonly{
+  min-height: 48px;
+}
+
+#modalProjectDetail .project-contract-file a{
+  color: var(--primary);
+  font-weight: 800;
+  text-decoration: none;
+}
+
+#modalProjectDetail .project-contract-file a:hover{
+  text-decoration: underline;
 }
 
 .project-tech-chip{

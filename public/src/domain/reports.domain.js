@@ -106,7 +106,8 @@ function expenseTypeLabel(type){
   const map = {
     alimentacao: "Alimentacao",
     trajeto: "Trajeto",
-    estadia: "Estadia"
+    estadia: "Estadia",
+    outras: "Outras"
   };
   return map[String(type || "").toLowerCase()] || "Despesa";
 }

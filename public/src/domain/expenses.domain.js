@@ -126,7 +126,8 @@ function expenseTypeLabel(type) {
   const map = {
     alimentacao: "Alimentacao",
     trajeto: "Trajeto",
-    estadia: "Estadia"
+    estadia: "Estadia",
+    outras: "Outras"
   };
   return map[String(type || "").toLowerCase()] || "Despesa";
 }
@@ -166,6 +167,7 @@ function buildExpenseSearchText(item) {
   const charge = getExpenseChargeState(item);
   return normalizeText([
     item.projectName,
+    item.clientName,
     item.taskName,
     item.activityName,
     item.techName,
@@ -295,6 +297,8 @@ async function createExpenseRecord(input, deps) {
     companyId: state.companyId,
     projectId: String(input.projectId || "").trim(),
     projectName: input.projectName || "Projeto",
+    clientId: String(input.clientId || "").trim(),
+    clientName: input.clientName || "",
     taskId: String(input.taskId || "").trim(),
     taskName: input.taskName || "",
     activityId: String(input.activityId || "").trim(),
@@ -641,6 +645,8 @@ async function saveExpenseForm(deps) {
       companyId: state.companyId,
       projectId,
       projectName: project.name || _expenseFormContext.projectName || "Projeto",
+      clientId: project.clientId || _expenseFormContext.clientId || "",
+      clientName: project.clientName || project.client?.name || _expenseFormContext.clientName || "",
       taskId: taskId || "",
       taskName: task.name || _expenseFormContext.taskName || "",
       activityId: activityId || "",
@@ -880,6 +886,7 @@ function renderExpenseList(refs, items, deps) {
         <div class="expense-approval-title">
           <div class="expense-approval-kicker">${escapeHtml(item.projectName || "Projeto")}</div>
           <h3><span class="expense-approval-type">${escapeHtml(item.typeLabel)}</span> <span>| ${escapeHtml(item.techName || "Usuario")}</span></h3>
+          ${item.clientName ? `<p class="expense-approval-client">Cliente: ${escapeHtml(item.clientName)}</p>` : ""}
           <p class="muted">${escapeHtml(item.taskName || "Sem tarefa")} ${item.activityName ? `| ${escapeHtml(item.activityName)}` : "| Despesa avulsa"}</p>
         </div>
         <div class="expense-approval-actions">
@@ -1018,6 +1025,7 @@ export function addActivityExpenseDraft(refs) {
         <option value="alimentacao">Alimentacao</option>
         <option value="trajeto">Trajeto</option>
         <option value="estadia">Estadia</option>
+        <option value="outras">Outras</option>
       </select>
     </label>
     <label class="field">
@@ -1062,6 +1070,8 @@ export async function saveActivityExpenseDrafts(activityContext, deps, drafts = 
       source: "activity",
       projectId: activityContext?.projectId || "",
       projectName: activityContext?.projectName || "",
+      clientId: activityContext?.clientId || "",
+      clientName: activityContext?.clientName || "",
       taskId: activityContext?.taskId || "",
       taskName: activityContext?.taskName || "",
       activityId: activityContext?.activity?.id || "",
@@ -1183,6 +1193,8 @@ export async function openActivityExpenseModal(activityContext, deps) {
     source: "activity",
     projectId: activityContext?.projectId || "",
     projectName: activityContext?.projectName || "",
+    clientId: activityContext?.clientId || "",
+    clientName: activityContext?.clientName || "",
     taskId: activityContext?.taskId || "",
     taskName: activityContext?.taskName || "",
     activityId: activityContext?.activity?.id || "",
@@ -1261,26 +1273,36 @@ export async function loadExpenseApprovals(deps) {
         })
       : getDocs(query(collection(db, `companies/${companyId}/expenses`), where("createdBy", "==", currentUid)));
 
-  const [expensesSnap, usersSnap] = await Promise.all([
+  const projectsPromise = getDocs(collection(db, `companies/${companyId}/projects`));
+
+  const [expensesSnap, usersSnap, projectsSnap] = await Promise.all([
     expensesPromise,
-    usersPromise
+    usersPromise,
+    projectsPromise
   ]);
 
   const users = usersSnap.docs.map((docSnap) => ({ uid: docSnap.id, id: docSnap.id, ...docSnap.data() }));
+  const projectsById = new Map(projectsSnap.docs.map((docSnap) => [docSnap.id, { id: docSnap.id, ...docSnap.data() }]));
   state._usersCache = users;
 
   _expenseItemsCache = expensesSnap.docs.map((docSnap) => ({ id: docSnap.id, ...docSnap.data() }))
     .filter((item) => canViewExpenseForRole(item, role, currentUid, users))
-    .map((item) => ({
-      ...item,
-      status: String(item.status || "pending").toLowerCase(),
-      statusLabel: expenseStatusLabel(item.status),
-      typeLabel: expenseTypeLabel(item.type),
-      amountLabel: formatCurrencyBRL(item.amount || 0),
-      workDateLabel: item.workDate ? formatDateLabel(item.workDate) : "Sem data",
-      approvedAtLabel: formatDateTimeLabel(item.approvedAt),
-      rejectedAtLabel: formatDateTimeLabel(item.rejectedAt)
-    }))
+    .map((item) => {
+      const project = projectsById.get(item.projectId) || null;
+      return {
+        ...item,
+        projectName: item.projectName || project?.name || "Projeto",
+        clientId: item.clientId || project?.clientId || "",
+        clientName: item.clientName || project?.clientName || project?.client?.name || "",
+        status: String(item.status || "pending").toLowerCase(),
+        statusLabel: expenseStatusLabel(item.status),
+        typeLabel: expenseTypeLabel(item.type),
+        amountLabel: formatCurrencyBRL(item.amount || 0),
+        workDateLabel: item.workDate ? formatDateLabel(item.workDate) : "Sem data",
+        approvedAtLabel: formatDateTimeLabel(item.approvedAt),
+        rejectedAtLabel: formatDateTimeLabel(item.rejectedAt)
+      };
+    })
     .sort((a, b) => {
       const aTime = a.createdAt?.toMillis ? a.createdAt.toMillis() : 0;
       const bTime = b.createdAt?.toMillis ? b.createdAt.toMillis() : 0;

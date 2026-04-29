@@ -11,7 +11,7 @@ import {
 import { clearAlert, setAlert } from "../ui/alerts.js";
 import { escapeHtml, hide, show } from "../utils/dom.js";
 import { createNotifications } from "../services/notifications.service.js?v=1776052722";
-import * as expensesDomain from "./expenses.domain.js?v=1777057012";
+import * as expensesDomain from "./expenses.domain.js?v=1777057015";
 
 let _bound = false;
 let _currentActivity = null;

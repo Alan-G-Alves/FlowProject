@@ -42,7 +42,7 @@ import { isEmailValidBasic, isCnpjValidBasic } from "./src/utils/validators.js";
 import { fetchPlatformUser, fetchCompanyIdForUser, fetchCompanyUserProfile } from "./src/services/firestore.service.js";
 import { auth, secondaryAuth, db, storage, functions, httpsCallable } from "./src/config/firebase.js";
 import { normalizePhone, normalizeCnpj, slugify } from "./src/utils/format.js";
-import { setAlert, clearAlert, clearInlineAlert, showInlineAlert } from "./src/ui/alerts.js";
+import { setAlert, clearAlert, clearInlineAlert, showInlineAlert, showDialogAlert } from "./src/ui/alerts.js";
 import { getCompanyDoc, listCompaniesDocs } from "./src/services/companies.service.js";
 import { createNotification } from "./src/services/notifications.service.js?v=1776052722";
 import * as refs from "./src/ui/refs.js?v=1777057012";
@@ -55,9 +55,9 @@ import * as projectsDomain from "./src/domain/projects.domain.js?v=1772626200";
 import * as myActivitiesDomain from "./src/domain/my-activities.domain.js?v=1777057008";
 import * as myFeedbacksDomain from "./src/domain/my-feedbacks.domain.js?v=1776040900";
 import * as osApprovalsDomain from "./src/domain/os-approvals.domain.js?v=1776052722";
-import * as expensesDomain from "./src/domain/expenses.domain.js?v=1777057012";
+import * as expensesDomain from "./src/domain/expenses.domain.js?v=1777057015";
 import * as projectWorkspaceDomain from "./src/domain/project-workspace.domain.js?v=1777057001";
-import * as reportsDomain from "./src/domain/reports.domain.js?v=1776052700";
+import * as reportsDomain from "./src/domain/reports.domain.js?v=1777057015";
 import * as profileModal from "./src/ui/modals/profile.modal.js?v=1770332251";
 import * as topbar from "./src/ui/topbar.js?v=1770332251";
 import * as sidebar from "./src/ui/sidebar.js?v=1770332251";
@@ -791,6 +791,91 @@ function formatNotificationTime(value){
   });
 }
 
+function monthKeyLocal(date = new Date()){
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
+}
+
+function monthNamePtBr(date){
+  return date.toLocaleDateString("pt-BR", { month: "long", year: "numeric" });
+}
+
+function parseBirthDateParts(value){
+  const raw = String(value || "").slice(0, 10);
+  const match = raw.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (!match) return null;
+  const month = Number(match[2]);
+  const day = Number(match[3]);
+  if (!month || !day || month < 1 || month > 12 || day < 1 || day > 31) return null;
+  return { month, day };
+}
+
+function getMonthBirthdays(users, date = new Date(), today = new Date()){
+  const month = date.getMonth() + 1;
+  const isCurrentMonth = date.getFullYear() === today.getFullYear() && date.getMonth() === today.getMonth();
+  return (Array.isArray(users) ? users : [])
+    .map((user) => {
+      const birth = parseBirthDateParts(user.birthDate);
+      if (!birth || birth.month !== month) return null;
+      const name = String(user.name || user.displayName || user.email || "Usuario").trim();
+      return {
+        uid: user.uid || user.id || "",
+        name,
+        role: String(user.role || "").trim(),
+        day: birth.day,
+        isToday: isCurrentMonth && birth.day === today.getDate()
+      };
+    })
+    .filter((item) => item && item.name)
+    .sort((a, b) => a.day - b.day || a.name.localeCompare(b.name));
+}
+
+function formatBirthdaySummary(items){
+  const names = items.slice(0, 3).map((item) => item.name).join(", ");
+  const remaining = Math.max(0, items.length - 3);
+  return remaining
+    ? `${items.length} aniversariantes neste mes: ${names} e mais ${remaining}.`
+    : `${items.length} aniversariante(s) neste mes: ${names}.`;
+}
+
+async function showMonthlyBirthdaysDialog(notification = {}){
+  if (!state.companyId) return;
+  const key = String(notification.entityId || monthKeyLocal()).trim();
+  const match = key.match(/^(\d{4})-(\d{2})$/);
+  const date = match
+    ? new Date(Number(match[1]), Number(match[2]) - 1, 1)
+    : new Date();
+
+  try {
+    const usersSnap = await getDocs(collection(db, "companies", state.companyId, "users"));
+    const users = usersSnap.docs
+      .map((docSnap) => ({ uid: docSnap.id, id: docSnap.id, ...docSnap.data() }))
+      .filter((user) => user.active !== false);
+    const birthdays = getMonthBirthdays(users, date);
+    const message = birthdays.length
+      ? birthdays
+          .map((item) => {
+            const day = String(item.day).padStart(2, "0");
+            const role = item.role ? ` (${humanizeRole(item.role)})` : "";
+            const today = item.isToday ? " - hoje" : "";
+            return `${day}/${String(date.getMonth() + 1).padStart(2, "0")}: ${item.name}${role}${today}`;
+          })
+          .join("; ")
+      : "Nenhum aniversariante encontrado para este mes.";
+
+    await showDialogAlert(message, {
+      title: `Aniversariantes de ${monthNamePtBr(date)}`,
+      type: "info",
+      confirmLabel: "Fechar"
+    });
+  } catch (err) {
+    console.warn("[notifications:birthdays-dialog]", err);
+    await showDialogAlert("Nao foi possivel carregar os aniversariantes agora.", {
+      title: "Aniversariantes",
+      type: "error"
+    });
+  }
+}
+
 function renderNotifications(items = state._notificationsCache || []){
   if (!refs.notificationCount || !refs.notificationsList) return;
 
@@ -839,6 +924,10 @@ function openNotificationTarget(notification){
   refs.notificationsPanel?.classList.remove("open");
   refs.btnNotifications?.setAttribute("aria-expanded", "false");
 
+  if (type === "monthly_birthdays") {
+    showMonthlyBirthdaysDialog(notification);
+    return;
+  }
   if (type === "os_submitted") {
     openOsApprovalsView();
     return;
@@ -992,6 +1081,46 @@ async function createDailyTechnicalNotifications(){
     }
   } catch (err) {
     console.warn("[notifications:daily-tech]", err);
+  }
+}
+
+async function createMonthlyBirthdayNotification(){
+  const uid = auth.currentUser?.uid || "";
+  if (!state.companyId || !uid || state.isSuperAdmin) return;
+
+  const now = new Date();
+  const monthKey = monthKeyLocal(now);
+
+  try {
+    const [usersSnap, notificationsSnap] = await Promise.all([
+      getDocs(collection(db, "companies", state.companyId, "users")),
+      getDocs(query(
+        collection(db, "companies", state.companyId, "notifications"),
+        where("recipientUid", "==", uid)
+      ))
+    ]);
+
+    const users = usersSnap.docs
+      .map((docSnap) => ({ uid: docSnap.id, id: docSnap.id, ...docSnap.data() }))
+      .filter((user) => user.active !== false);
+    const birthdays = getMonthBirthdays(users, now);
+    if (!birthdays.length) return;
+
+    const alreadyCreated = notificationsSnap.docs
+      .map((docSnap) => docSnap.data() || {})
+      .some((item) => item.type === "monthly_birthdays" && item.entityId === monthKey);
+    if (alreadyCreated) return;
+
+    await createNotification(db, state.companyId, uid, {
+      type: "monthly_birthdays",
+      title: "Aniversariantes do mes",
+      message: formatBirthdaySummary(birthdays),
+      entityType: "birthday-summary",
+      entityId: monthKey,
+      createdBy: "system"
+    });
+  } catch (err) {
+    console.warn("[notifications:birthdays]", err);
   }
 }
 
@@ -2593,6 +2722,7 @@ onAuthStateChanged(auth, async (user) => {
     syncSidebarForRole();
     renderTopbar(profile, user);
     startNotificationsListener();
+    createMonthlyBirthdayNotification();
     createDailyTechnicalNotifications();
     renderDashboardCards(profile);
     setView("dashboard");
@@ -3059,6 +3189,7 @@ refs.modalCreateProject?.addEventListener("click", (e) => {
 
 // Modal detalhes do projeto
 refs.btnCloseProjectDetail?.addEventListener("click", () => closeProjectDetailModal());
+refs.btnCancelProjectDetail?.addEventListener("click", () => closeProjectDetailModal());
 refs.modalProjectDetail?.addEventListener("click", (e) => {
   if (e.target?.dataset?.close === "true") closeProjectDetailModal();
 });

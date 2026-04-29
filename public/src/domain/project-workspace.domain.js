@@ -14,7 +14,7 @@ import {
 import { setAlert, clearAlert } from "../ui/alerts.js";
 import { escapeHtml } from "../utils/dom.js";
 import { ensureClientsCache } from "./clients.domain.js";
-import { computeProjectExpenseSummary } from "./expenses.domain.js?v=1777057001";
+import { computeProjectExpenseSummary } from "./expenses.domain.js?v=1777057015";
 import { createNotifications } from "../services/notifications.service.js?v=1776052722";
 import { downloadProjectStatusReportExcel, downloadProjectStatusReportPdf } from "./project-status-report.domain.js?v=1776052718";
 
