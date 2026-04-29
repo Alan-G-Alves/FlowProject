@@ -399,7 +399,7 @@ function syncSidebarForRole(){
   const hideTechMenu = isSuperAdmin || currentRole === "tecnico";
   const hideClientsMenu = isSuperAdmin || currentRole === "tecnico";
   const hideFeedbacksMenu = isSuperAdmin;
-  const hideExpensesMenu = isSuperAdmin || !["admin", "gestor", "coordenador", "tecnico"].includes(currentRole);
+  const hideExpensesMenu = isSuperAdmin || !["admin", "gestor", "coordenador"].includes(currentRole);
   const sidebarSep = document.querySelector(".sidebar-nav .sidebar-sep");
 
   document.body.classList.toggle("is-superadmin", isSuperAdmin);
@@ -416,6 +416,11 @@ function syncSidebarForRole(){
   if (isSuperAdmin) {
     setActiveNav("navHome");
   }
+}
+
+function canOpenExpensesMenu(){
+  const currentRole = String(state.profile?.role || "").toLowerCase();
+  return !state.isSuperAdmin && ["admin", "gestor", "coordenador"].includes(currentRole);
 }
 
 function roleLabel(){
@@ -629,6 +634,7 @@ function initSidebar(){
     openMyFeedbacksView();
   });
   refs.navExpenses?.addEventListener("click", () => {
+    if (!canOpenExpensesMenu()) return;
     setActiveNav("navExpenses");
     openExpenseApprovalsView();
   });
@@ -2824,6 +2830,7 @@ refs.settingsGrid?.addEventListener("click", async (event) => {
   }
   if (action === "osApprovals") return openOsApprovalsView();
   if (action === "expenses") {
+    if (!canOpenExpensesMenu()) return;
     setActiveNav("navExpenses");
     return openExpenseApprovalsView();
   }
