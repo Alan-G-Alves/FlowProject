@@ -1,6 +1,7 @@
 import {
   collection,
   doc,
+  getDoc,
   getDocs,
   query,
   serverTimestamp,
@@ -11,7 +12,7 @@ import {
 import { clearAlert, setAlert } from "../ui/alerts.js";
 import { escapeHtml, hide, show } from "../utils/dom.js";
 import { createNotifications } from "../services/notifications.service.js?v=1776052722";
-import * as expensesDomain from "./expenses.domain.js?v=1777953000";
+import * as expensesDomain from "./expenses.domain.js?v=1777953600";
 
 let _bound = false;
 let _currentActivity = null;
@@ -483,6 +484,15 @@ async function saveMyActivityModal(deps) {
 
   clearAlert(refs.myActivityModalAlert);
 
+  if (state.companyId) {
+    try {
+      const companySnap = await getDoc(doc(db, "companies", state.companyId));
+      if (companySnap.exists()) state.company = { id: companySnap.id, ...companySnap.data() };
+    } catch (err) {
+      console.warn("[my-activities:company-settings]", err);
+    }
+  }
+
   const start = refs.myActivityStartTime?.value || "";
   const end = refs.myActivityEndTime?.value || "";
   const breakTime = refs.myActivityBreakTime?.value || "01:00";
@@ -512,7 +522,7 @@ async function saveMyActivityModal(deps) {
 
   let expenseDrafts = [];
   try {
-    expenseDrafts = expensesDomain.validateActivityExpenseDrafts(refs);
+    expenseDrafts = expensesDomain.validateActivityExpenseDrafts(refs, state);
   } catch (err) {
     setMyActivityModalError(refs, err?.message || "Revise as despesas adicionadas.");
     return;

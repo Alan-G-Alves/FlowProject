@@ -1078,7 +1078,8 @@ export function removeActivityExpenseDraft(refs, draftId) {
   if (!hasRows) resetActivityExpenseDrafts(refs);
 }
 
-export function validateActivityExpenseDrafts(refs) {
+export function validateActivityExpenseDrafts(refs, state = null) {
+  _currentState = state || _currentState;
   return collectActivityExpenseDrafts(refs, { validate: true });
 }
 
