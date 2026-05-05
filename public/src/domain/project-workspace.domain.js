@@ -17,6 +17,7 @@ import { ensureClientsCache } from "./clients.domain.js";
 import { computeProjectExpenseSummary } from "./expenses.domain.js?v=1777057015";
 import { createNotifications } from "../services/notifications.service.js?v=1776052722";
 import { downloadProjectStatusReportExcel, downloadProjectStatusReportPdf } from "./project-status-report.domain.js?v=1776052718";
+import { openMyActivityModalForItem } from "./my-activities.domain.js?v=1777948800";
 
 let _bound = false;
 let _activeProjectId = "";
@@ -779,6 +780,7 @@ function isInsideProjectTaskActionArea(target, refs){
   if (target.closest?.("[data-open-activity-form]")) return true;
   if (target.closest?.("[data-cancel-activity-form]")) return true;
   if (target.closest?.("[data-save-activity]")) return true;
+  if (target.closest?.("[data-point-my-activity]")) return true;
   if (target.closest?.("[data-save-tech-fill]")) return true;
   if (target.closest?.("[data-activity-tech-select]")) return true;
   if (target.closest?.("[data-activity-keyuser-select]")) return true;
@@ -869,6 +871,26 @@ function openActivityActionModal(activityId, mode){
   if (modalRefs.btnCancel) modalRefs.btnCancel.textContent = mode === "edit" ? "Cancelar" : "Fechar";
 
   if (modalRefs.modal) modalRefs.modal.hidden = false;
+}
+
+function openWorkspaceTechActivityModal(activityId, deps){
+  const activity = _activities.find((item) => item.id === activityId);
+  if (!activity) return;
+  const task = _tasks.find((item) => item.id === activity.taskId) || null;
+  openMyActivityModalForItem({
+    activity,
+    projectId: activity.projectId || _activeProject?.id || _activeProjectId || "",
+    projectName: _activeProject?.name || activity.projectName || "Projeto sem nome",
+    managerUid: _activeProject?.managerUid || activity.managerUid || "",
+    coordinatorUid: _activeProject?.coordinatorUid || activity.coordinatorUid || "",
+    clientName: _activeProject?.clientName || _activeProject?.client?.name || activity.clientName || "",
+    taskId: activity.taskId || task?.id || "",
+    taskName: task?.name || activity.taskName || "Tarefa sem nome"
+  }, "edit", deps, {
+    afterSave: async () => {
+      await refreshWorkspace(deps);
+    }
+  });
 }
 
 async function saveActivityModalChanges(deps){
@@ -1162,6 +1184,12 @@ function bindOnce(deps){
     const viewActivityBtn = ev.target?.closest?.("[data-view-activity]");
     if (viewActivityBtn){
       openActivityActionModal(viewActivityBtn.getAttribute("data-view-activity"), "view");
+      return;
+    }
+
+    const pointMyActivityBtn = ev.target?.closest?.("[data-point-my-activity]");
+    if (pointMyActivityBtn){
+      openWorkspaceTechActivityModal(pointMyActivityBtn.getAttribute("data-point-my-activity"), deps);
       return;
     }
 
@@ -1654,10 +1682,10 @@ function renderTasks(deps){
         .map((techGroup, techIdx) => {
         const techGroupHours = techGroup.activities.reduce((acc, a) => acc + asNumber(a.hoursWorked), 0);
         const activityCards = techGroup.activities.map(a => {
-      const canTechFill = isUserTech
+      const canTechPointFromProject = isUserTech
         && Array.isArray(a.techUids)
         && a.techUids.includes(deps?.auth?.currentUser?.uid || "")
-        && ["admin","gestor","coordenador"].includes((a.createdByRole || "").toLowerCase());
+        && canTechSeeProjectField(state, "allowProjectWorkspaceActivityPointing");
       const canManageActivity = canManageTasks(state);
       const canApproveActivity = canManageTasks(state) && (getActivityStatusValue(a) === "os_gerada" || getActivityStatusValue(a) === "os_aprovada");
       const assignedTechs = Array.isArray(a.techNames) && a.techNames.length ? a.techNames.join(", ") : "Sem tecnico";
@@ -1675,11 +1703,11 @@ function renderTasks(deps){
             </div>
             <div class="activity-head-actions">
               <span class="activity-status ${isOverdue ? "orange" : (isApproved ? "green" : (isCompletedStatus(a) ? "amber" : "red"))}">${isOverdue ? "Atrasada" : (isApproved ? "OS Aprovada" : (getActivityStatusValue(a) === "os_gerada" ? "OS Enviada" : "Sem Ordem de Servico"))}</span>
-              ${canManageActivity ? `
+              ${(canManageActivity || canTechPointFromProject) ? `
                 <div class="activity-action-bar">
-                  <button class="icon-btn xs activity-action activity-action-view" data-view-activity="${escapeHtml(a.id)}" type="button" title="Visualizar atividade" aria-label="Visualizar atividade">
+                  ${canManageActivity ? `<button class="icon-btn xs activity-action activity-action-view" data-view-activity="${escapeHtml(a.id)}" type="button" title="Visualizar atividade" aria-label="Visualizar atividade">
                     <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M1.5 12s3.8-6.5 10.5-6.5S22.5 12 22.5 12 18.7 18.5 12 18.5 1.5 12 1.5 12Z" stroke="currentColor" stroke-width="1.8"/><circle cx="12" cy="12" r="3.2" stroke="currentColor" stroke-width="1.8"/></svg>
-                  </button>
+                  </button>` : ""}
                   ${canApproveActivity ? `
                     <button class="icon-btn xs activity-action ${isApproved ? "activity-action-revert" : "activity-action-approve"}" data-approve-activity="${escapeHtml(a.id)}" data-approve-next-status="${escapeHtml(approvalNextStatus)}" type="button" title="${escapeHtml(approvalTitle)}" aria-label="${escapeHtml(approvalTitle)}">
                       <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
@@ -1689,12 +1717,15 @@ function renderTasks(deps){
                       </svg>
                     </button>
                   ` : ""}
-                  <button class="icon-btn xs activity-action activity-action-edit" data-edit-activity="${escapeHtml(a.id)}" type="button" title="Editar atividade" aria-label="Editar atividade">
+                  ${canManageActivity ? `<button class="icon-btn xs activity-action activity-action-edit" data-edit-activity="${escapeHtml(a.id)}" type="button" title="Editar atividade" aria-label="Editar atividade">
                     <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 20h4l10-10-4-4L4 16v4Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><path d="m12 6 4 4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
-                  </button>
-                  <button class="icon-btn xs activity-action activity-action-delete" data-delete-activity="${escapeHtml(a.id)}" type="button" title="Excluir atividade" aria-label="Excluir atividade">
+                  </button>` : ""}
+                  ${canTechPointFromProject ? `<button class="icon-btn xs activity-action activity-action-edit" data-point-my-activity="${escapeHtml(a.id)}" type="button" title="Apontar atividade" aria-label="Apontar atividade">
+                    <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 20h4l10-10-4-4L4 16v4Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><path d="m12 6 4 4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+                  </button>` : ""}
+                  ${canManageActivity ? `<button class="icon-btn xs activity-action activity-action-delete" data-delete-activity="${escapeHtml(a.id)}" type="button" title="Excluir atividade" aria-label="Excluir atividade">
                     <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 7h16" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><path d="M10 11v6M14 11v6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><path d="M6 7l1 12a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2l1-12" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><path d="M9 7V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v3" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
-                  </button>
+                  </button>` : ""}
                 </div>
               ` : ""}
             </div>
@@ -1704,14 +1735,6 @@ function renderTasks(deps){
             <span class="activity-tag">Key users: ${escapeHtml(Array.isArray(a.keyUsers) && a.keyUsers.length ? a.keyUsers.join(", ") : "-")}</span>
             ${isOverdue ? `<span class="activity-tag activity-tag--warn">Acao necessaria</span>` : ""}
           </div>
-          ${canTechFill ? `
-            <div class="activity-tech-fill">
-              <input type="time" id="actStart-${escapeHtml(a.id)}" />
-              <input type="time" id="actEnd-${escapeHtml(a.id)}" />
-              <textarea id="actObs-${escapeHtml(a.id)}" rows="2" placeholder="Observacao do tecnico (minimo 50 caracteres)">${escapeHtml(a.note || "")}</textarea>
-              <button class="btn primary sm" data-save-tech-fill="${escapeHtml(a.id)}" type="button">Salvar preenchimento</button>
-            </div>
-          ` : ""}
         </div>
       `;
       }).join("");

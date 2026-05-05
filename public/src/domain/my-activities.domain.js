@@ -19,6 +19,7 @@ let _currentModalMode = "view";
 let _myActivitiesCache = [];
 let _myActivitiesAllCache = [];
 let _myActivitiesStatusFilter = "all";
+let _afterModalSave = null;
 
 function getActivityStatusValue(activity) {
   return String(activity?.status || "").toLowerCase();
@@ -373,6 +374,7 @@ function renderMyActivitiesList(refs, items) {
 function closeMyActivityModal() {
   _currentActivity = null;
   _currentModalMode = "view";
+  _afterModalSave = null;
   const modal = document.getElementById("modalMyActivity");
   if (modal) modal.hidden = true;
   const totalEl = document.getElementById("myActivityExpenseTotal");
@@ -387,13 +389,13 @@ function closeMyActivityModal() {
   });
 }
 
-function openMyActivityModal(activityId, mode, deps) {
+function openMyActivityModalItem(item, mode, deps, options = {}) {
   const { refs } = deps;
-  const item = _myActivitiesCache.find((entry) => entry.activity.id === activityId);
   if (!item || !refs.modalMyActivity) return;
 
   _currentActivity = item;
   _currentModalMode = mode === "edit" ? "edit" : "view";
+  _afterModalSave = typeof options.afterSave === "function" ? options.afterSave : null;
   clearAlert(refs.myActivityModalAlert);
 
   const readOnly = _currentModalMode !== "edit" || isApproved(item.activity);
@@ -447,6 +449,16 @@ function openMyActivityModal(activityId, mode, deps) {
       refs.myActivityExpensesList.innerHTML = '<div class="my-activity-expenses-empty">Nao foi possivel carregar as despesas desta atividade.</div>';
     }
   });
+}
+
+function openMyActivityModal(activityId, mode, deps) {
+  const item = _myActivitiesCache.find((entry) => entry.activity.id === activityId);
+  openMyActivityModalItem(item, mode, deps);
+}
+
+export function openMyActivityModalForItem(item, mode, deps, options = {}) {
+  bindEvents(deps);
+  openMyActivityModalItem(item, mode, deps, options);
 }
 
 async function saveMyActivityModal(deps) {
@@ -528,8 +540,13 @@ async function saveMyActivityModal(deps) {
       createdByEmail: auth?.currentUser?.email || ""
     }).catch((err) => console.warn("[notifications:os-submitted]", err));
 
+    const afterSave = _afterModalSave;
     closeMyActivityModal();
-    await loadMyActivities(deps);
+    if (afterSave) {
+      await afterSave();
+    } else {
+      await loadMyActivities(deps);
+    }
   } catch (err) {
     console.error(err);
     setMyActivityModalError(refs, err?.message || "Nao foi possivel salvar o apontamento. Tente novamente.");

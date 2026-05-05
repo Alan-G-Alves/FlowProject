@@ -60,11 +60,11 @@ import * as usersDomain from "./src/domain/users.domain.js?v=1777055918";
 import * as managerUsersDomain from "./src/domain/manager-users.domain.js?v=1777055918";
 import * as clientsDomain from "./src/domain/clients.domain.js?v=1776052720";
 import * as projectsDomain from "./src/domain/projects.domain.js?v=1777945200";
-import * as myActivitiesDomain from "./src/domain/my-activities.domain.js?v=1777057008";
+import * as myActivitiesDomain from "./src/domain/my-activities.domain.js?v=1777948800";
 import * as myFeedbacksDomain from "./src/domain/my-feedbacks.domain.js?v=1776040900";
 import * as osApprovalsDomain from "./src/domain/os-approvals.domain.js?v=1776052722";
 import * as expensesDomain from "./src/domain/expenses.domain.js?v=1777057015";
-import * as projectWorkspaceDomain from "./src/domain/project-workspace.domain.js?v=1777945200";
+import * as projectWorkspaceDomain from "./src/domain/project-workspace.domain.js?v=1777948800";
 import * as reportsDomain from "./src/domain/reports.domain.js?v=1777057015";
 import * as lgpdDomain from "./src/domain/lgpd.domain.js?v=1777475100";
 import * as profileModal from "./src/ui/modals/profile.modal.js?v=1770332251";
@@ -254,7 +254,8 @@ const PROJECT_TECH_PERMISSION_ITEMS = [
   { key: "showClientHourlyRate", label: "Valor hora cliente", note: "Valor medio por hora cobrada do cliente." },
   { key: "showEstimatedMargin", label: "Margem estimada", note: "Margem calculada a partir de valor, custos e despesas." },
   { key: "showExpensesSummary", label: "Resumo de despesas", note: "Totais e pendencias de despesas do projeto." },
-  { key: "allowStatusReport", label: "Extrair status report", note: "Libera botoes de PDF e Excel na capa do projeto." }
+  { key: "allowStatusReport", label: "Extrair status report", note: "Libera botoes de PDF e Excel na capa do projeto." },
+  { key: "allowProjectWorkspaceActivityPointing", label: "Apontar atividade pelo projeto", note: "Libera o icone de editar no workspace do projeto para abrir o modal Apontar atividade." }
 ];
 
 function getDefaultProjectTechPermissions(){

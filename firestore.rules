@@ -503,6 +503,7 @@ allow delete: if false;
         function expenseFieldsAllowed() {
           return request.resource.data.keys().hasOnly([
             "projectId","projectName",
+            "clientId","clientName",
             "taskId","taskName",
             "activityId","activityName","workDate",
             "type","observation","amount",
@@ -528,7 +529,7 @@ allow delete: if false;
         }
 
         function expenseTypeValid() {
-          return request.resource.data.type in ["alimentacao","trajeto","estadia"];
+          return request.resource.data.type in ["alimentacao","trajeto","estadia","outras"];
         }
 
         function expenseStatusValid() {
