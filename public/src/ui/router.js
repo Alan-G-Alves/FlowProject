@@ -1,6 +1,5 @@
-// FlowProject - Router (Hash Routes) para SPA sem framework
-// Mantém o app em 1 página (index.html), alternando views por id via setView().
-// Rotas no formato: #/login, #/dashboard, #/admin, #/companies, #/manager-users
+// FlowProject - Router para SPA sem framework.
+// Mantem o app em 1 pagina (index.html), alternando views por id via setView().
 
 import { show, hide } from "../utils/dom.js";
 import { unsubscribeMyProjects } from "../domain/projects.domain.js";
@@ -42,7 +41,6 @@ export function setView(name){
   const viewExpenseApprovals = el(ids.viewExpenseApprovals);
   const viewProjects = el(ids.viewProjects);
 
-  // 🔥 Cleanup: ao sair do Kanban realtime, cancela o onSnapshot
   const wasInMyProjects = !!viewMyProjects && !viewMyProjects.hidden;
   if (wasInMyProjects && name !== "myProjects") {
     try {
@@ -91,44 +89,88 @@ export function setView(name){
   if (name === "projects") show(viewProjects);
 }
 
-// =========================
-// Hash Router helpers
-// =========================
 export const ROUTES = Object.freeze({
-  login: "#/login",
-  dashboard: "#/dashboard",
-  admin: "#/admin",
-  companies: "#/companies",
-  managerUsers: "#/manager-users",
+  login: "/login",
+  dashboard: "/dashboard",
+  admin: "/administracao",
+  companies: "/empresas",
+  managerUsers: "/tecnicos",
+  clients: "/clientes",
+  reports: "/relatorios",
+  expenses: "/despesas",
+  feedbacks: "/feedbacks",
+  projects: "/projetos",
+  myProjects: "/meus-projetos",
+  myActivities: "/minhas-atividades",
+  osApprovals: "/aprovacoes-os",
+  settings: "/configuracoes",
 });
 
-export function getHashPath(){
-  const h = (window.location.hash || "").trim();
-  if (!h) return ROUTES.login;
-  // normaliza: '#', '#/' => '#/login'
-  if (h === "#" || h === "#/") return ROUTES.login;
-  return h;
+export const ROUTE_TO_VIEW = Object.freeze({
+  [ROUTES.login]: "login",
+  [ROUTES.dashboard]: "dashboard",
+  [ROUTES.admin]: "admin",
+  [ROUTES.companies]: "companies",
+  [ROUTES.managerUsers]: "managerUsers",
+  [ROUTES.clients]: "clients",
+  [ROUTES.reports]: "reports",
+  [ROUTES.expenses]: "expenseApprovals",
+  [ROUTES.feedbacks]: "myFeedbacks",
+  [ROUTES.projects]: "projects",
+  [ROUTES.myProjects]: "myProjects",
+  [ROUTES.myActivities]: "myActivities",
+  [ROUTES.osApprovals]: "osApprovals",
+  [ROUTES.settings]: "settings",
+});
+
+export const VIEW_TO_ROUTE = Object.freeze(Object.fromEntries(
+  Object.entries(ROUTE_TO_VIEW).map(([route, view]) => [view, route])
+));
+
+export function normalizeRoute(path = window.location.pathname){
+  const raw = String(path || "/").split("?")[0].split("#")[0].trim() || "/";
+  let clean = raw.startsWith("/") ? raw : `/${raw}`;
+  clean = clean.replace(/\/{2,}/g, "/");
+  if (clean.length > 1) clean = clean.replace(/\/+$/g, "");
+  if (clean === "/") return ROUTES.dashboard;
+  return clean;
 }
 
-export function navigateTo(hash){
-  if (!hash) return;
-  if (window.location.hash === hash) return;
-  window.location.hash = hash;
+export function getRoutePath(){
+  return normalizeRoute(window.location.pathname);
 }
 
-// Inicializa o listener de hashchange.
-// Você injeta a regra de acesso e o render via callbacks para manter o router sem dependências do app.js.
-export function initHashRouter({ resolve, fallback } = {}){
+export function isKnownRoute(path){
+  return !!ROUTE_TO_VIEW[normalizeRoute(path)];
+}
+
+export function navigateTo(route, options = {}){
+  const next = normalizeRoute(route);
+  const current = getRoutePath();
+  const method = options.replace ? "replaceState" : "pushState";
+  if (current !== next || options.force) {
+    window.history[method]({}, "", next);
+  }
+  window.dispatchEvent(new CustomEvent("flowproject:routechange", { detail: { route: next } }));
+}
+
+export function initCleanRouter({ resolve } = {}){
   const handle = () => {
-    const hash = getHashPath();
-    if (typeof resolve === "function") resolve(hash);
-    else if (typeof fallback === "function") fallback(hash);
+    const route = getRoutePath();
+    if (typeof resolve === "function") {
+      const result = resolve(route);
+      if (result && typeof result.catch === "function") {
+        result.catch((err) => console.error("[router] route handler failed:", err));
+      }
+    }
   };
 
-  window.addEventListener("hashchange", handle);
-  // roda 1x no load
+  window.addEventListener("popstate", handle);
+  window.addEventListener("flowproject:routechange", handle);
   handle();
 
-  // retorna função de cleanup se precisar
-  return () => window.removeEventListener("hashchange", handle);
+  return () => {
+    window.removeEventListener("popstate", handle);
+    window.removeEventListener("flowproject:routechange", handle);
+  };
 }

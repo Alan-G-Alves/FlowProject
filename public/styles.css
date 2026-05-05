@@ -2077,6 +2077,38 @@ a{ color: inherit; }
 
 .report-permissions-modal-card{
   width:min(980px, calc(100vw - 28px));
+  max-height:calc(100vh - 40px);
+  display:flex;
+  flex-direction:column;
+}
+
+.report-permissions-modal-card .modal-header,
+.report-permissions-modal-card .modal-footer{
+  flex:0 0 auto;
+}
+
+.report-permissions-modal-card .modal-body{
+  min-height:0;
+  overflow-y:auto;
+  padding-right:18px;
+}
+
+.report-permissions-modal-card .modal-body::-webkit-scrollbar,
+.report-permissions-table-wrap::-webkit-scrollbar{
+  width:10px;
+  height:10px;
+}
+
+.report-permissions-modal-card .modal-body::-webkit-scrollbar-thumb,
+.report-permissions-table-wrap::-webkit-scrollbar-thumb{
+  background:rgba(100,116,139,.34);
+  border-radius:999px;
+  border:2px solid rgba(255,255,255,.9);
+}
+
+.report-permissions-modal-card .modal-body::-webkit-scrollbar-track,
+.report-permissions-table-wrap::-webkit-scrollbar-track{
+  background:rgba(248,250,252,.82);
 }
 
 .report-permissions-hint{
@@ -2090,10 +2122,17 @@ a{ color: inherit; }
 }
 
 .report-permissions-table-wrap{
+  max-height:min(52vh, 520px);
   overflow:auto;
   border:1px solid var(--border);
   border-radius:16px;
   background:rgba(255,255,255,.82);
+}
+
+.report-permissions-table thead th{
+  position:sticky;
+  top:0;
+  z-index:1;
 }
 
 .report-permissions-table{
@@ -2272,7 +2311,6 @@ a{ color: inherit; }
   letter-spacing: -0.5px;
 }
 .login-head .muted{ margin-top: 8px; }
-
 .login-card{
   width: 100%;
   max-width: 520px;
@@ -10576,11 +10614,13 @@ button.chip-more{
 
 /* input file escondido (clicamos via botão) */
 input[type="file"].hidden-file{
-  position: absolute;
+  position: fixed;
+  top: 0;
+  left: 0;
   width: 1px;
   height: 1px;
   padding: 0;
-  margin: -1px;
+  margin: 0;
   overflow: hidden;
   clip: rect(0, 0, 0, 0);
   clip-path: inset(50%);

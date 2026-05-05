@@ -250,7 +250,7 @@ service cloud.firestore {
         && request.resource.data.createdBy == myUid();
 
       allow update: if isSuperAdmin()
-        && request.resource.data.keys().hasOnly(["name", "cnpj", "active", "createdAt", "createdBy", "number", "displayName", "logoURL", "logoPath", "logoReportDataUrl", "reportPermissions", "updatedAt"])
+        && request.resource.data.keys().hasOnly(["name", "cnpj", "active", "createdAt", "createdBy", "number", "displayName", "logoURL", "logoPath", "logoReportDataUrl", "reportPermissions", "projectTechPermissions", "updatedAt"])
         && request.resource.data.name is string
         && request.resource.data.name.size() > 0
         && request.resource.data.cnpj is string
@@ -259,12 +259,18 @@ service cloud.firestore {
         && (!("number" in request.resource.data) || request.resource.data.number is int);
 
       allow update: if isCompanyAdmin(companyId)
-        && request.resource.data.diff(resource.data).changedKeys().hasOnly(["displayName", "logoURL", "logoPath", "logoReportDataUrl", "reportPermissions", "updatedAt"])
+        && request.resource.data.diff(resource.data).changedKeys().hasOnly(["displayName", "logoURL", "logoPath", "logoReportDataUrl", "reportPermissions", "projectTechPermissions", "updatedAt"])
         && (!("displayName" in request.resource.data) || request.resource.data.displayName is string)
         && (!("logoURL" in request.resource.data) || request.resource.data.logoURL is string)
         && (!("logoPath" in request.resource.data) || request.resource.data.logoPath is string)
         && (!("logoReportDataUrl" in request.resource.data) || request.resource.data.logoReportDataUrl is string)
         && (!("reportPermissions" in request.resource.data) || request.resource.data.reportPermissions is map)
+        && (!("projectTechPermissions" in request.resource.data) || request.resource.data.projectTechPermissions is map)
+        && (!("updatedAt" in request.resource.data) || request.resource.data.updatedAt is timestamp);
+
+      allow update: if (isManager(companyId) || isCoordinator(companyId) || isCoordenador(companyId))
+        && request.resource.data.diff(resource.data).changedKeys().hasOnly(["projectTechPermissions", "updatedAt"])
+        && (!("projectTechPermissions" in request.resource.data) || request.resource.data.projectTechPermissions is map)
         && (!("updatedAt" in request.resource.data) || request.resource.data.updatedAt is timestamp);
 
       allow delete: if false;

@@ -1583,6 +1583,11 @@ function renderMyProjectsKanban(projects, deps) {
  */
 function renderKanbanCards(container, projects, deps) {
   const { openEditProjectModal, openProjectDetailModal, openProjectWorkspace, openProjectTab, state, db, auth } = deps || {};
+  const currentRole = (state?.profile?.role || "").toString().toLowerCase();
+  const techPermissions = state?.company?.projectTechPermissions && typeof state.company.projectTechPermissions === "object"
+    ? state.company.projectTechPermissions
+    : {};
+  const canTechSeeCardField = (key) => currentRole !== "tecnico" || techPermissions[key] === true;
 
   // Sempre prepara a dropzone (inclusive coluna vazia)
   setupDropZone(container, state, db, auth, deps);
@@ -1687,7 +1692,7 @@ function renderKanbanCards(container, projects, deps) {
   projects.forEach(project => {
     const card = document.createElement("div");
     card.className = "kanban-card";
-    card.draggable = true;
+    card.draggable = currentRole !== "tecnico";
     card.dataset.projectId = project.id;
     card.dataset.currentStatus = project.status || "a-fazer";
     const meta = getProjectStatusMeta(card.dataset.currentStatus);
@@ -1739,8 +1744,8 @@ function renderKanbanCards(container, projects, deps) {
       <div class="kanban-card-meta kanban-card-meta--row">
         ${clientName ? `<span class="kanban-mini kanban-mini--client" title="Cliente">${icBuilding}<span class="kanban-mini-text">${escapeHtml(clientName)}</span></span>` : ""}
         ${endBR ? `<span class="kanban-mini" title="Prazo">${icCalendar}<span>${escapeHtml(endBR)}</span></span>` : ""}
-        ${valueBRL ? `<span class="kanban-mini" title="Valor">${icMoney}<span>${escapeHtml(valueBRL)}</span></span>` : ""}
-        ${hoursTxt ? `<span class="kanban-mini" title="Horas">${icClock}<span>${escapeHtml(hoursTxt)}h</span></span>` : ""}
+        ${valueBRL && canTechSeeCardField("showProjectCardValue") ? `<span class="kanban-mini" title="Valor">${icMoney}<span>${escapeHtml(valueBRL)}</span></span>` : ""}
+        ${hoursTxt && canTechSeeCardField("showProjectCardHours") ? `<span class="kanban-mini" title="Horas">${icClock}<span>${escapeHtml(hoursTxt)}h</span></span>` : ""}
         <span class="kanban-card-priority ${project.priority || "media"}">${priorityText}</span>
       </div>
     `;
@@ -1783,6 +1788,7 @@ function renderKanbanCards(container, projects, deps) {
  */
 function setupDropZone(container, state, db, auth, deps) {
   if (!container) return;
+  if ((state?.profile?.role || "").toString().toLowerCase() === "tecnico") return;
 
   if (container.dataset.dropReady === "1") return;
   container.dataset.dropReady = "1";

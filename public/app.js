@@ -37,7 +37,15 @@ import {
 
 import { normalizeRole, humanizeRole } from "./src/utils/roles.js";
 import { show, hide, escapeHtml } from "./src/utils/dom.js";
-import { setView } from "./src/ui/router.js?v=1777057001";
+import {
+  setView,
+  ROUTES,
+  getRoutePath,
+  isKnownRoute,
+  navigateTo,
+  initCleanRouter,
+  normalizeRoute
+} from "./src/ui/router.js?v=1777551400";
 import { isEmailValidBasic, isCnpjValidBasic } from "./src/utils/validators.js";
 import { fetchPlatformUser, fetchCompanyIdForUser, fetchCompanyUserProfile } from "./src/services/firestore.service.js";
 import { auth, secondaryAuth, db, storage, functions, httpsCallable } from "./src/config/firebase.js";
@@ -45,18 +53,18 @@ import { normalizePhone, normalizeCnpj, slugify } from "./src/utils/format.js";
 import { setAlert, clearAlert, clearInlineAlert, showInlineAlert, showDialogAlert } from "./src/ui/alerts.js";
 import { getCompanyDoc, listCompaniesDocs } from "./src/services/companies.service.js";
 import { createNotification } from "./src/services/notifications.service.js?v=1776052722";
-import * as refs from "./src/ui/refs.js?v=1777057020";
+import * as refs from "./src/ui/refs.js?v=1777945200";
 import * as companiesDomain from "./src/domain/companies.domain.js?v=1770332251";
 import * as teamsDomain from "./src/domain/teams.domain.js?v=1772614200";
 import * as usersDomain from "./src/domain/users.domain.js?v=1777055918";
 import * as managerUsersDomain from "./src/domain/manager-users.domain.js?v=1777055918";
 import * as clientsDomain from "./src/domain/clients.domain.js?v=1776052720";
-import * as projectsDomain from "./src/domain/projects.domain.js?v=1772626200";
+import * as projectsDomain from "./src/domain/projects.domain.js?v=1777945200";
 import * as myActivitiesDomain from "./src/domain/my-activities.domain.js?v=1777057008";
 import * as myFeedbacksDomain from "./src/domain/my-feedbacks.domain.js?v=1776040900";
 import * as osApprovalsDomain from "./src/domain/os-approvals.domain.js?v=1776052722";
 import * as expensesDomain from "./src/domain/expenses.domain.js?v=1777057015";
-import * as projectWorkspaceDomain from "./src/domain/project-workspace.domain.js?v=1777057001";
+import * as projectWorkspaceDomain from "./src/domain/project-workspace.domain.js?v=1777945200";
 import * as reportsDomain from "./src/domain/reports.domain.js?v=1777057015";
 import * as lgpdDomain from "./src/domain/lgpd.domain.js?v=1777475100";
 import * as profileModal from "./src/ui/modals/profile.modal.js?v=1770332251";
@@ -175,6 +183,8 @@ _dashboardAgendaCursor.setDate(1);
 let _dashboardReminders = [];
 let _dashboardReminderUsers = [];
 let _activeReminderDetailId = "";
+let _authReadyForRoutes = false;
+let _routeUnsubscribe = null;
 
 // Guard: evita salvar projeto duas vezes (double click / duplo binding)
 let _isCreatingProject = false;
@@ -228,6 +238,34 @@ function normalizeReportPermissions(value){
     for (const item of REPORT_PERMISSION_ITEMS) {
       defaults[role.key][item.key] = roleSource[item.key] !== false;
     }
+  }
+  return defaults;
+}
+
+const PROJECT_TECH_PERMISSION_ITEMS = [
+  { key: "showProjectCardHours", label: "Horas no card do projeto", note: "Exibe horas do projeto no Kanban." },
+  { key: "showProjectCardValue", label: "Valor no card do projeto", note: "Exibe valor do projeto no Kanban." },
+  { key: "showCoverHoursInfo", label: "Informacoes de horas na capa", note: "Horas planejadas, executadas, consumo e saldos." },
+  { key: "showInternalExpenses", label: "Despesas internas", note: "Valores internos aprovados na capa do projeto." },
+  { key: "showEstimatedTechCost", label: "Custo tecnico estimado", note: "Estimativa baseada em horas e valor/hora do tecnico." },
+  { key: "showProjectBillingHours", label: "Horas do projeto", note: "Horas contratadas/orcadas do projeto." },
+  { key: "showProjectBillingValue", label: "Valor do projeto", note: "Valor comercial do projeto." },
+  { key: "showProjectCost", label: "Custo do projeto", note: "Custo tecnico somado a despesas internas." },
+  { key: "showClientHourlyRate", label: "Valor hora cliente", note: "Valor medio por hora cobrada do cliente." },
+  { key: "showEstimatedMargin", label: "Margem estimada", note: "Margem calculada a partir de valor, custos e despesas." },
+  { key: "showExpensesSummary", label: "Resumo de despesas", note: "Totais e pendencias de despesas do projeto." },
+  { key: "allowStatusReport", label: "Extrair status report", note: "Libera botoes de PDF e Excel na capa do projeto." }
+];
+
+function getDefaultProjectTechPermissions(){
+  return Object.fromEntries(PROJECT_TECH_PERMISSION_ITEMS.map((item) => [item.key, false]));
+}
+
+function normalizeProjectTechPermissions(value){
+  const defaults = getDefaultProjectTechPermissions();
+  const source = value && typeof value === "object" ? value : {};
+  for (const item of PROJECT_TECH_PERMISSION_ITEMS) {
+    defaults[item.key] = source[item.key] === true;
   }
   return defaults;
 }
@@ -425,6 +463,140 @@ function canOpenExpensesMenu(){
   return !state.isSuperAdmin && ["admin", "gestor", "coordenador"].includes(currentRole);
 }
 
+function setBrowserRouteSilently(route){
+  const next = normalizeRoute(route);
+  if (getRoutePath() !== next) window.history.replaceState({}, "", next);
+}
+
+function currentRoleKey(){
+  return String(state.profile?.role || "").toLowerCase();
+}
+
+function canAccessRoute(route){
+  const currentRole = currentRoleKey();
+  if (route === ROUTES.login || route === ROUTES.dashboard || route === ROUTES.settings) return true;
+  if (route === ROUTES.companies) return !!state.isSuperAdmin;
+  if (state.isSuperAdmin) return route === ROUTES.companies || route === ROUTES.dashboard || route === ROUTES.settings;
+  if (route === ROUTES.admin) return currentRole === "admin";
+  if (route === ROUTES.managerUsers || route === ROUTES.clients) return ["admin", "gestor"].includes(currentRole);
+  if (route === ROUTES.expenses || route === ROUTES.osApprovals) return ["admin", "gestor", "coordenador"].includes(currentRole);
+  if (route === ROUTES.reports || route === ROUTES.feedbacks || route === ROUTES.projects || route === ROUTES.myProjects || route === ROUTES.myActivities) {
+    return !!state.profile;
+  }
+  return false;
+}
+
+async function openRouteView(route){
+  switch (route) {
+    case ROUTES.login:
+      setView("login");
+      return;
+    case ROUTES.dashboard:
+      setActiveNav("navHome");
+      setView("dashboard");
+      refreshDashboardHomeWidgets();
+      return;
+    case ROUTES.admin:
+      setActiveNav("navConfig");
+      openAdminView();
+      return;
+    case ROUTES.companies:
+      setActiveNav("navConfig");
+      openCompaniesView();
+      return;
+    case ROUTES.managerUsers:
+      setActiveNav("navAddTech");
+      openManagerUsersView();
+      return;
+    case ROUTES.clients:
+      setActiveNav("navClients");
+      openClientsView();
+      return;
+    case ROUTES.reports:
+      setActiveNav("navReports");
+      await openReportsView();
+      return;
+    case ROUTES.expenses:
+      setActiveNav("navExpenses");
+      await openExpenseApprovalsView();
+      return;
+    case ROUTES.feedbacks:
+      setActiveNav("navFeedbacks");
+      await openMyFeedbacksView();
+      return;
+    case ROUTES.projects:
+      setActiveNav("");
+      openProjectsView();
+      return;
+    case ROUTES.myProjects:
+      setActiveNav("");
+      await openMyProjectsView({ onlyMine: true });
+      return;
+    case ROUTES.myActivities:
+      setActiveNav("");
+      await openMyActivitiesView();
+      return;
+    case ROUTES.osApprovals:
+      setActiveNav("");
+      await openOsApprovalsView();
+      return;
+    case ROUTES.settings:
+      setActiveNav("navConfig");
+      openSettingsView();
+      return;
+    default:
+      setActiveNav("navHome");
+      setView("dashboard");
+      refreshDashboardHomeWidgets();
+  }
+}
+
+async function resolveCleanRoute(route){
+  const requested = normalizeRoute(route);
+  if (!_authReadyForRoutes) {
+    state._pendingRoute = requested;
+    return;
+  }
+
+  let target = isKnownRoute(requested) ? requested : ROUTES.dashboard;
+  if (target !== requested) setBrowserRouteSilently(target);
+  if (normalizeRoute(window.location.pathname) === target && window.location.pathname !== target) {
+    setBrowserRouteSilently(target);
+  }
+
+  if (!auth.currentUser) {
+    if (target !== ROUTES.login) state._intendedRoute = target;
+    setBrowserRouteSilently(ROUTES.login);
+    setView("login");
+    return;
+  }
+
+  if (target === ROUTES.login) {
+    target = state._intendedRoute || ROUTES.dashboard;
+    state._intendedRoute = "";
+    setBrowserRouteSilently(target);
+  }
+
+  if (!canAccessRoute(target)) {
+    target = ROUTES.dashboard;
+    setBrowserRouteSilently(target);
+  }
+
+  await openRouteView(target);
+}
+
+function resolveRouteAfterAuth(){
+  const intended = auth.currentUser ? state._intendedRoute : "";
+  const route = intended || state._pendingRoute || getRoutePath();
+  if (intended) state._intendedRoute = "";
+  state._pendingRoute = "";
+  resolveCleanRoute(route).catch((err) => {
+    console.error("[router] erro ao resolver rota:", err);
+    setBrowserRouteSilently(ROUTES.dashboard);
+    setView("dashboard");
+  });
+}
+
 function roleLabel(){
   if (state.isSuperAdmin) return "Superadmin";
   const role = String(state.profile?.role || "").toLowerCase();
@@ -542,6 +714,13 @@ function renderSettingsView(){
       desc: "Revise apontamentos enviados e acompanhe aprovacoes.",
       action: "osApprovals",
       actionLabel: "Abrir OS"
+    }));
+    cards.push(settingsCard({
+      scope: "Projetos",
+      title: "Permissoes do tecnico no projeto",
+      desc: "Controle quais dados financeiros, horas e status report o tecnico pode ver no card e na capa do projeto.",
+      action: "projectTechPermissions",
+      actionLabel: "Configurar"
     }));
     cards.push(settingsCard({
       scope: "Despesas",
@@ -955,15 +1134,15 @@ function openNotificationTarget(notification){
     return;
   }
   if (type === "os_submitted") {
-    openOsApprovalsView();
+    navigateTo(ROUTES.osApprovals);
     return;
   }
   if (type === "os_approved" || type === "os_reverted" || type === "daily_today" || type === "daily_overdue") {
-    openMyActivitiesView();
+    navigateTo(ROUTES.myActivities);
     return;
   }
   if (type === "feedback_received") {
-    openMyFeedbacksView();
+    navigateTo(ROUTES.feedbacks);
   }
 }
 
@@ -1343,7 +1522,7 @@ function renderDashboardCards(profile){
       title: "Empresas",
       desc: "Gerencie as empresas cadastradas no FlowProject.",
       badge: "Master",
-      action: () => openCompaniesView()
+      action: () => navigateTo(ROUTES.companies)
     });
     cards.push({
       title: "LGPD por Empresa",
@@ -1359,20 +1538,20 @@ function renderDashboardCards(profile){
         title: "Projetos",
         desc: "Visualize todos os projetos da empresa.",
         badge: "Carteira",
-        action: () => openProjectsView()
+        action: () => navigateTo(ROUTES.projects)
       });
       cards.push({
         title: "Meus Projetos",
         desc: "Visualize apenas os projetos criados por voce.",
         badge: "Kanban",
-        action: () => openMyProjectsView({ onlyMine: true })
+        action: () => navigateTo(ROUTES.myProjects)
       });
     } else {
       cards.push({
         title: "Meus Projetos",
         desc: "Visualize seus projetos em formato Kanban.",
         badge: "Kanban",
-        action: () => openMyProjectsView()
+        action: () => navigateTo(ROUTES.myProjects)
       });
     }
 
@@ -1381,7 +1560,7 @@ function renderDashboardCards(profile){
         title: "Minhas Atividades",
         desc: "Veja suas atividades por tarefa, faca apontamentos e envie para aprovacao.",
         badge: "Tecnico",
-        action: () => openMyActivitiesView()
+        action: () => navigateTo(ROUTES.myActivities)
       });
     }
 
@@ -1390,7 +1569,7 @@ function renderDashboardCards(profile){
         title: "OS para Aprovar",
         desc: "Revise apontamentos enviados, aprove individualmente ou em massa e faca estornos quando necessario.",
         badge: "Operacao",
-        action: () => openOsApprovalsView()
+        action: () => navigateTo(ROUTES.osApprovals)
       });
     }
 
@@ -1399,7 +1578,7 @@ function renderDashboardCards(profile){
         title: "Usuários (Técnicos)",
         desc: "Cadastre técnicos e vincule às equipes que você administra.",
         badge: "Gestor",
-        action: () => openManagerUsersView()
+        action: () => navigateTo(ROUTES.managerUsers)
       });
     }
 
@@ -1408,7 +1587,7 @@ function renderDashboardCards(profile){
         title: "Administração",
         desc: "Gerencie equipes e usuários da empresa.",
         badge: "Admin",
-        action: () => openAdminView()
+        action: () => navigateTo(ROUTES.admin)
       });
     }
   }
@@ -2138,6 +2317,11 @@ function isCompanyAdmin(){
   return !state.isSuperAdmin && String(state.profile?.role || "").toLowerCase() === "admin";
 }
 
+function canConfigureProjectTechPermissions(){
+  const role = String(state.profile?.role || "").toLowerCase();
+  return !state.isSuperAdmin && ["admin", "gestor", "coordenador"].includes(role);
+}
+
 function closeReportPermissionsModal(){
   hide(refs.modalReportPermissions);
   clearAlert(refs.reportPermissionsAlert);
@@ -2218,6 +2402,81 @@ function resetReportPermissionsForm(){
     const role = input.getAttribute("data-report-permission-role");
     const key = input.getAttribute("data-report-permission-key");
     input.checked = permissions[role]?.[key] !== false;
+  });
+}
+
+function closeProjectTechPermissionsModal(){
+  hide(refs.modalProjectTechPermissions);
+  clearAlert(refs.projectTechPermissionsAlert);
+}
+
+function renderProjectTechPermissionsTable(){
+  if (!refs.projectTechPermissionsTableBody) return;
+  const permissions = normalizeProjectTechPermissions(state.company?.projectTechPermissions);
+  refs.projectTechPermissionsTableBody.innerHTML = PROJECT_TECH_PERMISSION_ITEMS.map((item) => `
+    <tr>
+      <th>
+        <strong>${escapeHtml(item.label)}</strong>
+        ${item.note ? `<span>${escapeHtml(item.note)}</span>` : ""}
+      </th>
+      <td>
+        <label class="report-permission-check">
+          <input
+            type="checkbox"
+            data-project-tech-permission-key="${escapeHtml(item.key)}"
+            ${permissions[item.key] === true ? "checked" : ""}
+          />
+          <span>Permitir</span>
+        </label>
+      </td>
+    </tr>
+  `).join("");
+}
+
+async function openProjectTechPermissionsModal(){
+  clearAlert(refs.projectTechPermissionsAlert);
+  if (!canConfigureProjectTechPermissions()){
+    alert("Acesso restrito: somente admin, gestor ou coordenador pode configurar permissoes do tecnico.");
+    return;
+  }
+  if (!state.company && state.companyId) await loadCurrentCompanyBrand();
+  renderProjectTechPermissionsTable();
+  show(refs.modalProjectTechPermissions);
+}
+
+function readProjectTechPermissionsForm(){
+  const permissions = getDefaultProjectTechPermissions();
+  const inputs = Array.from(refs.projectTechPermissionsTableBody?.querySelectorAll?.("[data-project-tech-permission-key]") || []);
+  for (const input of inputs) {
+    const key = input.getAttribute("data-project-tech-permission-key");
+    if (!key || !(key in permissions)) continue;
+    permissions[key] = input.checked === true;
+  }
+  return permissions;
+}
+
+async function saveProjectTechPermissions(){
+  clearAlert(refs.projectTechPermissionsAlert);
+  if (!canConfigureProjectTechPermissions()) return setAlert(refs.projectTechPermissionsAlert, "Acesso restrito.");
+  if (!state.companyId) return setAlert(refs.projectTechPermissionsAlert, "Empresa nao identificada.");
+  const permissions = readProjectTechPermissionsForm();
+  try{
+    await updateDoc(doc(db, "companies", state.companyId), {
+      projectTechPermissions: permissions,
+      updatedAt: serverTimestamp()
+    });
+    state.company = { ...(state.company || {}), projectTechPermissions: permissions };
+    setAlert(refs.projectTechPermissionsAlert, "Permissoes do tecnico salvas com sucesso.", "success");
+  }catch(err){
+    console.error("[project-tech-permissions:save]", err);
+    setAlert(refs.projectTechPermissionsAlert, err?.message || "Nao foi possivel salvar as permissoes.");
+  }
+}
+
+function resetProjectTechPermissionsForm(){
+  if (!refs.projectTechPermissionsTableBody) return;
+  refs.projectTechPermissionsTableBody.querySelectorAll("[data-project-tech-permission-key]").forEach((input) => {
+    input.checked = false;
   });
 }
 
@@ -2443,12 +2702,24 @@ async function loadClients(){
   await clientsDomain.loadClients(getClientsDeps());
 }
 
+function getReportsDeps(){
+  return {
+    refs,
+    state,
+    db,
+    auth,
+    setView,
+    openMyActivitiesView: () => navigateTo(ROUTES.myActivities),
+    openProjectsView: () => navigateTo(ROUTES.projects)
+  };
+}
+
 async function openReportsView(){
-  await reportsDomain.openReportsView({ refs, state, db, auth, setView, openMyActivitiesView, openProjectsView });
+  await reportsDomain.openReportsView(getReportsDeps());
 }
 
 async function loadReports(opts = {}){
-  await reportsDomain.loadReports({ refs, state, db, auth, setView, openMyActivitiesView, openProjectsView }, opts);
+  await reportsDomain.loadReports(getReportsDeps(), opts);
 }
 
 function getLgpdDeps(){
@@ -2683,6 +2954,9 @@ async function updateProject() {
 // Inicializa o dropdown do avatar (não depende do login)
 initUserMenu();
 initNotificationsUi();
+if (!_routeUnsubscribe) {
+  _routeUnsubscribe = initCleanRouter({ resolve: resolveCleanRoute });
+}
 
 onAuthStateChanged(auth, async (user) => {
   clearAlert(refs.loginAlert);
@@ -2695,8 +2969,11 @@ onAuthStateChanged(auth, async (user) => {
   state.isSuperAdmin = false;
 
   if (!user){
+    _authReadyForRoutes = true;
+    const route = getRoutePath();
+    if (route !== ROUTES.login) state._intendedRoute = route;
     renderSidebarBrand(null);
-    setView("login");
+    resolveRouteAfterAuth();
     return;
   }
 
@@ -2715,7 +2992,8 @@ onAuthStateChanged(auth, async (user) => {
       syncSidebarForRole();
       renderTopbar(platformUser, user);
       renderDashboardCards(platformUser);
-      setView("dashboard");
+      _authReadyForRoutes = true;
+      resolveRouteAfterAuth();
       return;
     }
 
@@ -2724,6 +3002,8 @@ onAuthStateChanged(auth, async (user) => {
     console.log("🏢 Company ID:", companyId);
     
     if (!companyId){
+      _authReadyForRoutes = true;
+      setBrowserRouteSilently(ROUTES.login);
       setView("login");
       setAlert(refs.loginAlert, "Seu usuário não está vinculado a nenhuma empresa. Peça ao admin para configurar.");
       await signOut(auth);
@@ -2734,6 +3014,8 @@ onAuthStateChanged(auth, async (user) => {
     console.log("👔 Profile:", profile);
     
     if (!profile){
+      _authReadyForRoutes = true;
+      setBrowserRouteSilently(ROUTES.login);
       setView("login");
       setAlert(refs.loginAlert, "Seu perfil não foi encontrado dentro da empresa. Peça ao admin para criar.");
       await signOut(auth);
@@ -2741,6 +3023,8 @@ onAuthStateChanged(auth, async (user) => {
     }
 
     if (profile.active === false){
+      _authReadyForRoutes = true;
+      setBrowserRouteSilently(ROUTES.login);
       setView("login");
       setAlert(refs.loginAlert, "Usuário bloqueado. Fale com o administrador.");
       await signOut(auth);
@@ -2765,10 +3049,13 @@ onAuthStateChanged(auth, async (user) => {
     createMonthlyBirthdayNotification();
     createDailyTechnicalNotifications();
     renderDashboardCards(profile);
-    setView("dashboard");
+    _authReadyForRoutes = true;
+    resolveRouteAfterAuth();
     lgpdDomain.ensureLgpdConsent(getLgpdDeps()).catch((err) => console.warn("[lgpd:consent]", err));
   } catch (err) {
     console.error("❌ Erro no fluxo de autenticação:", err);
+    _authReadyForRoutes = true;
+    setBrowserRouteSilently(ROUTES.login);
     setView("login");
     setAlert(refs.loginAlert, "Erro ao carregar perfil: " + (err?.message || err));
     await signOut(auth);
@@ -2837,12 +3124,19 @@ refs.btnCancelReportPermissions?.addEventListener("click", closeReportPermission
 refs.modalReportPermissions?.addEventListener("click", (event) => {
   if (event.target?.matches?.("[data-close-report-permissions='true']")) closeReportPermissionsModal();
 });
+refs.btnCloseProjectTechPermissions?.addEventListener("click", closeProjectTechPermissionsModal);
+refs.btnCancelProjectTechPermissions?.addEventListener("click", closeProjectTechPermissionsModal);
+refs.modalProjectTechPermissions?.addEventListener("click", (event) => {
+  if (event.target?.matches?.("[data-close-project-tech-permissions='true']")) closeProjectTechPermissionsModal();
+});
 refs.companyBrandName?.addEventListener("input", previewCompanyBrand);
 refs.companyBrandLogoFile?.addEventListener("change", previewCompanyBrand);
 refs.btnSaveCompanyBrand?.addEventListener("click", saveCompanyBrand);
 refs.btnResetCompanyBrand?.addEventListener("click", resetCompanyBrand);
 refs.btnSaveReportPermissions?.addEventListener("click", saveReportPermissions);
 refs.btnResetReportPermissions?.addEventListener("click", resetReportPermissionsForm);
+refs.btnSaveProjectTechPermissions?.addEventListener("click", saveProjectTechPermissions);
+refs.btnResetProjectTechPermissions?.addEventListener("click", resetProjectTechPermissionsForm);
 
 refs.settingsGrid?.addEventListener("click", async (event) => {
   const btn = event.target?.closest?.("[data-settings-action]");
@@ -2851,27 +3145,23 @@ refs.settingsGrid?.addEventListener("click", async (event) => {
   if (action === "profile") return openProfileModal();
   if (action === "brand") return openCompanyBrandModal();
   if (action === "reportPermissions") return openReportPermissionsModal();
+  if (action === "projectTechPermissions") return openProjectTechPermissionsModal();
   if (action === "lgpd") return openLgpdCenter();
   if (action === "users") {
-    setActiveNav("navAddTech");
-    return openManagerUsersView();
+    return navigateTo(ROUTES.managerUsers);
   }
   if (action === "clients") {
-    setActiveNav("navClients");
-    return openClientsView();
+    return navigateTo(ROUTES.clients);
   }
   if (action === "reports") {
-    setActiveNav("navReports");
-    return openReportsView();
+    return navigateTo(ROUTES.reports);
   }
-  if (action === "osApprovals") return openOsApprovalsView();
+  if (action === "osApprovals") return navigateTo(ROUTES.osApprovals);
   if (action === "expenses") {
-    if (!canOpenExpensesMenu()) return;
-    setActiveNav("navExpenses");
-    return openExpenseApprovalsView();
+    return navigateTo(ROUTES.expenses);
   }
-  if (action === "myActivities") return openMyActivitiesView();
-  if (action === "companies") return openCompaniesView();
+  if (action === "myActivities") return navigateTo(ROUTES.myActivities);
+  if (action === "companies") return navigateTo(ROUTES.companies);
 });
 
 refs.loginForm?.addEventListener("submit", async (e) => {
@@ -2912,18 +3202,15 @@ refs.navLogout?.addEventListener("click", async (e) => {
 });
 // Dashboard navigation
 refs.btnBackToDashboard?.addEventListener("click", () => {
-  setView("dashboard");
-  refreshDashboardHomeWidgets();
+  navigateTo(ROUTES.dashboard);
 });
 refs.btnBackFromAdmin?.addEventListener("click", () => {
-  setView("dashboard");
-  refreshDashboardHomeWidgets();
+  navigateTo(ROUTES.dashboard);
 });
 
 // Gestor Users view
 refs.btnBackFromManagerUsers?.addEventListener("click", () => {
-  setView("dashboard");
-  refreshDashboardHomeWidgets();
+  navigateTo(ROUTES.dashboard);
 });
 refs.btnReloadMgrUsers?.addEventListener("click", () => loadManagerUsers());
 refs.mgrUserSearch?.addEventListener("input", () => loadManagerUsers());
@@ -3178,8 +3465,7 @@ refs.modalCompanyDetail?.addEventListener("click", (e) => {
 
 // My Projects (Kanban) events
 refs.btnBackFromMyProjects?.addEventListener("click", () => {
-  setView("dashboard");
-  refreshDashboardHomeWidgets();
+  navigateTo(ROUTES.dashboard);
 });
 refs.btnOpenCreateProjectFromKanban?.addEventListener("click", async () => {
   await loadTeams();
@@ -3189,8 +3475,7 @@ refs.btnOpenCreateProjectFromKanban?.addEventListener("click", async () => {
 
 // My Activities events
 refs.btnBackFromMyActivities?.addEventListener("click", () => {
-  setView("dashboard");
-  refreshDashboardHomeWidgets();
+  navigateTo(ROUTES.dashboard);
 });
 refs.btnReloadMyActivities?.addEventListener("click", () => loadMyActivities());
 refs.myActivitiesSearchInput?.addEventListener("input", () => loadMyActivities());
@@ -3204,8 +3489,7 @@ refs.btnClearMyActivitiesPeriod?.addEventListener("click", () => {
 
 // Projects events
 refs.btnBackFromProjects?.addEventListener("click", () => {
-  setView("dashboard");
-  refreshDashboardHomeWidgets();
+  navigateTo(ROUTES.dashboard);
 });
 refs.btnReloadProjects?.addEventListener("click", () => loadProjects());
 refs.projectSearch?.addEventListener("input", () => loadProjects());
@@ -3344,8 +3628,29 @@ refs.modalEditUserTeams?.addEventListener("click", (e) => {
 
 refs.btnCloseCompanyDetail?.addEventListener("click", () => closeCompanyDetailModal());
 
+function bindCleanRouteNavGuards(){
+  const bind = (el, route) => {
+    if (!el || el.__fp_clean_route_guard) return;
+    el.__fp_clean_route_guard = true;
+    el.addEventListener("click", (event) => {
+      event.preventDefault();
+      event.stopImmediatePropagation();
+      navigateTo(route);
+    }, true);
+  };
+
+  bind(refs.navHome, ROUTES.dashboard);
+  bind(refs.navReports, ROUTES.reports);
+  bind(refs.navFeedbacks, ROUTES.feedbacks);
+  bind(refs.navExpenses, ROUTES.expenses);
+  bind(refs.navAddTech, ROUTES.managerUsers);
+  bind(refs.navClients, ROUTES.clients);
+  bind(refs.navConfig, ROUTES.settings);
+}
+
 // Sidebar + tooltips
 try{ initSidebar(); }catch(e){ console.warn("initSidebar falhou", e); }
+try{ bindCleanRouteNavGuards(); }catch(e){ console.warn("bindCleanRouteNavGuards falhou", e); }
 try{ initHelpManual({ refs, state }); }catch(e){ console.warn("initHelpManual falhou", e); }
 try{ lgpdDomain.initLgpd(getLgpdDeps()); }catch(e){ console.warn("initLgpd falhou", e); }
 

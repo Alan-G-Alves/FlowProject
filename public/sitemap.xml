@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+  <url>
+    <loc>https://flowproject-17930.web.app/venda</loc>
+    <lastmod>2026-04-29</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>1.0</priority>
+  </url>
+  <url>
+    <loc>https://flowproject-17930.web.app/privacidade</loc>
+    <lastmod>2026-04-29</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.6</priority>
+  </url>
+  <url>
+    <loc>https://flowproject-17930.web.app/termos</loc>
+    <lastmod>2026-04-29</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.6</priority>
+  </url>
+  <url>
+    <loc>https://flowproject-17930.web.app/lgpd</loc>
+    <lastmod>2026-04-29</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.7</priority>
+  </url>
+  <url>
+    <loc>https://flowproject-17930.web.app/dpa</loc>
+    <lastmod>2026-04-29</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.6</priority>
+  </url>
+</urlset>

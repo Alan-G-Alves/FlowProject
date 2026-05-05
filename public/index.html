@@ -3,9 +3,12 @@
 <html data-theme="light" lang="pt-br">
 <head>
 <meta charset="utf-8"/>
+<script>
+  document.write('<base href="' + (location.pathname.indexOf('/public/') === 0 || location.pathname === '/public' ? '/public/' : '/') + '">');
+</script>
 <meta content="width=device-width, initial-scale=1.0" name="viewport"/>
 <title>FlowProject</title>
-<link href="./styles.css?v=1777479800" rel="stylesheet"/>
+<link href="./styles.css?v=1777947000" rel="stylesheet"/>
 <link href="logof.png" rel="icon" type="image/png"/>
 <style>
   /* SaaS Search (My Projects Kanban) */
@@ -2796,6 +2799,45 @@
 </div>
 
 
+<!-- MODAL: Permissoes do Tecnico no Projeto -->
+<div class="modal" hidden id="modalProjectTechPermissions">
+  <div class="modal-backdrop" data-close-project-tech-permissions="true"></div>
+  <div class="modal-card report-permissions-modal-card">
+    <div class="modal-header">
+      <div>
+        <h2>Permissoes do tecnico no projeto</h2>
+        <p class="muted">Defina quais dados do card e da capa do projeto o tecnico pode visualizar.</p>
+      </div>
+      <button class="btn ghost" id="btnCloseProjectTechPermissions" type="button">X</button>
+    </div>
+
+    <div class="modal-body">
+      <div class="alert" hidden id="projectTechPermissionsAlert"></div>
+      <div class="report-permissions-hint">
+        Mesmo com permissoes liberadas, o tecnico visualiza apenas tarefas e atividades vinculadas ao proprio usuario.
+      </div>
+      <div class="report-permissions-table-wrap">
+        <table class="report-permissions-table">
+          <thead>
+            <tr>
+              <th>Dado do projeto</th>
+              <th>Tecnico pode ver</th>
+            </tr>
+          </thead>
+          <tbody id="projectTechPermissionsTableBody"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="modal-footer">
+      <button class="btn ghost" id="btnResetProjectTechPermissions" type="button">Ocultar sensiveis</button>
+      <button class="btn ghost" id="btnCancelProjectTechPermissions" type="button">Cancelar</button>
+      <button class="btn primary" id="btnSaveProjectTechPermissions" type="button">Salvar</button>
+    </div>
+  </div>
+</div>
+
+
 <!-- MODAL: Marca da Empresa -->
 <div class="modal" hidden id="modalCompanyBrand">
   <div class="modal-backdrop" data-close-company-brand="true"></div>
@@ -2840,7 +2882,7 @@
   </div>
 </div>
 
-<script src="./app.js?v=1777475100" type="module"></script>
+<script src="./app.js?v=1777945200" type="module"></script>
 <script>
   // Toggle senha (somente UI)
   document.addEventListener("click", function(e){

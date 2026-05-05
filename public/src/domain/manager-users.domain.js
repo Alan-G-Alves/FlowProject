@@ -1507,6 +1507,15 @@ export function openCreateTechModal(deps) {
   }
 
   refs.modalCreateTech.hidden = false;
+  refs.modalCreateTech.removeAttribute("hidden");
+  refs.modalCreateTech.classList.add("open");
+  refs.modalCreateTech.style.display = "flex";
+  document.body.classList.add("modal-open");
+  try{
+    const bodyEl = refs.modalCreateTech?.querySelector?.(".modal-body");
+    if (bodyEl) bodyEl.scrollTop = 0;
+    state._techModalScrollTop = 0;
+  }catch(_){ }
 
   refs.techUidEl.value = "";
   refs.techNameEl.value = "";
@@ -1588,14 +1597,22 @@ refs.techActiveEl.value = "true";
 
   if (refs.techAttachmentsEl && !refs.techAttachmentsEl.dataset.boundAttachments){
     refs.techAttachmentsEl.dataset.boundAttachments = "1";
+    refs.techAttachmentsEl.addEventListener("click", () => {
+      const bodyEl = refs.modalCreateTech?.querySelector?.(".modal-body");
+      state._techModalScrollTop = bodyEl ? bodyEl.scrollTop : 0;
+    });
     refs.techAttachmentsEl.addEventListener("change", (e) => {
       const result = addAttachmentFiles(state._techAttachmentsDraft || [], e.target.files || []);
-      if (result.error){
-        setAlert(refs.createTechAlert, result.error, "error");
-      } else {
-        state._techAttachmentsDraft = result.items;
-        renderTechAttachments(deps);
-      }
+      const restoreScroll = typeof state._techModalScrollTop === "number" ? state._techModalScrollTop : null;
+      preserveTechModalScrollDuring(deps, () => {
+        if (result.error){
+          setAlert(refs.createTechAlert, result.error, "error");
+        } else {
+          state._techAttachmentsDraft = result.items;
+          renderTechAttachments(deps);
+        }
+      }, restoreScroll);
+      state._techModalScrollTop = null;
       e.target.value = "";
     });
   }

@@ -57,6 +57,15 @@ export const btnCancelReportPermissions = byId("btnCancelReportPermissions");
 export const btnSaveReportPermissions = byId("btnSaveReportPermissions");
 export const btnResetReportPermissions = byId("btnResetReportPermissions");
 
+// Project technician permissions settings
+export const modalProjectTechPermissions = byId("modalProjectTechPermissions");
+export const projectTechPermissionsAlert = byId("projectTechPermissionsAlert");
+export const projectTechPermissionsTableBody = byId("projectTechPermissionsTableBody");
+export const btnCloseProjectTechPermissions = byId("btnCloseProjectTechPermissions");
+export const btnCancelProjectTechPermissions = byId("btnCancelProjectTechPermissions");
+export const btnSaveProjectTechPermissions = byId("btnSaveProjectTechPermissions");
+export const btnResetProjectTechPermissions = byId("btnResetProjectTechPermissions");
+
 // Login
 export const loginForm = byId("loginForm");
 export const emailEl = byId("email");

@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://flowproject-17930.web.app/sitemap.xml

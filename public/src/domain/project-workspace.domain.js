@@ -202,6 +202,30 @@ function normalizeProjectStatus(status){
   return map[raw] || { label: status || "A fazer", css: "a-fazer" };
 }
 
+function techProjectPermissions(state){
+  const raw = state?.company?.projectTechPermissions;
+  return raw && typeof raw === "object" ? raw : {};
+}
+
+function canTechSeeProjectField(state, key){
+  if (!isTech(state)) return true;
+  return techProjectPermissions(state)[key] === true;
+}
+
+function canSeeAnyProjectField(state, keys){
+  if (!isTech(state)) return true;
+  return (Array.isArray(keys) ? keys : []).some((key) => canTechSeeProjectField(state, key));
+}
+
+function onlyOwnActivitiesForTech(state, auth, activities){
+  if (!isTech(state)) return Array.isArray(activities) ? activities : [];
+  const uid = auth?.currentUser?.uid || "";
+  return (Array.isArray(activities) ? activities : []).filter((activity) => {
+    const techUids = Array.isArray(activity?.techUids) ? activity.techUids.filter(Boolean) : [];
+    return uid && techUids.includes(uid);
+  });
+}
+
 function keyUsersFromProjectClient(state, project){
   const clientId = project?.clientId || "";
   if (!clientId) return [];
@@ -259,7 +283,7 @@ function datesForRangeByWeekdays(start, end, weekdaysSet){
 }
 
 async function ensureWorkspaceContext(deps){
-  const { db, state } = deps || {};
+  const { db, state, auth } = deps || {};
   const companyId = state?.companyId;
   if (!db || !companyId) return;
 
@@ -270,6 +294,24 @@ async function ensureWorkspaceContext(deps){
 
   if (!Array.isArray(state._usersCache) || !state._usersCache.length){
     state._usersCache = [];
+  }
+
+  if (!state.company){
+    const companySnap = await getDoc(doc(db, "companies", companyId));
+    if (companySnap.exists()) state.company = { id: companySnap.id, ...companySnap.data() };
+  }
+
+  if (isTech(state)){
+    const uid = auth?.currentUser?.uid || "";
+    if (!uid) return;
+    const cachedSelf = state._usersCache.find((u) => u?.uid === uid);
+    if (cachedSelf) return;
+    const userSnap = await getDoc(doc(db, `companies/${companyId}/users`, uid));
+    if (userSnap.exists()){
+      const data = userSnap.data() || {};
+      state._usersCache = [{ uid: data.uid || userSnap.id, ...data }];
+    }
+    return;
   }
 
   // O custo tecnico estimado usa o valor/hora atual do tecnico.
@@ -1299,6 +1341,17 @@ function renderCover(refs, project, state){
   const profitPercent = (billingValueNumber > 0 && profitValue !== null) ? ((profitValue / billingValueNumber) * 100) : null;
   const profitTone = profitValue === null ? "neutral" : (profitValue >= 0 ? "positive" : "negative");
   const projectCompletion = billingHours > 0 ? Math.min(100, Math.round((executedActivityHours / billingHours) * 100)) : 0;
+  const showCoverHoursInfo = canTechSeeProjectField(state, "showCoverHoursInfo");
+  const showInternalExpenses = canTechSeeProjectField(state, "showInternalExpenses");
+  const showEstimatedTechCost = canTechSeeProjectField(state, "showEstimatedTechCost");
+  const showBillingHours = canTechSeeProjectField(state, "showProjectBillingHours");
+  const showBillingValue = canTechSeeProjectField(state, "showProjectBillingValue");
+  const showProjectCost = canTechSeeProjectField(state, "showProjectCost");
+  const showClientHourlyRate = canTechSeeProjectField(state, "showClientHourlyRate");
+  const showEstimatedMargin = canTechSeeProjectField(state, "showEstimatedMargin");
+  const showExpensesSummary = canTechSeeProjectField(state, "showExpensesSummary");
+  const allowStatusReport = canTechSeeProjectField(state, "allowStatusReport");
+  const showProfitStrip = canSeeAnyProjectField(state, ["showProjectBillingHours", "showProjectBillingValue", "showProjectCost", "showCoverHoursInfo"]);
 
   refs.projectWorkspaceCover.innerHTML = `
     <div class="project-cover-hero">
@@ -1311,29 +1364,29 @@ function renderCover(refs, project, state){
             <span class="project-cover-kpi-label">Qtde de tarefas</span>
             <strong>${escapeHtml(String(taskCount))}</strong>
           </div>
-          <div class="project-cover-kpi">
+          ${showCoverHoursInfo ? `<div class="project-cover-kpi">
             <span class="project-cover-kpi-label">Horas planejadas</span>
             <strong>${escapeHtml(formatHoursLabel(plannedActivityHours))}</strong>
-          </div>
-          <div class="project-cover-kpi">
+          </div>` : ""}
+          ${showCoverHoursInfo ? `<div class="project-cover-kpi">
             <span class="project-cover-kpi-label">Horas executadas</span>
             <strong>${escapeHtml(formatHoursLabel(executedActivityHours))}</strong>
-          </div>
+          </div>` : ""}
           <div class="project-cover-kpi">
             <span class="project-cover-kpi-label">Atividades pendentes</span>
             <strong>${escapeHtml(String(pendingActivities))}</strong>
             <span class="project-cover-meta">${escapeHtml(String(overdueActivities))} atrasada(s)</span>
           </div>
-          <div class="project-cover-kpi">
+          ${showInternalExpenses ? `<div class="project-cover-kpi">
             <span class="project-cover-kpi-label">Despesas internas</span>
             <strong>${escapeHtml(formatCurrencyBRL(approvedInternalExpenses))}</strong>
             <span class="project-cover-meta">Internas aprovadas</span>
-          </div>
-          <div class="project-cover-kpi">
+          </div>` : ""}
+          ${showEstimatedTechCost ? `<div class="project-cover-kpi">
             <span class="project-cover-kpi-label">Custo tecnico estimado</span>
             <strong>${escapeHtml(estimatedTechCost > 0 ? formatCurrencyBRL(estimatedTechCost) : "-")}</strong>
             <span class="project-cover-meta">Horas planejadas</span>
-          </div>
+          </div>` : ""}
         </div>
       </div>
       <div class="project-cover-badges">
@@ -1342,23 +1395,23 @@ function renderCover(refs, project, state){
             <span class="project-cover-highlight-label">Status</span>
             <strong>${escapeHtml(statusInfo.label)}</strong>
           </div>
-          <div class="project-cover-highlight project-cover-highlight--profit project-cover-highlight--${escapeHtml(profitTone)}">
+          ${showEstimatedMargin ? `<div class="project-cover-highlight project-cover-highlight--profit project-cover-highlight--${escapeHtml(profitTone)}">
             <span class="project-cover-highlight-label">Margem estimada</span>
             <strong>${escapeHtml(profitValue !== null ? formatCurrencyBRL(profitValue) : "-")}</strong>
             <span class="project-cover-highlight-meta">${escapeHtml(profitPercent !== null ? `${profitPercent.toFixed(1).replace(".", ",")}% apos despesas internas aprovadas` : "Sem base suficiente")}</span>
-          </div>
-          <div class="project-cover-highlight project-cover-highlight--deadline">
+          </div>` : ""}
+          ${showExpensesSummary ? `<div class="project-cover-highlight project-cover-highlight--deadline">
             <span class="project-cover-highlight-label">Despesas</span>
             <strong>${escapeHtml(formatCurrencyBRL(pendingExpenses))}</strong>
             <span class="project-cover-highlight-meta">${escapeHtml(`${String(asNumber(_expenseSummary?.countPending))} pendente(s) - Cliente ${formatCurrencyBRL(approvedClientExpenses)}`)}</span>
-          </div>
+          </div>` : ""}
           <div class="project-cover-highlight project-cover-highlight--deadline">
             <span class="project-cover-highlight-label">Prazo final</span>
             <strong>${escapeHtml(endDate)}</strong>
           </div>
         </div>
         <div class="project-cover-actions" id="projectCoverActionsSlot">
-          <button class="icon-btn xs btn-report-pdf" id="btnDownloadStatusReportPdf" type="button" title="Baixar status report em PDF" aria-label="Baixar status report em PDF">
+          ${allowStatusReport ? `<button class="icon-btn xs btn-report-pdf" id="btnDownloadStatusReportPdf" type="button" title="Baixar status report em PDF" aria-label="Baixar status report em PDF">
             <svg viewBox="0 0 24 24" aria-hidden="true">
               <path d="M7 3h7l5 5v11a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2Z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"></path>
               <path d="M14 3v5h5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"></path>
@@ -1373,29 +1426,29 @@ function renderCover(refs, project, state){
               <path d="m8.5 18 3-5-3-5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"></path>
               <path d="m14.5 18-3-5 3-5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"></path>
             </svg>
-          </button>
+          </button>` : ""}
         </div>
       </div>
     </div>
-    <div class="project-cover-profit-strip">
-      <div class="project-cover-profit-item">
+    ${showProfitStrip ? `<div class="project-cover-profit-strip">
+      ${showBillingHours ? `<div class="project-cover-profit-item">
         <span class="project-cover-label">Horas do projeto</span>
         <strong>${escapeHtml(formatHoursLabel(billingHours))}</strong>
-      </div>
-      <div class="project-cover-profit-item">
+      </div>` : ""}
+      ${showBillingValue ? `<div class="project-cover-profit-item">
         <span class="project-cover-label">Valor do projeto</span>
         <strong>${escapeHtml(billingValue)}</strong>
-      </div>
-      <div class="project-cover-profit-item">
+      </div>` : ""}
+      ${showProjectCost ? `<div class="project-cover-profit-item">
         <span class="project-cover-label">Custo do projeto</span>
         <strong>${escapeHtml(projectCost > 0 ? formatCurrencyBRL(projectCost) : "-")}</strong>
         <span class="project-cover-meta">Tecnico + despesas internas</span>
-      </div>
-      <div class="project-cover-profit-item">
+      </div>` : ""}
+      ${showCoverHoursInfo ? `<div class="project-cover-profit-item">
         <span class="project-cover-label">Consumo das horas</span>
         <strong>${escapeHtml(`${projectCompletion}%`)}</strong>
-      </div>
-    </div>
+      </div>` : ""}
+    </div>` : ""}
     <div class="project-cover-grid">
       <div class="project-cover-card">
         <span class="project-cover-label">Cliente</span>
@@ -1413,10 +1466,10 @@ function renderCover(refs, project, state){
         <span class="project-cover-label">Coordenador</span>
         <strong>${escapeHtml(coordinator)}</strong>
       </div>
-      <div class="project-cover-card">
+      ${showClientHourlyRate ? `<div class="project-cover-card">
         <span class="project-cover-label">Valor hora cliente</span>
         <strong>${escapeHtml(clientHourlyRate !== null ? formatCurrencyBRL(clientHourlyRate) : "-")}</strong>
-      </div>
+      </div>` : ""}
     </div>
   `;
 
@@ -1470,6 +1523,7 @@ function renderTasks(deps){
   const { refs, state } = deps;
   if (!refs.projectTaskList) return;
   const isUserTech = isTech(state);
+  const showTaskHoursInfo = canTechSeeProjectField(state, "showCoverHoursInfo");
   const searchTerm = normalizeSearchText(_taskSearchTerm);
   const today = new Date();
   today.setHours(0, 0, 0, 0);
@@ -1600,7 +1654,10 @@ function renderTasks(deps){
         .map((techGroup, techIdx) => {
         const techGroupHours = techGroup.activities.reduce((acc, a) => acc + asNumber(a.hoursWorked), 0);
         const activityCards = techGroup.activities.map(a => {
-      const canTechFill = isUserTech && ["admin","gestor","coordenador"].includes((a.createdByRole || "").toLowerCase());
+      const canTechFill = isUserTech
+        && Array.isArray(a.techUids)
+        && a.techUids.includes(deps?.auth?.currentUser?.uid || "")
+        && ["admin","gestor","coordenador"].includes((a.createdByRole || "").toLowerCase());
       const canManageActivity = canManageTasks(state);
       const canApproveActivity = canManageTasks(state) && (getActivityStatusValue(a) === "os_gerada" || getActivityStatusValue(a) === "os_aprovada");
       const assignedTechs = Array.isArray(a.techNames) && a.techNames.length ? a.techNames.join(", ") : "Sem tecnico";
@@ -1712,9 +1769,9 @@ function renderTasks(deps){
             <div class="task-summary-statuses">
               <div class="task-top-metrics">
                 <div class="task-kpis">
-                ${isUserTech ? `<span class="kpi">Horas orcadas: <b>-</b></span>` : `<span class="kpi">Horas orcadas: <b>${escapeHtml(String(planned))}h</b></span>`}
-                <span class="kpi">Horas trabalhadas: <b>${escapeHtml(String(worked))}h</b></span>
-                <span class="kpi">Saldo disponivel: <b>${escapeHtml(String(balance))}h</b></span>
+                ${showTaskHoursInfo ? `<span class="kpi">Horas orcadas: <b>${escapeHtml(String(planned))}h</b></span>` : ""}
+                ${showTaskHoursInfo ? `<span class="kpi">Horas trabalhadas: <b>${escapeHtml(String(worked))}h</b></span>` : ""}
+                ${showTaskHoursInfo ? `<span class="kpi">Saldo disponivel: <b>${escapeHtml(String(balance))}h</b></span>` : ""}
                 <span class="kpi">Atividades: <b>${escapeHtml(String(filteredTaskActs.length))}</b></span>
                 </div>
                 <div class="task-status-strip">
@@ -1727,7 +1784,7 @@ function renderTasks(deps){
             </div>
           </div>
           <div class="task-summary-right">
-            <button class="btn primary sm" data-open-activity-form="${escapeHtml(t.id)}" type="button">+ Nova atividade</button>
+            ${canManageTasks(state) ? `<button class="btn primary sm" data-open-activity-form="${escapeHtml(t.id)}" type="button">+ Nova atividade</button>` : ""}
             <span class="task-toggle-label">Expandir</span>
           </div>
         </summary>
@@ -1812,7 +1869,7 @@ function renderTasks(deps){
 }
 
 async function loadProjectData(deps, projectId){
-  const { db, state } = deps;
+  const { db, state, auth } = deps;
   const companyId = state.companyId;
   if (!companyId) throw new Error("Empresa não identificada.");
 
@@ -1826,17 +1883,37 @@ async function loadProjectData(deps, projectId){
   const tSnap = await getDocs(query(collection(db, `companies/${companyId}/tasks`), where("projectId", "==", projectId)));
   _tasks = tSnap.docs.map(d => ({ id: d.id, ...d.data() })).sort((a,b) => asNumber(a.taskNumber) - asNumber(b.taskNumber));
 
-  const aSnap = await getDocs(query(collection(db, `companies/${companyId}/activities`), where("projectId", "==", projectId)));
-  _activities = aSnap.docs.map(d => ({ id: d.id, ...d.data() })).sort((a,b) => String(a.workDate || "").localeCompare(String(b.workDate || "")));
-  _expenseSummary = await computeProjectExpenseSummary(db, companyId, projectId).catch(() => ({
-    totalApproved: 0,
-    totalPending: 0,
-    approvedInternal: 0,
-    approvedClient: 0,
-    countPending: 0,
-    countApproved: 0,
-    countRejected: 0
-  }));
+  const uid = auth?.currentUser?.uid || "";
+  const activitiesQuery = isTech(state) && uid
+    ? query(collection(db, `companies/${companyId}/activities`), where("techUids", "array-contains", uid))
+    : query(collection(db, `companies/${companyId}/activities`), where("projectId", "==", projectId));
+  const aSnap = await getDocs(activitiesQuery);
+  _activities = onlyOwnActivitiesForTech(state, auth, aSnap.docs.map(d => ({ id: d.id, ...d.data() }))
+    .filter((activity) => activity.projectId === projectId))
+    .sort((a,b) => String(a.workDate || "").localeCompare(String(b.workDate || "")));
+  if (isTech(state)){
+    const visibleTaskIds = new Set(_activities.map((activity) => activity.taskId).filter(Boolean));
+    _tasks = _tasks.filter((task) => visibleTaskIds.has(task.id));
+    _expenseSummary = {
+      totalApproved: 0,
+      totalPending: 0,
+      approvedInternal: 0,
+      approvedClient: 0,
+      countPending: 0,
+      countApproved: 0,
+      countRejected: 0
+    };
+  } else {
+    _expenseSummary = await computeProjectExpenseSummary(db, companyId, projectId).catch(() => ({
+      totalApproved: 0,
+      totalPending: 0,
+      approvedInternal: 0,
+      approvedClient: 0,
+      countPending: 0,
+      countApproved: 0,
+      countRejected: 0
+    }));
+  }
 }
 
 async function saveTask(deps){
@@ -2038,6 +2115,12 @@ async function saveTechFill(activityId, deps){
   const { refs, state, db, auth } = deps;
   const act = _activities.find(a => a.id === activityId);
   if (!act) return;
+  const uid = auth?.currentUser?.uid || "";
+  const techUids = Array.isArray(act.techUids) ? act.techUids.filter(Boolean) : [];
+  if (isTech(state) && (!uid || !techUids.includes(uid))){
+    setAlert(refs.projectTaskAlert, "Voce pode preencher apenas atividades vinculadas ao seu usuario.", "error");
+    return;
+  }
 
   const start = document.getElementById(`actStart-${activityId}`)?.value || "";
   const end = document.getElementById(`actEnd-${activityId}`)?.value || "";
@@ -2059,7 +2142,6 @@ async function saveTechFill(activityId, deps){
   }
 
   const companyId = state.companyId;
-  const uid = auth?.currentUser?.uid || "";
   await updateDoc(doc(db, `companies/${companyId}/activities`, activityId), {
     startTime: start,
     endTime: end,
@@ -2141,7 +2223,7 @@ export async function openProjectWorkspace(projectId, deps){
     _tabs = _tabs.map(t => t.id === projectId ? { ...t, label } : t);
     if (refs.projectWorkspaceTitle) refs.projectWorkspaceTitle.textContent = "";
     if (refs.projectWorkspaceSubtitle) refs.projectWorkspaceSubtitle.textContent = "";
-    if (refs.btnOpenWorkspaceView) refs.btnOpenWorkspaceView.style.display = "";
+    if (refs.btnOpenWorkspaceView) refs.btnOpenWorkspaceView.style.display = isTech(deps.state) ? "none" : "";
     if (refs.btnOpenWorkspaceEdit) refs.btnOpenWorkspaceEdit.style.display = isTech(deps.state) ? "none" : "";
     if (refs.btnDeleteWorkspaceProject) refs.btnDeleteWorkspaceProject.style.display = isTech(deps.state) ? "none" : "";
     if (refs.btnOpenTaskForm) refs.btnOpenTaskForm.style.display = canManageTasks(deps.state) ? "" : "none";
