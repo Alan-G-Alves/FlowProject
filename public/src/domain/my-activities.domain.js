@@ -11,7 +11,7 @@ import {
 import { clearAlert, setAlert } from "../ui/alerts.js";
 import { escapeHtml, hide, show } from "../utils/dom.js";
 import { createNotifications } from "../services/notifications.service.js?v=1776052722";
-import * as expensesDomain from "./expenses.domain.js?v=1777057015";
+import * as expensesDomain from "./expenses.domain.js?v=1777953000";
 
 let _bound = false;
 let _currentActivity = null;
@@ -20,6 +20,7 @@ let _myActivitiesCache = [];
 let _myActivitiesAllCache = [];
 let _myActivitiesStatusFilter = "all";
 let _afterModalSave = null;
+let _currentState = null;
 
 function getActivityStatusValue(activity) {
   return String(activity?.status || "").toLowerCase();
@@ -34,11 +35,18 @@ function isCompleted(activity) {
   return status === "os_gerada" || status === "os_aprovada";
 }
 
+function getActivityNoteMinChars(state) {
+  const num = Number(state?.company?.activityNoteMinChars);
+  if (!Number.isFinite(num)) return 50;
+  return Math.max(0, Math.min(1000, Math.round(num)));
+}
+
 function updateMyActivityNoteCounter(refs) {
   if (!refs?.myActivityNoteCounter) return;
+  const minChars = getActivityNoteMinChars(_currentState);
   const noteLength = String(refs.myActivityNote?.value || "").trim().length;
-  refs.myActivityNoteCounter.textContent = `${noteLength}/50 minimo`;
-  refs.myActivityNoteCounter.classList.toggle("is-ready", noteLength >= 50);
+  refs.myActivityNoteCounter.textContent = `${noteLength}/${minChars} minimo`;
+  refs.myActivityNoteCounter.classList.toggle("is-ready", noteLength >= minChars);
 }
 
 function formatHours(value) {
@@ -156,6 +164,7 @@ function bindEvents(deps) {
   if (_bound) return;
   _bound = true;
   const { refs } = deps;
+  _currentState = deps.state;
 
   document.querySelectorAll("[data-my-activities-filter]").forEach((card) => {
     const apply = () => {
@@ -390,8 +399,9 @@ function closeMyActivityModal() {
 }
 
 function openMyActivityModalItem(item, mode, deps, options = {}) {
-  const { refs } = deps;
+  const { refs, state } = deps;
   if (!item || !refs.modalMyActivity) return;
+  _currentState = state;
 
   _currentActivity = item;
   _currentModalMode = mode === "edit" ? "edit" : "view";
@@ -422,6 +432,12 @@ function openMyActivityModalItem(item, mode, deps, options = {}) {
     ? item.activity.keyUsers.join(", ")
     : "-";
   if (refs.myActivityNote) refs.myActivityNote.value = item.activity.note || "";
+  const minChars = getActivityNoteMinChars(state);
+  if (refs.myActivityNote) {
+    refs.myActivityNote.placeholder = minChars > 0
+      ? `Descreva o que foi realizado, dificuldades, resultado, validacoes feitas e qualquer contexto importante. Minimo de ${minChars} caracteres.`
+      : "Descreva o que foi realizado, dificuldades, resultado, validacoes feitas e qualquer contexto importante.";
+  }
 
   if (refs.myActivityStartTime) refs.myActivityStartTime.disabled = readOnly;
   if (refs.myActivityEndTime) refs.myActivityEndTime.disabled = readOnly;
@@ -471,6 +487,7 @@ async function saveMyActivityModal(deps) {
   const end = refs.myActivityEndTime?.value || "";
   const breakTime = refs.myActivityBreakTime?.value || "01:00";
   const note = (refs.myActivityNote?.value || "").trim();
+  const minChars = getActivityNoteMinChars(state);
   const hoursDiff = diffHours(start, end, breakTime);
   const maxHours = asNumber(_currentActivity.activity.hoursWorked);
   const currentUid = auth?.currentUser?.uid || "";
@@ -488,8 +505,8 @@ async function saveMyActivityModal(deps) {
     setMyActivityModalError(refs, `O apontamento nao pode ultrapassar ${maxHours}h previstas para a atividade.`);
     return;
   }
-  if (note.length < 50) {
-    setMyActivityModalError(refs, "A observacao precisa ter no minimo 50 caracteres.");
+  if (note.length < minChars) {
+    setMyActivityModalError(refs, `A observacao precisa ter no minimo ${minChars} caracteres.`);
     return;
   }
 

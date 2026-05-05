@@ -66,6 +66,24 @@ export const btnCancelProjectTechPermissions = byId("btnCancelProjectTechPermiss
 export const btnSaveProjectTechPermissions = byId("btnSaveProjectTechPermissions");
 export const btnResetProjectTechPermissions = byId("btnResetProjectTechPermissions");
 
+// Activity note settings
+export const modalActivityNoteSettings = byId("modalActivityNoteSettings");
+export const activityNoteSettingsAlert = byId("activityNoteSettingsAlert");
+export const activityNoteMinCharsInput = byId("activityNoteMinCharsInput");
+export const btnCloseActivityNoteSettings = byId("btnCloseActivityNoteSettings");
+export const btnCancelActivityNoteSettings = byId("btnCancelActivityNoteSettings");
+export const btnSaveActivityNoteSettings = byId("btnSaveActivityNoteSettings");
+export const btnResetActivityNoteSettings = byId("btnResetActivityNoteSettings");
+
+// Expense observation settings
+export const modalExpenseObservationSettings = byId("modalExpenseObservationSettings");
+export const expenseObservationSettingsAlert = byId("expenseObservationSettingsAlert");
+export const expenseObservationMinCharsInput = byId("expenseObservationMinCharsInput");
+export const btnCloseExpenseObservationSettings = byId("btnCloseExpenseObservationSettings");
+export const btnCancelExpenseObservationSettings = byId("btnCancelExpenseObservationSettings");
+export const btnSaveExpenseObservationSettings = byId("btnSaveExpenseObservationSettings");
+export const btnResetExpenseObservationSettings = byId("btnResetExpenseObservationSettings");
+
 // Login
 export const loginForm = byId("loginForm");
 export const emailEl = byId("email");

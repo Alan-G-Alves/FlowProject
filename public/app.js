@@ -53,18 +53,18 @@ import { normalizePhone, normalizeCnpj, slugify } from "./src/utils/format.js";
 import { setAlert, clearAlert, clearInlineAlert, showInlineAlert, showDialogAlert } from "./src/ui/alerts.js";
 import { getCompanyDoc, listCompaniesDocs } from "./src/services/companies.service.js";
 import { createNotification } from "./src/services/notifications.service.js?v=1776052722";
-import * as refs from "./src/ui/refs.js?v=1777945200";
+import * as refs from "./src/ui/refs.js?v=1777953000";
 import * as companiesDomain from "./src/domain/companies.domain.js?v=1770332251";
 import * as teamsDomain from "./src/domain/teams.domain.js?v=1772614200";
 import * as usersDomain from "./src/domain/users.domain.js?v=1777055918";
 import * as managerUsersDomain from "./src/domain/manager-users.domain.js?v=1777055918";
 import * as clientsDomain from "./src/domain/clients.domain.js?v=1776052720";
 import * as projectsDomain from "./src/domain/projects.domain.js?v=1777945200";
-import * as myActivitiesDomain from "./src/domain/my-activities.domain.js?v=1777948800";
+import * as myActivitiesDomain from "./src/domain/my-activities.domain.js?v=1777951800";
 import * as myFeedbacksDomain from "./src/domain/my-feedbacks.domain.js?v=1776040900";
 import * as osApprovalsDomain from "./src/domain/os-approvals.domain.js?v=1776052722";
-import * as expensesDomain from "./src/domain/expenses.domain.js?v=1777057015";
-import * as projectWorkspaceDomain from "./src/domain/project-workspace.domain.js?v=1777948800";
+import * as expensesDomain from "./src/domain/expenses.domain.js?v=1777953000";
+import * as projectWorkspaceDomain from "./src/domain/project-workspace.domain.js?v=1777950600";
 import * as reportsDomain from "./src/domain/reports.domain.js?v=1777057015";
 import * as lgpdDomain from "./src/domain/lgpd.domain.js?v=1777475100";
 import * as profileModal from "./src/ui/modals/profile.modal.js?v=1770332251";
@@ -269,6 +269,18 @@ function normalizeProjectTechPermissions(value){
     defaults[item.key] = source[item.key] === true;
   }
   return defaults;
+}
+
+function normalizeActivityNoteMinChars(value){
+  const num = Number(value);
+  if (!Number.isFinite(num)) return 50;
+  return Math.max(0, Math.min(1000, Math.round(num)));
+}
+
+function normalizeExpenseObservationMinChars(value){
+  const num = Number(value);
+  if (!Number.isFinite(num)) return 10;
+  return Math.max(0, Math.min(1000, Math.round(num)));
 }
 
 function getCompanyBrand(company = state.company){
@@ -677,6 +689,20 @@ function renderSettingsView(){
       title: "Permissoes de relatorios",
       desc: "Defina quais relatorios cada perfil da empresa pode visualizar.",
       action: "reportPermissions",
+      actionLabel: "Configurar"
+    }));
+    cards.push(settingsCard({
+      scope: "Apontamentos",
+      title: "Regras de apontamento",
+      desc: "Defina quantos caracteres a observacao tecnica precisa ter para salvar um apontamento.",
+      action: "activityNoteSettings",
+      actionLabel: "Configurar"
+    }));
+    cards.push(settingsCard({
+      scope: "Despesas",
+      title: "Regras de despesas",
+      desc: "Defina quantos caracteres a observacao da despesa precisa ter para ser salva.",
+      action: "expenseObservationSettings",
       actionLabel: "Configurar"
     }));
     cards.push(settingsCard({
@@ -2481,6 +2507,94 @@ function resetProjectTechPermissionsForm(){
   });
 }
 
+function closeActivityNoteSettingsModal(){
+  hide(refs.modalActivityNoteSettings);
+  clearAlert(refs.activityNoteSettingsAlert);
+}
+
+async function openActivityNoteSettingsModal(){
+  clearAlert(refs.activityNoteSettingsAlert);
+  if (!isCompanyAdmin()){
+    alert("Acesso restrito: somente admin da empresa pode configurar regras de apontamento.");
+    return;
+  }
+  if (!state.company && state.companyId) await loadCurrentCompanyBrand();
+  if (refs.activityNoteMinCharsInput) {
+    refs.activityNoteMinCharsInput.value = String(normalizeActivityNoteMinChars(state.company?.activityNoteMinChars));
+  }
+  show(refs.modalActivityNoteSettings);
+}
+
+async function saveActivityNoteSettings(){
+  clearAlert(refs.activityNoteSettingsAlert);
+  if (!isCompanyAdmin()) return setAlert(refs.activityNoteSettingsAlert, "Acesso restrito.");
+  if (!state.companyId) return setAlert(refs.activityNoteSettingsAlert, "Empresa nao identificada.");
+  const raw = refs.activityNoteMinCharsInput?.value ?? "";
+  const value = normalizeActivityNoteMinChars(raw);
+  if (String(raw).trim() === "" || Number(raw) !== value){
+    return setAlert(refs.activityNoteSettingsAlert, "Informe um numero inteiro entre 0 e 1000.");
+  }
+  try{
+    await updateDoc(doc(db, "companies", state.companyId), {
+      activityNoteMinChars: value,
+      updatedAt: serverTimestamp()
+    });
+    state.company = { ...(state.company || {}), activityNoteMinChars: value };
+    setAlert(refs.activityNoteSettingsAlert, "Regra de apontamento salva com sucesso.", "success");
+  }catch(err){
+    console.error("[activity-note-settings:save]", err);
+    setAlert(refs.activityNoteSettingsAlert, err?.message || "Nao foi possivel salvar a regra de apontamento.");
+  }
+}
+
+function resetActivityNoteSettingsForm(){
+  if (refs.activityNoteMinCharsInput) refs.activityNoteMinCharsInput.value = "50";
+}
+
+function closeExpenseObservationSettingsModal(){
+  hide(refs.modalExpenseObservationSettings);
+  clearAlert(refs.expenseObservationSettingsAlert);
+}
+
+async function openExpenseObservationSettingsModal(){
+  clearAlert(refs.expenseObservationSettingsAlert);
+  if (!isCompanyAdmin()){
+    alert("Acesso restrito: somente admin da empresa pode configurar regras de despesas.");
+    return;
+  }
+  if (!state.company && state.companyId) await loadCurrentCompanyBrand();
+  if (refs.expenseObservationMinCharsInput) {
+    refs.expenseObservationMinCharsInput.value = String(normalizeExpenseObservationMinChars(state.company?.expenseObservationMinChars));
+  }
+  show(refs.modalExpenseObservationSettings);
+}
+
+async function saveExpenseObservationSettings(){
+  clearAlert(refs.expenseObservationSettingsAlert);
+  if (!isCompanyAdmin()) return setAlert(refs.expenseObservationSettingsAlert, "Acesso restrito.");
+  if (!state.companyId) return setAlert(refs.expenseObservationSettingsAlert, "Empresa nao identificada.");
+  const raw = refs.expenseObservationMinCharsInput?.value ?? "";
+  const value = normalizeExpenseObservationMinChars(raw);
+  if (String(raw).trim() === "" || Number(raw) !== value){
+    return setAlert(refs.expenseObservationSettingsAlert, "Informe um numero inteiro entre 0 e 1000.");
+  }
+  try{
+    await updateDoc(doc(db, "companies", state.companyId), {
+      expenseObservationMinChars: value,
+      updatedAt: serverTimestamp()
+    });
+    state.company = { ...(state.company || {}), expenseObservationMinChars: value };
+    setAlert(refs.expenseObservationSettingsAlert, "Regra de despesa salva com sucesso.", "success");
+  }catch(err){
+    console.error("[expense-observation-settings:save]", err);
+    setAlert(refs.expenseObservationSettingsAlert, err?.message || "Nao foi possivel salvar a regra de despesa.");
+  }
+}
+
+function resetExpenseObservationSettingsForm(){
+  if (refs.expenseObservationMinCharsInput) refs.expenseObservationMinCharsInput.value = "10";
+}
+
 function closeCompanyBrandModal(){
   hide(refs.modalCompanyBrand);
   clearAlert(refs.companyBrandAlert);
@@ -3130,6 +3244,16 @@ refs.btnCancelProjectTechPermissions?.addEventListener("click", closeProjectTech
 refs.modalProjectTechPermissions?.addEventListener("click", (event) => {
   if (event.target?.matches?.("[data-close-project-tech-permissions='true']")) closeProjectTechPermissionsModal();
 });
+refs.btnCloseActivityNoteSettings?.addEventListener("click", closeActivityNoteSettingsModal);
+refs.btnCancelActivityNoteSettings?.addEventListener("click", closeActivityNoteSettingsModal);
+refs.modalActivityNoteSettings?.addEventListener("click", (event) => {
+  if (event.target?.matches?.("[data-close-activity-note-settings='true']")) closeActivityNoteSettingsModal();
+});
+refs.btnCloseExpenseObservationSettings?.addEventListener("click", closeExpenseObservationSettingsModal);
+refs.btnCancelExpenseObservationSettings?.addEventListener("click", closeExpenseObservationSettingsModal);
+refs.modalExpenseObservationSettings?.addEventListener("click", (event) => {
+  if (event.target?.matches?.("[data-close-expense-observation-settings='true']")) closeExpenseObservationSettingsModal();
+});
 refs.companyBrandName?.addEventListener("input", previewCompanyBrand);
 refs.companyBrandLogoFile?.addEventListener("change", previewCompanyBrand);
 refs.btnSaveCompanyBrand?.addEventListener("click", saveCompanyBrand);
@@ -3138,6 +3262,10 @@ refs.btnSaveReportPermissions?.addEventListener("click", saveReportPermissions);
 refs.btnResetReportPermissions?.addEventListener("click", resetReportPermissionsForm);
 refs.btnSaveProjectTechPermissions?.addEventListener("click", saveProjectTechPermissions);
 refs.btnResetProjectTechPermissions?.addEventListener("click", resetProjectTechPermissionsForm);
+refs.btnSaveActivityNoteSettings?.addEventListener("click", saveActivityNoteSettings);
+refs.btnResetActivityNoteSettings?.addEventListener("click", resetActivityNoteSettingsForm);
+refs.btnSaveExpenseObservationSettings?.addEventListener("click", saveExpenseObservationSettings);
+refs.btnResetExpenseObservationSettings?.addEventListener("click", resetExpenseObservationSettingsForm);
 
 refs.settingsGrid?.addEventListener("click", async (event) => {
   const btn = event.target?.closest?.("[data-settings-action]");
@@ -3147,6 +3275,8 @@ refs.settingsGrid?.addEventListener("click", async (event) => {
   if (action === "brand") return openCompanyBrandModal();
   if (action === "reportPermissions") return openReportPermissionsModal();
   if (action === "projectTechPermissions") return openProjectTechPermissionsModal();
+  if (action === "activityNoteSettings") return openActivityNoteSettingsModal();
+  if (action === "expenseObservationSettings") return openExpenseObservationSettingsModal();
   if (action === "lgpd") return openLgpdCenter();
   if (action === "users") {
     return navigateTo(ROUTES.managerUsers);

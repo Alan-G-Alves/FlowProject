@@ -29,7 +29,14 @@ let _expenseReceiptFile = null;
 let _expenseReceiptObjectUrl = "";
 let _activityExpenseDraftSeq = 0;
 let _expenseApprovalsPage = 1;
+let _currentState = null;
 const EXPENSE_APPROVALS_PAGE_SIZE = 8;
+
+function getExpenseObservationMinChars(state) {
+  const num = Number(state?.company?.expenseObservationMinChars);
+  if (!Number.isFinite(num)) return 10;
+  return Math.max(0, Math.min(1000, Math.round(num)));
+}
 
 function normalizeText(value) {
   return String(value || "")
@@ -62,6 +69,7 @@ function isFileInputFilled(input) {
 }
 
 function collectActivityExpenseDrafts(refs, { validate = false } = {}) {
+  const minChars = getExpenseObservationMinChars(_currentState);
   const rows = Array.from(refs?.myActivityExpenseDrafts?.querySelectorAll?.("[data-activity-expense-draft]") || []);
   const drafts = [];
 
@@ -82,7 +90,7 @@ function collectActivityExpenseDrafts(refs, { validate = false } = {}) {
     if (validate) {
       if (!type) throw new Error(`Selecione o tipo da despesa na linha ${lineNumber}.`);
       if (!amount || amount <= 0) throw new Error(`Informe um valor maior que zero na despesa ${lineNumber}.`);
-      if (!observation || observation.length < 10) throw new Error(`Descreva a despesa ${lineNumber} com pelo menos 10 caracteres.`);
+      if (observation.length < minChars) throw new Error(`Descreva a despesa ${lineNumber} com pelo menos ${minChars} caracteres.`);
       if (!receiptFile) throw new Error(`Anexe o comprovante da despesa ${lineNumber}.`);
       if ((receiptFile.size || 0) > EXPENSE_RECEIPT_MAX_SIZE) throw new Error(`O comprovante da despesa ${lineNumber} deve ter no maximo 8 MB.`);
     }
@@ -253,9 +261,10 @@ function setReceiptFile(file, refs) {
 
 function updateObservationCounter(refs) {
   if (!refs.expenseObservationCounter) return;
+  const minChars = getExpenseObservationMinChars(_currentState);
   const size = String(refs.expenseObservationEl?.value || "").trim().length;
-  refs.expenseObservationCounter.textContent = `${size}/10 minimo`;
-  refs.expenseObservationCounter.classList.toggle("is-ready", size >= 10);
+  refs.expenseObservationCounter.textContent = `${size}/${minChars} minimo`;
+  refs.expenseObservationCounter.classList.toggle("is-ready", size >= minChars);
 }
 
 async function retryUploadReceipt(storage, path, file) {
@@ -279,6 +288,7 @@ async function retryUploadReceipt(storage, path, file) {
 
 async function createExpenseRecord(input, deps) {
   const { db, storage, auth, state } = deps;
+  _currentState = state;
   const role = String(state.profile?.role || "").toLowerCase();
   const currentUid = auth?.currentUser?.uid || "";
   const receiptFile = input?.receiptFile || null;
@@ -288,7 +298,8 @@ async function createExpenseRecord(input, deps) {
   if (!state.companyId) throw new Error("Empresa nao identificada para registrar a despesa.");
   if (!input?.projectId) throw new Error("Projeto obrigatorio para registrar a despesa.");
   if (!input?.type) throw new Error("Tipo obrigatorio para registrar a despesa.");
-  if (!input?.observation || String(input.observation).trim().length < 10) throw new Error("Descreva a despesa com pelo menos 10 caracteres.");
+  const minChars = getExpenseObservationMinChars(state);
+  if (String(input?.observation || "").trim().length < minChars) throw new Error(`Descreva a despesa com pelo menos ${minChars} caracteres.`);
   if (!amount || amount <= 0) throw new Error("Informe um valor maior que zero para a despesa.");
   if (!receiptFile) throw new Error("Anexe o comprovante da despesa para continuar.");
   if ((receiptFile.size || 0) > EXPENSE_RECEIPT_MAX_SIZE) throw new Error("O comprovante deve ter no maximo 8 MB.");
@@ -537,6 +548,7 @@ function resetExpenseForm(refs) {
 async function openExpenseForm(context, deps) {
   bindEvents(deps);
   const { refs, state } = deps;
+  _currentState = state;
   if (!refs.modalExpenseForm) return;
 
   _expenseFormContext = context || { source: "manual" };
@@ -585,6 +597,14 @@ async function openExpenseForm(context, deps) {
     `;
   }
 
+  const minChars = getExpenseObservationMinChars(state);
+  if (refs.expenseObservationEl) {
+    refs.expenseObservationEl.placeholder = minChars > 0
+      ? `Explique o contexto da despesa, o motivo e o que foi utilizado. Minimo de ${minChars} caracteres.`
+      : "Explique o contexto da despesa, o motivo e o que foi utilizado.";
+  }
+  updateObservationCounter(refs);
+
   refs.modalExpenseForm.hidden = false;
 }
 
@@ -605,6 +625,7 @@ async function showExpenseDialog(message, options = {}) {
 
 async function saveExpenseForm(deps) {
   const { refs, db, storage, auth, state } = deps;
+  _currentState = state;
   if (!_expenseFormContext) return;
 
   clearAlert(refs.expenseFormAlert);
@@ -623,7 +644,8 @@ async function saveExpenseForm(deps) {
 
   if (!projectId) return showExpenseDialog("Escolha o projeto ao qual essa despesa pertence.", { title: "Projeto obrigatório", type: "error" });
   if (!type) return showExpenseDialog("Selecione o tipo da despesa para continuar.", { title: "Tipo obrigatório", type: "error" });
-  if (!observation || observation.length < 10) return showExpenseDialog("Descreva a despesa com pelo menos 10 caracteres.", { title: "Descrição incompleta", type: "error" });
+  const minChars = getExpenseObservationMinChars(state);
+  if (observation.length < minChars) return showExpenseDialog(`Descreva a despesa com pelo menos ${minChars} caracteres.`, { title: "Descrição incompleta", type: "error" });
   if (!amount || amount <= 0) return showExpenseDialog("Informe um valor maior que zero para a despesa.", { title: "Valor inválido", type: "error" });
   if (!_expenseReceiptFile) return showExpenseDialog("Anexe o comprovante da despesa para continuar.", { title: "Comprovante obrigatório", type: "error" });
   if ((_expenseReceiptFile.size || 0) > EXPENSE_RECEIPT_MAX_SIZE) {
@@ -1315,6 +1337,7 @@ export async function loadExpenseApprovals(deps) {
 }
 
 function bindEvents(deps) {
+  _currentState = deps?.state || _currentState;
   if (_bound) return;
   _bound = true;
   const { refs } = deps;

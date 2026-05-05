@@ -1426,10 +1426,10 @@
 
           <label class="field span-2 my-activity-note-field">
             <span>Observacao do tecnico</span>
-            <textarea id="myActivityNote" rows="4" placeholder="Descreva o que foi realizado, dificuldades, resultado, validacoes feitas e qualquer contexto importante. Minimo de 50 caracteres."></textarea>
+            <textarea id="myActivityNote" rows="4" placeholder="Descreva o que foi realizado, dificuldades, resultado, validacoes feitas e qualquer contexto importante."></textarea>
             <div class="my-activity-note-meta">
               <small>Ao salvar, a atividade vai para <b>OS Enviada</b> e segue para aprovacao do gestor.</small>
-              <strong id="myActivityNoteCounter">0/50 minimo</strong>
+              <strong id="myActivityNoteCounter">0 minimo</strong>
             </div>
           </label>
         </section>
@@ -1527,10 +1527,10 @@
             </label>
             <label class="field" style="grid-column: span 12;">
               <span>Observacao</span>
-              <textarea id="expenseObservation" rows="4" placeholder="Explique o contexto da despesa, o motivo e o que foi utilizado. Minimo de 10 caracteres."></textarea>
+              <textarea id="expenseObservation" rows="4" placeholder="Explique o contexto da despesa, o motivo e o que foi utilizado."></textarea>
               <div class="expense-observation-meta">
                 <small id="expenseObservationHint">Descreva a despesa com clareza para facilitar a aprovacao.</small>
-                <strong id="expenseObservationCounter">0/10 minimo</strong>
+                <strong id="expenseObservationCounter">0 minimo</strong>
               </div>
             </label>
           </div>
@@ -2838,6 +2838,66 @@
 </div>
 
 
+<!-- MODAL: Configuracao de Apontamento -->
+<div class="modal" hidden id="modalActivityNoteSettings">
+  <div class="modal-backdrop" data-close-activity-note-settings="true"></div>
+  <div class="modal-card">
+    <div class="modal-header">
+      <div>
+        <h2>Regras de apontamento</h2>
+        <p class="muted">Defina o minimo de caracteres exigido na observacao do apontamento tecnico.</p>
+      </div>
+      <button class="btn ghost" id="btnCloseActivityNoteSettings" type="button">X</button>
+    </div>
+
+    <div class="modal-body">
+      <div class="alert" hidden id="activityNoteSettingsAlert"></div>
+      <label class="field">
+        <span>Caracteres obrigatorios na observacao</span>
+        <input id="activityNoteMinCharsInput" type="number" min="0" max="1000" step="1" inputmode="numeric" />
+        <small class="help">Use um valor de 0 a 1000. O padrao do sistema e 50.</small>
+      </label>
+    </div>
+
+    <div class="modal-footer">
+      <button class="btn ghost" id="btnResetActivityNoteSettings" type="button">Restaurar padrao</button>
+      <button class="btn ghost" id="btnCancelActivityNoteSettings" type="button">Cancelar</button>
+      <button class="btn primary" id="btnSaveActivityNoteSettings" type="button">Salvar</button>
+    </div>
+  </div>
+</div>
+
+
+<!-- MODAL: Configuracao de Despesas -->
+<div class="modal" hidden id="modalExpenseObservationSettings">
+  <div class="modal-backdrop" data-close-expense-observation-settings="true"></div>
+  <div class="modal-card">
+    <div class="modal-header">
+      <div>
+        <h2>Regras de despesas</h2>
+        <p class="muted">Defina o minimo de caracteres exigido na observacao da despesa.</p>
+      </div>
+      <button class="btn ghost" id="btnCloseExpenseObservationSettings" type="button">X</button>
+    </div>
+
+    <div class="modal-body">
+      <div class="alert" hidden id="expenseObservationSettingsAlert"></div>
+      <label class="field">
+        <span>Caracteres obrigatorios na observacao</span>
+        <input id="expenseObservationMinCharsInput" type="number" min="0" max="1000" step="1" inputmode="numeric" />
+        <small class="help">Use um valor de 0 a 1000. O padrao do sistema e 10.</small>
+      </label>
+    </div>
+
+    <div class="modal-footer">
+      <button class="btn ghost" id="btnResetExpenseObservationSettings" type="button">Restaurar padrao</button>
+      <button class="btn ghost" id="btnCancelExpenseObservationSettings" type="button">Cancelar</button>
+      <button class="btn primary" id="btnSaveExpenseObservationSettings" type="button">Salvar</button>
+    </div>
+  </div>
+</div>
+
+
 <!-- MODAL: Marca da Empresa -->
 <div class="modal" hidden id="modalCompanyBrand">
   <div class="modal-backdrop" data-close-company-brand="true"></div>
@@ -2882,7 +2942,7 @@
   </div>
 </div>
 
-<script src="./app.js?v=1777948800" type="module"></script>
+<script src="./app.js?v=1777953000" type="module"></script>
 <script>
   // Toggle senha (somente UI)
   document.addEventListener("click", function(e){

@@ -17,7 +17,7 @@ import { ensureClientsCache } from "./clients.domain.js";
 import { computeProjectExpenseSummary } from "./expenses.domain.js?v=1777057015";
 import { createNotifications } from "../services/notifications.service.js?v=1776052722";
 import { downloadProjectStatusReportExcel, downloadProjectStatusReportPdf } from "./project-status-report.domain.js?v=1776052718";
-import { openMyActivityModalForItem } from "./my-activities.domain.js?v=1777948800";
+import { openMyActivityModalForItem } from "./my-activities.domain.js?v=1777951800";
 
 let _bound = false;
 let _activeProjectId = "";
@@ -216,6 +216,12 @@ function canTechSeeProjectField(state, key){
 function canSeeAnyProjectField(state, keys){
   if (!isTech(state)) return true;
   return (Array.isArray(keys) ? keys : []).some((key) => canTechSeeProjectField(state, key));
+}
+
+function getActivityNoteMinChars(state) {
+  const num = Number(state?.company?.activityNoteMinChars);
+  if (!Number.isFinite(num)) return 50;
+  return Math.max(0, Math.min(1000, Math.round(num)));
 }
 
 function onlyOwnActivitiesForTech(state, auth, activities){
@@ -523,7 +529,7 @@ function ensureActivityActionModal(){
                 <textarea id="activityModalGeneratedNote" rows="6" placeholder="Observacao do apontamento"></textarea>
                 <div class="my-activity-note-meta">
                   <small>Este apontamento foi enviado pelo tecnico e pode ser revisado pelos perfis de gestao.</small>
-                  <strong id="activityModalGeneratedNoteCounter">0/50 minimo</strong>
+                  <strong id="activityModalGeneratedNoteCounter">0 minimo</strong>
                 </div>
               </label>
             </section>
@@ -625,11 +631,12 @@ function getActivityActionModalRefs(){
   };
 }
 
-function updateWorkspaceGeneratedNoteCounter(modalRefs){
+function updateWorkspaceGeneratedNoteCounter(modalRefs, state){
   if (!modalRefs?.generatedNoteCounter) return;
+  const minChars = getActivityNoteMinChars(state);
   const noteLength = String(modalRefs.generatedNote?.value || "").trim().length;
-  modalRefs.generatedNoteCounter.textContent = `${noteLength}/50 minimo`;
-  modalRefs.generatedNoteCounter.classList.toggle("is-ready", noteLength >= 50);
+  modalRefs.generatedNoteCounter.textContent = `${noteLength}/${minChars} minimo`;
+  modalRefs.generatedNoteCounter.classList.toggle("is-ready", noteLength >= minChars);
 }
 
 function updateWorkspaceGeneratedComputedHours(modalRefs, activity){
@@ -796,7 +803,7 @@ function isInsideActivityModalActionArea(target, modalRefs){
   return Boolean(card?.contains?.(target));
 }
 
-function openActivityActionModal(activityId, mode){
+function openActivityActionModal(activityId, mode, state = null){
   const modalRefs = getActivityActionModalRefs();
   const activity = _activities.find((item) => item.id === activityId);
   if (!activity) return;
@@ -849,6 +856,12 @@ function openActivityActionModal(activityId, mode){
     if (modalRefs.generatedBreakTime) modalRefs.generatedBreakTime.value = activity.breakTime || "01:00";
     if (modalRefs.generatedStatus) modalRefs.generatedStatus.value = isApprovedStatus(activity) ? "OS Aprovada" : "OS Enviada";
     if (modalRefs.generatedNote) modalRefs.generatedNote.value = activity.note || "";
+    const minChars = getActivityNoteMinChars(state);
+    if (modalRefs.generatedNote) {
+      modalRefs.generatedNote.placeholder = minChars > 0
+        ? `Observacao do tecnico (minimo ${minChars} caracteres)`
+        : "Observacao do tecnico";
+    }
     if (modalRefs.generatedStatusBadge) {
       modalRefs.generatedStatusBadge.textContent = isApprovedStatus(activity) ? "OS Aprovada" : "OS Enviada";
       modalRefs.generatedStatusBadge.className = `my-activity-status-badge ${isApprovedStatus(activity) ? "my-activity-status-badge--ok" : "my-activity-status-badge--sent"}`;
@@ -861,7 +874,7 @@ function openActivityActionModal(activityId, mode){
     [modalRefs.generatedStartTime, modalRefs.generatedEndTime, modalRefs.generatedBreakTime, modalRefs.generatedNote].forEach((field) => {
       if (field) field.disabled = readOnly;
     });
-    updateWorkspaceGeneratedNoteCounter(modalRefs);
+    updateWorkspaceGeneratedNoteCounter(modalRefs, state);
     updateWorkspaceGeneratedComputedHours(modalRefs, activity);
   }
 
@@ -906,6 +919,7 @@ async function saveActivityModalChanges(deps){
     const end = modalRefs.generatedEndTime?.value || "";
     const breakTime = modalRefs.generatedBreakTime?.value || "01:00";
     const note = (modalRefs.generatedNote?.value || "").trim();
+    const minChars = getActivityNoteMinChars(state);
     const hoursDiff = diffHours(start, end, breakTime);
     const maxHours = asNumber(activity.hoursWorked);
 
@@ -917,8 +931,8 @@ async function saveActivityModalChanges(deps){
       setAlert(modalRefs.alert, `O apontamento nao pode ultrapassar ${maxHours}h previstas para a atividade.`, "error");
       return;
     }
-    if (note.length < 50) {
-      setAlert(modalRefs.alert, "A observacao precisa ter no minimo 50 caracteres.", "error");
+    if (note.length < minChars) {
+      setAlert(modalRefs.alert, `A observacao precisa ter no minimo ${minChars} caracteres.`, "error");
       return;
     }
 
@@ -1013,7 +1027,7 @@ function bindOnce(deps){
 
     activityModalRefs.btnClose?.addEventListener("click", closeActivityActionModal);
     activityModalRefs.btnCancel?.addEventListener("click", closeActivityActionModal);
-    activityModalRefs.generatedNote?.addEventListener("input", () => updateWorkspaceGeneratedNoteCounter(activityModalRefs));
+    activityModalRefs.generatedNote?.addEventListener("input", () => updateWorkspaceGeneratedNoteCounter(activityModalRefs, deps.state));
     activityModalRefs.generatedStartTime?.addEventListener("input", () => {
       const activity = _activities.find((item) => item.id === _activityModalActivityId);
       updateWorkspaceGeneratedComputedHours(activityModalRefs, activity);
@@ -1183,7 +1197,7 @@ function bindOnce(deps){
 
     const viewActivityBtn = ev.target?.closest?.("[data-view-activity]");
     if (viewActivityBtn){
-      openActivityActionModal(viewActivityBtn.getAttribute("data-view-activity"), "view");
+      openActivityActionModal(viewActivityBtn.getAttribute("data-view-activity"), "view", deps.state);
       return;
     }
 
@@ -1195,13 +1209,13 @@ function bindOnce(deps){
 
     const editActivityBtn = ev.target?.closest?.("[data-edit-activity]");
     if (editActivityBtn){
-      openActivityActionModal(editActivityBtn.getAttribute("data-edit-activity"), "edit");
+      openActivityActionModal(editActivityBtn.getAttribute("data-edit-activity"), "edit", deps.state);
       return;
     }
 
     const deleteActivityBtn = ev.target?.closest?.("[data-delete-activity]");
     if (deleteActivityBtn){
-      openActivityActionModal(deleteActivityBtn.getAttribute("data-delete-activity"), "delete");
+      openActivityActionModal(deleteActivityBtn.getAttribute("data-delete-activity"), "delete", deps.state);
       return;
     }
 
@@ -2150,6 +2164,7 @@ async function saveTechFill(activityId, deps){
   const note = (document.getElementById(`actObs-${activityId}`)?.value || "").trim();
   const hoursDiff = diffHours(start, end);
   const maxHours = asNumber(act.hoursWorked);
+  const minChars = getActivityNoteMinChars(state);
 
   if (hoursDiff <= 0){
     setAlert(refs.projectTaskAlert, "Informe hora início e fim válidas.", "error");
@@ -2159,8 +2174,8 @@ async function saveTechFill(activityId, deps){
     setAlert(refs.projectTaskAlert, `A soma início/fim não pode ultrapassar ${maxHours}h.`, "error");
     return;
   }
-  if (note.length < 50){
-    setAlert(refs.projectTaskAlert, "A observação precisa ter no mínimo 50 caracteres.", "error");
+  if (note.length < minChars){
+    setAlert(refs.projectTaskAlert, `A observação precisa ter no mínimo ${minChars} caracteres.`, "error");
     return;
   }
 
