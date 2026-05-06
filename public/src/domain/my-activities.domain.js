@@ -5,6 +5,7 @@ import {
   getDocs,
   query,
   serverTimestamp,
+  setDoc,
   updateDoc,
   where
 } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore.js";
@@ -22,6 +23,12 @@ let _myActivitiesAllCache = [];
 let _myActivitiesStatusFilter = "all";
 let _afterModalSave = null;
 let _currentState = null;
+let _manualProjects = [];
+let _manualTasks = [];
+let _manualActivities = [];
+let _manualClients = [];
+
+const MANUAL_ACTIVITY_CHIP_COLORS = ["t1", "t2", "t3", "t4", "t5", "t6"];
 
 function getActivityStatusValue(activity) {
   return String(activity?.status || "").toLowerCase();
@@ -161,6 +168,189 @@ function isWithinActivityPeriod(item, startDate, endDate) {
   return true;
 }
 
+function todayKey() {
+  const date = new Date();
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
+}
+
+function parseDateOnly(value) {
+  const raw = String(value || "").slice(0, 10);
+  const match = raw.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (!match) return null;
+  return new Date(Number(match[1]), Number(match[2]) - 1, Number(match[3]));
+}
+
+function isDateInsideRange(date, startDate, endDate) {
+  const current = parseDateOnly(date);
+  const start = parseDateOnly(startDate);
+  const end = parseDateOnly(endDate);
+  if (!current || !start || !end) return false;
+  return current >= start && current <= end;
+}
+
+function selectedManualKeyUsers(refs) {
+  const raw = refs.manualActivitySelectedKeyUsers?.value || "[]";
+  try {
+    const parsed = JSON.parse(raw);
+    return (Array.isArray(parsed) ? parsed : []).map((item) => item?.value).filter(Boolean);
+  } catch (_) {
+    return [];
+  }
+}
+
+function getManualKeyUserSelections(refs) {
+  const raw = refs.manualActivitySelectedKeyUsers?.value || "[]";
+  try {
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch (_) {
+    return [];
+  }
+}
+
+function setManualKeyUserSelections(refs, items) {
+  if (refs.manualActivitySelectedKeyUsers) {
+    refs.manualActivitySelectedKeyUsers.value = JSON.stringify(Array.isArray(items) ? items : []);
+  }
+}
+
+function renderManualKeyUserChips(refs) {
+  if (!refs.manualActivityKeyUsersChips) return;
+  const items = getManualKeyUserSelections(refs);
+  if (!items.length) {
+    refs.manualActivityKeyUsersChips.innerHTML = '<span class="muted">Nenhum selecionado.</span>';
+    return;
+  }
+  refs.manualActivityKeyUsersChips.innerHTML = items.map((item, idx) => `
+    <span class="chip project-tech-chip ${MANUAL_ACTIVITY_CHIP_COLORS[idx % MANUAL_ACTIVITY_CHIP_COLORS.length]}">
+      <span>${escapeHtml(item.label || item.value)}</span>
+      <button
+        type="button"
+        class="project-tech-chip-remove"
+        data-remove-manual-keyuser="${escapeHtml(item.value)}"
+        aria-label="Remover key user"
+      >x</button>
+    </span>
+  `).join("");
+}
+
+function addManualKeyUserSelection(refs, value, label) {
+  if (!value) return;
+  const current = getManualKeyUserSelections(refs);
+  if (current.some((item) => item?.value === value)) return;
+  setManualKeyUserSelections(refs, [...current, { value, label: label || value }]);
+  renderManualKeyUserChips(refs);
+}
+
+function removeManualKeyUserSelection(refs, value) {
+  setManualKeyUserSelections(refs, getManualKeyUserSelections(refs).filter((item) => item?.value !== value));
+  renderManualKeyUserChips(refs);
+}
+
+function keyUsersForProject(project) {
+  const clientId = project?.clientId || "";
+  const client = _manualClients.find((item) => item.id === clientId) || null;
+  if (!client) return [];
+  if (Array.isArray(client.keyUsers) && client.keyUsers.length) {
+    return client.keyUsers.filter(Boolean).map((item) => ({
+      label: item.name || item.email || item.phone || "Key user",
+      value: item.name || item.email || item.phone || "Key user"
+    }));
+  }
+  const legacy = client.keyUserName || client.keyUserEmail || client.keyUserPhone || "";
+  return legacy ? [{ label: legacy, value: legacy }] : [];
+}
+
+function taskHoursInfo(taskId) {
+  const task = _manualTasks.find((item) => item.id === taskId) || null;
+  const plannedHours = asNumber(task?.plannedHours);
+  const usedHours = _manualActivities
+    .filter((activity) => activity.taskId === taskId)
+    .reduce((acc, activity) => acc + asNumber(activity.hoursWorked), 0);
+  return {
+    plannedHours,
+    usedHours,
+    availableHours: Math.max(0, plannedHours - usedHours)
+  };
+}
+
+function projectHoursInfo(projectId) {
+  const project = _manualProjects.find((item) => item.id === projectId) || null;
+  const plannedHours = asNumber(project?.billingHours);
+  const usedHours = _manualActivities
+    .filter((activity) => activity.projectId === projectId)
+    .reduce((acc, activity) => acc + asNumber(activity.hoursWorked), 0);
+  return {
+    plannedHours,
+    usedHours,
+    availableHours: Math.max(0, plannedHours - usedHours)
+  };
+}
+
+function updateManualActivityNoteCounter(refs, state) {
+  if (!refs?.manualActivityNoteCounter) return;
+  const minChars = getActivityNoteMinChars(state);
+  const noteLength = String(refs.manualActivityNote?.value || "").trim().length;
+  refs.manualActivityNoteCounter.textContent = `${noteLength}/${minChars} minimo`;
+  refs.manualActivityNoteCounter.classList.toggle("is-ready", noteLength >= minChars || noteLength === 0);
+}
+
+function updateManualActivityAvailabilityHint(refs) {
+  if (!refs?.manualActivityAvailabilityHint) return;
+  const projectId = refs.manualActivityProject?.value || "";
+  const taskId = refs.manualActivityTask?.value || "";
+  if (!projectId || !taskId) {
+    refs.manualActivityAvailabilityHint.textContent = "Selecione projeto e tarefa para consultar o saldo.";
+    return;
+  }
+  const projectInfo = projectHoursInfo(projectId);
+  const taskInfo = taskHoursInfo(taskId);
+  const projectText = projectInfo.plannedHours > 0
+    ? `Projeto: ${formatHours(projectInfo.availableHours)} disponiveis`
+    : "Projeto: sem limite de horas";
+  const taskText = taskInfo.plannedHours > 0
+    ? `Tarefa: ${formatHours(taskInfo.availableHours)} disponiveis`
+    : "Tarefa: sem limite de horas";
+  refs.manualActivityAvailabilityHint.textContent = `${projectText}. ${taskText}.`;
+}
+
+function populateManualActivityTasks(refs) {
+  const projectId = refs.manualActivityProject?.value || "";
+  const tasks = _manualTasks
+    .filter((task) => task.projectId === projectId)
+    .sort((a, b) => String(a.name || "").localeCompare(String(b.name || "")));
+  if (refs.manualActivityTask) {
+    refs.manualActivityTask.innerHTML = '<option value="">Selecione uma tarefa</option>' +
+      tasks.map((task) => `<option value="${escapeHtml(task.id)}">${escapeHtml(task.name || "Tarefa")}</option>`).join("");
+  }
+
+  const project = _manualProjects.find((item) => item.id === projectId) || null;
+  const keyUsers = keyUsersForProject(project);
+  if (refs.manualActivityKeyUsers) {
+    refs.manualActivityKeyUsers.innerHTML = keyUsers.length
+      ? '<option value="">Selecione um key user</option>' + keyUsers.map((item) => `<option value="${escapeHtml(item.value)}">${escapeHtml(item.label)}</option>`).join("")
+      : '<option value="">Nenhum key user vinculado ao cliente do projeto</option>';
+  }
+  setManualKeyUserSelections(refs, []);
+  renderManualKeyUserChips(refs);
+  updateManualActivityAvailabilityHint(refs);
+}
+
+function clearManualActivityForm(refs, state) {
+  clearAlert(refs.manualActivityAlert);
+  if (refs.manualActivityProject) refs.manualActivityProject.value = "";
+  if (refs.manualActivityTask) refs.manualActivityTask.innerHTML = '<option value="">Selecione uma tarefa</option>';
+  if (refs.manualActivityName) refs.manualActivityName.value = "";
+  if (refs.manualActivityDate) refs.manualActivityDate.value = todayKey();
+  if (refs.manualActivityHours) refs.manualActivityHours.value = "";
+  if (refs.manualActivityKeyUsers) refs.manualActivityKeyUsers.innerHTML = "";
+  setManualKeyUserSelections(refs, []);
+  renderManualKeyUserChips(refs);
+  if (refs.manualActivityNote) refs.manualActivityNote.value = "";
+  updateManualActivityNoteCounter(refs, state);
+  updateManualActivityAvailabilityHint(refs);
+}
+
 function bindEvents(deps) {
   if (_bound) return;
   _bound = true;
@@ -197,6 +387,37 @@ function bindEvents(deps) {
     if (editBtn) {
       openMyActivityModal(editBtn.getAttribute("data-edit-my-activity"), "edit", deps);
     }
+  });
+
+  refs.btnOpenManualActivity?.addEventListener("click", () => {
+    openManualActivityModal(deps).catch((err) => {
+      console.error(err);
+      alert("Nao foi possivel abrir a inclusao manual de atividade.");
+    });
+  });
+  refs.btnCloseManualActivityModal?.addEventListener("click", () => closeManualActivityModal(refs));
+  refs.btnCancelManualActivityModal?.addEventListener("click", () => closeManualActivityModal(refs));
+  refs.modalManualActivity?.addEventListener("click", (ev) => {
+    if (ev.target?.dataset?.closeManualActivity === "true") closeManualActivityModal(refs);
+  });
+  refs.manualActivityProject?.addEventListener("change", () => populateManualActivityTasks(refs));
+  refs.manualActivityTask?.addEventListener("change", () => updateManualActivityAvailabilityHint(refs));
+  refs.manualActivityKeyUsers?.addEventListener("change", () => {
+    const select = refs.manualActivityKeyUsers;
+    const value = select?.value || "";
+    const label = select?.options?.[select.selectedIndex]?.textContent?.trim() || value;
+    if (value) addManualKeyUserSelection(refs, value, label);
+    if (select) select.value = "";
+  });
+  refs.manualActivityKeyUsersChips?.addEventListener("click", (ev) => {
+    const removeBtn = ev.target?.closest?.("[data-remove-manual-keyuser]");
+    if (!removeBtn) return;
+    removeManualKeyUserSelection(refs, removeBtn.getAttribute("data-remove-manual-keyuser"));
+  });
+  refs.manualActivityHours?.addEventListener("input", () => updateManualActivityAvailabilityHint(refs));
+  refs.manualActivityNote?.addEventListener("input", () => updateManualActivityNoteCounter(refs, deps.state));
+  refs.btnSaveManualActivity?.addEventListener("click", async () => {
+    await saveManualActivity(deps);
   });
 
   refs.btnCloseMyActivityModal?.addEventListener("click", closeMyActivityModal);
@@ -379,6 +600,206 @@ function renderMyActivitiesList(refs, items) {
   }).join("");
 
   refs.myActivitiesList.innerHTML = projectCards;
+}
+
+function closeManualActivityModal(refs) {
+  if (refs?.modalManualActivity) refs.modalManualActivity.hidden = true;
+}
+
+async function openManualActivityModal(deps) {
+  const { refs, state, db, auth } = deps;
+  if (!refs.modalManualActivity) return;
+  _currentState = state;
+  clearManualActivityForm(refs, state);
+  refs.modalManualActivity.hidden = false;
+  setAlert(refs.manualActivityAlert, "Carregando projetos e tarefas...", "info");
+
+  const companyId = state.companyId;
+  const currentUid = auth?.currentUser?.uid || "";
+  if (!companyId || !currentUid) {
+    setAlert(refs.manualActivityAlert, "Nao foi possivel identificar o tecnico logado.", "error");
+    return;
+  }
+
+  const [projectsSnap, tasksSnap, activitiesSnap, clientsSnap] = await Promise.all([
+    getDocs(collection(db, `companies/${companyId}/projects`)),
+    getDocs(collection(db, `companies/${companyId}/tasks`)),
+    getDocs(collection(db, `companies/${companyId}/activities`)),
+    getDocs(collection(db, `companies/${companyId}/clients`))
+  ]);
+
+  _manualProjects = projectsSnap.docs
+    .map((docSnap) => ({ id: docSnap.id, ...docSnap.data() }))
+    .filter((project) => Array.isArray(project.techUids) && project.techUids.includes(currentUid))
+    .sort((a, b) => String(a.name || "").localeCompare(String(b.name || "")));
+  const visibleProjectIds = new Set(_manualProjects.map((project) => project.id));
+  _manualTasks = tasksSnap.docs
+    .map((docSnap) => ({ id: docSnap.id, ...docSnap.data() }))
+    .filter((task) => visibleProjectIds.has(task.projectId));
+  _manualActivities = activitiesSnap.docs.map((docSnap) => ({ id: docSnap.id, ...docSnap.data() }));
+  _manualClients = clientsSnap.docs.map((docSnap) => ({ id: docSnap.id, ...docSnap.data() }));
+
+  if (refs.manualActivityProject) {
+    refs.manualActivityProject.innerHTML = '<option value="">Selecione um projeto</option>' +
+      _manualProjects.map((project) => `<option value="${escapeHtml(project.id)}">${escapeHtml(project.name || "Projeto")}</option>`).join("");
+  }
+  populateManualActivityTasks(refs);
+
+  if (!_manualProjects.length) {
+    setAlert(refs.manualActivityAlert, "Nenhum projeto vinculado ao seu usuario foi encontrado.", "error");
+    return;
+  }
+  clearAlert(refs.manualActivityAlert);
+}
+
+async function saveManualActivity(deps) {
+  const { refs, state, db, auth } = deps;
+  clearAlert(refs.manualActivityAlert);
+
+  const companyId = state.companyId;
+  const currentUid = auth?.currentUser?.uid || "";
+  const projectId = refs.manualActivityProject?.value || "";
+  const taskId = refs.manualActivityTask?.value || "";
+  const project = _manualProjects.find((item) => item.id === projectId) || null;
+  const task = _manualTasks.find((item) => item.id === taskId) || null;
+  const name = String(refs.manualActivityName?.value || "").trim();
+  const workDate = String(refs.manualActivityDate?.value || "").slice(0, 10);
+  const hoursWorked = asNumber(refs.manualActivityHours?.value || 0);
+  const keyUsers = selectedManualKeyUsers(refs);
+  const note = String(refs.manualActivityNote?.value || "").trim();
+  const minChars = getActivityNoteMinChars(state);
+  const willSubmitOs = note.length > 0;
+
+  if (!companyId || !currentUid) {
+    setAlert(refs.manualActivityAlert, "Nao foi possivel identificar o tecnico logado.", "error");
+    return;
+  }
+  if (!project || !task) {
+    setAlert(refs.manualActivityAlert, "Selecione projeto e tarefa para a atividade.", "error");
+    return;
+  }
+  if (!Array.isArray(project.techUids) || !project.techUids.includes(currentUid)) {
+    setAlert(refs.manualActivityAlert, "Voce pode incluir atividade apenas em projetos vinculados ao seu usuario.", "error");
+    return;
+  }
+  if (!name || hoursWorked <= 0) {
+    setAlert(refs.manualActivityAlert, "Preencha nome e horas da atividade.", "error");
+    return;
+  }
+  if (hoursWorked > 12) {
+    setAlert(refs.manualActivityAlert, "A atividade aceita no maximo 12 horas por dia.", "error");
+    return;
+  }
+  if (!workDate) {
+    setAlert(refs.manualActivityAlert, "Informe a data da atividade.", "error");
+    return;
+  }
+  if (!isDateInsideRange(workDate, task.startDate, task.endDate)) {
+    setAlert(refs.manualActivityAlert, `A data ${fmtDate(workDate)} esta fora do periodo da tarefa.`, "error");
+    return;
+  }
+  const projectKeyUsers = keyUsersForProject(project);
+  if (!projectKeyUsers.length) {
+    setAlert(refs.manualActivityAlert, "Nao ha key user vinculado ao cliente deste projeto. Cadastre key user no cliente para incluir atividades.", "error");
+    return;
+  }
+  if (!keyUsers.length) {
+    setAlert(refs.manualActivityAlert, "Selecione ao menos um key user para a atividade.", "error");
+    return;
+  }
+  if (willSubmitOs && note.length < minChars) {
+    setAlert(refs.manualActivityAlert, `A observacao precisa ter no minimo ${minChars} caracteres para enviar a OS.`, "error");
+    return;
+  }
+
+  const projectInfo = projectHoursInfo(projectId);
+  if (projectInfo.plannedHours > 0 && hoursWorked > projectInfo.availableHours) {
+    setAlert(refs.manualActivityAlert, `Horas orcadas excedem o projeto. Saldo disponivel: ${projectInfo.availableHours}h`, "error");
+    return;
+  }
+
+  const taskInfo = taskHoursInfo(taskId);
+  if (taskInfo.plannedHours > 0 && hoursWorked > taskInfo.availableHours) {
+    setAlert(
+      refs.manualActivityAlert,
+      `Horas insuficientes nesta tarefa. Disponiveis: ${taskInfo.availableHours}h. As novas atividades somam ${hoursWorked}h.`,
+      "error"
+    );
+    return;
+  }
+
+  const saveButton = refs.btnSaveManualActivity;
+  const originalLabel = saveButton?.textContent || "Salvar atividade";
+  if (saveButton) {
+    saveButton.disabled = true;
+    saveButton.textContent = "Salvando atividade...";
+  }
+
+  try {
+    const techName = state.profile?.name || auth?.currentUser?.email || "Tecnico";
+    const actId = `act-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+    const payload = {
+      projectId: project.id,
+      projectName: project.name || "",
+      clientId: project.clientId || "",
+      clientName: project.clientName || project.client?.name || "",
+      managerUid: project.managerUid || "",
+      managerName: project.managerName || "",
+      coordinatorUid: project.coordinatorUid || "",
+      coordinatorName: project.coordinatorName || "",
+      taskId: task.id,
+      taskName: task.name || "",
+      name,
+      workDate,
+      hoursWorked,
+      techUids: [currentUid],
+      techNames: [techName],
+      keyUsers,
+      note,
+      status: willSubmitOs ? "os_gerada" : "sem_os",
+      source: "manual",
+      createdBy: currentUid,
+      createdByName: techName,
+      createdByRole: "tecnico",
+      createdAt: serverTimestamp(),
+      updatedAt: serverTimestamp(),
+      updatedBy: currentUid
+    };
+    if (willSubmitOs) {
+      payload.workedHours = hoursWorked;
+      payload.techFilledAt = serverTimestamp();
+      payload.techFilledBy = currentUid;
+    }
+
+    await setDoc(doc(db, `companies/${companyId}/activities`, actId), payload);
+
+    if (willSubmitOs) {
+      await createNotifications(db, companyId, [project.managerUid, project.coordinatorUid], {
+        type: "os_submitted",
+        title: "OS enviada para aprovacao",
+        message: `${techName} enviou apontamento manual em ${project.name || "um projeto"}.`,
+        entityType: "activity",
+        entityId: actId,
+        activityId: actId,
+        projectId: project.id || "",
+        taskId: task.id || "",
+        createdBy: currentUid,
+        createdByName: techName,
+        createdByEmail: auth?.currentUser?.email || ""
+      }).catch((err) => console.warn("[notifications:manual-os-submitted]", err));
+    }
+
+    closeManualActivityModal(refs);
+    await loadMyActivities(deps);
+  } catch (err) {
+    console.error(err);
+    setAlert(refs.manualActivityAlert, err?.message || "Nao foi possivel salvar a atividade manual.", "error");
+  } finally {
+    if (saveButton) {
+      saveButton.disabled = false;
+      saveButton.textContent = originalLabel;
+    }
+  }
 }
 
 function closeMyActivityModal() {

@@ -8639,10 +8639,10 @@ body.reports-card-maximized{
 
 .activity-item{
   border:1px solid rgba(12,18,32,.1);
-  border-radius: 10px;
+  border-radius: 9px;
   background: rgba(255,255,255,.96);
-  padding:7px 9px;
-  box-shadow: 0 8px 20px rgba(12,18,32,.04);
+  padding:6px 8px;
+  box-shadow: 0 5px 14px rgba(12,18,32,.035);
 }
 
 .activity-item.pending{
@@ -8667,7 +8667,7 @@ body.reports-card-maximized{
   display:flex;
   align-items:center;
   justify-content:space-between;
-  gap:10px;
+  gap:8px;
 }
 
 .activity-item .activity-main > div:first-child{
@@ -8678,18 +8678,29 @@ body.reports-card-maximized{
 .activity-head-actions{
   display:flex;
   align-items:center;
-  gap:6px;
+  gap:5px;
   flex:0 0 auto;
 }
 
 .activity-action-bar{
   display:inline-flex;
   align-items:center;
-  gap:6px;
-  padding:3px;
+  gap:4px;
+  padding:2px;
   border-radius:999px;
   background: rgba(244,247,252,.95);
   border:1px solid rgba(12,18,32,.08);
+}
+
+.activity-action-bar .icon-btn.xs{
+  width:28px;
+  height:28px;
+  border-radius:9px;
+}
+
+.activity-action-bar .icon-btn.xs svg{
+  width:15px;
+  height:15px;
 }
 
 .task-summary-right .btn.sm,
@@ -8717,27 +8728,27 @@ body.reports-card-maximized{
 }
 
 .activity-meta-line{
-  margin-top: 4px;
-  font-size: 12px;
+  margin-top: 2px;
+  font-size: 11px;
   color: rgba(12,18,32,.56);
 }
 
 .activity-tags{
-  margin-top: 8px;
+  margin-top: 6px;
   display:flex;
   flex-wrap:wrap;
-  gap:8px;
+  gap:5px;
 }
 
 .activity-tag{
   display:inline-flex;
   align-items:center;
-  gap:6px;
-  padding:6px 10px;
+  gap:5px;
+  padding:4px 8px;
   border-radius:999px;
   background: rgba(244,247,252,.95);
   border:1px solid rgba(12,18,32,.08);
-  font-size: 12px;
+  font-size: 11px;
   color: rgba(12,18,32,.68);
 }
 
@@ -8748,7 +8759,7 @@ body.reports-card-maximized{
 }
 
 .activity-status{
-  font-size:12px;
+  font-size:11px;
   font-weight:700;
   white-space: nowrap;
 }
@@ -8961,33 +8972,69 @@ body.reports-card-maximized{
   white-space:nowrap;
 }
 
+.my-activities-manual-btn{
+  align-self:flex-end;
+  min-height:38px;
+  white-space:nowrap;
+}
+
+.manual-activity-grid .field select,
+.manual-activity-grid .field input{
+  width:100%;
+}
+
+.manual-activity-grid .field select{
+  min-height:42px;
+  border-radius:14px;
+  border:1px solid rgba(15,23,42,.12);
+  background:rgba(255,255,255,.92);
+  color:#0f172a;
+  font:inherit;
+  padding:8px 12px;
+}
+
+#modalManualActivity .activity-selection-chips{
+  margin-top:8px;
+  min-height:42px;
+  padding:8px;
+  border:1px dashed rgba(12,18,32,.14);
+  border-radius:14px;
+  background:rgba(255,255,255,.6);
+}
+
+@media (max-width: 720px){
+  .manual-activity-grid .field{
+    grid-column: 1 / -1 !important;
+  }
+}
+
 .my-activities-summary{
   display:grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap:12px;
-  margin-bottom:16px;
+  gap:10px;
+  margin-bottom:12px;
 }
 
 .my-activities-stat{
   border:1px solid rgba(12,18,32,.08);
-  border-radius:18px;
-  padding:18px 20px;
+  border-radius:14px;
+  padding:12px 16px;
   background:
     radial-gradient(circle at top right, rgba(59,130,246,.10), transparent 32%),
     linear-gradient(180deg, rgba(255,255,255,.98), rgba(248,250,252,.94));
-  box-shadow: 0 16px 34px rgba(12,18,32,.05);
+  box-shadow: 0 10px 22px rgba(12,18,32,.045);
   cursor:pointer;
   transition: transform .18s ease, box-shadow .18s ease, border-color .18s ease;
 }
 
 .my-activities-stat:hover{
   transform: translateY(-2px);
-  box-shadow: 0 20px 38px rgba(12,18,32,.08);
+  box-shadow: 0 14px 26px rgba(12,18,32,.07);
 }
 
 .my-activities-stat.is-active{
   border-color: rgba(99,102,241,.34);
-  box-shadow: 0 22px 42px rgba(99,102,241,.14);
+  box-shadow: 0 14px 28px rgba(99,102,241,.12);
 }
 
 .my-activities-stat--pending{
@@ -9010,7 +9057,7 @@ body.reports-card-maximized{
 
 .my-activities-stat-label{
   display:block;
-  font-size:12px;
+  font-size:11px;
   font-weight:800;
   letter-spacing:.12em;
   text-transform:uppercase;
@@ -9019,33 +9066,39 @@ body.reports-card-maximized{
 
 .my-activities-stat strong{
   display:block;
-  margin-top:10px;
-  font-size:34px;
+  margin-top:7px;
+  font-size:28px;
   line-height:1;
   color: rgba(12,18,32,.94);
 }
 
+.my-activities-stat .muted{
+  margin-top:6px;
+  font-size:13px;
+  line-height:1.35;
+}
+
 .my-activities-board{
   display:grid;
-  gap:16px;
+  gap:10px;
 }
 
 .my-activities-project-card{
   border:1px solid rgba(12,18,32,.08);
-  border-radius:24px;
-  padding:20px;
+  border-radius:16px;
+  padding:14px;
   background:
     radial-gradient(circle at top right, rgba(119,59,246,.08), transparent 28%),
     linear-gradient(180deg, rgba(255,255,255,.98), rgba(248,250,252,.95));
-  box-shadow: 0 18px 40px rgba(12,18,32,.06);
+  box-shadow: 0 12px 26px rgba(12,18,32,.05);
 }
 
 .my-activities-project-head{
   display:flex;
   align-items:flex-start;
   justify-content:space-between;
-  gap:12px;
-  margin-bottom:14px;
+  gap:10px;
+  margin-bottom:8px;
 }
 
 .my-activities-project-kicker,
@@ -9059,24 +9112,30 @@ body.reports-card-maximized{
 
 .my-activities-project-head h3,
 .my-activities-task-title{
-  margin:4px 0 2px;
-  font-size:24px;
+  margin:3px 0 1px;
+  font-size:20px;
   line-height:1.1;
   color: rgba(12,18,32,.95);
 }
 
+.my-activities-project-head .muted{
+  margin-top:4px;
+  font-size:13px;
+  line-height:1.35;
+}
+
 .my-activities-task-title{
-  font-size:21px;
+  font-size:18px;
 }
 
 .my-activities-project-body{
   display:grid;
-  gap:8px;
+  gap:6px;
 }
 
 .my-activities-task-card{
   border:1px solid rgba(12,18,32,.08);
-  border-radius:14px;
+  border-radius:12px;
   background: rgba(255,255,255,.88);
   overflow:hidden;
 }
@@ -9086,8 +9145,8 @@ body.reports-card-maximized{
   display:flex;
   align-items:center;
   justify-content:space-between;
-  gap:12px;
-  padding:10px 14px;
+  gap:10px;
+  padding:8px 12px;
   cursor:pointer;
 }
 
@@ -9096,27 +9155,27 @@ body.reports-card-maximized{
 }
 
 .my-activities-task-subtitle{
-  font-size:12px;
+  font-size:11px;
   color: rgba(12,18,32,.56);
 }
 
 .my-activities-task-statuses{
   display:flex;
   flex-wrap:wrap;
-  gap:8px;
+  gap:6px;
   justify-content:flex-end;
 }
 
 .my-activities-task-list{
   display:grid;
-  gap:8px;
-  padding:0 14px 14px;
+  gap:5px;
+  padding:0 10px 8px;
 }
 
 .my-activities-note-preview{
-  margin-top:10px;
-  font-size:13px;
-  line-height:1.5;
+  margin-top:6px;
+  font-size:12px;
+  line-height:1.35;
   color: rgba(12,18,32,.72);
   overflow-wrap:anywhere;
   word-break:break-word;

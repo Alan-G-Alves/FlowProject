@@ -8,7 +8,7 @@
 </script>
 <meta content="width=device-width, initial-scale=1.0" name="viewport"/>
 <title>FlowProject</title>
-<link href="./styles.css?v=1778031600" rel="stylesheet"/>
+<link href="./styles.css?v=1778035000" rel="stylesheet"/>
 <link href="logof.png" rel="icon" type="image/png"/>
 <style>
   /* SaaS Search (My Projects Kanban) */
@@ -1081,6 +1081,7 @@
           <span>Fim</span>
           <input id="myActivitiesEndDateInput" type="date" />
         </label>
+        <button class="btn primary sm my-activities-manual-btn" id="btnOpenManualActivity" type="button">+ Nova atividade</button>
         <button class="btn ghost sm my-activities-clear-period" id="btnClearMyActivitiesPeriod" type="button">Limpar periodo</button>
       </div>
     </div>
@@ -1338,6 +1339,73 @@
     </div>
   </div>
 </section>
+
+<div class="modal" hidden id="modalManualActivity">
+  <div class="modal-backdrop" data-close-manual-activity="true"></div>
+  <div class="modal-card my-activity-modal-card">
+    <div class="modal-header">
+      <div>
+        <h2>Nova atividade</h2>
+        <p class="muted">Inclua uma atividade manual vinculada a um projeto e tarefa.</p>
+      </div>
+      <button class="btn ghost" id="btnCloseManualActivityModal" type="button">X</button>
+    </div>
+    <div class="modal-body">
+      <div class="alert" hidden id="manualActivityAlert"></div>
+      <div class="activity-form-head">
+        <div class="activity-form-eyebrow">Nova atividade</div>
+        <div class="activity-form-subtitle" id="manualActivityAvailabilityHint">Selecione projeto e tarefa para consultar o saldo.</div>
+      </div>
+      <div class="grid form-grid manual-activity-grid">
+        <label class="field" style="grid-column: span 6;">
+          <span>Projeto</span>
+          <select id="manualActivityProject">
+            <option value="">Selecione um projeto</option>
+          </select>
+        </label>
+        <label class="field" style="grid-column: span 6;">
+          <span>Tarefa</span>
+          <select id="manualActivityTask">
+            <option value="">Selecione uma tarefa</option>
+          </select>
+        </label>
+        <label class="field" style="grid-column: span 6;">
+          <span>Nome da atividade</span>
+          <input id="manualActivityName" maxlength="80" placeholder="Ex.: Atendimento ao cliente" />
+        </label>
+        <label class="field" style="grid-column: span 3;">
+          <span>Data</span>
+          <input id="manualActivityDate" type="date" />
+        </label>
+        <label class="field" style="grid-column: span 3;">
+          <span>Horas</span>
+          <input id="manualActivityHours" type="number" min="0.25" max="12" step="0.25" placeholder="Ex.: 2" />
+        </label>
+        <label class="field" style="grid-column: span 12;">
+          <span>Key users</span>
+          <select id="manualActivityKeyUsers">
+            <option value="">Selecione um key user</option>
+          </select>
+          <div class="help">Selecione um key user por vez para adicionar aos chips.</div>
+          <input type="hidden" id="manualActivitySelectedKeyUsers" value="[]" />
+          <div id="manualActivityKeyUsersChips" class="chips project-tech-chips activity-selection-chips"><span class="muted">Nenhum selecionado.</span></div>
+        </label>
+        <label class="field" style="grid-column: span 12;">
+          <span>Observacao do tecnico</span>
+          <textarea id="manualActivityNote" rows="4" placeholder="Opcional na criacao. Se preenchida, a atividade sera enviada como OS para aprovacao."></textarea>
+          <div class="my-activity-note-meta">
+            <small>Sem observacao, a atividade fica como <b>Sem OS</b>.</small>
+            <strong id="manualActivityNoteCounter">0 minimo</strong>
+          </div>
+        </label>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn ghost" id="btnCancelManualActivityModal" type="button">Cancelar</button>
+      <button class="btn primary" id="btnSaveManualActivity" type="button">Salvar atividade</button>
+    </div>
+  </div>
+</div>
 
 <div class="modal" hidden id="modalMyActivity">
   <div class="modal-backdrop" data-close-my-activity="true"></div>
@@ -2942,7 +3010,7 @@
   </div>
 </div>
 
-<script src="./app.js?v=1778031600" type="module"></script>
+<script src="./app.js?v=1778033300" type="module"></script>
 <script>
   // Toggle senha (somente UI)
   document.addEventListener("click", function(e){
