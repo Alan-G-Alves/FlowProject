@@ -705,20 +705,6 @@ function renderSettingsView(){
       action: "expenseObservationSettings",
       actionLabel: "Configurar"
     }));
-    cards.push(settingsCard({
-      scope: "Usuarios",
-      title: "Tecnicos e equipes",
-      desc: "Gerencie tecnicos, gestores, coordenadores, skills e vinculos de equipe.",
-      action: "users",
-      actionLabel: "Abrir tecnicos"
-    }));
-    cards.push(settingsCard({
-      scope: "Clientes",
-      title: "Cadastro de clientes",
-      desc: "Mantenha clientes, key users e contatos atualizados.",
-      action: "clients",
-      actionLabel: "Abrir clientes"
-    }));
   }
 
   if (isAdmin || isManager || isCoordinator){
@@ -899,7 +885,15 @@ function initSidebar(){
  *  ========================= */
 function renderTopbar(profile, user){
   // Topbar minimal: apenas avatar no canto direito
+  show(refs.notificationsMenu);
+  show(refs.btnNotifications);
+  show(refs.userMenu);
   show(refs.btnAvatar);
+  [refs.notificationsMenu, refs.btnNotifications, refs.userMenu, refs.btnAvatar].forEach((el) => {
+    if (!el) return;
+    el.style.pointerEvents = "auto";
+    if ("disabled" in el) el.disabled = false;
+  });
 
   // Avatar: tenta foto (perfil -> auth), senão usa iniciais
   const photoUrl = profile?.photoURL || user?.photoURL || "";

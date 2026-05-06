@@ -3726,6 +3726,7 @@ body.is-superadmin #navClients{
   border: 0;
   background: transparent;
   z-index: 60;
+  pointer-events: none;
 }
 .topbar-left{ display:none !important; }
 .topbar-right{
@@ -3737,29 +3738,34 @@ body.is-superadmin #navClients{
   position: fixed !important;
   top: 14px !important;
   right: 68px !important;
-  z-index: 81;
+  z-index: 95;
+  pointer-events: auto;
 }
 .help-manual-btn{
   position: fixed !important;
   top: 11px !important;
   right: 122px !important;
-  z-index: 81;
+  z-index: 95;
+  pointer-events: auto;
 }
 .user-menu{
   position: fixed !important;
   top: 14px !important;
   right: 14px !important;
-  z-index: 82;
+  z-index: 96;
+  pointer-events: auto;
 }
 .notifications-panel{
   position: fixed !important;
   top: 60px !important;
   right: 58px !important;
+  z-index: 97;
 }
 .dropdown{
   position: fixed !important;
   top: 60px !important;
   right: 14px !important;
+  z-index: 98;
 }
 
 /* ===== Ajuste vertical do header do dashboard ===== */
