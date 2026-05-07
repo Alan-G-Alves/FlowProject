@@ -112,6 +112,14 @@ function _buildProjectSearchHaystack(p){
   return _normText(parts.filter(Boolean).join(" "));
 }
 
+function _projectTechChipName(fullName){
+  const name = (fullName || "").toString().trim();
+  if (!name) return "";
+  const parts = name.split(/\s+/).filter(Boolean);
+  if (parts.length <= 2) return name;
+  return `${parts[0]} ${parts[parts.length - 1]}`;
+}
+
 function _matchesTokens(haystackNorm, query){
   const qn = _normText(query);
   if (!qn) return true;
@@ -463,7 +471,7 @@ function _renderSelectedTechChips(refs, state){
   const colorClasses = ["t1", "t2", "t3", "t4", "t5", "t6"];
   _selectedTechUids.forEach((uid, idx) => {
     const u = byUid.get(uid);
-    const name = (_editTechNamesByUid.get(uid) || u?.name || u?.email || uid);
+    const name = _projectTechChipName(_editTechNamesByUid.get(uid) || u?.name || u?.email || uid);
     const chip = document.createElement("span");
     chip.className = `chip project-tech-chip ${colorClasses[idx % colorClasses.length]}`;
     chip.innerHTML = `
@@ -503,7 +511,7 @@ function _renderEditSelectedTechChips(refs, state){
   const colorClasses = ["t1", "t2", "t3", "t4", "t5", "t6"];
   _editSelectedTechUids.forEach((uid, idx) => {
     const u = byUid.get(uid);
-    const name = (_editTechNamesByUid.get(uid) || u?.name || u?.email || uid);
+    const name = _projectTechChipName(_editTechNamesByUid.get(uid) || u?.name || u?.email || uid);
     const chip = document.createElement("span");
     chip.className = `chip project-tech-chip ${colorClasses[idx % colorClasses.length]}`;
     chip.innerHTML = `

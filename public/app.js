@@ -53,18 +53,18 @@ import { normalizePhone, normalizeCnpj, slugify } from "./src/utils/format.js";
 import { setAlert, clearAlert, clearInlineAlert, showInlineAlert, showDialogAlert } from "./src/ui/alerts.js";
 import { getCompanyDoc, listCompaniesDocs } from "./src/services/companies.service.js";
 import { createNotification } from "./src/services/notifications.service.js?v=1776052722";
-import * as refs from "./src/ui/refs.js?v=1778033300";
-import * as companiesDomain from "./src/domain/companies.domain.js?v=1770332251";
+import * as refs from "./src/ui/refs.js?v=1778182600";
+import * as companiesDomain from "./src/domain/companies.domain.js?v=1778182600";
 import * as teamsDomain from "./src/domain/teams.domain.js?v=1772614200";
-import * as usersDomain from "./src/domain/users.domain.js?v=1777055918";
-import * as managerUsersDomain from "./src/domain/manager-users.domain.js?v=1777055918";
+import * as usersDomain from "./src/domain/users.domain.js?v=1778178000";
+import * as managerUsersDomain from "./src/domain/manager-users.domain.js?v=1778178000";
 import * as clientsDomain from "./src/domain/clients.domain.js?v=1776052720";
 import * as projectsDomain from "./src/domain/projects.domain.js?v=1777945200";
 import * as myActivitiesDomain from "./src/domain/my-activities.domain.js?v=1778033300";
 import * as myFeedbacksDomain from "./src/domain/my-feedbacks.domain.js?v=1776040900";
 import * as osApprovalsDomain from "./src/domain/os-approvals.domain.js?v=1776052722";
 import * as expensesDomain from "./src/domain/expenses.domain.js?v=1777953600";
-import * as projectWorkspaceDomain from "./src/domain/project-workspace.domain.js?v=1777950600";
+import * as projectWorkspaceDomain from "./src/domain/project-workspace.domain.js?v=1778178003";
 import * as reportsDomain from "./src/domain/reports.domain.js?v=1777057015";
 import * as lgpdDomain from "./src/domain/lgpd.domain.js?v=1777475100";
 import * as profileModal from "./src/ui/modals/profile.modal.js?v=1770332251";
@@ -3119,6 +3119,16 @@ onAuthStateChanged(auth, async (user) => {
       return;
     }
 
+    const company = await getCompanyDoc(companyId);
+    if (!company || company.active === false){
+      _authReadyForRoutes = true;
+      setBrowserRouteSilently(ROUTES.login);
+      setView("login");
+      setAlert(refs.loginAlert, "Empresa bloqueada. Fale com o administrador do FlowProject.");
+      await signOut(auth);
+      return;
+    }
+
     const profile = await fetchCompanyUserProfile(companyId, user.uid);
     console.log("👔 Profile:", profile);
     
@@ -3141,6 +3151,7 @@ onAuthStateChanged(auth, async (user) => {
     }
 
     state.companyId = companyId;
+    state.company = company;
     localStorage.setItem("currentCompanyId", companyId);
     state._usersCache = [];
     _dashboardReminderUsers = [];
@@ -3150,7 +3161,7 @@ onAuthStateChanged(auth, async (user) => {
     _dashboardAgendaCursor.setDate(1);
 
     state.profile = profile;
-    await loadCurrentCompanyBrand();
+    renderSidebarBrand(state.company);
 
     syncSidebarForRole();
     renderTopbar(profile, user);

@@ -35,6 +35,7 @@ let _approvalConfirmNextStatus = "";
 let _workspaceAlertDismissBound = false;
 let _taskSearchTerm = "";
 let _taskStatusFilters = {};
+let _editingTaskId = "";
 const ACTIVITY_CHIP_COLORS = ["t1", "t2", "t3", "t4", "t5", "t6"];
 
 function formatHoursDisplay(value) {
@@ -1091,6 +1092,8 @@ function bindOnce(deps){
 
   refs.btnOpenTaskForm?.addEventListener("click", () => {
     if (!canManageTasks(deps.state)) return;
+    clearTaskForm(refs);
+    setTaskFormMode(refs, false);
     refs.projectTaskFormWrap.hidden = false;
   });
 
@@ -1170,6 +1173,23 @@ function bindOnce(deps){
         syncActivityWeekdaysVisibility(taskId);
       }
       if (taskCard && wrap && !wrap.hidden) taskCard.open = true;
+      return;
+    }
+
+    const editTaskBtn = ev.target?.closest?.("[data-edit-task]");
+    if (editTaskBtn){
+      ev.preventDefault();
+      const taskId = editTaskBtn.getAttribute("data-edit-task");
+      if (taskId) openEditTaskForm(taskId, deps);
+      return;
+    }
+
+    const deleteTaskBtn = ev.target?.closest?.("[data-delete-task]");
+    if (deleteTaskBtn){
+      ev.preventDefault();
+      if (deleteTaskBtn.disabled) return;
+      const taskId = deleteTaskBtn.getAttribute("data-delete-task");
+      if (taskId) await deleteTask(taskId, deps);
       return;
     }
 
@@ -1303,6 +1323,24 @@ function clearTaskForm(refs){
   if (refs.taskStartDateInput) refs.taskStartDateInput.value = "";
   if (refs.taskEndDateInput) refs.taskEndDateInput.value = "";
   if (refs.taskPlannedHoursInput) refs.taskPlannedHoursInput.value = "";
+  if (refs.btnSaveTask) refs.btnSaveTask.textContent = "Salvar tarefa";
+  if (refs.projectTaskFormWrap) {
+    const title = refs.projectTaskFormWrap.querySelector(".activity-form-eyebrow");
+    const subtitle = refs.projectTaskFormWrap.querySelector(".activity-form-subtitle");
+    if (title) title.textContent = "Nova tarefa";
+    if (subtitle) subtitle.textContent = "Programe a nova tarefa.";
+  }
+  _editingTaskId = "";
+}
+
+function setTaskFormMode(refs, isEdit){
+  if (refs.btnSaveTask) refs.btnSaveTask.textContent = isEdit ? "Salvar alterações" : "Salvar tarefa";
+  if (refs.projectTaskFormWrap) {
+    const title = refs.projectTaskFormWrap.querySelector(".activity-form-eyebrow");
+    const subtitle = refs.projectTaskFormWrap.querySelector(".activity-form-subtitle");
+    if (title) title.textContent = isEdit ? "Editar tarefa" : "Nova tarefa";
+    if (subtitle) subtitle.textContent = isEdit ? "Altere o nome e o período da tarefa." : "Programe a nova tarefa.";
+  }
 }
 
 function renderTabs(refs){
@@ -1589,6 +1627,7 @@ function renderTasks(deps){
   const renderedTasks = _tasks.map(t => {
     const taskActs = byTask.get(t.id) || [];
     const activeStatusFilter = _taskStatusFilters[t.id] || "all";
+    const hasTaskActivities = taskActs.length > 0;
     const taskSearchText = normalizeSearchText([
       t.id,
       t.taskNumber,
@@ -1596,7 +1635,8 @@ function renderTasks(deps){
       t.startDate,
       t.endDate,
       fmtDate(t.startDate),
-      fmtDate(t.endDate)
+      fmtDate(t.endDate),
+      t.notes
     ].join(" "));
     const taskMatches = !searchTerm || taskSearchText.includes(searchTerm);
     const activityMatchesSearch = (activity) => {
@@ -1821,7 +1861,27 @@ function renderTasks(deps){
             </div>
           </div>
           <div class="task-summary-right">
-            ${canManageTasks(state) ? `<button class="btn primary sm" data-open-activity-form="${escapeHtml(t.id)}" type="button">+ Nova atividade</button>` : ""}
+            <div class="task-actions-group">
+              ${canManageTasks(state) ? `
+                <button class="icon-btn xs btn-edit" data-edit-task="${escapeHtml(t.id)}" type="button" title="Editar tarefa" aria-label="Editar tarefa">
+                  <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                    <path d="M4 20h4l10-10-4-4L4 16v4Z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"></path>
+                    <path d="M12 6l4 4" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"></path>
+                  </svg>
+                </button>
+              ` : ""}
+              ${canManageTasks(state) ? `
+                <button class="icon-btn xs btn-block" data-delete-task="${escapeHtml(t.id)}" type="button" ${hasTaskActivities ? "disabled" : ""} title="${hasTaskActivities ? "Não é possível excluir tarefa com atividades relacionadas" : "Excluir tarefa"}" aria-label="Excluir tarefa">
+                  <svg viewBox="0 0 24 24" aria-hidden="true">
+                    <path d="M4 7h16" stroke-width="2" stroke-linecap="round"></path>
+                    <path d="M9 7V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v3" stroke-width="2" stroke-linejoin="round"></path>
+                    <path d="M6 7l1 12a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2l1-12" stroke-width="2" stroke-linejoin="round"></path>
+                    <path d="M10 11v6M14 11v6" stroke-width="2" stroke-linecap="round"></path>
+                  </svg>
+                </button>
+              ` : ""}
+              ${canManageTasks(state) ? `<button class="btn primary sm" data-open-activity-form="${escapeHtml(t.id)}" type="button">+ Nova atividade</button>` : ""}
+            </div>
             <span class="task-toggle-label">Expandir</span>
           </div>
         </summary>
@@ -1831,24 +1891,30 @@ function renderTasks(deps){
             <div class="activity-form-eyebrow">Nova atividade</div>
             <div class="activity-form-subtitle">Preencha os dados para vincular uma nova atividade a esta tarefa.</div>
           </div>
-          <div class="project-form-grid">
-            <label class="field">
+          <div class="project-form-grid activity-form-grid">
+            <label class="field activity-field-name">
               <span>Nome da atividade</span>
               <input id="actName-${escapeHtml(t.id)}" maxlength="100" placeholder="Ex.: Reuniao com cliente" />
             </label>
-            <label class="field">
+            <label class="field activity-field-range-start">
               <span>Range inicio</span>
               <input type="date" id="actRangeStart-${escapeHtml(t.id)}" />
             </label>
-            <label class="field">
+            <label class="field activity-field-range-end">
               <span>Range fim</span>
               <input type="date" id="actRangeEnd-${escapeHtml(t.id)}" />
             </label>
-            <label class="field">
+            <label class="field activity-field-hours">
               <span>Horas (1 a 12)</span>
               <input type="number" id="actHours-${escapeHtml(t.id)}" min="1" max="12" step="0.5" placeholder="8" />
             </label>
-            <div class="field">
+            <div class="field activity-field-weekdays">
+              <span>Dias</span>
+              <div class="weekdays-pills" id="actWeekdays-${escapeHtml(t.id)}">
+                ${[1,2,3,4,5,6,0].map(d => `<label class="weekday-pill"><input type="checkbox" value="${d}" />${weekdayName(d)}</label>`).join("")}
+              </div>
+            </div>
+            <div class="field activity-field-keyusers">
               <span>Key users</span>
               <select id="actKeyUsers-${escapeHtml(t.id)}" data-activity-keyuser-select="${escapeHtml(t.id)}">
                 <option value="">Selecione um key user</option>
@@ -1858,7 +1924,7 @@ function renderTasks(deps){
               <input type="hidden" id="actSelectedKeyUsers-${escapeHtml(t.id)}" value="[]" />
               <div id="actKeyUsersChips-${escapeHtml(t.id)}" class="chips project-tech-chips activity-selection-chips"><span class="muted">Nenhum selecionado.</span></div>
             </div>
-            <div class="field">
+            <div class="field activity-field-techs">
               <span>Recursos do projeto</span>
               <select id="actTechs-${escapeHtml(t.id)}" data-activity-tech-select="${escapeHtml(t.id)}">
                 <option value="">Selecione um recurso</option>
@@ -1872,9 +1938,6 @@ function renderTasks(deps){
               <span>Observacao</span>
               <textarea id="actObsInput-${escapeHtml(t.id)}" rows="2" placeholder="Observacao da atividade"></textarea>
             </label>
-          </div>
-          <div class="weekdays-pills" id="actWeekdays-${escapeHtml(t.id)}">
-            ${[1,2,3,4,5,6,0].map(d => `<label class="weekday-pill"><input type="checkbox" value="${d}" />${weekdayName(d)}</label>`).join("")}
           </div>
           <div class="project-form-actions">
             <button class="btn ghost sm" data-cancel-activity-form="${escapeHtml(t.id)}" type="button">Cancelar</button>
@@ -1903,6 +1966,42 @@ function renderTasks(deps){
   }
 
   refs.projectTaskList.innerHTML = renderedTasks;
+}
+
+function openEditTaskForm(taskId, deps){
+  const { refs } = deps;
+  const task = _tasks.find((t) => t.id === taskId);
+  if (!task) return;
+  _editingTaskId = taskId;
+  if (refs.projectTaskFormWrap) refs.projectTaskFormWrap.hidden = false;
+  if (refs.taskNameInput) refs.taskNameInput.value = task.name || "";
+  if (refs.taskStartDateInput) refs.taskStartDateInput.value = task.startDate || "";
+  if (refs.taskEndDateInput) refs.taskEndDateInput.value = task.endDate || "";
+  if (refs.taskPlannedHoursInput) refs.taskPlannedHoursInput.value = String(task.plannedHours || "");
+  setTaskFormMode(refs, true);
+}
+
+async function deleteTask(taskId, deps){
+  const { state, db } = deps;
+  if (!taskId || !state?.companyId) return;
+  const task = _tasks.find((t) => t.id === taskId);
+  if (!task) return;
+
+  const actsSnap = await getDocs(query(
+    collection(db, `companies/${state.companyId}/activities`),
+    where("taskId", "==", taskId)
+  ));
+
+  if (!actsSnap.empty){
+    const refs = _wsRefs(deps);
+    setAlert(refs.projectTaskAlert, "Não é permitido excluir uma tarefa com atividades relacionadas.", "error");
+    return;
+  }
+
+  if (!confirm(`Deseja realmente excluir a tarefa "${task.name || "esta tarefa"}"?`)) return;
+
+  await deleteDoc(doc(db, `companies/${state.companyId}/tasks`, taskId));
+  await refreshWorkspace(deps);
 }
 
 async function loadProjectData(deps, projectId){
@@ -1974,38 +2073,53 @@ async function saveTask(deps){
   }
 
   const projectHours = asNumber(_activeProject?.billingHours || 0);
-  const totalPlanned = _tasks.reduce((acc, t) => acc + asNumber(t.plannedHours), 0);
+  const currentTask = _editingTaskId ? _tasks.find((t) => t.id === _editingTaskId) : null;
+  const totalPlanned = _tasks.reduce((acc, t) => acc + asNumber(t.plannedHours), 0) - (currentTask ? asNumber(currentTask.plannedHours) : 0);
   if (projectHours > 0 && (totalPlanned + plannedHours) > projectHours){
     const saldo = Math.max(0, projectHours - totalPlanned);
     setAlert(refs.projectTaskAlert, `Horas orçadas excedem o projeto. Saldo disponível: ${saldo}h`, "error");
     return;
   }
 
-  const overlaps = _tasks.filter(t => overlap(startDate, endDate, t.startDate, t.endDate));
+  const overlaps = _tasks.filter((t) => t.id !== _editingTaskId && overlap(startDate, endDate, t.startDate, t.endDate));
   if (overlaps.length){
-    const names = overlaps.map(t => t.name).join(", ");
+    const names = overlaps.map((t) => t.name).join(", ");
     setAlert(refs.projectTaskAlert, `Aviso: já existem tarefas neste período (${names}).`, "info");
   }
 
   const companyId = state.companyId;
   const uid = auth?.currentUser?.uid || "";
-  const nextTaskNumber = _tasks.reduce((mx, t) => Math.max(mx, asNumber(t.taskNumber)), 0) + 1;
-  const taskId = `tsk-${Date.now()}-${Math.random().toString(36).slice(2,7)}`;
-  const payload = {
-    taskNumber: nextTaskNumber,
-    projectId: _activeProject.id,
-    projectName: _activeProject.name || "",
-    name,
-    startDate,
-    endDate,
-    plannedHours,
-    createdBy: uid,
-    createdByRole: roleOf(state),
-    createdAt: serverTimestamp(),
-    updatedAt: serverTimestamp(),
-    updatedBy: uid
-  };
-  await setDoc(doc(db, `companies/${companyId}/tasks`, taskId), payload);
+
+  if (_editingTaskId && currentTask){
+    const payload = {
+      name,
+      startDate,
+      endDate,
+      plannedHours,
+      updatedAt: serverTimestamp(),
+      updatedBy: uid
+    };
+    await updateDoc(doc(db, `companies/${companyId}/tasks`, _editingTaskId), payload);
+  } else {
+    const nextTaskNumber = _tasks.reduce((mx, t) => Math.max(mx, asNumber(t.taskNumber)), 0) + 1;
+    const taskId = `tsk-${Date.now()}-${Math.random().toString(36).slice(2,7)}`;
+    const payload = {
+      taskNumber: nextTaskNumber,
+      projectId: _activeProject.id,
+      projectName: _activeProject.name || "",
+      name,
+      startDate,
+      endDate,
+      plannedHours,
+      createdBy: uid,
+      createdByRole: roleOf(state),
+      createdAt: serverTimestamp(),
+      updatedAt: serverTimestamp(),
+      updatedBy: uid
+    };
+    await setDoc(doc(db, `companies/${companyId}/tasks`, taskId), payload);
+  }
+
   refs.projectTaskFormWrap.hidden = true;
   clearTaskForm(refs);
   await refreshWorkspace(deps);
@@ -2294,6 +2408,3 @@ export function closeProjectWorkspace(deps){
   if (refs.projectWorkspaceBreadcrumb) refs.projectWorkspaceBreadcrumb.innerHTML = "";
   renderTabs(refs);
 }
-
-
-

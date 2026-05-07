@@ -8,7 +8,7 @@
 </script>
 <meta content="width=device-width, initial-scale=1.0" name="viewport"/>
 <title>FlowProject</title>
-<link href="./styles.css?v=1778035000" rel="stylesheet"/>
+<link href="./styles.css?v=1778178006" rel="stylesheet"/>
 <link href="logof.png" rel="icon" type="image/png"/>
 <style>
   /* SaaS Search (My Projects Kanban) */
@@ -992,9 +992,9 @@
             </svg>
           </button>
           <button class="icon-btn xs btn-edit" id="btnOpenWorkspaceEdit" type="button" title="Editar projeto" aria-label="Editar projeto">
-            <svg viewBox="0 0 24 24" aria-hidden="true">
-              <path d="M4 20h4l10-10-4-4L4 16v4Z" stroke-width="2" stroke-linejoin="round"></path>
-              <path d="M12 6l4 4" stroke-width="2" stroke-linecap="round"></path>
+            <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+              <path d="M4 20h4l10-10-4-4L4 16v4Z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"></path>
+              <path d="M12 6l4 4" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"></path>
             </svg>
           </button>
           <button class="icon-btn xs btn-block" id="btnDeleteWorkspaceProject" type="button" title="Excluir projeto" aria-label="Excluir projeto">
@@ -1031,7 +1031,7 @@
               <div class="activity-form-eyebrow">Nova tarefa</div>
               <div class="activity-form-subtitle">Programe a nova tarefa.</div>
             </div>
-            <div class="project-form-grid">
+            <div class="project-form-grid task-form-grid">
               <label class="field">
                 <span>Nome da tarefa</span>
                 <input id="taskNameInput" maxlength="80" placeholder="Ex.: Levantamento e diagnostico" />
@@ -1711,6 +1711,47 @@
 <span>ID da empresa (slug)</span>
 <input id="companyId" placeholder="Ex.: empresa-x"/>
 </label>
+<label class="field" style="grid-column: span 6;">
+<span>Plano</span>
+<select id="companyPlan">
+<option value="plan-1-20">1 a 20 usuarios</option>
+<option value="plan-21-40">21 a 40 usuarios</option>
+<option value="plan-41-60">41 a 60 usuarios</option>
+<option value="plan-61-80">61 a 80 usuarios</option>
+<option value="plan-81-100">81 a 100 usuarios</option>
+</select>
+<small class="muted">Controla o limite de usuarios ativos da empresa.</small>
+</label>
+<label class="field" style="grid-column: span 6;">
+<span>Tipo de plano</span>
+<select id="companyPlanBillingCycle">
+<option value="monthly">mensal</option>
+<option value="annual">anual</option>
+</select>
+<small class="muted">O anual considera 12 mensalidades com 20% de desconto.</small>
+</label>
+<p class="muted" id="companyPlanSelectedPrice" style="grid-column: span 12; margin:0;">Plano mensal R$ 257,00/mes.</p>
+<div class="panel subtle" style="grid-column: span 12; padding:12px;">
+<h3 style="margin:0 0 10px 0;">Financeiro</h3>
+<div class="grid" style="grid-template-columns: repeat(12, 1fr); gap:12px; margin-top:12px;">
+<label class="field" style="grid-column: span 6;">
+<span>Responsavel financeiro</span>
+<input id="companyFinancialName" placeholder="Ex.: Joao Oliveira"/>
+</label>
+<label class="field" style="grid-column: span 6;">
+<span>E-mail financeiro</span>
+<input id="companyFinancialEmail" placeholder="financeiro@empresa.com" type="email"/>
+</label>
+<label class="field" style="grid-column: span 6;">
+<span>Telefone financeiro</span>
+<input id="companyFinancialPhone" placeholder="11999999999"/>
+</label>
+<label class="field" style="grid-column: span 6;">
+<span>Data de vencimento/cobranca</span>
+<input id="companyBillingDueDate" type="date"/>
+</label>
+</div>
+</div>
 <div class="panel subtle" style="grid-column: span 12; padding:12px;">
 <h3 style="margin:0 0 10px 0;">Admin da empresa</h3>
 <div class="grid" style="grid-template-columns: repeat(12, 1fr); gap:12px; margin-top:12px;">
@@ -2192,6 +2233,57 @@
 </div>
 <div class="modal-body company-detail-modal-body">
 <div class="alert" id="companyUsersAlert" style="display:none;"></div>
+<section class="company-plan-panel">
+<div>
+<h3>Plano da empresa</h3>
+<p class="muted" id="companyPlanSummary">Selecione o plano vinculado a esta empresa.</p>
+</div>
+<div class="company-plan-controls">
+<label class="field">
+<span>Plano contratado</span>
+<select id="companyPlanDetail">
+<option value="plan-1-20">1 a 20 usuarios</option>
+<option value="plan-21-40">21 a 40 usuarios</option>
+<option value="plan-41-60">41 a 60 usuarios</option>
+<option value="plan-61-80">61 a 80 usuarios</option>
+<option value="plan-81-100">81 a 100 usuarios</option>
+</select>
+</label>
+<label class="field">
+<span>Tipo de plano</span>
+<select id="companyPlanBillingCycleDetail">
+<option value="monthly">mensal</option>
+<option value="annual">anual</option>
+</select>
+</label>
+<button class="btn primary" id="btnSaveCompanyPlan" type="button">Salvar plano</button>
+</div>
+</section>
+<section class="company-plan-panel">
+<div>
+<h3>Financeiro</h3>
+<p class="muted" id="companyFinancialSummary">Dados financeiros da empresa.</p>
+</div>
+<div class="company-financial-grid">
+<label class="field">
+<span>Responsavel financeiro</span>
+<input id="companyFinancialNameDetail" placeholder="Nome do responsavel"/>
+</label>
+<label class="field">
+<span>E-mail financeiro</span>
+<input id="companyFinancialEmailDetail" placeholder="financeiro@empresa.com" type="email"/>
+</label>
+<label class="field">
+<span>Telefone financeiro</span>
+<input id="companyFinancialPhoneDetail" placeholder="11999999999"/>
+</label>
+<label class="field">
+<span>Vencimento/cobranca</span>
+<input id="companyBillingDueDateDetail" type="date"/>
+</label>
+<button class="btn primary" id="btnSaveCompanyFinancial" type="button">Salvar financeiro</button>
+</div>
+</section>
 <section class="company-detail-users-panel">
 <div class="company-detail-users-header">
 <div>
@@ -2208,6 +2300,10 @@
 <div class="company-stat-card company-stat-card--success">
 <span class="company-stat-label">Ativos</span>
 <strong id="companyUsersActiveCount">0</strong>
+</div>
+<div class="company-stat-card company-stat-card--plan">
+<span class="company-stat-label">Limite do plano</span>
+<strong id="companyUsersPlanLimitCount">0</strong>
 </div>
 <div class="company-stat-card company-stat-card--danger">
 <span class="company-stat-label">Bloqueados</span>
@@ -2776,13 +2872,13 @@
 <!-- MODAL FEEDBACK TECNICO -->
 <section class="modal" hidden id="modalTechFeedback">
   <div class="modal-backdrop" data-close="true"></div>
-  <div class="modal-card tech-feedback-modal-card" style="max-width:860px;">
+  <div class="modal-card tech-feedback-modal-card">
     <div class="modal-header tech-feedback-modal-head">
       <div>
         <h2>Feedback do Recurso</h2>
         <p class="muted" id="techFeedbackSubtitle">Registre e acompanhe feedbacks.</p>
       </div>
-      <button class="btn ghost" id="btnCloseTechFeedback">X</button>
+      <button class="btn ghost" id="btnCloseTechFeedback" type="button">X</button>
     </div>
 
     <div class="modal-body">
@@ -2816,9 +2912,10 @@
 
         <div class="form-section tech-feedback-history-section">
           <div class="section-title">Historico</div>
-          <div class="panel subtle tech-feedback-history-list" id="techFeedbackList" style="max-height:320px; overflow:auto;">
+          <div class="panel subtle tech-feedback-history-list" id="techFeedbackList">
             <div class="muted" style="padding:10px;">Nenhum feedback ainda.</div>
           </div>
+          <div class="tech-feedback-pagination" hidden id="techFeedbackPagination" aria-label="Paginacao do historico de feedbacks"></div>
         </div>
       </div>
     </div>
@@ -3011,7 +3108,7 @@
   </div>
 </div>
 
-<script src="./app.js?v=1778033300" type="module"></script>
+<script src="./app.js?v=1778182600" type="module"></script>
 <script>
   // Toggle senha (somente UI)
   document.addEventListener("click", function(e){

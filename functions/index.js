@@ -83,6 +83,50 @@ function sanitizeHourlyRate(v) {
   return n;
 }
 
+const COMPANY_PLANS = [
+  { id: "plan-1-20", label: "1 a 20 usuarios", userLimit: 20, price: 257, annualPrice: 2467.2 },
+  { id: "plan-21-40", label: "21 a 40 usuarios", userLimit: 40, price: 387, annualPrice: 3715.2 },
+  { id: "plan-41-60", label: "41 a 60 usuarios", userLimit: 60, price: 497, annualPrice: 4771.2 },
+  { id: "plan-61-80", label: "61 a 80 usuarios", userLimit: 80, price: 697, annualPrice: 6691.2 },
+  { id: "plan-81-100", label: "81 a 100 usuarios", userLimit: 100, price: 847, annualPrice: 8131.2 },
+];
+
+function getCompanyPlan(planId) {
+  return COMPANY_PLANS.find((plan) => plan.id === planId) || COMPANY_PLANS[0];
+}
+
+function normalizePlanBillingCycle(value) {
+  return value === "annual" ? "annual" : "monthly";
+}
+
+function normalizeCompanyPlan(companyData = {}) {
+  const plan = getCompanyPlan(companyData.planId || "plan-1-20");
+  const userLimit = Number(companyData.planUserLimit || plan.userLimit);
+  const billingCycle = normalizePlanBillingCycle(companyData.planBillingCycle);
+  return {
+    ...plan,
+    label: companyData.planName || plan.label,
+    userLimit: Number.isFinite(userLimit) && userLimit > 0 ? userLimit : plan.userLimit,
+    price: Number(companyData.planPrice || plan.price),
+    annualPrice: Number(companyData.planAnnualPrice || plan.annualPrice),
+    billingCycle,
+    billingPrice: Number(companyData.planBillingPrice || (billingCycle === "annual" ? plan.annualPrice : plan.price)),
+  };
+}
+
+async function assertCompanyUserLimitAvailable(db, companyId) {
+  const companySnap = await db.doc(`companies/${companyId}`).get();
+  const plan = normalizeCompanyPlan(companySnap.exists ? companySnap.data() : {});
+  const usersSnap = await db.collection(`companies/${companyId}/users`).where("active", "==", true).get();
+  const activeCount = usersSnap.size;
+  if (activeCount >= plan.userLimit) {
+    throw new functions.https.HttpsError(
+      "resource-exhausted",
+      `Limite do plano atingido: ${activeCount}/${plan.userLimit} usuarios ativos no plano ${plan.label}.`
+    );
+  }
+}
+
 /**
  * Regras de permissão (alinhadas ao seu projeto)
  * - Admin da empresa: pode criar admin/gestor/coordenador/tecnico
@@ -222,6 +266,7 @@ exports.createUserInTenant = functions.https.onCall(async (data, context) => {
 
   // 3) Bloqueia se e-mail já existir no Auth (e também se estiver em outra empresa)
   await assertEmailNotUsedInAuthOrTenant(db, safeCompanyId, safeEmailLower);
+  await assertCompanyUserLimitAvailable(db, safeCompanyId);
 
   // 4) TeamIds do técnico = todas as equipes da empresa
   let teamIds = [];
@@ -369,6 +414,11 @@ exports.createUserInTenantHttp = functions.https.onRequest(async (req, res) => {
     }
 
     // teamIds do técnico = todas as equipes
+    try {
+      await assertCompanyUserLimitAvailable(db, safeCompanyId);
+    } catch (e) {
+      return res.status(429).json({ error: { message: e.message || "Limite de usuarios do plano atingido." } });
+    }
     let teamIds = [];
     if (safeRole === "tecnico") {
       teamIds = await getAllCompanyTeamIds(db, safeCompanyId);
@@ -514,11 +564,18 @@ exports.createCompanyWithAdmin = functions.https.onCall(async (data, context) =>
   }
 
   const callerUid = context.auth.uid;
-  const { companyId, companyName, cnpj, admin: adminPayload } = data || {};
+  const { companyId, companyName, cnpj, admin: adminPayload, financial: financialPayload = {} } = data || {};
+  const plan = getCompanyPlan(data?.planId || "plan-1-20");
+  const planBillingCycle = normalizePlanBillingCycle(data?.planBillingCycle);
+  const planBillingPrice = planBillingCycle === "annual" ? plan.annualPrice : plan.price;
   const adminName = (adminPayload?.name || "").trim();
   const adminEmail = (adminPayload?.email || "").trim();
   const adminPhone = (adminPayload?.phone || "").trim();
   const adminActive = adminPayload?.active !== false;
+  const financialContactName = normalizeString(financialPayload.name);
+  const financialContactEmail = normalizeEmail(financialPayload.email);
+  const financialContactPhone = normalizeString(financialPayload.phone);
+  const billingDueDate = normalizeString(financialPayload.billingDueDate);
 
   if (!companyId || typeof companyId !== "string") {
     throw new functions.https.HttpsError("invalid-argument", "companyId inválido.");
@@ -578,6 +635,17 @@ exports.createCompanyWithAdmin = functions.https.onCall(async (data, context) =>
     name: companyName,
     cnpj,
     active: true,
+    planId: plan.id,
+    planName: plan.label,
+    planUserLimit: plan.userLimit,
+    planPrice: plan.price,
+    planAnnualPrice: plan.annualPrice,
+    planBillingCycle,
+    planBillingPrice,
+    financialContactName,
+    financialContactEmail,
+    financialContactPhone,
+    billingDueDate,
     createdAt: admin.firestore.FieldValue.serverTimestamp(),
     createdBy: callerUid,
   });
@@ -651,12 +719,20 @@ exports.createCompanyWithAdminHttp = functions
       const companyId = body.companyId;
       const companyName = body.companyName;
       const cnpj = body.cnpj;
+      const plan = getCompanyPlan(body.planId || "plan-1-20");
+      const planBillingCycle = normalizePlanBillingCycle(body.planBillingCycle);
+      const planBillingPrice = planBillingCycle === "annual" ? plan.annualPrice : plan.price;
+      const financialPayload = body.financial || {};
       const adminPayload = body.admin || {};
 
       const adminName = String(adminPayload.name || "").trim();
       const adminEmail = String(adminPayload.email || "").trim();
       const adminPhone = String(adminPayload.phone || "").trim();
       const adminActive = adminPayload.active !== false;
+      const financialContactName = normalizeString(financialPayload.name);
+      const financialContactEmail = normalizeEmail(financialPayload.email);
+      const financialContactPhone = normalizeString(financialPayload.phone);
+      const billingDueDate = normalizeString(financialPayload.billingDueDate);
 
       if (!companyId || typeof companyId !== "string") {
         return res.status(400).json({ error: { message: "companyId inválido." } });
@@ -686,6 +762,17 @@ exports.createCompanyWithAdminHttp = functions
         name: companyName,
         cnpj,
         active: true,
+        planId: plan.id,
+        planName: plan.label,
+        planUserLimit: plan.userLimit,
+        planPrice: plan.price,
+        planAnnualPrice: plan.annualPrice,
+        planBillingCycle,
+        planBillingPrice,
+        financialContactName,
+        financialContactEmail,
+        financialContactPhone,
+        billingDueDate,
         createdAt: admin.firestore.FieldValue.serverTimestamp(),
         createdBy: callerUid
       });

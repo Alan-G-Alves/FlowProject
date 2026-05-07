@@ -427,6 +427,27 @@ a{color:inherit}
   color:var(--fp-muted);
   font-weight:800;
 }
+.annual-price{
+  display:flex;
+  flex-direction:column;
+  gap:3px;
+  margin-top:10px;
+  padding:10px 12px;
+  border:1px solid #dbeafe;
+  border-radius:12px;
+  background:#f8fbff;
+}
+.annual-price span{
+  color:#64748b;
+  font-size:11px;
+  font-weight:950;
+  text-transform:lowercase;
+}
+.annual-price strong{
+  color:#0f172a;
+  font-size:16px;
+  line-height:1.2;
+}
 .price-card p{
   margin:14px 0 0;
   color:#475569;

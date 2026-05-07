@@ -20,6 +20,7 @@ import { setAlert, clearAlert } from "../ui/alerts.js";
 import { normalizeRole } from "../utils/roles.js";
 import { normalizePhone } from "../utils/format.js";
 import { isEmailValidBasic } from "../utils/validators.js";
+import { normalizeCompanyPlan } from "../utils/plans.js?v=1778178000";
 import {
   bindMaskedInput,
   bindAgePreview,
@@ -313,6 +314,17 @@ async function findUserUidByEmailInCompany(db, companyId, email) {
   } catch (_) {}
 
   return "";
+}
+
+async function assertCompanyUserLimitAvailable(db, companyId, willBeActive = true) {
+  if (!willBeActive) return;
+  const companySnap = await getDoc(doc(db, "companies", companyId));
+  const plan = normalizeCompanyPlan(companySnap.exists() ? companySnap.data() : {});
+  const usersSnap = await getDocs(collection(db, "companies", companyId, "users"));
+  const activeCount = usersSnap.docs.filter((d) => d.data()?.active === true).length;
+  if (activeCount >= plan.userLimit) {
+    throw new Error(`Limite do plano atingido: ${activeCount}/${plan.userLimit} usuarios ativos no plano ${plan.label}.`);
+  }
 }
 
 function initNewUserRichFields(deps) {
@@ -1118,6 +1130,12 @@ export async function createUser(deps) {
   const existingUid = await findUserUidByEmailInCompany(db, state.companyId, email);
   if (existingUid && existingUid !== uid) {
     return setAlert(refs.createUserAlert, "Este e-mail já está cadastrado nesta empresa. Use outro e-mail ou edite o usuário existente.");
+  }
+
+  try {
+    await assertCompanyUserLimitAvailable(db, state.companyId, active);
+  } catch (limitErr) {
+    return setAlert(refs.createUserAlert, limitErr?.message || "Limite de usuarios do plano atingido.");
   }
 
   state._isCreatingUser = true;

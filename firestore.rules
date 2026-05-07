@@ -241,21 +241,51 @@ service cloud.firestore {
 
       // Master pode criar e também (importante) bloquear/desbloquear qualquer empresa
       allow create: if isSuperAdmin()
-        && request.resource.data.keys().hasOnly(["name", "cnpj", "active", "createdAt", "createdBy"])
+        && request.resource.data.keys().hasOnly(["name", "cnpj", "active", "planId", "planName", "planUserLimit", "planPrice", "planAnnualPrice", "planBillingCycle", "planBillingPrice", "planUpdatedAt", "financialContactName", "financialContactEmail", "financialContactPhone", "billingDueDate", "financialUpdatedAt", "createdAt", "createdBy"])
         && request.resource.data.name is string
         && request.resource.data.name.size() > 0
         && request.resource.data.cnpj is string
         && request.resource.data.cnpj.size() > 0
         && request.resource.data.active is bool
+        && (!("planId" in request.resource.data) || request.resource.data.planId in ["plan-1-20", "plan-21-40", "plan-41-60", "plan-61-80", "plan-81-100"])
+        && (!("planName" in request.resource.data) || request.resource.data.planName is string)
+        && (!("planUserLimit" in request.resource.data) || request.resource.data.planUserLimit in [20, 40, 60, 80, 100])
+        && (!("planPrice" in request.resource.data) || request.resource.data.planPrice is number)
+        && (!("planAnnualPrice" in request.resource.data) || request.resource.data.planAnnualPrice is number)
+        && (!("planBillingCycle" in request.resource.data) || request.resource.data.planBillingCycle in ["monthly", "annual"])
+        && (!("planBillingPrice" in request.resource.data) || request.resource.data.planBillingPrice is number)
+        && (!("planUpdatedAt" in request.resource.data) || request.resource.data.planUpdatedAt is timestamp)
+        && (!("financialContactName" in request.resource.data) || request.resource.data.financialContactName is string)
+        && (!("financialContactEmail" in request.resource.data) || request.resource.data.financialContactEmail is string)
+        && (!("financialContactPhone" in request.resource.data) || request.resource.data.financialContactPhone is string)
+        && (!("billingDueDate" in request.resource.data) || request.resource.data.billingDueDate is string)
+        && (!("financialUpdatedAt" in request.resource.data) || request.resource.data.financialUpdatedAt is timestamp)
         && request.resource.data.createdBy == myUid();
 
       allow update: if isSuperAdmin()
-        && request.resource.data.keys().hasOnly(["name", "cnpj", "active", "createdAt", "createdBy", "number", "displayName", "logoURL", "logoPath", "logoReportDataUrl", "reportPermissions", "projectTechPermissions", "activityNoteMinChars", "expenseObservationMinChars", "updatedAt"])
+        && request.resource.data.diff(resource.data).changedKeys().hasOnly(["active"])
+        && request.resource.data.active is bool;
+
+      allow update: if isSuperAdmin()
+        && request.resource.data.keys().hasOnly(["name", "cnpj", "active", "planId", "planName", "planUserLimit", "planPrice", "planAnnualPrice", "planBillingCycle", "planBillingPrice", "planUpdatedAt", "financialContactName", "financialContactEmail", "financialContactPhone", "billingDueDate", "financialUpdatedAt", "createdAt", "createdBy", "number", "displayName", "logoURL", "logoPath", "logoReportDataUrl", "reportPermissions", "projectTechPermissions", "activityNoteMinChars", "expenseObservationMinChars", "updatedAt"])
         && request.resource.data.name is string
         && request.resource.data.name.size() > 0
         && request.resource.data.cnpj is string
         && request.resource.data.cnpj.size() > 0
         && request.resource.data.active is bool
+        && (!("planId" in request.resource.data) || request.resource.data.planId in ["plan-1-20", "plan-21-40", "plan-41-60", "plan-61-80", "plan-81-100"])
+        && (!("planName" in request.resource.data) || request.resource.data.planName is string)
+        && (!("planUserLimit" in request.resource.data) || request.resource.data.planUserLimit in [20, 40, 60, 80, 100])
+        && (!("planPrice" in request.resource.data) || request.resource.data.planPrice is number)
+        && (!("planAnnualPrice" in request.resource.data) || request.resource.data.planAnnualPrice is number)
+        && (!("planBillingCycle" in request.resource.data) || request.resource.data.planBillingCycle in ["monthly", "annual"])
+        && (!("planBillingPrice" in request.resource.data) || request.resource.data.planBillingPrice is number)
+        && (!("planUpdatedAt" in request.resource.data) || request.resource.data.planUpdatedAt is timestamp)
+        && (!("financialContactName" in request.resource.data) || request.resource.data.financialContactName is string)
+        && (!("financialContactEmail" in request.resource.data) || request.resource.data.financialContactEmail is string)
+        && (!("financialContactPhone" in request.resource.data) || request.resource.data.financialContactPhone is string)
+        && (!("billingDueDate" in request.resource.data) || request.resource.data.billingDueDate is string)
+        && (!("financialUpdatedAt" in request.resource.data) || request.resource.data.financialUpdatedAt is timestamp)
         && (!("number" in request.resource.data) || request.resource.data.number is int)
         && (!("activityNoteMinChars" in request.resource.data) || (request.resource.data.activityNoteMinChars is int && request.resource.data.activityNoteMinChars >= 0 && request.resource.data.activityNoteMinChars <= 1000))
         && (!("expenseObservationMinChars" in request.resource.data) || (request.resource.data.expenseObservationMinChars is int && request.resource.data.expenseObservationMinChars >= 0 && request.resource.data.expenseObservationMinChars <= 1000));
@@ -356,6 +386,10 @@ match /counters/{counterId} {
         // master / admin da empresa
         allow create, update: if (isSuperAdmin() || isCompanyAdmin(companyId))
           && userWriteValid();
+
+        allow update: if isSuperAdmin()
+          && request.resource.data.diff(resource.data).changedKeys().hasOnly(["active"])
+          && request.resource.data.active is bool;
 
 
         // ✅ self-update (perfil): qualquer usuário pode atualizar APENAS seus próprios campos de perfil

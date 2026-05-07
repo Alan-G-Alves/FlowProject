@@ -1,17 +1,41 @@
 // public/src/domain/companies.domain.js
 // Lógica de negócio para gerenciamento de empresas (Master Admin)
 
-import { doc, getDoc, collection, getDocs, updateDoc, writeBatch, query } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore.js";
+import { doc, getDoc, collection, getDocs, updateDoc, writeBatch, query, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore.js";
 import { show, hide, escapeHtml } from "../utils/dom.js";
 import { setAlert, clearAlert, showInlineAlert, clearInlineAlert } from "../ui/alerts.js";
 import { setView } from "../ui/router.js";
 import { listCompaniesDocs } from "../services/companies.service.js";
 import { isEmailValidBasic, isCnpjValidBasic } from "../utils/validators.js";
 import { normalizePhone, normalizeCnpj } from "../utils/format.js";
+import { DEFAULT_COMPANY_BILLING_CYCLE, DEFAULT_COMPANY_PLAN_ID, getCompanyPlan, normalizeCompanyPlan, formatCompanyPlanPrice } from "../utils/plans.js?v=1778182600";
 
 /** =========================
  *  COMPANIES DOMAIN
  *  ========================= */
+
+function formatDateBR(value) {
+  const raw = String(value || "").trim();
+  const match = raw.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  return match ? `${match[3]}/${match[2]}/${match[1]}` : (raw || "-");
+}
+
+function normalizeBillingCycle(value) {
+  return value === "annual" ? "annual" : DEFAULT_COMPANY_BILLING_CYCLE;
+}
+
+function getBillingCycleLabel(value) {
+  return normalizeBillingCycle(value) === "annual" ? "anual" : "mensal";
+}
+
+function updateCompanyPlanSelectedPrice(refs) {
+  if (!refs.companyPlanSelectedPriceEl) return;
+  const plan = getCompanyPlan(refs.companyPlanEl?.value || DEFAULT_COMPANY_PLAN_ID);
+  const billingCycle = normalizeBillingCycle(refs.companyPlanBillingCycleEl?.value);
+  const price = billingCycle === "annual" ? plan.annualPrice : plan.price;
+  const suffix = billingCycle === "annual" ? "/ano" : "/mes";
+  refs.companyPlanSelectedPriceEl.textContent = `Plano ${getBillingCycleLabel(billingCycle)} ${formatCompanyPlanPrice(price)}${suffix}.`;
+}
 
 export function openCompaniesView(deps) {
   const { loadCompanies } = deps;
@@ -44,6 +68,7 @@ export async function loadCompanies(deps) {
   }
 
   for (const c of filtered.sort((a, b) => (a.name || "").localeCompare(b.name || ""))) {
+    const plan = normalizeCompanyPlan(c);
     const el = document.createElement("div");
     el.className = "card";
     el.innerHTML = `
@@ -52,6 +77,7 @@ export async function loadCompanies(deps) {
       <div class="meta">
         <span class="badge">ID: ${c.id}</span>
         <span class="badge">${c.active === false ? "Inativa" : "Ativa"}</span>
+        <span class="badge">${escapeHtml(plan.label)}</span>
       </div>
     `;
     el.style.cursor = "pointer";
@@ -118,6 +144,15 @@ export function openCreateCompanyModal(deps) {
   if (refs.adminEmailEl) refs.adminEmailEl.value = "";
   if (refs.adminPhoneEl) refs.adminPhoneEl.value = "";
   if (refs.adminActiveEl) refs.adminActiveEl.value = "true";
+  if (refs.companyPlanEl) refs.companyPlanEl.value = DEFAULT_COMPANY_PLAN_ID;
+  if (refs.companyPlanBillingCycleEl) refs.companyPlanBillingCycleEl.value = DEFAULT_COMPANY_BILLING_CYCLE;
+  if (refs.companyPlanEl) refs.companyPlanEl.onchange = () => updateCompanyPlanSelectedPrice(refs);
+  if (refs.companyPlanBillingCycleEl) refs.companyPlanBillingCycleEl.onchange = () => updateCompanyPlanSelectedPrice(refs);
+  updateCompanyPlanSelectedPrice(refs);
+  if (refs.companyFinancialNameEl) refs.companyFinancialNameEl.value = "";
+  if (refs.companyFinancialEmailEl) refs.companyFinancialEmailEl.value = "";
+  if (refs.companyFinancialPhoneEl) refs.companyFinancialPhoneEl.value = "";
+  if (refs.companyBillingDueDateEl) refs.companyBillingDueDateEl.value = "";
 
   refs.modalCreateCompany.hidden = false;
 }
@@ -150,8 +185,24 @@ export async function loadCompanyDetail(companyId, deps) {
     }
     const cData = cSnap.data();
     const active = cData.active === true;
+    const plan = normalizeCompanyPlan(cData);
 
     if (refs.companyDetailTitle) refs.companyDetailTitle.textContent = cData.name || companyId;
+    if (refs.companyPlanDetail) refs.companyPlanDetail.value = plan.id;
+    if (refs.companyPlanBillingCycleDetail) refs.companyPlanBillingCycleDetail.value = plan.billingCycle;
+    if (refs.companyPlanSummary) {
+      const suffix = plan.billingCycle === "annual" ? "/ano" : "/mes";
+      refs.companyPlanSummary.textContent = `${plan.label} - plano ${getBillingCycleLabel(plan.billingCycle)} ${formatCompanyPlanPrice(plan.billingPrice)}${suffix}. Limite de ${plan.userLimit} usuarios ativos.`;
+    }
+    if (refs.companyFinancialNameDetail) refs.companyFinancialNameDetail.value = cData.financialContactName || "";
+    if (refs.companyFinancialEmailDetail) refs.companyFinancialEmailDetail.value = cData.financialContactEmail || "";
+    if (refs.companyFinancialPhoneDetail) refs.companyFinancialPhoneDetail.value = cData.financialContactPhone || "";
+    if (refs.companyBillingDueDateDetail) refs.companyBillingDueDateDetail.value = cData.billingDueDate || "";
+    if (refs.companyFinancialSummary) {
+      const name = cData.financialContactName || "Responsavel nao informado";
+      const due = cData.billingDueDate ? formatDateBR(cData.billingDueDate) : "vencimento nao informado";
+      refs.companyFinancialSummary.textContent = `${name} - ${due}.`;
+    }
     if (refs.companyDetailMeta) refs.companyDetailMeta.textContent = `CNPJ: ${cData.cnpj || "-"} • ID: ${companyId}`;
     if (refs.companyDetailStatus) {
       refs.companyDetailStatus.textContent = active ? "ATIVA" : "BLOQUEADA";
@@ -162,6 +213,12 @@ export async function loadCompanyDetail(companyId, deps) {
       refs.btnToggleCompanyBlock.className = active ? "btn btn-danger" : "btn btn-secondary";
       refs.btnToggleCompanyBlock.onclick = () => toggleCompanyBlock(companyId, active);
     }
+    if (refs.btnSaveCompanyPlan) {
+      refs.btnSaveCompanyPlan.onclick = () => saveCompanyPlan(companyId, deps);
+    }
+    if (refs.btnSaveCompanyFinancial) {
+      refs.btnSaveCompanyFinancial.onclick = () => saveCompanyFinancial(companyId, deps);
+    }
 
     const uCol = collection(db, "companies", companyId, "users");
     const uSnap = await getDocs(uCol);
@@ -170,6 +227,7 @@ export async function loadCompanyDetail(companyId, deps) {
     users.sort((a, b) => (a.name || "").localeCompare(b.name || ""));
 
     deps.companyDetailUsersCache = users;
+    if (refs.companyUsersPlanLimitCount) refs.companyUsersPlanLimitCount.textContent = String(plan.userLimit);
     renderCompanyUsersTable(companyId, users);
   } catch (err) {
     console.error("Erro ao carregar detalhes da empresa:", err);
@@ -321,20 +379,11 @@ export async function toggleCompanyBlock(companyId, currentlyActive, deps) {
     const cRef = doc(db, "companies", companyId);
 
     if (currentlyActive) {
-      const uCol = collection(db, "companies", companyId, "users");
-      const uSnap = await getDocs(query(uCol));
-      const batch = writeBatch(db);
-      batch.update(cRef, { active: false });
-
-      uSnap.forEach(d => {
-        batch.update(d.ref, { active: false });
-      });
-
-      await batch.commit();
-      showInlineAlert(refs.companyUsersAlert, "Empresa bloqueada e usuários bloqueados.", "success");
+      await updateDoc(cRef, { active: false });
+      showInlineAlert(refs.companyUsersAlert, "Empresa bloqueada. Os usuarios desta empresa nao conseguem acessar o sistema.", "success");
     } else {
       await updateDoc(cRef, { active: true });
-      showInlineAlert(refs.companyUsersAlert, "Empresa desbloqueada. (Usuários permanecem com o status atual.)", "success");
+      showInlineAlert(refs.companyUsersAlert, "Empresa desbloqueada. Usuarios ativos ja podem acessar novamente.", "success");
     }
 
     await loadCompanyDetail(companyId);
@@ -342,6 +391,67 @@ export async function toggleCompanyBlock(companyId, currentlyActive, deps) {
   } catch (err) {
     console.error("Erro ao bloquear/desbloquear empresa:", err);
     showInlineAlert(refs.companyUsersAlert, "Não foi possível alterar o status da empresa.", "error");
+  }
+}
+
+export async function saveCompanyPlan(companyId, deps) {
+  const { refs, state, db, loadCompanyDetail, loadCompanies } = deps;
+  if (!state.isSuperAdmin) return;
+  clearInlineAlert(refs.companyUsersAlert);
+
+  const plan = getCompanyPlan(refs.companyPlanDetail?.value || DEFAULT_COMPANY_PLAN_ID);
+  const billingCycle = normalizeBillingCycle(refs.companyPlanBillingCycleDetail?.value);
+  const billingPrice = billingCycle === "annual" ? plan.annualPrice : plan.price;
+  try {
+    await updateDoc(doc(db, "companies", companyId), {
+      planId: plan.id,
+      planName: plan.label,
+      planUserLimit: plan.userLimit,
+      planPrice: plan.price,
+      planAnnualPrice: plan.annualPrice,
+      planBillingCycle: billingCycle,
+      planBillingPrice: billingPrice,
+      planUpdatedAt: serverTimestamp(),
+      updatedAt: serverTimestamp()
+    });
+    showInlineAlert(refs.companyUsersAlert, `Plano salvo: ${plan.label} (${getBillingCycleLabel(billingCycle)}).`, "success");
+    await loadCompanyDetail(companyId);
+    await loadCompanies?.();
+  } catch (err) {
+    console.error("[company-plan:save]", err);
+    showInlineAlert(refs.companyUsersAlert, err?.message || "Nao foi possivel salvar o plano.", "error");
+  }
+}
+
+export async function saveCompanyFinancial(companyId, deps) {
+  const { refs, state, db, loadCompanyDetail, loadCompanies } = deps;
+  if (!state.isSuperAdmin) return;
+  clearInlineAlert(refs.companyUsersAlert);
+
+  const financialContactName = (refs.companyFinancialNameDetail?.value || "").trim();
+  const financialContactEmail = (refs.companyFinancialEmailDetail?.value || "").trim();
+  const financialContactPhone = normalizePhone(refs.companyFinancialPhoneDetail?.value || "");
+  const billingDueDate = (refs.companyBillingDueDateDetail?.value || "").trim();
+
+  if (financialContactEmail && !isEmailValidBasic(financialContactEmail)) {
+    return showInlineAlert(refs.companyUsersAlert, "Informe um e-mail financeiro valido.", "error");
+  }
+
+  try {
+    await updateDoc(doc(db, "companies", companyId), {
+      financialContactName,
+      financialContactEmail,
+      financialContactPhone,
+      billingDueDate,
+      financialUpdatedAt: serverTimestamp(),
+      updatedAt: serverTimestamp()
+    });
+    showInlineAlert(refs.companyUsersAlert, "Dados financeiros salvos.", "success");
+    await loadCompanyDetail(companyId);
+    await loadCompanies?.();
+  } catch (err) {
+    console.error("[company-financial:save]", err);
+    showInlineAlert(refs.companyUsersAlert, err?.message || "Nao foi possivel salvar os dados financeiros.", "error");
   }
 }
 
@@ -359,6 +469,12 @@ export async function createCompany(deps) {
     const companyId = (refs.companyIdEl?.value || "").trim();
     const companyName = (refs.companyNameEl?.value || "").trim();
     const cnpj = (refs.companyCnpjEl?.value || "").trim();
+    const plan = getCompanyPlan(refs.companyPlanEl?.value || DEFAULT_COMPANY_PLAN_ID);
+    const billingCycle = normalizeBillingCycle(refs.companyPlanBillingCycleEl?.value);
+    const financialContactName = (refs.companyFinancialNameEl?.value || "").trim();
+    const financialContactEmail = (refs.companyFinancialEmailEl?.value || "").trim();
+    const financialContactPhone = normalizePhone(refs.companyFinancialPhoneEl?.value || "");
+    const billingDueDate = (refs.companyBillingDueDateEl?.value || "").trim();
 
     const adminName = (refs.adminNameEl?.value || "").trim();
     const adminEmail = (refs.adminEmailEl?.value || "").trim();
@@ -368,6 +484,7 @@ export async function createCompany(deps) {
     if (!companyId) return setAlert(refs.createCompanyAlert, "Informe o ID da empresa (slug).");
     if (!companyName) return setAlert(refs.createCompanyAlert, "Informe o nome da empresa.");
     if (!cnpj || !isCnpjValidBasic(cnpj)) return setAlert(refs.createCompanyAlert, "Informe um CNPJ válido (14 dígitos).");
+    if (financialContactEmail && !isEmailValidBasic(financialContactEmail)) return setAlert(refs.createCompanyAlert, "Informe um e-mail financeiro valido.");
     if (!adminName) return setAlert(refs.createCompanyAlert, "Informe o nome do Admin da empresa.");
     if (!adminEmail || !isEmailValidBasic(adminEmail)) return setAlert(refs.createCompanyAlert, "Informe um e-mail válido para o Admin.");
 
@@ -377,6 +494,14 @@ export async function createCompany(deps) {
       companyId,
       companyName,
       cnpj: normalizeCnpj(cnpj),
+      planId: plan.id,
+      planBillingCycle: billingCycle,
+      financial: {
+        name: financialContactName,
+        email: financialContactEmail,
+        phone: financialContactPhone,
+        billingDueDate
+      },
       admin: {
         name: adminName,
         email: adminEmail,

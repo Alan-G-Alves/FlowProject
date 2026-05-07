@@ -55,6 +55,22 @@ function formatActivityHours(value){
   return Number.isInteger(n) ? `${n}h` : `${String(Math.round(n * 100) / 100).replace(".", ",")}h`;
 }
 
+function normalizeResourceProjectStatus(status){
+  const key = String(status || "a-fazer").trim().toLowerCase();
+  const map = {
+    "a-fazer": "A fazer",
+    "em-andamento": "Em andamento",
+    "go-live": "Go live",
+    "concluido": "Concluido",
+    "parado": "Parado",
+    "backlog": "Backlog"
+  };
+  return {
+    key: map[key] ? key : "a-fazer",
+    label: map[key] || map["a-fazer"]
+  };
+}
+
 function getResourceAgendaState(state, uid){
   if (!state._resourceAgendaByUid) state._resourceAgendaByUid = {};
   if (!state._resourceAgendaByUid[uid]){
@@ -291,6 +307,7 @@ async function loadResourceProjectSummaries(deps){
         projectMap.set(projectId, {
           id: projectId,
           name: p.name || projectData.projectName || "Projeto sem nome",
+          status: p.status || projectData.projectStatus || projectData.status || "a-fazer",
           startDate: p.startDate || projectData.startDate || "",
           endDate: p.endDate || projectData.endDate || "",
           tasks: new Set()
@@ -340,6 +357,25 @@ function closeResourceProjectsModal(state){
 function openResourceProjectsModal(deps, user, projects){
   const { state } = deps;
   closeResourceProjectsModal(state);
+  const projectRows = projects.map((project) => {
+    const status = normalizeResourceProjectStatus(project.status);
+    return `
+      <article class="resource-project-item">
+        <div class="resource-project-title-row">
+          <div>
+            <strong>${escapeHtml(project.name || "Projeto sem nome")}</strong>
+            <div class="resource-project-period">${escapeHtml(formatDateBR(project.startDate) || "-")} a ${escapeHtml(formatDateBR(project.endDate) || "-")}</div>
+          </div>
+          <span class="resource-project-status resource-project-status--${escapeHtml(status.key)}">${escapeHtml(status.label)}</span>
+        </div>
+        <div class="resource-project-tasks">
+          ${(project.tasks || []).length
+            ? project.tasks.map((task) => `<span class="chip mini chip-team">${escapeHtml(task)}</span>`).join("")
+            : `<span class="muted">Nenhuma tarefa vinculada por atividade.</span>`}
+        </div>
+      </article>
+    `;
+  }).join("");
 
   const modal = document.createElement("div");
   modal.className = "modal resource-projects-modal open";
@@ -354,19 +390,7 @@ function openResourceProjectsModal(deps, user, projects){
         <button class="btn ghost sm" data-close-resource-projects="true" type="button">X</button>
       </div>
       <div class="modal-body resource-projects-body">
-        ${projects.length ? projects.map((project) => `
-          <article class="resource-project-item">
-            <div class="resource-project-title-row">
-              <strong>${escapeHtml(project.name || "Projeto sem nome")}</strong>
-              <span>${escapeHtml(formatDateBR(project.startDate) || "-")} a ${escapeHtml(formatDateBR(project.endDate) || "-")}</span>
-            </div>
-            <div class="resource-project-tasks">
-              ${(project.tasks || []).length
-                ? project.tasks.map((task) => `<span class="chip mini chip-team">${escapeHtml(task)}</span>`).join("")
-                : `<span class="muted">Nenhuma tarefa vinculada por atividade.</span>`}
-            </div>
-          </article>
-        `).join("") : `
+        ${projects.length ? projectRows : `
           <div class="resource-projects-empty">Nenhum projeto vinculado a este recurso.</div>
         `}
       </div>
@@ -582,6 +606,13 @@ function initTechRichFields(deps){
   bindMaskedInput(refs.techCnpjEl, formatCnpj, "boundTechCnpj");
   bindAgePreview(refs.techBirthDateEl, refs.techAgePreview, "boundTechAge");
 
+  // DETECTA MUDANÇAS PARA HABILITAR BOTÃO SALVAR (apenas no modo edição)
+  const addChangeListener = (element, eventType = "input") => {
+    if (!element || element.dataset.boundChanges) return;
+    element.dataset.boundChanges = "1";
+    element.addEventListener(eventType, () => checkTechFormChanges(deps));
+  };
+
   if (refs.techNameEl && refs.techAvatarPreviewFallback){
     if (!refs.techNameEl.dataset.boundAvatar){
       refs.techNameEl.dataset.boundAvatar = "1";
@@ -590,10 +621,15 @@ function initTechRichFields(deps){
         refs.techAvatarPreviewFallback.textContent = initialsFromName(refs.techNameEl.value);
       });
     }
+    addChangeListener(refs.techNameEl);
     if (!refs.techAvatarPreviewImg || refs.techAvatarPreviewImg.style.display === "none") {
       refs.techAvatarPreviewFallback.textContent = initialsFromName(refs.techNameEl.value);
     }
   }
+
+  addChangeListener(refs.techPhoneEl);
+  addChangeListener(refs.techHourlyRateEl);
+  addChangeListener(refs.techActiveEl, "change");
 
   if (refs.techAvatarFileEl && refs.techAvatarPreviewImg && refs.techAvatarPreviewFallback){
     if (!refs.techAvatarFileEl.dataset.bound){
@@ -634,6 +670,7 @@ function initTechRichFields(deps){
 
         state._techModalScrollTop = null;
         e.target.value = "";
+        checkTechFormChanges(deps); // Detecta mudança na foto
       });
     }
   }
@@ -648,6 +685,7 @@ function initTechRichFields(deps){
         refs.techAvatarPreviewImg.style.display = "none";
         refs.techAvatarPreviewImg.src = "";
         refs.techAvatarPreviewFallback.textContent = initialsFromName(refs.techNameEl?.value || "");
+        checkTechFormChanges(deps); // Detecta remoção da foto
       });
     }
   }
@@ -671,10 +709,52 @@ function initTechRichFields(deps){
       }, restoreScroll);
       state._techModalScrollTop = null;
       e.target.value = "";
+      checkTechFormChanges(deps); // Detecta mudança nos anexos
     });
   }
 
   renderTechAttachments(deps);
+}
+
+function checkTechFormChanges(deps) {
+  const { refs, state } = deps;
+  if (!state._mgrEditingTechUid || !state._techOriginalData) return;
+
+  const currentData = {
+    name: (refs.techNameEl?.value || "").trim(),
+    phone: normalizePhone(refs.techPhoneEl?.value || ""),
+    hourlyRate: refs.techHourlyRateEl ? parseBRDecimalToNumber(refs.techHourlyRateEl.value) : null,
+    active: (refs.techActiveEl?.value || "true") === "true",
+    softSkills: uniqClean((state._techSoftSkillsDraft && state._techSoftSkillsDraft.length)
+      ? state._techSoftSkillsDraft
+      : readChipsText(refs.techSoftSkillChips)),
+    hardSkills: uniqClean((state._techHardSkillsDraft && state._techHardSkillsDraft.length)
+      ? state._techHardSkillsDraft
+      : readChipsText(refs.techHardSkillChips)),
+    teamIds: Array.from(new Set((state.mgrSelectedTeamIds || []).filter(Boolean))),
+    attachments: Array.isArray(state._techAttachmentsDraft) ? state._techAttachmentsDraft : []
+  };
+
+  const original = state._techOriginalData;
+
+  // Verifica se houve mudanças
+  const hasChanges =
+    currentData.name !== original.name ||
+    currentData.phone !== original.phone ||
+    currentData.hourlyRate !== original.hourlyRate ||
+    currentData.active !== original.active ||
+    JSON.stringify(currentData.softSkills.sort()) !== JSON.stringify(original.softSkills.sort()) ||
+    JSON.stringify(currentData.hardSkills.sort()) !== JSON.stringify(original.hardSkills.sort()) ||
+    JSON.stringify(currentData.teamIds.sort()) !== JSON.stringify(original.teamIds.sort()) ||
+    JSON.stringify(currentData.attachments) !== JSON.stringify(original.attachments) ||
+    state._techAvatarFile !== null ||
+    (state._techTempAvatarPath || "").trim() !== "";
+
+  // Habilita/desabilita botão salvar
+  if (refs.btnCreateTech) {
+    refs.btnCreateTech.disabled = !hasChanges;
+    refs.btnCreateTech.textContent = hasChanges ? "Salvar alterações" : "Nenhuma alteração";
+  }
 }
 
 async function syncTechAttachments(deps, uid){
@@ -896,6 +976,18 @@ export function openEditTechModal(deps, techUser){
   // modo edição
   setCreateTechModalMode(deps, "edit", techUser);
 
+  // ARMAZENA VALORES ORIGINAIS para detectar mudanças
+  state._techOriginalData = {
+    name: techUser?.name || "",
+    phone: techUser?.phone || "",
+    hourlyRate: techUser?.hourlyRate || null,
+    active: techUser?.active !== false,
+    softSkills: Array.isArray(techUser?.softSkills) ? [...techUser.softSkills] : [],
+    hardSkills: Array.isArray(techUser?.hardSkills) ? [...techUser.hardSkills] : [],
+    teamIds: Array.isArray(techUser?.teamIds) ? [...techUser.teamIds] : (techUser?.teamId ? [techUser.teamId] : []),
+    attachments: toAttachmentDrafts(techUser?.attachments)
+  };
+
   // preenche campos
   refs.techUidEl.value = techUser?.uid || "";
   refs.techNameEl.value = techUser?.name || "";
@@ -910,11 +1002,11 @@ export function openEditTechModal(deps, techUser){
   state.mgrSelectedTeamIds = Array.isArray(techUser?.teamIds)
     ? [...techUser.teamIds]
     : (techUser?.teamId ? [techUser.teamId] : []);
-  setupChipInput(refs.techSoftSkillInputEl, refs.techSoftSkillChips, deps.state, "_techSoftSkillsDraft", "soft");
-  setupChipInput(refs.techHardSkillInputEl, refs.techHardSkillChips, deps.state, "_techHardSkillsDraft", "hard");
+  setupChipInput(refs.techSoftSkillInputEl, refs.techSoftSkillChips, deps.state, "_techSoftSkillsDraft", "soft", () => checkTechFormChanges(deps));
+  setupChipInput(refs.techHardSkillInputEl, refs.techHardSkillChips, deps.state, "_techHardSkillsDraft", "hard", () => checkTechFormChanges(deps));
   ensureTeamsForChips()
-    .then(() => renderMgrTeamChips(deps))
-    .catch(() => renderMgrTeamChips(deps));
+    .then(() => renderMgrTeamChips(deps, () => checkTechFormChanges(deps)))
+    .catch(() => renderMgrTeamChips(deps, () => checkTechFormChanges(deps)));
 
   // avatar preview (usa photoURL existente)
   state._techAvatarFile = null;
@@ -1070,6 +1162,9 @@ const active = (refs.techActiveEl.value || "true") === "true";
 
   // volta para modo criação (para não “vazar” estado)
   setCreateTechModalMode(deps, "create");
+  
+  // limpa dados originais após salvamento bem-sucedido
+  delete state._techOriginalData;
 }
 
 function uniqClean(list){
@@ -1086,7 +1181,7 @@ function uniqClean(list){
   return out;
 }
 
-function setupChipInput(inputEl, chipsEl, state, key, type){
+function setupChipInput(inputEl, chipsEl, state, key, type, onChange){
   if (!inputEl || !chipsEl) return;
 
   // init state
@@ -1105,6 +1200,7 @@ function setupChipInput(inputEl, chipsEl, state, key, type){
       chip.addEventListener("click", () => {
         state[key] = state[key].filter(x => normalizeText(x) !== normalizeText(v));
         render();
+        if (onChange) onChange();
       });
       chipsEl.appendChild(chip);
     }
@@ -1118,6 +1214,7 @@ function setupChipInput(inputEl, chipsEl, state, key, type){
     state[key] = uniqClean([...(state[key]||[]), ...parts]);
     inputEl.value = "";
     render();
+    if (onChange) onChange();
   };
 
   inputEl.addEventListener("keydown", (e) => {
@@ -1149,6 +1246,7 @@ import { humanizeRole } from "../utils/roles.js";
 import { show, hide, escapeHtml } from "../utils/dom.js";
 import { isEmailValidBasic } from "../utils/validators.js";
 import { normalizePhone } from "../utils/format.js";
+import { normalizeCompanyPlan } from "../utils/plans.js?v=1778178000";
 import { createNotifications } from "../services/notifications.service.js?v=1776052722";
 import {
   bindMaskedInput,
@@ -1168,6 +1266,9 @@ import {
 
 
 async function findUserUidByEmailInCompany(db, companyId, email){
+  // Guard: valida parâmetros obrigatórios
+  if (!companyId || !email) return null;
+  
   const emailLower = normalizeText(email);
   const usersCol = collection(db, "companies", companyId, "users");
 
@@ -1186,6 +1287,17 @@ async function findUserUidByEmailInCompany(db, companyId, email){
   }catch(_){/* ignore */}
 
   return null;
+}
+
+async function assertCompanyUserLimitAvailable(db, companyId, willBeActive = true) {
+  if (!willBeActive) return;
+  const companySnap = await getDoc(doc(db, "companies", companyId));
+  const plan = normalizeCompanyPlan(companySnap.exists() ? companySnap.data() : {});
+  const usersSnap = await getDocs(collection(db, "companies", companyId, "users"));
+  const activeCount = usersSnap.docs.filter((d) => d.data()?.active === true).length;
+  if (activeCount >= plan.userLimit) {
+    throw new Error(`Limite do plano atingido: ${activeCount}/${plan.userLimit} usuarios ativos no plano ${plan.label}.`);
+  }
 }
 
 async function loadAllActiveTeamIds(db, companyId){
@@ -1702,6 +1814,8 @@ export async function openTechFeedbackModal(deps, techUser) {
   // guarda contexto
   state._techFeedbackUid = techUser.uid;
   state._techFeedbackName = techUser.name || "Recurso";
+  _techFeedbackPage = 1;
+  _techFeedbackItems = [];
 
   refs.techFeedbackSubtitle.textContent = `Recurso: ${state._techFeedbackName} - ${techUser.email || ""}`.trim();
 
@@ -1738,7 +1852,10 @@ function getScoreClass(score){
   return "chip-score-warn"; // 5-6
 }
 
-const TECH_FEEDBACK_NOTE_PREVIEW_LIMIT = 180;
+const TECH_FEEDBACK_NOTE_PREVIEW_LIMIT = 150;
+const TECH_FEEDBACK_PAGE_SIZE = 3;
+let _techFeedbackItems = [];
+let _techFeedbackPage = 1;
 
 function getFeedbackNotePreview(note) {
   const value = String(note || "").trim();
@@ -1746,11 +1863,120 @@ function getFeedbackNotePreview(note) {
   return `${value.slice(0, TECH_FEEDBACK_NOTE_PREVIEW_LIMIT).trimEnd()}...`;
 }
 
+function renderTechFeedbackPagination(refs) {
+  const wrap = document.getElementById("techFeedbackPagination");
+  if (!wrap) return;
+
+  const total = _techFeedbackItems.length;
+  const totalPages = Math.max(1, Math.ceil(total / TECH_FEEDBACK_PAGE_SIZE));
+  _techFeedbackPage = Math.min(Math.max(1, Number(_techFeedbackPage || 1)), totalPages);
+
+  wrap.hidden = total <= TECH_FEEDBACK_PAGE_SIZE;
+  if (wrap.hidden) {
+    wrap.innerHTML = "";
+    return;
+  }
+
+  const start = (_techFeedbackPage - 1) * TECH_FEEDBACK_PAGE_SIZE + 1;
+  const end = Math.min(total, _techFeedbackPage * TECH_FEEDBACK_PAGE_SIZE);
+  wrap.innerHTML = `
+    <span>${escapeHtml(String(start))}-${escapeHtml(String(end))} de ${escapeHtml(String(total))}</span>
+    <div>
+      <button type="button" data-tech-feedback-page="prev" ${_techFeedbackPage <= 1 ? "disabled" : ""}>Anterior</button>
+      <strong>${escapeHtml(String(_techFeedbackPage))}/${escapeHtml(String(totalPages))}</strong>
+      <button type="button" data-tech-feedback-page="next" ${_techFeedbackPage >= totalPages ? "disabled" : ""}>Proxima</button>
+    </div>
+  `;
+}
+
+function bindTechFeedbackHistoryActions(refs) {
+  if (refs.techFeedbackList && !refs.techFeedbackList.__techFeedbackActionsBound) {
+    refs.techFeedbackList.addEventListener("click", (event) => {
+      const button = event.target?.closest?.("[data-tech-feedback-toggle]");
+      if (!button) return;
+
+      const entry = button.closest(".tech-feedback-entry");
+      const note = entry?.querySelector("[data-tech-feedback-note]");
+      if (!note) return;
+
+      const expanded = button.getAttribute("aria-expanded") === "true";
+      note.textContent = expanded ? note.dataset.preview || "" : note.dataset.full || "";
+      button.setAttribute("aria-expanded", expanded ? "false" : "true");
+      button.textContent = expanded ? "Ver mais" : "Ver menos";
+    });
+    refs.techFeedbackList.__techFeedbackActionsBound = true;
+  }
+
+  const pagination = document.getElementById("techFeedbackPagination");
+  if (pagination && !pagination.__techFeedbackActionsBound) {
+    pagination.addEventListener("click", (event) => {
+      const button = event.target?.closest?.("[data-tech-feedback-page]");
+      if (!button || button.disabled) return;
+
+      const totalPages = Math.max(1, Math.ceil(_techFeedbackItems.length / TECH_FEEDBACK_PAGE_SIZE));
+      const direction = button.getAttribute("data-tech-feedback-page");
+      _techFeedbackPage += direction === "next" ? 1 : -1;
+      _techFeedbackPage = Math.min(Math.max(1, _techFeedbackPage), totalPages);
+      renderTechFeedbackItems(refs);
+      if (refs.techFeedbackList) refs.techFeedbackList.scrollTop = 0;
+    });
+    pagination.__techFeedbackActionsBound = true;
+  }
+}
+
+function renderTechFeedbackItems(refs) {
+  if (!refs.techFeedbackList) return;
+
+  bindTechFeedbackHistoryActions(refs);
+  refs.techFeedbackList.innerHTML = "";
+
+  if (!_techFeedbackItems.length) {
+    refs.techFeedbackList.innerHTML = `<div class="muted" style="padding:10px;">Nenhum feedback ainda.</div>`;
+    renderTechFeedbackPagination(refs);
+    return;
+  }
+
+  const totalPages = Math.max(1, Math.ceil(_techFeedbackItems.length / TECH_FEEDBACK_PAGE_SIZE));
+  _techFeedbackPage = Math.min(Math.max(1, Number(_techFeedbackPage || 1)), totalPages);
+  const start = (_techFeedbackPage - 1) * TECH_FEEDBACK_PAGE_SIZE;
+  const pageItems = _techFeedbackItems.slice(start, start + TECH_FEEDBACK_PAGE_SIZE);
+
+  for (const it of pageItems) {
+    const div = document.createElement("div");
+    div.className = "tech-feedback-entry";
+
+    const date = it.date || (it.createdAt?.toDate ? it.createdAt.toDate().toLocaleDateString("pt-BR") : "");
+    const score = (it.score ?? "");
+    const by = it.createdByName || it.createdByEmail || "Avaliador nao identificado";
+    const note = String(it.note || "-");
+    const preview = getFeedbackNotePreview(note);
+    const hasLongNote = String(note).trim().length > TECH_FEEDBACK_NOTE_PREVIEW_LIMIT;
+
+    div.innerHTML = `
+      <div class="tech-feedback-entry-head">
+        <div class="tech-feedback-entry-meta">
+          <span class="tech-feedback-entry-date">Data: ${escapeHtml(formatDateBR(date) || "-")}</span>
+          <span class="chip-score ${getScoreClass(score)}">Nota: ${escapeHtml(String(score || "-"))}</span>
+        </div>
+        <span class="tech-feedback-entry-by">${escapeHtml(by)}</span>
+      </div>
+      <div class="tech-feedback-entry-note" data-tech-feedback-note data-preview="${escapeHtml(preview)}" data-full="${escapeHtml(note)}">${escapeHtml(hasLongNote ? preview : note)}</div>
+      ${hasLongNote ? `<button class="tech-feedback-entry-more" type="button" data-tech-feedback-toggle aria-expanded="false">Ver mais</button>` : ""}
+    `;
+    refs.techFeedbackList.appendChild(div);
+  }
+
+  renderTechFeedbackPagination(refs);
+}
+
 async function loadTechFeedbackList(deps) {
   const { refs, state, db } = deps;
   if (!refs.techFeedbackList || !state._techFeedbackUid) return;
 
+  bindTechFeedbackHistoryActions(refs);
+  _techFeedbackItems = [];
   refs.techFeedbackList.innerHTML = `<div class="muted" style="padding:10px;">Carregando...</div>`;
+  renderTechFeedbackPagination(refs);
 
   try {
     const q = query(
@@ -1759,36 +1985,15 @@ async function loadTechFeedbackList(deps) {
       limit(50)
     );
     const snap = await getDocs(q);
-    if (snap.empty) {
-      refs.techFeedbackList.innerHTML = `<div class="muted" style="padding:10px;">Nenhum feedback ainda.</div>`;
-      return;
-    }
-
-    const items = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-    refs.techFeedbackList.innerHTML = "";
-    for (const it of items) {
-      const div = document.createElement("div");
-      div.className = "tech-feedback-entry";
-
-      const date = it.date || (it.createdAt?.toDate ? it.createdAt.toDate().toLocaleDateString("pt-BR") : "");
-      const score = (it.score ?? "");
-      const by = it.createdByName || it.createdByEmail || "";
-      const note = it.note || "";
-      const hasLongNote = String(note).trim().length > TECH_FEEDBACK_NOTE_PREVIEW_LIMIT;
-
-      div.innerHTML = `
-        <div class="tech-feedback-entry-head">
-          <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap;"><b>${escapeHtml(`Data: ${formatDateBR(date)}` || "—")}</b><span class="chip-score ${getScoreClass(score)}">${escapeHtml(`Nota: ${String(score || "—")}`)}</span></div>
-          <div class="muted" style="font-size:12px;">${escapeHtml(by)}</div>
-        </div>
-        <div style="margin-top:6px; white-space:pre-wrap;">${escapeHtml(note || "—")}</div>
-      `;
-      refs.techFeedbackList.appendChild(div);
-    }
+    _techFeedbackItems = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+    renderTechFeedbackItems(refs);
   } catch (err) {
     console.error(err);
+    _techFeedbackItems = [];
+    renderTechFeedbackPagination(refs);
     refs.techFeedbackList.innerHTML = `<div class="muted" style="padding:10px;">Erro ao carregar feedbacks.</div>`;
   }
+
 }
 
 export async function saveTechFeedback(deps) {
@@ -1847,6 +2052,7 @@ export async function saveTechFeedback(deps) {
     refs.techFeedbackScore.value = "";
     refs.techFeedbackNote.value = "";
 
+    _techFeedbackPage = 1;
     await loadTechFeedbackList(deps);
     setAlert(refs.techFeedbackAlert, "Feedback salvo!", "success");
     if (typeof loadManagerUsers === "function") await loadManagerUsers(deps);
@@ -2047,7 +2253,7 @@ export async function cleanupTechDraftAvatar(deps){
   await deleteTempAvatarIfAny(deps);
 }
 
-export function renderMgrTeamChips(deps) {
+export function renderMgrTeamChips(deps, onChange) {
   const { refs, state } = deps;
   if (!refs.mgrTeamChipsEl) return;
   refs.mgrTeamChipsEl.innerHTML = "";
@@ -2075,7 +2281,8 @@ export function renderMgrTeamChips(deps) {
       const idx = state.mgrSelectedTeamIds.indexOf(t.id);
       if (idx >= 0) state.mgrSelectedTeamIds.splice(idx, 1);
       else state.mgrSelectedTeamIds.push(t.id);
-      renderMgrTeamChips(deps);
+      renderMgrTeamChips(deps, onChange);
+      if (onChange) onChange();
     });
 
     refs.mgrTeamChipsEl.appendChild(chip);
@@ -2092,6 +2299,11 @@ async function createTech(deps) {
   }
 
   clearAlert(refs.createTechAlert);
+
+  // Guard: valida se companyId existe
+  if (!state.companyId) {
+    return setAlert(refs.createTechAlert, "Erro: Nenhuma empresa selecionada. Recarregue a página e tente novamente.");
+  }
 
   // Guard (inicia mais abaixo, após validações)
 
@@ -2126,6 +2338,12 @@ async function createTech(deps) {
   const existingUid = await findUserUidByEmailInCompany(db, state.companyId, email);
   if (existingUid && existingUid !== uid) {
     return setAlert(refs.createTechAlert, "Este e-mail já está cadastrado nesta empresa. Use outro e-mail ou edite o usuário existente.");
+  }
+
+  try {
+    await assertCompanyUserLimitAvailable(db, state.companyId, active);
+  } catch (limitErr) {
+    return setAlert(refs.createTechAlert, limitErr?.message || "Limite de usuarios do plano atingido.");
   }
 
   // Guard: evita duplo submit (double click / double binding)
