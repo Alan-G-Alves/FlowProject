@@ -7,7 +7,7 @@ const REPORT_NAMES = [
   "Horas previstas x executadas",
   "Clientes com maior volume executado",
   "Cronograma de projeto por periodo",
-  "Relatorio de Atividade x Tecnico",
+  "Relatorio de Atividade x Recurso",
   "Relatorio de Despesas"
 ];
 
@@ -26,7 +26,7 @@ function roleTitle(state){
     admin: "Admin da empresa",
     gestor: "Gestor",
     coordenador: "Coordenador",
-    tecnico: "Tecnico"
+    tecnico: "Recurso"
   };
   return labels[role] || "Usuario";
 }
@@ -74,7 +74,7 @@ function reportList(extraText){
 function tecnicoGuide(){
   return {
     key: "tecnico",
-    title: "Manual do Tecnico",
+    title: "Manual do Recurso",
     intro: "Use esta visao para acompanhar seus projetos, apontar atividades, registrar despesas da atividade e consultar feedbacks e relatorios liberados para o seu perfil.",
     sections: [
       section(
@@ -112,7 +112,7 @@ function tecnicoGuide(){
           "Informe tipo, valor, observacao e comprovante quando existir.",
           "Salve o apontamento; as despesas seguem junto para aprovacao."
         ],
-        "Para Tecnico, despesas sao registradas dentro da atividade e ficam vinculadas ao proprio usuario."
+        "Para Recurso, despesas sao registradas dentro da atividade e ficam vinculadas ao proprio usuario."
       ),
       section(
         "Consultar feedbacks",
@@ -126,20 +126,20 @@ function tecnicoGuide(){
         ]
       ),
       section(
-        "Relatorios do Tecnico",
+        "Relatorios do Recurso",
         "Consulte os relatorios liberados pelo Admin da empresa.",
         ["Menu lateral", "Relatorios"],
         [
           "Abra Relatorios.",
           "Ajuste periodo, cliente, equipe ou status quando os filtros estiverem disponiveis.",
-          "No Relatorio de Atividade x Tecnico, o Tecnico visualiza apenas os proprios dados.",
-          "No Relatorio de Despesas, o Tecnico visualiza apenas as proprias despesas.",
+          "No Relatorio de Atividade x Recurso, o Recurso visualiza apenas os proprios dados.",
+          "No Relatorio de Despesas, o Recurso visualiza apenas as proprias despesas.",
           "Use PDF ou Excel nos cards habilitados quando precisar exportar."
         ],
         "Se algum relatorio nao aparecer, ele pode estar bloqueado nas permissoes de relatorios da empresa."
       )
     ],
-    reportsText: "Para Tecnico, os dados sao restritos ao proprio usuario quando o relatorio envolve atividades ou despesas.",
+    reportsText: "Para Recurso, os dados sao restritos ao proprio usuario quando o relatorio envolve atividades ou despesas.",
     faqs: [
       faq("Por que nao consigo editar uma atividade aprovada?", "Atividades aprovadas ficam bloqueadas para preservar o historico da OS."),
       faq("Meu relatorio nao aparece. O que fazer?", "Solicite ao Admin da empresa a liberacao em Configuracoes > Permissoes de relatorios.")
@@ -162,70 +162,70 @@ function gestaoGuide(profileRole){
           "Abra a Pagina inicial.",
           "Clique em Projetos para ver a carteira.",
           "Use busca, equipe, status e coordenador para filtrar.",
-          "Abra o projeto para consultar detalhes, tarefas, tecnicos, cliente, prazos e cobranca."
+          "Abra o projeto para consultar detalhes, tarefas, recursos, cliente, prazos e cobranca."
         ],
         "Gestor e Coordenador tambem podem usar Meus Projetos para focar nos projetos ligados ao proprio usuario."
       ),
       section(
         "Criar e organizar projeto",
-        "Cadastre projeto, responsaveis, equipe, tecnicos e planejamento.",
+        "Cadastre projeto, responsaveis, equipe, recursos e planejamento.",
         ["Projetos", "Novo projeto"],
         [
           "Clique em Novo projeto.",
           "Preencha nome, descricao e contrato PDF quando existir.",
           "Selecione cliente, equipe, gestor do projeto e coordenador quando aplicavel.",
-          "Adicione os tecnicos participantes.",
+          "Adicione os recursos participantes.",
           "Informe datas, prioridade e dados de cobranca.",
           "Salve para criar o projeto e abrir o acompanhamento."
         ]
       ),
       profileRole === "gestor"
         ? section(
-            "Gerenciar tecnicos",
-            "Cadastre e acompanhe tecnicos das equipes administradas.",
-            ["Menu lateral", "Tecnicos"],
+            "Gerenciar recursos",
+            "Cadastre e acompanhe recursos das equipes administradas.",
+            ["Menu lateral", "Recursos"],
             [
-              "Abra Tecnicos.",
+              "Abra Recursos.",
               "Use busca e filtro por equipe para localizar usuarios.",
-              "Clique para criar tecnico quando precisar adicionar alguem a equipe.",
+              "Clique para criar recurso quando precisar adicionar alguem a equipe.",
               "Preencha dados, valor hora, skills, anexos e equipes.",
-              "Salve e compartilhe o acesso de senha com o tecnico.",
-              "Use o contador de feedback para registrar feedbacks do tecnico."
+              "Salve e compartilhe o acesso de senha com o recurso.",
+              "Use o contador de feedback para registrar feedbacks do recurso."
             ],
             "Se nenhuma equipe administrada aparecer, solicite ao Admin da empresa a configuracao das equipes do gestor."
           )
         : section(
-            "Acompanhar tecnicos do projeto",
-            "Veja tecnicos vinculados aos projetos coordenados e acompanhe entregas por atividades, OS e relatorios.",
-            ["Projetos", "Abrir projeto", "Tecnicos"],
+            "Acompanhar recursos do projeto",
+            "Veja recursos vinculados aos projetos coordenados e acompanhe entregas por atividades, OS e relatorios.",
+            ["Projetos", "Abrir projeto", "Recursos"],
             [
               "Abra Projetos.",
               "Entre no projeto coordenado.",
-              "Consulte os tecnicos vinculados no detalhe do projeto.",
+              "Consulte os recursos vinculados no detalhe do projeto.",
               "Acompanhe atividades enviadas em OS para Aprovar.",
-              "Use Relatorio de Atividade x Tecnico para conferir horas e apontamentos."
+              "Use Relatorio de Atividade x Recurso para conferir horas e apontamentos."
             ]
           ),
       section(
         "Criar tarefas e atividades",
-        "Estruture o trabalho que sera executado pelos tecnicos.",
+        "Estruture o trabalho que sera executado pelos recursos.",
         ["Projetos", "Abrir projeto", "Area de trabalho"],
         [
           "Abra o projeto.",
           "Clique para adicionar uma tarefa.",
           "Informe nome, data inicial, data final e horas planejadas.",
           "Salve a tarefa e acompanhe as atividades vinculadas.",
-          "Oriente os tecnicos a apontarem as atividades em Minhas Atividades."
+          "Oriente os recursos a apontarem as atividades em Minhas Atividades."
         ]
       ),
       section(
         "Aprovar OS",
-        "Revise apontamentos enviados por tecnicos e aprove ou estorne quando necessario.",
+        "Revise apontamentos enviados por recursos e aprove ou estorne quando necessario.",
         ["Pagina inicial", "OS para Aprovar"],
         [
           "Abra OS para Aprovar.",
           "Use filtros de status, gestor e projeto.",
-          "Confira tecnico, projeto, tarefa, data, horas previstas, horas apontadas e observacao.",
+          "Confira recurso, projeto, tarefa, data, horas previstas, horas apontadas e observacao.",
           "Clique no icone de aprovar para uma OS individual.",
           "Use selecao em massa para aprovar varias OS.",
           "Na aba de aprovadas, use estornar quando precisar devolver a OS para revisao."
@@ -285,7 +285,7 @@ function adminGuide(){
     sections: [
       section(
         "Painel administrativo",
-        "Acompanhe totais de usuarios, gestores, coordenadores, tecnicos, admins, equipes e bloqueios.",
+        "Acompanhe totais de usuarios, gestores, coordenadores, recursos, admins, equipes e bloqueios.",
         ["Pagina inicial", "Administracao"],
         [
           "Abra a Pagina inicial.",
@@ -308,12 +308,12 @@ function adminGuide(){
       ),
       section(
         "Criar usuarios",
-        "Somente o Admin da empresa cria Admins, Gestores, Coordenadores e Tecnicos dentro da empresa.",
+        "Somente o Admin da empresa cria Admins, Gestores, Coordenadores e Recursos dentro da empresa.",
         ["Administracao", "Usuarios", "Novo usuario"],
         [
           "Clique em Novo usuario.",
           "Informe nome, funcao, e-mail e telefone.",
-          "Escolha entre Tecnico, Gestor, Coordenador ou Admin.",
+          "Escolha entre Recurso, Gestor, Coordenador ou Admin.",
           "Selecione pelo menos uma equipe para perfis que exigem equipe.",
           "Preencha foto, skills, CPF/CNPJ, endereco, data de nascimento e anexos quando necessario.",
           "Salve; o sistema cria o usuario e gera o acesso por redefinicao de senha."
@@ -329,17 +329,17 @@ function adminGuide(){
           "Abra a acao de equipes administradas.",
           "Selecione as equipes sob responsabilidade do gestor.",
           "Salve a alteracao.",
-          "O gestor passa a trabalhar com os tecnicos dessas equipes."
+          "O gestor passa a trabalhar com os recursos dessas equipes."
         ]
       ),
       section(
-        "Gerenciar tecnicos e feedbacks",
-        "Cadastre, edite, visualize skills, anexos, equipes e feedbacks de tecnicos.",
-        ["Menu lateral", "Tecnicos"],
+        "Gerenciar recursos e feedbacks",
+        "Cadastre, edite, visualize skills, anexos, equipes e feedbacks de recursos.",
+        ["Menu lateral", "Recursos"],
         [
-          "Abra Tecnicos.",
+          "Abra Recursos.",
           "Use busca, filtro por equipe e paginacao.",
-          "Crie ou edite tecnicos quando precisar.",
+          "Crie ou edite recursos quando precisar.",
           "Abra o contador de feedback para registrar ou consultar feedbacks.",
           "Exporte a lista quando necessario."
         ]
@@ -362,7 +362,7 @@ function adminGuide(){
         ["Pagina inicial", "Projetos"],
         [
           "Abra Projetos.",
-          "Crie ou edite projetos com cliente, equipe, gestor, coordenador, tecnicos, contrato, datas, status, prioridade e cobranca.",
+          "Crie ou edite projetos com cliente, equipe, gestor, coordenador, recursos, contrato, datas, status, prioridade e cobranca.",
           "Abra a area de trabalho do projeto.",
           "Crie tarefas com datas e horas planejadas.",
           "Acompanhe avancos pelo Kanban e pelos relatorios."
@@ -407,7 +407,7 @@ function adminGuide(){
     reportsText: "Admin pode liberar ou bloquear cada relatorio por perfil em Configuracoes > Permissoes de relatorios.",
     faqs: [
       faq("Quem pode criar Gestor, Coordenador e Admin?", "Somente o Admin da empresa cria esses perfis dentro da empresa."),
-      faq("Por que um tecnico nao ve um relatorio?", "O relatorio pode estar desabilitado para Tecnico em Configuracoes > Permissoes de relatorios."),
+      faq("Por que um recurso nao ve um relatorio?", "O relatorio pode estar desabilitado para Recurso em Configuracoes > Permissoes de relatorios."),
       faq("Quando criar uma equipe antes do usuario?", "Crie a equipe primeiro quando o usuario precisa ficar vinculado a uma equipe desde o cadastro.")
     ]
   };

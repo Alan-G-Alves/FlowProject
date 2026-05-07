@@ -31,6 +31,355 @@ function formatHourlyRate(value){
   return `${brl}/h`;
 }
 
+const RESOURCE_AGENDA_WEEKDAYS = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sab"];
+const RESOURCE_AGENDA_MONTHS = [
+  "Janeiro", "Fevereiro", "Marco", "Abril", "Maio", "Junho",
+  "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"
+];
+
+function pad2(value){
+  return String(value).padStart(2, "0");
+}
+
+function dateKeyFromDate(date){
+  return `${date.getFullYear()}-${pad2(date.getMonth() + 1)}-${pad2(date.getDate())}`;
+}
+
+function addMonths(date, delta){
+  return new Date(date.getFullYear(), date.getMonth() + delta, 1);
+}
+
+function formatActivityHours(value){
+  const n = Number(value || 0);
+  if (!Number.isFinite(n) || n <= 0) return "0h";
+  return Number.isInteger(n) ? `${n}h` : `${String(Math.round(n * 100) / 100).replace(".", ",")}h`;
+}
+
+function getResourceAgendaState(state, uid){
+  if (!state._resourceAgendaByUid) state._resourceAgendaByUid = {};
+  if (!state._resourceAgendaByUid[uid]){
+    const now = new Date();
+    state._resourceAgendaByUid[uid] = {
+      month: new Date(now.getFullYear(), now.getMonth(), 1),
+      activities: null,
+      loading: false
+    };
+  }
+  return state._resourceAgendaByUid[uid];
+}
+
+async function loadResourceAgendaActivities(deps, uid){
+  const { state, db } = deps;
+  const agendaState = getResourceAgendaState(state, uid);
+  if (Array.isArray(agendaState.activities)) return agendaState.activities;
+  if (agendaState.loading) return [];
+
+  agendaState.loading = true;
+  try{
+    const snap = await getDocs(query(
+      collection(db, "companies", state.companyId, "activities"),
+      where("techUids", "array-contains", uid)
+    ));
+    agendaState.activities = snap.docs
+      .map((d) => ({ id: d.id, ...d.data() }))
+      .filter((activity) => String(activity.workDate || "").slice(0, 10))
+      .sort((a, b) => String(a.workDate || "").localeCompare(String(b.workDate || "")));
+    return agendaState.activities;
+  }catch(err){
+    console.error("[resource-agenda] failed to load activities", err);
+    agendaState.activities = [];
+    throw err;
+  }finally{
+    agendaState.loading = false;
+  }
+}
+
+function groupActivitiesByDate(activities){
+  const map = new Map();
+  for (const activity of (activities || [])){
+    const key = String(activity.workDate || "").slice(0, 10);
+    if (!key) continue;
+    if (!map.has(key)) map.set(key, []);
+    map.get(key).push(activity);
+  }
+  return map;
+}
+
+function renderResourceAgendaTooltip(dayKey, activities){
+  const dayLabel = formatDateBR(dayKey);
+  const visible = activities.slice(0, 4);
+  const items = visible.map((activity) => `
+    <div class="calendar-tooltip-item">
+      <div class="calendar-tooltip-project">${escapeHtml(activity.projectName || "Projeto")}</div>
+      <div class="calendar-tooltip-activity">${escapeHtml(activity.name || "Atividade")}</div>
+      <div class="calendar-tooltip-details">${escapeHtml(activity.taskName || "Tarefa")} | ${escapeHtml(formatActivityHours(activity.hoursWorked))}</div>
+    </div>
+  `).join("");
+  const more = activities.length > visible.length
+    ? `<div class="calendar-tooltip-more">+${activities.length - visible.length} atividade(s)</div>`
+    : "";
+  return `
+    <div class="calendar-tooltip resource-agenda-tooltip">
+      <div class="calendar-tooltip-title">${escapeHtml(dayLabel)} - ${escapeHtml(String(activities.length))} atividade(s)</div>
+      ${items}
+      ${more}
+    </div>
+  `;
+}
+
+function renderResourceAgendaCalendar(deps, uid, activities){
+  const { state } = deps;
+  const agendaState = getResourceAgendaState(state, uid);
+  const currentMonth = agendaState.month || new Date();
+  const year = currentMonth.getFullYear();
+  const month = currentMonth.getMonth();
+  const todayKey = dateKeyFromDate(new Date());
+  const activitiesByDate = groupActivitiesByDate(activities);
+  const firstDay = new Date(year, month, 1);
+  const startOffset = firstDay.getDay();
+  const startDate = new Date(year, month, 1 - startOffset);
+  const monthLabel = `${RESOURCE_AGENDA_MONTHS[month]} ${year}`;
+
+  const cells = [];
+  for (let i = 0; i < 42; i += 1){
+    const date = new Date(startDate.getFullYear(), startDate.getMonth(), startDate.getDate() + i);
+    const key = dateKeyFromDate(date);
+    const inMonth = date.getMonth() === month;
+    const dayActivities = activitiesByDate.get(key) || [];
+    const hasActivity = dayActivities.length > 0;
+    const cls = [
+      "dashboard-calendar-day",
+      "resource-agenda-day",
+      inMonth ? "" : "is-muted",
+      key === todayKey ? "is-today" : "",
+      hasActivity ? "has-activity" : "",
+      inMonth && !hasActivity ? "is-available" : ""
+    ].filter(Boolean).join(" ");
+    cells.push(`
+      <div class="${cls}" ${hasActivity ? `data-has-tooltip="true"` : ""}>
+        <span class="dashboard-calendar-number">${escapeHtml(String(date.getDate()))}</span>
+        ${hasActivity ? `<span class="dashboard-calendar-count">${escapeHtml(String(dayActivities.length))}</span>${renderResourceAgendaTooltip(key, dayActivities)}` : ""}
+      </div>
+    `);
+  }
+
+  return `
+    <div class="resource-agenda-head">
+      <button class="icon-btn xs resource-agenda-month-btn" data-resource-agenda-nav="-1" type="button" title="Mes anterior" aria-label="Mes anterior">
+        <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M15 18l-6-6 6-6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </button>
+      <strong>${escapeHtml(monthLabel)}</strong>
+      <button class="icon-btn xs resource-agenda-month-btn" data-resource-agenda-nav="1" type="button" title="Proximo mes" aria-label="Proximo mes">
+        <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M9 6l6 6-6 6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </button>
+    </div>
+    <div class="resource-agenda-legend">
+      <span><i class="available"></i>Disponivel</span>
+      <span><i class="busy"></i>Com atividade</span>
+    </div>
+    <div class="dashboard-calendar resource-agenda-calendar">
+      ${RESOURCE_AGENDA_WEEKDAYS.map((day) => `<div class="dashboard-calendar-weekday">${escapeHtml(day)}</div>`).join("")}
+      ${cells.join("")}
+    </div>
+  `;
+}
+
+function positionResourceAgendaPopover(anchor, popover){
+  const rect = anchor.getBoundingClientRect();
+  const margin = 10;
+  const width = popover.offsetWidth || 360;
+  const height = popover.offsetHeight || 380;
+  let left = rect.left + rect.width / 2 - width / 2;
+  let top = rect.bottom + margin;
+  left = Math.max(margin, Math.min(left, window.innerWidth - width - margin));
+  if (top + height > window.innerHeight - margin) {
+    top = Math.max(margin, rect.top - height - margin);
+  }
+  popover.style.left = `${left}px`;
+  popover.style.top = `${top}px`;
+}
+
+function closeResourceAgendaPopover(state){
+  if (state._resourceAgendaPopover){
+    state._resourceAgendaPopover.remove();
+    state._resourceAgendaPopover = null;
+  }
+  if (state._resourceAgendaOutsideHandler){
+    document.removeEventListener("mousedown", state._resourceAgendaOutsideHandler, true);
+    state._resourceAgendaOutsideHandler = null;
+  }
+  if (state._resourceAgendaKeyHandler){
+    document.removeEventListener("keydown", state._resourceAgendaKeyHandler, true);
+    state._resourceAgendaKeyHandler = null;
+  }
+}
+
+async function openResourceAgendaPopover(deps, user, anchor){
+  const { state } = deps;
+  const uid = user?.uid || "";
+  if (!uid) return;
+
+  const currentOpenFor = state._resourceAgendaPopover?.dataset?.resourceUid || "";
+  if (currentOpenFor === uid){
+    closeResourceAgendaPopover(state);
+    return;
+  }
+
+  closeResourceAgendaPopover(state);
+  getResourceAgendaState(state, uid);
+
+  const popover = document.createElement("div");
+  popover.className = "resource-agenda-popover";
+  popover.dataset.resourceUid = uid;
+  popover.innerHTML = `<div class="resource-agenda-loading">Carregando agenda...</div>`;
+  document.body.appendChild(popover);
+  state._resourceAgendaPopover = popover;
+  positionResourceAgendaPopover(anchor, popover);
+
+  const render = (activities) => {
+    popover.innerHTML = renderResourceAgendaCalendar(deps, uid, activities);
+    popover.querySelectorAll("[data-resource-agenda-nav]").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        const delta = Number(btn.getAttribute("data-resource-agenda-nav") || 0);
+        const agendaState = getResourceAgendaState(state, uid);
+        agendaState.month = addMonths(agendaState.month || new Date(), delta);
+        render(agendaState.activities || []);
+        requestAnimationFrame(() => positionResourceAgendaPopover(anchor, popover));
+      });
+    });
+    requestAnimationFrame(() => positionResourceAgendaPopover(anchor, popover));
+  };
+
+  try{
+    const activities = await loadResourceAgendaActivities(deps, uid);
+    if (state._resourceAgendaPopover !== popover) return;
+    render(activities);
+  }catch(_){
+    if (state._resourceAgendaPopover === popover){
+      popover.innerHTML = `<div class="resource-agenda-loading">Nao foi possivel carregar a agenda.</div>`;
+      positionResourceAgendaPopover(anchor, popover);
+    }
+  }
+
+  state._resourceAgendaOutsideHandler = (ev) => {
+    if (popover.contains(ev.target) || anchor.contains(ev.target)) return;
+    closeResourceAgendaPopover(state);
+  };
+  state._resourceAgendaKeyHandler = (ev) => {
+    if (ev.key === "Escape") closeResourceAgendaPopover(state);
+  };
+  document.addEventListener("mousedown", state._resourceAgendaOutsideHandler, true);
+  document.addEventListener("keydown", state._resourceAgendaKeyHandler, true);
+}
+
+async function loadResourceProjectSummaries(deps){
+  const { state, db } = deps;
+  try{
+    const [projectsSnap, activitiesSnap] = await Promise.all([
+      getDocs(collection(db, `companies/${state.companyId}/projects`)),
+      getDocs(collection(db, `companies/${state.companyId}/activities`))
+    ]);
+    const projectsById = new Map(projectsSnap.docs.map((d) => [d.id, { id: d.id, ...d.data() }]));
+    const byUid = new Map();
+
+    const ensure = (uid, projectId, projectData = {}) => {
+      if (!uid || !projectId) return null;
+      if (!byUid.has(uid)) byUid.set(uid, new Map());
+      const projectMap = byUid.get(uid);
+      if (!projectMap.has(projectId)){
+        const p = projectsById.get(projectId) || projectData || {};
+        projectMap.set(projectId, {
+          id: projectId,
+          name: p.name || projectData.projectName || "Projeto sem nome",
+          startDate: p.startDate || projectData.startDate || "",
+          endDate: p.endDate || projectData.endDate || "",
+          tasks: new Set()
+        });
+      }
+      return projectMap.get(projectId);
+    };
+
+    for (const project of projectsById.values()){
+      const uids = Array.isArray(project.techUids) ? project.techUids.filter(Boolean) : [];
+      for (const uid of uids) ensure(uid, project.id, project);
+    }
+
+    for (const docSnap of activitiesSnap.docs){
+      const activity = { id: docSnap.id, ...docSnap.data() };
+      const projectId = activity.projectId || "";
+      const uids = Array.isArray(activity.techUids) ? activity.techUids.filter(Boolean) : [];
+      for (const uid of uids){
+        const item = ensure(uid, projectId, activity);
+        if (item && activity.taskName) item.tasks.add(activity.taskName);
+      }
+    }
+
+    const summaries = new Map();
+    for (const [uid, projectMap] of byUid.entries()){
+      summaries.set(uid, Array.from(projectMap.values())
+        .map((item) => ({
+          ...item,
+          tasks: Array.from(item.tasks).sort((a, b) => a.localeCompare(b))
+        }))
+        .sort((a, b) => String(a.name || "").localeCompare(String(b.name || ""))));
+    }
+    return summaries;
+  }catch(err){
+    console.error("[resource-projects] failed to load summaries", err);
+    return new Map();
+  }
+}
+
+function closeResourceProjectsModal(state){
+  if (state._resourceProjectsModal){
+    state._resourceProjectsModal.remove();
+    state._resourceProjectsModal = null;
+  }
+}
+
+function openResourceProjectsModal(deps, user, projects){
+  const { state } = deps;
+  closeResourceProjectsModal(state);
+
+  const modal = document.createElement("div");
+  modal.className = "modal resource-projects-modal open";
+  modal.innerHTML = `
+    <div class="modal-backdrop" data-close-resource-projects="true"></div>
+    <div class="modal-card resource-projects-card">
+      <div class="modal-header resource-projects-head">
+        <div>
+          <h2>Projetos do recurso</h2>
+          <p class="muted">${escapeHtml(user?.name || "Recurso")} - ${escapeHtml(String(projects.length))} projeto(s)</p>
+        </div>
+        <button class="btn ghost sm" data-close-resource-projects="true" type="button">X</button>
+      </div>
+      <div class="modal-body resource-projects-body">
+        ${projects.length ? projects.map((project) => `
+          <article class="resource-project-item">
+            <div class="resource-project-title-row">
+              <strong>${escapeHtml(project.name || "Projeto sem nome")}</strong>
+              <span>${escapeHtml(formatDateBR(project.startDate) || "-")} a ${escapeHtml(formatDateBR(project.endDate) || "-")}</span>
+            </div>
+            <div class="resource-project-tasks">
+              ${(project.tasks || []).length
+                ? project.tasks.map((task) => `<span class="chip mini chip-team">${escapeHtml(task)}</span>`).join("")
+                : `<span class="muted">Nenhuma tarefa vinculada por atividade.</span>`}
+            </div>
+          </article>
+        `).join("") : `
+          <div class="resource-projects-empty">Nenhum projeto vinculado a este recurso.</div>
+        `}
+      </div>
+    </div>
+  `;
+
+  modal.addEventListener("click", (ev) => {
+    if (ev.target?.dataset?.closeResourceProjects === "true") closeResourceProjectsModal(state);
+  });
+  document.body.appendChild(modal);
+  state._resourceProjectsModal = modal;
+}
+
 /**
  * manager-users.domain.js
  * Módulo de domínio para gestão de técnicos (Gestor)
@@ -193,7 +542,7 @@ function renderTechAttachments(deps){
   updateTechAttachmentsSummary(refs, items);
   renderAttachmentList(refs.techAttachmentsList, items, {
     readOnly: refs.btnCreateTech?.style.display === "none",
-    emptyText: "Nenhum arquivo anexado para este tecnico.",
+    emptyText: "Nenhum arquivo anexado para este recurso.",
     onRemove: (item) => {
       state._techAttachmentsDraft = items.filter((entry) => entry.id !== item.id);
       if (!item?.isNew && item?.path) {
@@ -358,12 +707,12 @@ function setCreateTechModalMode(deps, mode, tech){
   const isEdit = mode === "edit";
   const isView = mode === "view";
 
-  if (titleEl) titleEl.textContent = isView ? "Visualizar Técnico" : (isEdit ? "Editar Técnico" : "Novo Técnico");
+  if (titleEl) titleEl.textContent = isView ? "Visualizar Recurso" : (isEdit ? "Editar Recurso" : "Novo Recurso");
   if (subEl) subEl.textContent = isView
     ? "Apenas visualização. Para alterar, use o botão Editar."
     : (isEdit
-      ? "Edite os dados do técnico. O e-mail não pode ser alterado."
-      : "Cadastre o técnico, selecione as equipes e complete as skills quando precisar.");
+      ? "Edite os dados do recurso. O e-mail nao pode ser alterado."
+      : "Cadastre o recurso, selecione as equipes e complete as skills quando precisar.");
 
   // Email não pode ser editado
   if (refs.techEmailEl) refs.techEmailEl.disabled = !!isEdit || !!isView;
@@ -457,6 +806,11 @@ export function openViewTechModal(deps, techUser){
   initTechRichFields(deps);
 
   const modal = refs.modalCreateTech;
+  try{
+    const hiddenParent = modal.parentElement && modal.parentElement.closest && modal.parentElement.closest("[hidden]");
+    if (hiddenParent) document.body.appendChild(modal);
+  }catch(_){ }
+
   modal.hidden = false;
   modal.removeAttribute("hidden");
   modal.classList.add("open");
@@ -470,7 +824,7 @@ function exportTechniciansToExcel(deps, items){
   const now = new Date();
   const pad = (n) => String(n).padStart(2, "0");
   const stamp = `${now.getFullYear()}-${pad(now.getMonth()+1)}-${pad(now.getDate())}_${pad(now.getHours())}${pad(now.getMinutes())}`;
-  const filename = `tecnicos_${companyId}_${stamp}.xls`;
+  const filename = `recursos_${companyId}_${stamp}.xls`;
 
   const esc = (v) => escapeHtml((v ?? "").toString());
   const join = (arr) => (Array.isArray(arr) ? arr.join(", ") : "");
@@ -633,7 +987,7 @@ export async function updateTech(deps){
   clearAlert(refs.createTechAlert);
 
   const uid = (state._mgrEditingTechUid || "").trim();
-  if (!uid) return setAlert(refs.createTechAlert, "Não foi possível identificar o técnico para edição.");
+  if (!uid) return setAlert(refs.createTechAlert, "Nao foi possivel identificar o recurso para edicao.");
 
   const name = (refs.techNameEl.value || "").trim();
   const phone = normalizePhone(refs.techPhoneEl.value || "");
@@ -649,10 +1003,10 @@ const active = (refs.techActiveEl.value || "true") === "true";
   const selectedTeamIds = Array.from(new Set((state.mgrSelectedTeamIds || []).filter(Boolean)));
   const activeTeams = (state.teams || []).filter(t => t.active !== false);
 
-  if (!name) return setAlert(refs.createTechAlert, "Informe o nome do técnico.");
+  if (!name) return setAlert(refs.createTechAlert, "Informe o nome do recurso.");
 
   if (activeTeams.length && !selectedTeamIds.length) {
-    return setAlert(refs.createTechAlert, "Selecione pelo menos uma equipe para o técnico.");
+    return setAlert(refs.createTechAlert, "Selecione pelo menos uma equipe para o recurso.");
   }
 
   setAlert(refs.createTechAlert, "Salvando alterações...", "info");
@@ -975,8 +1329,10 @@ function initManagerUsersTableSorting(deps) {
 }
 
 export async function loadManagerUsers(deps) {
-  const { refs, state, db } = deps;
+  const { refs, state, db, ensureTeamsForChips } = deps;
   if (!refs.mgrUsersTbody) return;
+  closeResourceAgendaPopover(state);
+  closeResourceProjectsModal(state);
 
   // Paginação (apenas visual): 20 por página
   const ITEMS_PER_PAGE = 20;
@@ -991,7 +1347,15 @@ export async function loadManagerUsers(deps) {
 
   // Filtro por equipe removido na UI (mantemos a lista global por empresa)
 
-  const snap = await getDocs(collection(db, "companies", state.companyId, "users"));
+  const teamsReady = typeof ensureTeamsForChips === "function"
+    ? ensureTeamsForChips()
+    : Promise.resolve();
+
+  const [snap, resourceProjectSummaries] = await Promise.all([
+    getDocs(collection(db, "companies", state.companyId, "users")),
+    loadResourceProjectSummaries(deps),
+    teamsReady
+  ]);
   if (mySeq !== state._mgrUsersLoadSeq) return; // resposta antiga, ignora
   const allRaw = snap.docs.map(d => ({ uid: d.id, ...d.data() }));
   // Remove duplicados (mesmo e-mail) mantendo o registro mais completo
@@ -1162,6 +1526,7 @@ export async function loadManagerUsers(deps) {
       ? Number(u.age)
       : calculateAgeFromBirthDate(u.birthDate);
     const ageLabel = ageValue == null ? "—" : `${ageValue} anos`;
+    const userProjects = resourceProjectSummaries.get(u.uid) || [];
 
     tr.innerHTML = `
       <td><span class="badge small">#${escapeHtml(String(u.number ?? "—"))}</span></td>
@@ -1173,12 +1538,26 @@ export async function loadManagerUsers(deps) {
           </div>
         </div>
       </td>
-      <td>${escapeHtml(u.email || "—")}</td>
       <td>${escapeHtml(ageLabel)}</td>
       <td>${escapeHtml(formatHourlyRate(u.hourlyRate))}</td>
       <td><span data-teams></span></td>
+      <td>
+        <button class="btn sm feedback-badge resource-projects-badge" data-act="projectsCount">
+          ${escapeHtml(String(userProjects.length))}
+        </button>
+      </td>
       <td><span data-soft></span></td>
       <td><span data-hard></span></td>
+      <td>
+        <button class="icon-btn xs resource-agenda-trigger" data-act="agenda" title="Ver agenda" aria-label="Ver agenda de ${escapeHtml(u.name || "recurso")}">
+          <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+            <path d="M7 3v3M17 3v3" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+            <path d="M4 8h16" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+            <path d="M6 5h12a2 2 0 0 1 2 2v11a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2Z" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/>
+            <path d="M8 12h2M12 12h2M16 12h2M8 16h2M12 16h2" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+          </svg>
+        </button>
+      </td>
       <td>
         <button class="btn sm feedback-badge" data-act="feedbackCount">
           ${(u.feedbackCount||0)}
@@ -1209,13 +1588,6 @@ export async function loadManagerUsers(deps) {
       </td>
     `;
 
-    const renderedCells = tr.children;
-    if (renderedCells.length > 3) {
-      const emailCell = renderedCells[2];
-      const ageCell = renderedCells[3];
-      if (emailCell && ageCell) tr.insertBefore(ageCell, emailCell);
-    }
-
     tr.querySelector('[data-act="edit"]').addEventListener("click", (ev) => {
       ev.preventDefault();
       ev.stopPropagation();
@@ -1235,6 +1607,18 @@ export async function loadManagerUsers(deps) {
       }catch(err){
         console.error("[manager-users] failed to open view modal", err);
       }
+    });
+
+    tr.querySelector('[data-act="agenda"]')?.addEventListener("click", async (ev) => {
+      ev.preventDefault();
+      ev.stopPropagation();
+      await openResourceAgendaPopover(deps, u, ev.currentTarget);
+    });
+
+    tr.querySelector('[data-act="projectsCount"]')?.addEventListener("click", (ev) => {
+      ev.preventDefault();
+      ev.stopPropagation();
+      openResourceProjectsModal(deps, u, userProjects);
     });
 
     tr.querySelector('[data-act="toggle"]').addEventListener("click", async () => {
@@ -1317,9 +1701,9 @@ export async function openTechFeedbackModal(deps, techUser) {
 
   // guarda contexto
   state._techFeedbackUid = techUser.uid;
-  state._techFeedbackName = techUser.name || "Técnico";
+  state._techFeedbackName = techUser.name || "Recurso";
 
-  refs.techFeedbackSubtitle.textContent = `Técnico: ${state._techFeedbackName} • ${techUser.email || ""}`.trim();
+  refs.techFeedbackSubtitle.textContent = `Recurso: ${state._techFeedbackName} - ${techUser.email || ""}`.trim();
 
   clearAlert(refs.techFeedbackAlert);
   refs.techFeedbackDate.value = "";
@@ -1732,10 +2116,10 @@ async function createTech(deps) {
   const activeTeams = (state.teams || []).filter(t => t.active !== false);
   const wantsAutoAuth = !uid;
 
-  if (!name) return setAlert(refs.createTechAlert, "Informe o nome do técnico.");
+  if (!name) return setAlert(refs.createTechAlert, "Informe o nome do recurso.");
   if (!email || !isEmailValidBasic(email)) return setAlert(refs.createTechAlert, "Informe um e-mail válido.");
   if (activeTeams.length && !selectedTeamIds.length) {
-    return setAlert(refs.createTechAlert, "Selecione pelo menos uma equipe para o técnico.");
+    return setAlert(refs.createTechAlert, "Selecione pelo menos uma equipe para o recurso.");
   }
 
   // ❗Regra: não permitir e-mail repetido na MESMA empresa
@@ -1789,7 +2173,7 @@ async function createTech(deps) {
         await setDoc(doc(db, "companies", state.companyId, "users", uid), baseUserData, { merge: true });
       }catch(errMerge){
         console.warn("merge user extra fields failed", errMerge);
-        setAlert(refs.createTechAlert, "Técnico criado, mas falhou ao salvar campos extras (verifique Firestore Rules).", "error");
+        setAlert(refs.createTechAlert, "Recurso criado, mas falhou ao salvar campos extras (verifique Firestore Rules).", "error");
       }
       try{
         await setDoc(doc(db, "userCompanies", uid), { companyId: state.companyId }, { merge: true });
@@ -1810,13 +2194,13 @@ async function createTech(deps) {
           await syncTechAttachments(deps, uid);
         }catch(attErr){
           console.warn("attachments upload failed", attErr);
-          setAlert(refs.createTechAlert, "Técnico criado, mas falhou ao enviar anexos: " + (attErr?.message || attErr), "error");
+          setAlert(refs.createTechAlert, "Recurso criado, mas falhou ao enviar anexos: " + (attErr?.message || attErr), "error");
         }
       }
       await loadManagerUsers(deps);
 
       const numLabel = data?.number ? `#${data.number} ` : "";
-      setAlertWithResetLink(refs.createTechAlert, `Técnico ${numLabel}criado com sucesso!`, email, data.resetLink);
+      setAlertWithResetLink(refs.createTechAlert, `Recurso ${numLabel}criado com sucesso!`, email, data.resetLink);
 
       // ✅ Após sucesso: desabilita o botão salvar para evitar duplicidade
       if (refs.btnCreateTech) {
@@ -1849,7 +2233,7 @@ async function createTech(deps) {
         await syncTechAttachments(deps, uid);
       }catch(attErr){
         console.warn("attachments upload failed", attErr);
-        setAlert(refs.createTechAlert, "Técnico salvo, mas falhou ao enviar anexos: " + (attErr?.message || attErr), "error");
+        setAlert(refs.createTechAlert, "Recurso salvo, mas falhou ao enviar anexos: " + (attErr?.message || attErr), "error");
       }
     }
 

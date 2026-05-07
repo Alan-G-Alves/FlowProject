@@ -436,7 +436,7 @@ function _listActiveTechs(state, teamId){
 
 function _populateTechSelect(selectEl, state, teamId){
   if (!selectEl) return;
-  selectEl.innerHTML = '<option value="">Selecione um tecnico</option>';
+  selectEl.innerHTML = '<option value="">Selecione um recurso</option>';
 
   const techs = _listActiveTechs(state, teamId);
   techs.sort((a, b) => (a.name || "").localeCompare(b.name || ""));
@@ -468,7 +468,7 @@ function _renderSelectedTechChips(refs, state){
     chip.className = `chip project-tech-chip ${colorClasses[idx % colorClasses.length]}`;
     chip.innerHTML = `
       <span>${escapeHtml(name)}</span>
-      <button type="button" class="project-tech-chip-remove" data-tech-uid="${escapeHtml(uid)}" aria-label="Remover tecnico">x</button>
+      <button type="button" class="project-tech-chip-remove" data-tech-uid="${escapeHtml(uid)}" aria-label="Remover recurso">x</button>
     `;
     chipsEl.appendChild(chip);
   });
@@ -480,7 +480,7 @@ function _renderSelectedTechChips(refs, state){
 
 function _populateEditTechSelect(selectEl, state, teamId){
   if (!selectEl) return;
-  selectEl.innerHTML = '<option value="">Selecione um tecnico</option>';
+  selectEl.innerHTML = '<option value="">Selecione um recurso</option>';
   const techs = _listActiveTechs(state, teamId);
   techs.sort((a, b) => (a.name || "").localeCompare(b.name || ""));
   for (const t of techs){
@@ -1171,7 +1171,7 @@ export async function openProjectDetailModal(projectId, deps) {
     }
     if (refs.projectDetailBillingValue) refs.projectDetailBillingValue.textContent = proj.billingValue ? _formatBRL(proj.billingValue) : "-";
     if (refs.projectDetailBillingHours) refs.projectDetailBillingHours.textContent = proj.billingHours ? `${proj.billingHours}h` : "-";
-    if (refs.projectDetailTechs) refs.projectDetailTechs.textContent = techNames.length ? techNames.join(", ") : "Nenhum tecnico vinculado";
+    if (refs.projectDetailTechs) refs.projectDetailTechs.textContent = techNames.length ? techNames.join(", ") : "Nenhum recurso vinculado";
     if (refs.projectDetailKeyUsers) refs.projectDetailKeyUsers.textContent = keyUserNames.length ? keyUserNames.join(", ") : "Nenhum key user vinculado";
     if (refs.projectDetailContract) {
       refs.projectDetailContract.innerHTML = proj?.contract?.url

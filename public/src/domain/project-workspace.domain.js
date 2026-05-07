@@ -430,7 +430,7 @@ function ensureActivityActionModal(){
               <input type="number" id="activityModalHours" min="1" max="12" step="0.5" />
             </label>
             <label class="field">
-              <span>Tecnico</span>
+              <span>Recurso</span>
               <input id="activityModalTech" disabled />
             </label>
             <label class="field span-2">
@@ -478,7 +478,7 @@ function ensureActivityActionModal(){
                   <input id="activityModalGeneratedHours" disabled />
                 </label>
                 <label class="field span-2">
-                  <span>Tecnico</span>
+                  <span>Recurso</span>
                   <input id="activityModalGeneratedTech" disabled />
                 </label>
                 <label class="field span-2">
@@ -492,9 +492,9 @@ function ensureActivityActionModal(){
               <div class="my-activity-section-head">
                 <div>
                   <div class="my-activity-section-kicker">Apontamento</div>
-                  <h3>Registro do tecnico</h3>
+                  <h3>Registro do recurso</h3>
                 </div>
-                <div class="my-activity-tip" id="activityModalGeneratedTip">Confira o apontamento enviado pelo tecnico.</div>
+                <div class="my-activity-tip" id="activityModalGeneratedTip">Confira o apontamento enviado pelo recurso.</div>
               </div>
 
               <div class="my-activity-time-grid">
@@ -525,10 +525,10 @@ function ensureActivityActionModal(){
               </div>
 
               <label class="field span-2 my-activity-note-field">
-                <span>Observacao do tecnico</span>
+                <span>Observacao do recurso</span>
                 <textarea id="activityModalGeneratedNote" rows="6" placeholder="Observacao do apontamento"></textarea>
                 <div class="my-activity-note-meta">
-                  <small>Este apontamento foi enviado pelo tecnico e pode ser revisado pelos perfis de gestao.</small>
+                  <small>Este apontamento foi enviado pelo recurso e pode ser revisado pelos perfis de gestao.</small>
                   <strong id="activityModalGeneratedNoteCounter">0 minimo</strong>
                 </div>
               </label>
@@ -833,7 +833,7 @@ function openActivityActionModal(activityId, mode, state = null){
   modalRefs.name.value = activity.name || "";
   modalRefs.date.value = activity.workDate || "";
   modalRefs.hours.value = String(activity.hoursWorked ?? "");
-  modalRefs.tech.value = Array.isArray(activity.techNames) && activity.techNames.length ? activity.techNames.join(", ") : "Sem tecnico";
+  modalRefs.tech.value = Array.isArray(activity.techNames) && activity.techNames.length ? activity.techNames.join(", ") : "Sem recurso";
   modalRefs.keyUsers.value = Array.isArray(activity.keyUsers) ? activity.keyUsers.join(", ") : "";
   modalRefs.note.value = activity.note || "";
 
@@ -849,7 +849,7 @@ function openActivityActionModal(activityId, mode, state = null){
     if (modalRefs.generatedName) modalRefs.generatedName.value = activity.name || "";
     if (modalRefs.generatedDate) modalRefs.generatedDate.value = fmtDate(activity.workDate);
     if (modalRefs.generatedHours) modalRefs.generatedHours.value = formatHoursDisplay(asNumber(activity.hoursWorked));
-    if (modalRefs.generatedTech) modalRefs.generatedTech.value = Array.isArray(activity.techNames) && activity.techNames.length ? activity.techNames.join(", ") : "Sem tecnico";
+    if (modalRefs.generatedTech) modalRefs.generatedTech.value = Array.isArray(activity.techNames) && activity.techNames.length ? activity.techNames.join(", ") : "Sem recurso";
     if (modalRefs.generatedKeyUsers) modalRefs.generatedKeyUsers.value = Array.isArray(activity.keyUsers) ? activity.keyUsers.join(", ") : "";
     if (modalRefs.generatedStartTime) modalRefs.generatedStartTime.value = activity.startTime || "";
     if (modalRefs.generatedEndTime) modalRefs.generatedEndTime.value = activity.endTime || "";
@@ -859,8 +859,8 @@ function openActivityActionModal(activityId, mode, state = null){
     const minChars = getActivityNoteMinChars(state);
     if (modalRefs.generatedNote) {
       modalRefs.generatedNote.placeholder = minChars > 0
-        ? `Observacao do tecnico (minimo ${minChars} caracteres)`
-        : "Observacao do tecnico";
+        ? `Observacao do recurso (minimo ${minChars} caracteres)`
+        : "Observacao do recurso";
     }
     if (modalRefs.generatedStatusBadge) {
       modalRefs.generatedStatusBadge.textContent = isApprovedStatus(activity) ? "OS Aprovada" : "OS Enviada";
@@ -868,8 +868,8 @@ function openActivityActionModal(activityId, mode, state = null){
     }
     if (modalRefs.generatedTip) {
       modalRefs.generatedTip.textContent = readOnly
-        ? "Confira o apontamento enviado pelo tecnico."
-        : "Revise o apontamento do tecnico mantendo o mesmo contexto exibido para ele.";
+        ? "Confira o apontamento enviado pelo recurso."
+        : "Revise o apontamento do recurso mantendo o mesmo contexto exibido para ele.";
     }
     [modalRefs.generatedStartTime, modalRefs.generatedEndTime, modalRefs.generatedBreakTime, modalRefs.generatedNote].forEach((field) => {
       if (field) field.disabled = readOnly;
@@ -1419,13 +1419,13 @@ function renderCover(refs, project, state){
             <strong>${escapeHtml(String(pendingActivities))}</strong>
             <span class="project-cover-meta">${escapeHtml(String(overdueActivities))} atrasada(s)</span>
           </div>
-          ${showInternalExpenses ? `<div class="project-cover-kpi">
+          ${showInternalExpenses ? `<div class="project-cover-kpi project-cover-kpi--money">
             <span class="project-cover-kpi-label">Despesas internas</span>
             <strong>${escapeHtml(formatCurrencyBRL(approvedInternalExpenses))}</strong>
             <span class="project-cover-meta">Internas aprovadas</span>
           </div>` : ""}
-          ${showEstimatedTechCost ? `<div class="project-cover-kpi">
-            <span class="project-cover-kpi-label">Custo tecnico estimado</span>
+          ${showEstimatedTechCost ? `<div class="project-cover-kpi project-cover-kpi--money">
+            <span class="project-cover-kpi-label">Custo de recursos estimado</span>
             <strong>${escapeHtml(estimatedTechCost > 0 ? formatCurrencyBRL(estimatedTechCost) : "-")}</strong>
             <span class="project-cover-meta">Horas planejadas</span>
           </div>` : ""}
@@ -1484,7 +1484,7 @@ function renderCover(refs, project, state){
       ${showProjectCost ? `<div class="project-cover-profit-item">
         <span class="project-cover-label">Custo do projeto</span>
         <strong>${escapeHtml(projectCost > 0 ? formatCurrencyBRL(projectCost) : "-")}</strong>
-        <span class="project-cover-meta">Tecnico + despesas internas</span>
+        <span class="project-cover-meta">Recursos + despesas internas</span>
       </div>` : ""}
       ${showCoverHoursInfo ? `<div class="project-cover-profit-item">
         <span class="project-cover-label">Consumo das horas</span>
@@ -1635,7 +1635,7 @@ function renderTasks(deps){
     const groupedActs = new Map();
     filteredTaskActs.forEach((a) => {
       const activityName = (a.name || "Atividade").trim();
-      const names = Array.isArray(a.techNames) && a.techNames.length ? a.techNames : ["Sem tecnico"];
+      const names = Array.isArray(a.techNames) && a.techNames.length ? a.techNames : ["Sem recurso"];
       const techKey = names.join(" | ");
       const workDate = parseDateOnly(a.workDate);
       const isOverdue = Boolean(workDate && workDate < today && !isCompletedStatus(a));
@@ -1702,7 +1702,7 @@ function renderTasks(deps){
         && canTechSeeProjectField(state, "allowProjectWorkspaceActivityPointing");
       const canManageActivity = canManageTasks(state);
       const canApproveActivity = canManageTasks(state) && (getActivityStatusValue(a) === "os_gerada" || getActivityStatusValue(a) === "os_aprovada");
-      const assignedTechs = Array.isArray(a.techNames) && a.techNames.length ? a.techNames.join(", ") : "Sem tecnico";
+      const assignedTechs = Array.isArray(a.techNames) && a.techNames.length ? a.techNames.join(", ") : "Sem recurso";
       const workDate = parseDateOnly(a.workDate);
       const isOverdue = Boolean(workDate && workDate < today && !isCompletedStatus(a));
       const isApproved = isApprovedStatus(a);
@@ -1713,7 +1713,7 @@ function renderTasks(deps){
           <div class="activity-main">
             <div>
               <b>${escapeHtml(a.name || "Atividade")}</b>
-              <div class="activity-meta-line">${escapeHtml(fmtDate(a.workDate))} | ${escapeHtml(String(a.hoursWorked || 0))}h</div>
+              <div class="activity-meta-line"><span class="activity-date">${escapeHtml(fmtDate(a.workDate))}</span> | <span class="activity-hours">${escapeHtml(String(a.hoursWorked || 0))}h</span></div>
             </div>
             <div class="activity-head-actions">
               <span class="activity-status ${isOverdue ? "orange" : (isApproved ? "green" : (isCompletedStatus(a) ? "amber" : "red"))}">${isOverdue ? "Atrasada" : (isApproved ? "OS Aprovada" : (getActivityStatusValue(a) === "os_gerada" ? "OS Enviada" : "Sem Ordem de Servico"))}</span>
@@ -1745,7 +1745,7 @@ function renderTasks(deps){
             </div>
           </div>
           <div class="activity-tags">
-            <span class="activity-tag">Tecnicos: ${escapeHtml(assignedTechs)}</span>
+            <span class="activity-tag">Recursos: ${escapeHtml(assignedTechs)}</span>
             <span class="activity-tag">Key users: ${escapeHtml(Array.isArray(a.keyUsers) && a.keyUsers.length ? a.keyUsers.join(", ") : "-")}</span>
             ${isOverdue ? `<span class="activity-tag activity-tag--warn">Acao necessaria</span>` : ""}
           </div>
@@ -1772,12 +1772,12 @@ function renderTasks(deps){
           <summary class="activity-group-summary">
             <div>
               <div class="activity-group-title">${escapeHtml(group.label)}</div>
-              <div class="activity-group-subtitle">${escapeHtml(String(group.activities.length))} atividade(s) | ${escapeHtml(String(groupHours))}h | Tecnicos: ${escapeHtml(String(group.techGroups.size))} | Pendentes: ${escapeHtml(String(group.pending))}</div>
+              <div class="activity-group-subtitle">${escapeHtml(String(group.activities.length))} atividade(s) | ${escapeHtml(String(groupHours))}h | Recursos: ${escapeHtml(String(group.techGroups.size))} | Pendentes: ${escapeHtml(String(group.pending))}</div>
             </div>
             <span class="activity-group-toggle">Expandir</span>
           </summary>
           <div class="activity-group-list">
-            <div class="activity-subsection-title">Tecnicos com esta atividade</div>
+            <div class="activity-subsection-title">Recursos com esta atividade</div>
             ${techGroupRows}
           </div>
         </details>
@@ -1859,10 +1859,10 @@ function renderTasks(deps){
               <div id="actKeyUsersChips-${escapeHtml(t.id)}" class="chips project-tech-chips activity-selection-chips"><span class="muted">Nenhum selecionado.</span></div>
             </div>
             <div class="field">
-              <span>Tecnicos do projeto</span>
+              <span>Recursos do projeto</span>
               <select id="actTechs-${escapeHtml(t.id)}" data-activity-tech-select="${escapeHtml(t.id)}">
-                <option value="">Selecione um tecnico</option>
-                ${techOptions || `<option value="" disabled>Nenhum tecnico vinculado ao projeto</option>`}
+                <option value="">Selecione um recurso</option>
+                ${techOptions || `<option value="" disabled>Nenhum recurso vinculado ao projeto</option>`}
               </select>
               <div class="help">Selecao multipla em chips coloridos.</div>
               <input type="hidden" id="actSelectedTechs-${escapeHtml(t.id)}" value="[]" />
@@ -1886,7 +1886,7 @@ function renderTasks(deps){
             <div class="activity-tree-head">
               <div>
                 <div class="task-step">Atividades</div>
-                <div class="muted">Agrupadas por nome da atividade e expandidas por tecnicos${activeStatusFilter !== "all" ? ` • Filtro ativo: ${escapeHtml(activeStatusFilter === "pending" ? "Sem OS" : activeStatusFilter === "generated" ? "OS Enviada" : activeStatusFilter === "approved" ? "OS Aprovada" : "Atrasadas")}` : ""}.</div>
+                <div class="muted">Agrupadas por nome da atividade e expandidas por recursos${activeStatusFilter !== "all" ? ` • Filtro ativo: ${escapeHtml(activeStatusFilter === "pending" ? "Sem OS" : activeStatusFilter === "generated" ? "OS Enviada" : activeStatusFilter === "approved" ? "OS Aprovada" : "Atrasadas")}` : ""}.</div>
               </div>
               <span class="activity-tree-hint">Clique nos grupos para expandir</span>
             </div>
@@ -2044,7 +2044,7 @@ async function saveActivity(taskId, deps){
     return;
   }
   if (!techUids.length){
-    setAlert(refs.projectTaskAlert, "Selecione ao menos um tecnico do projeto para a atividade.", "error");
+    setAlert(refs.projectTaskAlert, "Selecione ao menos um recurso do projeto para a atividade.", "error");
     return;
   }
 
@@ -2058,7 +2058,7 @@ async function saveActivity(taskId, deps){
   }
 
   if (mode === "range" && !canUseRangeForActivities(state)){
-    setAlert(refs.projectTaskAlert, "Técnico só pode incluir atividade em dia único.", "error");
+    setAlert(refs.projectTaskAlert, "Recurso so pode incluir atividade em dia unico.", "error");
     return;
   }
 

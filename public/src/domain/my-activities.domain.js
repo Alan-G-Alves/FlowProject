@@ -535,7 +535,7 @@ function renderMyActivitiesList(refs, items) {
               <div class="activity-main">
                 <div>
                   <b>${escapeHtml(item.activity.name || "Atividade")}</b>
-                  <div class="activity-meta-line">${escapeHtml(fmtDate(item.activity.workDate))} | ${escapeHtml(String(item.activity.hoursWorked || 0))}h previstas</div>
+                  <div class="activity-meta-line"><span class="activity-date">${escapeHtml(fmtDate(item.activity.workDate))}</span> | <span class="activity-hours">${escapeHtml(String(item.activity.hoursWorked || 0))}h previstas</span></div>
                 </div>
                 <div class="activity-head-actions">
                   <span class="activity-status ${meta.cls}">${escapeHtml(meta.label)}</span>

@@ -204,9 +204,9 @@
 <img alt="" class="nav-ico" src="home.png"/>
 <span class="nav-label">Pagina inicial</span>
 </button>
-<button class="nav-item" data-tooltip="Tecnicos" id="navAddTech">
+<button class="nav-item" data-tooltip="Recursos" id="navAddTech">
 <img alt="" class="nav-ico" src="adicionar-tecnico.png"/>
-<span class="nav-label">Tecnicos</span>
+<span class="nav-label">Recursos</span>
 </button>
 <button class="nav-item" data-tooltip="Clientes" id="navClients">
 <img alt="" class="nav-ico" src="clientes.png"/>
@@ -509,7 +509,7 @@
     <div class="modal-header">
       <div>
         <h2>Filtros do indicador</h2>
-        <p class="muted">Refine o card Atividade x Tecnico sem ocupar espaco no painel.</p>
+        <p class="muted">Refine o card Atividade x Recurso sem ocupar espaco no painel.</p>
       </div>
       <button class="btn ghost" id="btnCloseReportTechFilters" type="button">X</button>
     </div>
@@ -550,7 +550,7 @@
           </select>
         </label>
         <label class="field" style="grid-column: span 12;">
-          <span>Tecnico</span>
+          <span>Recurso</span>
           <select id="reportTechFilterTech"></select>
         </label>
       </div>
@@ -595,7 +595,7 @@
 <strong id="adminUsersCount">0</strong>
 <div class="admin-overview-mini-stats">
 <span class="admin-mini-pill admin-mini-pill--violet">Gestor <b id="adminManagersCount">0</b></span>
-<span class="admin-mini-pill admin-mini-pill--blue">Tecnico <b id="adminTechsCount">0</b></span>
+<span class="admin-mini-pill admin-mini-pill--blue">Recurso <b id="adminTechsCount">0</b></span>
 <span class="admin-mini-pill admin-mini-pill--indigo">Admin <b id="adminAdminsCount">0</b></span>
 <span class="admin-mini-pill admin-mini-pill--slate">Coordenador <b id="adminCoordinatorsCount">0</b></span>
 </div>
@@ -650,7 +650,7 @@
 <option value="admin">Admin</option>
 <option value="gestor">Gestor</option>
 <option value="coordenador">Coordenador</option>
-<option value="tecnico">Tecnico</option>
+<option value="tecnico">Recurso</option>
 </select>
 </label>
 <button class="btn" id="btnReloadUsers">Atualizar</button>
@@ -683,17 +683,17 @@
 </div>
 </div>
 </div>
-</section><!-- GESTOR: USUARIOS (TECNICOS) --><section class="view" hidden="" id="viewManagerUsers">
+</section><!-- GESTOR: USUARIOS (RECURSOS) --><section class="view" hidden="" id="viewManagerUsers">
 <div class="container">
 <div class="page-header">
 <div>
-<h1>Tecnicos</h1>
-<p class="muted">Cadastre tecnicos e vincule as equipes que voce administra.</p>
+<h1>Recursos</h1>
+<p class="muted">Cadastre recursos e vincule as equipes que voce administra.</p>
 </div>
 <div class="chips">
 <!-- Removido botao Voltar (UX pedido) -->
-<!-- Botao Novo Tecnico como icone + (mesmo padrao do Adicionar Projeto) -->
-<button class="icon-btn" id="btnOpenCreateTech" title="Adicionar tecnico" aria-label="Adicionar tecnico">
+<!-- Botao Novo Recurso como icone + (mesmo padrao do Adicionar Projeto) -->
+<button class="icon-btn" id="btnOpenCreateTech" title="Adicionar recurso" aria-label="Adicionar recurso">
   <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
     <defs>
       <linearGradient id="fpGradAddTech" x1="0" y1="0" x2="24" y2="24" gradientUnits="userSpaceOnUse">
@@ -707,7 +707,7 @@
 </button>
 
 <!-- Busca ao lado do botao (mesmo padrao do Kanban) -->
-<div class="saas-search" id="mgrUsersSearchWrap" aria-label="Filtro de tecnicos">
+<div class="saas-search" id="mgrUsersSearchWrap" aria-label="Filtro de recursos">
   <svg class="saas-search-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
     <circle cx="11" cy="11" r="7"></circle>
     <path d="M20 20l-3.5-3.5"></path>
@@ -723,9 +723,9 @@
 </div>
 </div>
 <div class="panel" style="margin-bottom:12px;">
-<!-- Removido bloco de busca aqui (agora fica no header ao lado do botao Adicionar tecnico) -->
+<!-- Removido bloco de busca aqui (agora fica no header ao lado do botao Adicionar recurso) -->
 <!-- Paginacao (20 por pagina) -->
-<div id="mgrUsersPagination" class="table-pagination" aria-label="Paginacao de tecnicos"></div>
+<div id="mgrUsersPagination" class="table-pagination" aria-label="Paginacao de recursos"></div>
 <div class="table" style="margin-top:12px; overflow:auto;">
 <table>
 <thead>
@@ -733,11 +733,12 @@
   <th class="sortable" data-mgr-sort="number" style="width:70px;">ID</th>
   <th class="sortable" data-mgr-sort="name">Nome</th>
   <th class="sortable" data-mgr-sort="age" style="width:90px;">Idade</th>
-  <th class="sortable" data-mgr-sort="email">E-mail</th>
   <th class="sortable" data-mgr-sort="hourlyRate">Valor/Hora</th>
   <th class="sortable" data-mgr-sort="teams">Equipes</th>
+  <th style="width:110px;">Projetos</th>
   <th class="sortable" data-mgr-sort="softSkills">Soft Skills</th>
   <th class="sortable" data-mgr-sort="hardSkills">Hard Skills</th>
+  <th style="width:92px;">Agenda</th>
   <th class="sortable" data-mgr-sort="feedbackCount" style="width:110px;">Feedback</th>
   <th class="sortable" data-mgr-sort="status">Status</th>
 <th style="width:110px;">Acoes</th>
@@ -747,8 +748,8 @@
 </table>
 </div>
 <div class="panel subtle" hidden="" id="mgrUsersEmpty" style="margin-top:12px;">
-<h3>Nenhum tecnico encontrado</h3>
-<p class="muted">Cadastre o primeiro tecnico clicando em "Novo Tecnico".</p>
+<h3>Nenhum recurso encontrado</h3>
+<p class="muted">Cadastre o primeiro recurso clicando em "Novo Recurso".</p>
 </div>
 </div>
 </div>
@@ -1020,7 +1021,7 @@
                   <circle cx="11" cy="11" r="7" fill="none" stroke="currentColor" stroke-width="2"></circle>
                   <path d="M20 20l-3.5-3.5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"></path>
                 </svg>
-                <input id="projectTaskSearchInput" type="search" placeholder="Buscar por tarefa, atividade, técnico, id ou data" />
+                <input id="projectTaskSearchInput" type="search" placeholder="Buscar por tarefa, atividade, recurso, id ou data" />
               </label>
               <button class="btn primary sm btn-edit" id="btnOpenTaskForm" type="button">+ Nova tarefa</button>
             </div>
@@ -1189,12 +1190,12 @@
     <div class="page-header">
       <div>
         <h1>Aprovacao de OS</h1>
-        <p class="muted">Revise OS enviadas pelos tecnicos, aprove individualmente ou em massa e acompanhe os estornos.</p>
+        <p class="muted">Revise OS enviadas pelos recursos, aprove individualmente ou em massa e acompanhe os estornos.</p>
       </div>
       <div class="chips os-approvals-toolbar">
         <label class="field os-approvals-search-field">
           <span>Buscar OS</span>
-          <input id="osApprovalsSearchInput" type="search" placeholder="Projeto, tecnico, cliente, data ou observacao" />
+          <input id="osApprovalsSearchInput" type="search" placeholder="Projeto, recurso, cliente, data ou observacao" />
         </label>
         <label class="field os-approvals-filter-field">
           <span>Gestor</span>
@@ -1247,7 +1248,7 @@
     <div class="reports-activity-tech-pagination" id="osApprovalsPagination" aria-label="Paginacao de aprovacoes de OS"></div>
     <div class="panel subtle" hidden id="osApprovalsEmpty">
       <h3>Nenhuma OS encontrada</h3>
-      <p class="muted">Ajuste os filtros ou aguarde novos apontamentos enviados pelos tecnicos.</p>
+      <p class="muted">Ajuste os filtros ou aguarde novos apontamentos enviados pelos recursos.</p>
     </div>
   </div>
 </section>
@@ -1262,7 +1263,7 @@
       <div class="chips expense-approvals-toolbar">
         <label class="field expense-approvals-search-field">
           <span>Buscar despesa</span>
-          <input id="expenseApprovalsSearchInput" type="search" placeholder="Projeto, tecnico, observacao, valor ou comprovante" />
+          <input id="expenseApprovalsSearchInput" type="search" placeholder="Projeto, recurso, observacao, valor ou comprovante" />
         </label>
         <label class="field expense-approvals-filter-field">
           <span>Projeto</span>
@@ -1391,7 +1392,7 @@
           <div id="manualActivityKeyUsersChips" class="chips project-tech-chips activity-selection-chips"><span class="muted">Nenhum selecionado.</span></div>
         </label>
         <label class="field" style="grid-column: span 12;">
-          <span>Observacao do tecnico</span>
+          <span>Observacao do recurso</span>
           <textarea id="manualActivityNote" rows="4" placeholder="Opcional na criacao. Se preenchida, a atividade sera enviada como OS para aprovacao."></textarea>
           <div class="my-activity-note-meta">
             <small>Sem observacao, a atividade fica como <b>Sem OS</b>.</small>
@@ -1469,7 +1470,7 @@
           <div class="my-activity-section-head">
             <div>
               <div class="my-activity-section-kicker">Apontamento</div>
-              <h3>Seu registro tecnico</h3>
+              <h3>Seu registro de recurso</h3>
             </div>
           </div>
 
@@ -1493,7 +1494,7 @@
           </div>
 
           <label class="field span-2 my-activity-note-field">
-            <span>Observacao do tecnico</span>
+            <span>Observacao do recurso</span>
             <textarea id="myActivityNote" rows="4" placeholder="Descreva o que foi realizado, dificuldades, resultado, validacoes feitas e qualquer contexto importante."></textarea>
             <div class="my-activity-note-meta">
               <small>Ao salvar, a atividade vai para <b>OS Enviada</b> e segue para aprovacao do gestor.</small>
@@ -1819,7 +1820,7 @@
 <label class="field" style="grid-column: span 6;">
 <span>Funcao</span>
 <select id="newUserRole">
-<option selected="" value="tecnico">Tecnico</option>
+<option selected="" value="tecnico">Recurso</option>
 <option value="coordenador">Coordenador</option>
 <option value="gestor">Gestor</option>
 <option value="admin">Admin</option>
@@ -1844,7 +1845,7 @@
 <span>Equipes (chips)</span>
 <div class="chips-select" id="teamChips"></div>
 <div class="muted" id="teamChipsHint" style="font-size:12px; margin-top:6px;">
-              Tecnicos tambem podem participar de mais de uma equipe.
+              Recursos tambem podem participar de mais de uma equipe.
             </div>
 </div>
 </div>
@@ -1922,14 +1923,14 @@
 <button class="btn primary" id="btnCreateUser">Salvar</button>
 </div>
 </div>
-<!-- MODAL CRIAR TECNICO (Gestor) -->
+<!-- MODAL CRIAR RECURSO (Gestor) -->
 <div class="modal" hidden="" id="modalCreateTech">
 <div class="modal-backdrop" data-close="true"></div>
 <div class="modal-card modal-xl tech-create-modal-card">
   <div class="modal-header tech-create-modal-head">
     <div>
-      <h2 id="createTechTitle">Novo Tecnico</h2>
-      <p class="muted">O tecnico sera vinculado automaticamente a todas as equipes do seu escopo.</p>
+      <h2 id="createTechTitle">Novo Recurso</h2>
+      <p class="muted">O recurso sera vinculado automaticamente a todas as equipes do seu escopo.</p>
     </div>
     <button class="btn ghost" id="btnCloseCreateTech" data-close="true" type="button">X</button>
   </div>
@@ -1964,7 +1965,7 @@
 
           <label class="field" style="grid-column: span 6;">
             <span>Nome</span>
-            <input id="techName" placeholder="Nome do tecnico"/>
+            <input id="techName" placeholder="Nome do recurso"/>
           </label>
 
           <label class="field" style="grid-column: span 6;">
@@ -1977,7 +1978,7 @@
 
           <label class="field" style="grid-column: span 6;">
             <span>E-mail</span>
-            <input id="techEmail" placeholder="tecnico@empresa.com" type="email"/>
+            <input id="techEmail" placeholder="recurso@empresa.com" type="email"/>
           </label>
 
           <label class="field" style="grid-column: span 6;">
@@ -2048,9 +2049,9 @@
     <div class="form-section">
       <div class="section-title">Equipes</div>
       <div class="field">
-        <span>Selecione as equipes do técnico</span>
+        <span>Selecione as equipes do recurso</span>
         <div class="chips-select" id="mgrTeamChips"></div>
-        <small class="muted">Escolha uma ou mais equipes para vincular o técnico.</small>
+        <small class="muted">Escolha uma ou mais equipes para vincular o recurso.</small>
       </div>
     </div>
 
@@ -2059,7 +2060,7 @@
       <div class="person-attachments-card">
         <div class="person-attachments-head">
           <div>
-            <strong>Arquivos do tecnico</strong>
+            <strong>Arquivos do recurso</strong>
             <p class="muted">Anexe curriculo, certificados, documentos e comprovantes.</p>
           </div>
           <div class="person-attachments-summary" id="techAttachmentsSummary">0/6 arquivos</div>
@@ -2097,7 +2098,7 @@
 <span>Selecione as equipes (chips)</span>
 <div class="chips-select" id="managedTeamsChips"></div>
 <div class="muted" style="font-size:12px; margin-top:6px;">
-            Isso controla quais equipes o Gestor pode usar ao cadastrar tecnicos e (futuramente) projetos/tarefas.
+            Isso controla quais equipes o Gestor pode usar ao cadastrar recursos e (futuramente) projetos/tarefas.
           </div>
 </div>
 <div class="alert" hidden="" id="managedTeamsAlert"></div>
@@ -2440,14 +2441,14 @@
           </div>
         </div>
 
-        <!-- Secao: Tecnicos -->
+        <!-- Secao: Recursos -->
         <div class="form-section span-12">
-          <h3 class="project-section-title">Tecnicos</h3>
+          <h3 class="project-section-title">Recursos</h3>
           <div class="grid-2">
             <label class="field span-6">
-              <span>Adicionar tecnico</span>
+              <span>Adicionar recurso</span>
               <select id="projectTechSelect">
-                <option value="">Selecione um tecnico</option>
+                <option value="">Selecione um recurso</option>
               </select>
               <div class="help">Selecao multipla (vira chips abaixo).</div>
             </label>
@@ -2778,7 +2779,7 @@
   <div class="modal-card tech-feedback-modal-card" style="max-width:860px;">
     <div class="modal-header tech-feedback-modal-head">
       <div>
-        <h2>Feedback do Tecnico</h2>
+        <h2>Feedback do Recurso</h2>
         <p class="muted" id="techFeedbackSubtitle">Registre e acompanhe feedbacks.</p>
       </div>
       <button class="btn ghost" id="btnCloseTechFeedback">X</button>
@@ -2840,7 +2841,7 @@
     <div class="modal-body">
       <div class="alert" hidden id="reportPermissionsAlert"></div>
       <div class="report-permissions-hint">
-        Tecnicos sempre visualizam apenas os proprios dados em Atividade x Tecnico e Relatorio de Despesas.
+        Recursos sempre visualizam apenas os proprios dados em Atividade x Recurso e Relatorio de Despesas.
       </div>
       <div class="report-permissions-table-wrap">
         <table class="report-permissions-table">
@@ -2850,7 +2851,7 @@
               <th>Admin</th>
               <th>Gestor</th>
               <th>Coordenador</th>
-              <th>Tecnico</th>
+              <th>Recurso</th>
             </tr>
           </thead>
           <tbody id="reportPermissionsTableBody"></tbody>
@@ -2867,14 +2868,14 @@
 </div>
 
 
-<!-- MODAL: Permissoes do Tecnico no Projeto -->
+<!-- MODAL: Permissoes do Recurso no Projeto -->
 <div class="modal" hidden id="modalProjectTechPermissions">
   <div class="modal-backdrop" data-close-project-tech-permissions="true"></div>
   <div class="modal-card report-permissions-modal-card">
     <div class="modal-header">
       <div>
-        <h2>Permissoes do tecnico no projeto</h2>
-        <p class="muted">Defina quais dados do card e da capa do projeto o tecnico pode visualizar.</p>
+        <h2>Permissoes do recurso no projeto</h2>
+        <p class="muted">Defina quais dados do card e da capa do projeto o recurso pode visualizar.</p>
       </div>
       <button class="btn ghost" id="btnCloseProjectTechPermissions" type="button">X</button>
     </div>
@@ -2882,14 +2883,14 @@
     <div class="modal-body">
       <div class="alert" hidden id="projectTechPermissionsAlert"></div>
       <div class="report-permissions-hint">
-        Mesmo com permissoes liberadas, o tecnico visualiza apenas tarefas e atividades vinculadas ao proprio usuario.
+        Mesmo com permissoes liberadas, o recurso visualiza apenas tarefas e atividades vinculadas ao proprio usuario.
       </div>
       <div class="report-permissions-table-wrap">
         <table class="report-permissions-table">
           <thead>
             <tr>
               <th>Dado do projeto</th>
-              <th>Tecnico pode ver</th>
+              <th>Recurso pode ver</th>
             </tr>
           </thead>
           <tbody id="projectTechPermissionsTableBody"></tbody>
@@ -2913,7 +2914,7 @@
     <div class="modal-header">
       <div>
         <h2>Regras de apontamento</h2>
-        <p class="muted">Defina o minimo de caracteres exigido na observacao do apontamento tecnico.</p>
+        <p class="muted">Defina o minimo de caracteres exigido na observacao do apontamento do recurso.</p>
       </div>
       <button class="btn ghost" id="btnCloseActivityNoteSettings" type="button">X</button>
     </div>

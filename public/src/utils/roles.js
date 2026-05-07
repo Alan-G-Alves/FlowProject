@@ -8,7 +8,7 @@ export function normalizeRole(role){
     admin: "Admin",
     gestor: "Gestor",
     coordenador: "Coordenador",
-    tecnico: "Técnico"
+    tecnico: "Recurso"
   };
   return map[role] || "Usuário";
 }
