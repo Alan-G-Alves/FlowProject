@@ -8,7 +8,7 @@ import { setView } from "../ui/router.js";
 import { listCompaniesDocs } from "../services/companies.service.js";
 import { isEmailValidBasic, isCnpjValidBasic } from "../utils/validators.js";
 import { normalizePhone, normalizeCnpj } from "../utils/format.js";
-import { DEFAULT_COMPANY_BILLING_CYCLE, DEFAULT_COMPANY_PLAN_ID, getCompanyPlan, normalizeCompanyPlan, formatCompanyPlanPrice } from "../utils/plans.js?v=1778182600";
+import { DEFAULT_COMPANY_BILLING_CYCLE, DEFAULT_COMPANY_PLAN_ID, getCompanyPlan, normalizeCompanyPlan, formatCompanyPlanPrice } from "../utils/plans.js?v=1778178009";
 
 /** =========================
  *  COMPANIES DOMAIN
@@ -28,13 +28,28 @@ function getBillingCycleLabel(value) {
   return normalizeBillingCycle(value) === "annual" ? "anual" : "mensal";
 }
 
+function normalizePlanInstallments(value, billingCycle = DEFAULT_COMPANY_BILLING_CYCLE) {
+  if (normalizeBillingCycle(billingCycle) !== "annual") return 1;
+  const n = Number(value || 1);
+  if (!Number.isFinite(n)) return 1;
+  return Math.min(5, Math.max(1, Math.trunc(n)));
+}
+
 function updateCompanyPlanSelectedPrice(refs) {
   if (!refs.companyPlanSelectedPriceEl) return;
   const plan = getCompanyPlan(refs.companyPlanEl?.value || DEFAULT_COMPANY_PLAN_ID);
   const billingCycle = normalizeBillingCycle(refs.companyPlanBillingCycleEl?.value);
   const price = billingCycle === "annual" ? plan.annualPrice : plan.price;
-  const suffix = billingCycle === "annual" ? "/ano" : "/mes";
-  refs.companyPlanSelectedPriceEl.textContent = `Plano ${getBillingCycleLabel(billingCycle)} ${formatCompanyPlanPrice(price)}${suffix}.`;
+  const installments = normalizePlanInstallments(refs.companyPlanInstallmentsEl?.value, billingCycle);
+  const installmentsWrap = refs.companyPlanInstallmentsEl?.closest?.(".field");
+  if (installmentsWrap) installmentsWrap.hidden = billingCycle !== "annual";
+  if (refs.companyPlanInstallmentsEl && billingCycle !== "annual") refs.companyPlanInstallmentsEl.value = "1";
+  if (billingCycle === "annual") {
+    const installmentValue = price / installments;
+    refs.companyPlanSelectedPriceEl.textContent = `Plano anual ${formatCompanyPlanPrice(price)}/ano em ${installments}x de ${formatCompanyPlanPrice(installmentValue)}.`;
+    return;
+  }
+  refs.companyPlanSelectedPriceEl.textContent = `Plano mensal ${formatCompanyPlanPrice(price)}/mes.`;
 }
 
 export function openCompaniesView(deps) {
@@ -146,8 +161,10 @@ export function openCreateCompanyModal(deps) {
   if (refs.adminActiveEl) refs.adminActiveEl.value = "true";
   if (refs.companyPlanEl) refs.companyPlanEl.value = DEFAULT_COMPANY_PLAN_ID;
   if (refs.companyPlanBillingCycleEl) refs.companyPlanBillingCycleEl.value = DEFAULT_COMPANY_BILLING_CYCLE;
+  if (refs.companyPlanInstallmentsEl) refs.companyPlanInstallmentsEl.value = "1";
   if (refs.companyPlanEl) refs.companyPlanEl.onchange = () => updateCompanyPlanSelectedPrice(refs);
   if (refs.companyPlanBillingCycleEl) refs.companyPlanBillingCycleEl.onchange = () => updateCompanyPlanSelectedPrice(refs);
+  if (refs.companyPlanInstallmentsEl) refs.companyPlanInstallmentsEl.onchange = () => updateCompanyPlanSelectedPrice(refs);
   updateCompanyPlanSelectedPrice(refs);
   if (refs.companyFinancialNameEl) refs.companyFinancialNameEl.value = "";
   if (refs.companyFinancialEmailEl) refs.companyFinancialEmailEl.value = "";
@@ -192,7 +209,10 @@ export async function loadCompanyDetail(companyId, deps) {
     if (refs.companyPlanBillingCycleDetail) refs.companyPlanBillingCycleDetail.value = plan.billingCycle;
     if (refs.companyPlanSummary) {
       const suffix = plan.billingCycle === "annual" ? "/ano" : "/mes";
-      refs.companyPlanSummary.textContent = `${plan.label} - plano ${getBillingCycleLabel(plan.billingCycle)} ${formatCompanyPlanPrice(plan.billingPrice)}${suffix}. Limite de ${plan.userLimit} usuarios ativos.`;
+      const installmentText = plan.billingCycle === "annual"
+        ? ` em ${plan.installments || 1}x de ${formatCompanyPlanPrice(plan.installmentValue || plan.billingPrice)}`
+        : "";
+      refs.companyPlanSummary.textContent = `${plan.label} - plano ${getBillingCycleLabel(plan.billingCycle)} ${formatCompanyPlanPrice(plan.billingPrice)}${suffix}${installmentText}. Limite de ${plan.userLimit} usuarios ativos.`;
     }
     if (refs.companyFinancialNameDetail) refs.companyFinancialNameDetail.value = cData.financialContactName || "";
     if (refs.companyFinancialEmailDetail) refs.companyFinancialEmailDetail.value = cData.financialContactEmail || "";
@@ -471,6 +491,7 @@ export async function createCompany(deps) {
     const cnpj = (refs.companyCnpjEl?.value || "").trim();
     const plan = getCompanyPlan(refs.companyPlanEl?.value || DEFAULT_COMPANY_PLAN_ID);
     const billingCycle = normalizeBillingCycle(refs.companyPlanBillingCycleEl?.value);
+    const planInstallments = normalizePlanInstallments(refs.companyPlanInstallmentsEl?.value, billingCycle);
     const financialContactName = (refs.companyFinancialNameEl?.value || "").trim();
     const financialContactEmail = (refs.companyFinancialEmailEl?.value || "").trim();
     const financialContactPhone = normalizePhone(refs.companyFinancialPhoneEl?.value || "");
@@ -496,6 +517,7 @@ export async function createCompany(deps) {
       cnpj: normalizeCnpj(cnpj),
       planId: plan.id,
       planBillingCycle: billingCycle,
+      planInstallments,
       financial: {
         name: financialContactName,
         email: financialContactEmail,

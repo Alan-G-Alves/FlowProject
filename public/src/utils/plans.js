@@ -19,6 +19,11 @@ export function normalizeCompanyPlan(company = {}) {
   const price = Number(company.planPrice || byId.price);
   const annualPrice = Number(company.planAnnualPrice || byId.annualPrice || calculateCompanyAnnualPrice(price));
   const billingCycle = company.planBillingCycle === "annual" ? "annual" : DEFAULT_COMPANY_BILLING_CYCLE;
+  const rawInstallments = Number(company.planInstallments || 1);
+  const installments = billingCycle === "annual" && Number.isFinite(rawInstallments)
+    ? Math.min(5, Math.max(1, Math.trunc(rawInstallments)))
+    : 1;
+  const billingPrice = billingCycle === "annual" ? annualPrice : price;
   return {
     id: byId.id,
     label: company.planName || byId.label,
@@ -26,7 +31,9 @@ export function normalizeCompanyPlan(company = {}) {
     price,
     annualPrice,
     billingCycle,
-    billingPrice: billingCycle === "annual" ? annualPrice : price
+    billingPrice,
+    installments,
+    installmentValue: billingCycle === "annual" ? billingPrice / installments : billingPrice
   };
 }
 

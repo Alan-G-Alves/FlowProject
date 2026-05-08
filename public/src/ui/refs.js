@@ -250,6 +250,7 @@ export const companyCnpjEl = byId("companyCnpj");
 export const companyIdEl = byId("companyId");
 export const companyPlanEl = byId("companyPlan");
 export const companyPlanBillingCycleEl = byId("companyPlanBillingCycle");
+export const companyPlanInstallmentsEl = byId("companyPlanInstallments");
 export const companyPlanSelectedPriceEl = byId("companyPlanSelectedPrice");
 export const companyFinancialNameEl = byId("companyFinancialName");
 export const companyFinancialEmailEl = byId("companyFinancialEmail");

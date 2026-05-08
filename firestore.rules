@@ -241,7 +241,7 @@ service cloud.firestore {
 
       // Master pode criar e também (importante) bloquear/desbloquear qualquer empresa
       allow create: if isSuperAdmin()
-        && request.resource.data.keys().hasOnly(["name", "cnpj", "active", "planId", "planName", "planUserLimit", "planPrice", "planAnnualPrice", "planBillingCycle", "planBillingPrice", "planUpdatedAt", "financialContactName", "financialContactEmail", "financialContactPhone", "billingDueDate", "financialUpdatedAt", "createdAt", "createdBy"])
+        && request.resource.data.keys().hasOnly(["name", "cnpj", "active", "planId", "planName", "planUserLimit", "planPrice", "planAnnualPrice", "planBillingCycle", "planBillingPrice", "planInstallments", "planInstallmentValue", "planUpdatedAt", "financialContactName", "financialContactEmail", "financialContactPhone", "billingDueDate", "financialUpdatedAt", "createdAt", "createdBy"])
         && request.resource.data.name is string
         && request.resource.data.name.size() > 0
         && request.resource.data.cnpj is string
@@ -254,6 +254,8 @@ service cloud.firestore {
         && (!("planAnnualPrice" in request.resource.data) || request.resource.data.planAnnualPrice is number)
         && (!("planBillingCycle" in request.resource.data) || request.resource.data.planBillingCycle in ["monthly", "annual"])
         && (!("planBillingPrice" in request.resource.data) || request.resource.data.planBillingPrice is number)
+        && (!("planInstallments" in request.resource.data) || request.resource.data.planInstallments in [1, 2, 3, 4, 5])
+        && (!("planInstallmentValue" in request.resource.data) || request.resource.data.planInstallmentValue is number)
         && (!("planUpdatedAt" in request.resource.data) || request.resource.data.planUpdatedAt is timestamp)
         && (!("financialContactName" in request.resource.data) || request.resource.data.financialContactName is string)
         && (!("financialContactEmail" in request.resource.data) || request.resource.data.financialContactEmail is string)
@@ -267,7 +269,7 @@ service cloud.firestore {
         && request.resource.data.active is bool;
 
       allow update: if isSuperAdmin()
-        && request.resource.data.keys().hasOnly(["name", "cnpj", "active", "planId", "planName", "planUserLimit", "planPrice", "planAnnualPrice", "planBillingCycle", "planBillingPrice", "planUpdatedAt", "financialContactName", "financialContactEmail", "financialContactPhone", "billingDueDate", "financialUpdatedAt", "createdAt", "createdBy", "number", "displayName", "logoURL", "logoPath", "logoReportDataUrl", "reportPermissions", "projectTechPermissions", "activityNoteMinChars", "expenseObservationMinChars", "updatedAt"])
+        && request.resource.data.keys().hasOnly(["name", "cnpj", "active", "planId", "planName", "planUserLimit", "planPrice", "planAnnualPrice", "planBillingCycle", "planBillingPrice", "planInstallments", "planInstallmentValue", "planUpdatedAt", "financialContactName", "financialContactEmail", "financialContactPhone", "billingDueDate", "financialUpdatedAt", "createdAt", "createdBy", "number", "displayName", "logoURL", "logoPath", "logoReportDataUrl", "reportPermissions", "projectTechPermissions", "activityNoteMinChars", "expenseObservationMinChars", "updatedAt"])
         && request.resource.data.name is string
         && request.resource.data.name.size() > 0
         && request.resource.data.cnpj is string
@@ -280,6 +282,8 @@ service cloud.firestore {
         && (!("planAnnualPrice" in request.resource.data) || request.resource.data.planAnnualPrice is number)
         && (!("planBillingCycle" in request.resource.data) || request.resource.data.planBillingCycle in ["monthly", "annual"])
         && (!("planBillingPrice" in request.resource.data) || request.resource.data.planBillingPrice is number)
+        && (!("planInstallments" in request.resource.data) || request.resource.data.planInstallments in [1, 2, 3, 4, 5])
+        && (!("planInstallmentValue" in request.resource.data) || request.resource.data.planInstallmentValue is number)
         && (!("planUpdatedAt" in request.resource.data) || request.resource.data.planUpdatedAt is timestamp)
         && (!("financialContactName" in request.resource.data) || request.resource.data.financialContactName is string)
         && (!("financialContactEmail" in request.resource.data) || request.resource.data.financialContactEmail is string)

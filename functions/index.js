@@ -99,10 +99,19 @@ function normalizePlanBillingCycle(value) {
   return value === "annual" ? "annual" : "monthly";
 }
 
+function normalizePlanInstallments(value, billingCycle = "monthly") {
+  if (normalizePlanBillingCycle(billingCycle) !== "annual") return 1;
+  const n = Number(value || 1);
+  if (!Number.isFinite(n)) return 1;
+  return Math.min(5, Math.max(1, Math.trunc(n)));
+}
+
 function normalizeCompanyPlan(companyData = {}) {
   const plan = getCompanyPlan(companyData.planId || "plan-1-20");
   const userLimit = Number(companyData.planUserLimit || plan.userLimit);
   const billingCycle = normalizePlanBillingCycle(companyData.planBillingCycle);
+  const installments = normalizePlanInstallments(companyData.planInstallments, billingCycle);
+  const billingPrice = Number(companyData.planBillingPrice || (billingCycle === "annual" ? plan.annualPrice : plan.price));
   return {
     ...plan,
     label: companyData.planName || plan.label,
@@ -110,7 +119,9 @@ function normalizeCompanyPlan(companyData = {}) {
     price: Number(companyData.planPrice || plan.price),
     annualPrice: Number(companyData.planAnnualPrice || plan.annualPrice),
     billingCycle,
-    billingPrice: Number(companyData.planBillingPrice || (billingCycle === "annual" ? plan.annualPrice : plan.price)),
+    billingPrice,
+    installments,
+    installmentValue: billingCycle === "annual" ? billingPrice / installments : billingPrice,
   };
 }
 
@@ -568,6 +579,8 @@ exports.createCompanyWithAdmin = functions.https.onCall(async (data, context) =>
   const plan = getCompanyPlan(data?.planId || "plan-1-20");
   const planBillingCycle = normalizePlanBillingCycle(data?.planBillingCycle);
   const planBillingPrice = planBillingCycle === "annual" ? plan.annualPrice : plan.price;
+  const planInstallments = normalizePlanInstallments(data?.planInstallments, planBillingCycle);
+  const planInstallmentValue = planBillingCycle === "annual" ? planBillingPrice / planInstallments : planBillingPrice;
   const adminName = (adminPayload?.name || "").trim();
   const adminEmail = (adminPayload?.email || "").trim();
   const adminPhone = (adminPayload?.phone || "").trim();
@@ -642,6 +655,8 @@ exports.createCompanyWithAdmin = functions.https.onCall(async (data, context) =>
     planAnnualPrice: plan.annualPrice,
     planBillingCycle,
     planBillingPrice,
+    planInstallments,
+    planInstallmentValue,
     financialContactName,
     financialContactEmail,
     financialContactPhone,
@@ -722,6 +737,8 @@ exports.createCompanyWithAdminHttp = functions
       const plan = getCompanyPlan(body.planId || "plan-1-20");
       const planBillingCycle = normalizePlanBillingCycle(body.planBillingCycle);
       const planBillingPrice = planBillingCycle === "annual" ? plan.annualPrice : plan.price;
+      const planInstallments = normalizePlanInstallments(body.planInstallments, planBillingCycle);
+      const planInstallmentValue = planBillingCycle === "annual" ? planBillingPrice / planInstallments : planBillingPrice;
       const financialPayload = body.financial || {};
       const adminPayload = body.admin || {};
 
@@ -769,6 +786,8 @@ exports.createCompanyWithAdminHttp = functions
         planAnnualPrice: plan.annualPrice,
         planBillingCycle,
         planBillingPrice,
+        planInstallments,
+        planInstallmentValue,
         financialContactName,
         financialContactEmail,
         financialContactPhone,

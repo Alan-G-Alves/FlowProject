@@ -8,7 +8,7 @@
 </script>
 <meta content="width=device-width, initial-scale=1.0" name="viewport"/>
 <title>FlowProject</title>
-<link href="./styles.css?v=1778178006" rel="stylesheet"/>
+<link href="./styles.css?v=1778178009" rel="stylesheet"/>
 <link href="logof.png" rel="icon" type="image/png"/>
 <style>
   /* SaaS Search (My Projects Kanban) */
@@ -1689,7 +1689,7 @@
 <!-- MODAL CRIAR EMPRESA (Master) -->
 <div class="modal" hidden="" id="modalCreateCompany">
 <div class="modal-backdrop" data-close="true"></div>
-<div class="modal-card">
+<div class="modal-card create-company-modal-card">
 <div class="modal-header">
 <div>
 <h2>Criar Empresa</h2>
@@ -1697,21 +1697,21 @@
 </div>
 <button class="btn ghost" id="btnCloseCreateCompany">X</button>
 </div>
-<div class="modal-body">
-<div class="grid" style="grid-template-columns: repeat(12, 1fr); gap:12px;">
-<label class="field" style="grid-column: span 12;">
+<div class="modal-body create-company-modal-body">
+<div class="grid create-company-grid" style="grid-template-columns: repeat(12, 1fr); gap:12px;">
+<label class="field create-company-name" style="grid-column: span 12;">
 <span>Nome da empresa</span>
 <input id="companyName" placeholder="Ex.: Empresa X Tecnologia LTDA"/>
 </label>
-<label class="field" style="grid-column: span 6;">
+<label class="field create-company-cnpj" style="grid-column: span 6;">
 <span>CNPJ</span>
 <input id="companyCnpj" placeholder="Ex.: 12.345.678/0001-90"/>
 </label>
-<label class="field" style="grid-column: span 6;">
+<label class="field create-company-slug" style="grid-column: span 6;">
 <span>ID da empresa (slug)</span>
 <input id="companyId" placeholder="Ex.: empresa-x"/>
 </label>
-<label class="field" style="grid-column: span 6;">
+<label class="field create-company-plan" style="grid-column: span 6;">
 <span>Plano</span>
 <select id="companyPlan">
 <option value="plan-1-20">1 a 20 usuarios</option>
@@ -1722,7 +1722,7 @@
 </select>
 <small class="muted">Controla o limite de usuarios ativos da empresa.</small>
 </label>
-<label class="field" style="grid-column: span 6;">
+<label class="field create-company-cycle" style="grid-column: span 6;">
 <span>Tipo de plano</span>
 <select id="companyPlanBillingCycle">
 <option value="monthly">mensal</option>
@@ -1730,10 +1730,21 @@
 </select>
 <small class="muted">O anual considera 12 mensalidades com 20% de desconto.</small>
 </label>
+<label class="field create-company-installments" hidden style="grid-column: span 6;">
+<span>Parcelamento anual</span>
+<select id="companyPlanInstallments">
+<option value="1">1x</option>
+<option value="2">2x</option>
+<option value="3">3x</option>
+<option value="4">4x</option>
+<option value="5">5x</option>
+</select>
+<small class="muted">Disponivel apenas para plano anual.</small>
+</label>
 <p class="muted" id="companyPlanSelectedPrice" style="grid-column: span 12; margin:0;">Plano mensal R$ 257,00/mes.</p>
-<div class="panel subtle" style="grid-column: span 12; padding:12px;">
-<h3 style="margin:0 0 10px 0;">Financeiro</h3>
-<div class="grid" style="grid-template-columns: repeat(12, 1fr); gap:12px; margin-top:12px;">
+<div class="panel subtle create-company-section create-company-financial" style="grid-column: span 12; padding:12px;">
+<h3 class="create-company-section-title" style="margin:0 0 10px 0;">Financeiro</h3>
+<div class="grid create-company-section-grid" style="grid-template-columns: repeat(12, 1fr); gap:12px; margin-top:12px;">
 <label class="field" style="grid-column: span 6;">
 <span>Responsavel financeiro</span>
 <input id="companyFinancialName" placeholder="Ex.: Joao Oliveira"/>
@@ -1752,9 +1763,9 @@
 </label>
 </div>
 </div>
-<div class="panel subtle" style="grid-column: span 12; padding:12px;">
-<h3 style="margin:0 0 10px 0;">Admin da empresa</h3>
-<div class="grid" style="grid-template-columns: repeat(12, 1fr); gap:12px; margin-top:12px;">
+<div class="panel subtle create-company-section create-company-admin" style="grid-column: span 12; padding:12px;">
+<h3 class="create-company-section-title" style="margin:0 0 10px 0;">Admin da empresa</h3>
+<div class="grid create-company-section-grid" style="grid-template-columns: repeat(12, 1fr); gap:12px; margin-top:12px;">
 <label class="field" style="grid-column: span 6;">
 <span>Nome do Admin</span>
 <input id="adminName" placeholder="Ex.: Maria Silva"/>
