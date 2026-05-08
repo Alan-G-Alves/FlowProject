@@ -241,7 +241,7 @@ service cloud.firestore {
 
       // Master pode criar e também (importante) bloquear/desbloquear qualquer empresa
       allow create: if isSuperAdmin()
-        && request.resource.data.keys().hasOnly(["name", "cnpj", "active", "planId", "planName", "planUserLimit", "planPrice", "planAnnualPrice", "planBillingCycle", "planBillingPrice", "planInstallments", "planInstallmentValue", "planUpdatedAt", "financialContactName", "financialContactEmail", "financialContactPhone", "billingDueDate", "financialUpdatedAt", "createdAt", "createdBy"])
+        && request.resource.data.keys().hasOnly(["name", "cnpj", "active", "planId", "planName", "planUserLimit", "planPrice", "planAnnualPrice", "planBillingCycle", "planBillingPrice", "planInstallments", "planInstallmentValue", "planInstallmentPayments", "planUpdatedAt", "billing", "billingStartDate", "billingEndDate", "financialContactName", "financialContactEmail", "financialContactPhone", "billingDueDate", "financialUpdatedAt", "createdAt", "createdBy"])
         && request.resource.data.name is string
         && request.resource.data.name.size() > 0
         && request.resource.data.cnpj is string
@@ -256,7 +256,19 @@ service cloud.firestore {
         && (!("planBillingPrice" in request.resource.data) || request.resource.data.planBillingPrice is number)
         && (!("planInstallments" in request.resource.data) || request.resource.data.planInstallments in [1, 2, 3, 4, 5])
         && (!("planInstallmentValue" in request.resource.data) || request.resource.data.planInstallmentValue is number)
+        && (!("planInstallmentPayments" in request.resource.data) || (
+          request.resource.data.planInstallmentPayments is map
+          && request.resource.data.planInstallmentPayments.keys().hasOnly(["p1", "p2", "p3", "p4", "p5"])
+          && (!("p1" in request.resource.data.planInstallmentPayments) || request.resource.data.planInstallmentPayments.p1 is bool)
+          && (!("p2" in request.resource.data.planInstallmentPayments) || request.resource.data.planInstallmentPayments.p2 is bool)
+          && (!("p3" in request.resource.data.planInstallmentPayments) || request.resource.data.planInstallmentPayments.p3 is bool)
+          && (!("p4" in request.resource.data.planInstallmentPayments) || request.resource.data.planInstallmentPayments.p4 is bool)
+          && (!("p5" in request.resource.data.planInstallmentPayments) || request.resource.data.planInstallmentPayments.p5 is bool)
+        ))
         && (!("planUpdatedAt" in request.resource.data) || request.resource.data.planUpdatedAt is timestamp)
+        && (!("billing" in request.resource.data) || request.resource.data.billing is map)
+        && (!("billingStartDate" in request.resource.data) || request.resource.data.billingStartDate is string)
+        && (!("billingEndDate" in request.resource.data) || request.resource.data.billingEndDate is string)
         && (!("financialContactName" in request.resource.data) || request.resource.data.financialContactName is string)
         && (!("financialContactEmail" in request.resource.data) || request.resource.data.financialContactEmail is string)
         && (!("financialContactPhone" in request.resource.data) || request.resource.data.financialContactPhone is string)
@@ -269,7 +281,7 @@ service cloud.firestore {
         && request.resource.data.active is bool;
 
       allow update: if isSuperAdmin()
-        && request.resource.data.keys().hasOnly(["name", "cnpj", "active", "planId", "planName", "planUserLimit", "planPrice", "planAnnualPrice", "planBillingCycle", "planBillingPrice", "planInstallments", "planInstallmentValue", "planUpdatedAt", "financialContactName", "financialContactEmail", "financialContactPhone", "billingDueDate", "financialUpdatedAt", "createdAt", "createdBy", "number", "displayName", "logoURL", "logoPath", "logoReportDataUrl", "reportPermissions", "projectTechPermissions", "activityNoteMinChars", "expenseObservationMinChars", "updatedAt"])
+        && request.resource.data.keys().hasOnly(["name", "cnpj", "active", "planId", "planName", "planUserLimit", "planPrice", "planAnnualPrice", "planBillingCycle", "planBillingPrice", "planInstallments", "planInstallmentValue", "planInstallmentPayments", "planUpdatedAt", "billing", "billingStartDate", "billingEndDate", "financialContactName", "financialContactEmail", "financialContactPhone", "billingDueDate", "financialUpdatedAt", "createdAt", "createdBy", "number", "displayName", "logoURL", "logoPath", "logoReportDataUrl", "reportPermissions", "projectTechPermissions", "activityNoteMinChars", "expenseObservationMinChars", "updatedAt"])
         && request.resource.data.name is string
         && request.resource.data.name.size() > 0
         && request.resource.data.cnpj is string
@@ -284,7 +296,19 @@ service cloud.firestore {
         && (!("planBillingPrice" in request.resource.data) || request.resource.data.planBillingPrice is number)
         && (!("planInstallments" in request.resource.data) || request.resource.data.planInstallments in [1, 2, 3, 4, 5])
         && (!("planInstallmentValue" in request.resource.data) || request.resource.data.planInstallmentValue is number)
+        && (!("planInstallmentPayments" in request.resource.data) || (
+          request.resource.data.planInstallmentPayments is map
+          && request.resource.data.planInstallmentPayments.keys().hasOnly(["p1", "p2", "p3", "p4", "p5"])
+          && (!("p1" in request.resource.data.planInstallmentPayments) || request.resource.data.planInstallmentPayments.p1 is bool)
+          && (!("p2" in request.resource.data.planInstallmentPayments) || request.resource.data.planInstallmentPayments.p2 is bool)
+          && (!("p3" in request.resource.data.planInstallmentPayments) || request.resource.data.planInstallmentPayments.p3 is bool)
+          && (!("p4" in request.resource.data.planInstallmentPayments) || request.resource.data.planInstallmentPayments.p4 is bool)
+          && (!("p5" in request.resource.data.planInstallmentPayments) || request.resource.data.planInstallmentPayments.p5 is bool)
+        ))
         && (!("planUpdatedAt" in request.resource.data) || request.resource.data.planUpdatedAt is timestamp)
+        && (!("billing" in request.resource.data) || request.resource.data.billing is map)
+        && (!("billingStartDate" in request.resource.data) || request.resource.data.billingStartDate is string)
+        && (!("billingEndDate" in request.resource.data) || request.resource.data.billingEndDate is string)
         && (!("financialContactName" in request.resource.data) || request.resource.data.financialContactName is string)
         && (!("financialContactEmail" in request.resource.data) || request.resource.data.financialContactEmail is string)
         && (!("financialContactPhone" in request.resource.data) || request.resource.data.financialContactPhone is string)
@@ -312,6 +336,12 @@ service cloud.firestore {
         && (!("updatedAt" in request.resource.data) || request.resource.data.updatedAt is timestamp);
 
       allow delete: if false;
+
+      match /billings/{billingId} {
+        allow read: if isSuperAdmin();
+        allow create, update: if isSuperAdmin();
+        allow delete: if false;
+      }
 
       // teams
       match /teams/{teamId} {

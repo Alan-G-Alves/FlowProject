@@ -2970,6 +2970,7 @@ a{ color: inherit; }
   display: flex;
   flex-direction: column;
   border-radius: 24px;
+  overflow: hidden;
 }
 
 .company-detail-modal-head{
@@ -3006,10 +3007,71 @@ a{ color: inherit; }
   flex-direction: column;
   gap: 14px;
   min-height: 0;
-  overflow: hidden;
+  overflow-y: auto;
+  overflow-x: hidden;
+  scrollbar-gutter: stable;
 }
 
-.company-detail-users-panel{
+.company-detail-modal-body::-webkit-scrollbar{
+  width:10px;
+}
+
+.company-detail-modal-body::-webkit-scrollbar-thumb{
+  background:rgba(124,58,237,.22);
+  border-radius:999px;
+  border:2px solid rgba(255,255,255,.92);
+}
+
+.company-detail-nav{
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.company-detail-nav-card{
+  min-height: 72px;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: center;
+  gap: 6px;
+  padding: 12px 14px;
+  border: 1px solid rgba(12,18,32,.10);
+  border-radius: 16px;
+  background: rgba(255,255,255,.86);
+  color: rgba(12,18,32,.84);
+  cursor: pointer;
+  text-align: left;
+  transition: border-color .15s ease, background .15s ease, transform .15s ease, box-shadow .15s ease;
+}
+
+.company-detail-nav-card:hover{
+  transform: translateY(-1px);
+  border-color: rgba(37,99,235,.26);
+  box-shadow: 0 12px 28px rgba(12,18,32,.08);
+}
+
+.company-detail-nav-card.is-active{
+  border-color: rgba(124,58,237,.34);
+  background: linear-gradient(180deg, rgba(245,243,255,.96), rgba(255,255,255,.94));
+  box-shadow: inset 0 0 0 1px rgba(124,58,237,.10), 0 12px 30px rgba(124,58,237,.10);
+}
+
+.company-detail-nav-card span{
+  font-size: 12px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: .08em;
+  color: rgba(12,18,32,.56);
+}
+
+.company-detail-nav-card strong{
+  font-size: 15px;
+  line-height: 1.2;
+  color: rgba(12,18,32,.92);
+}
+
+.company-detail-panel{
   display: flex;
   flex-direction: column;
   gap: 14px;
@@ -3019,10 +3081,59 @@ a{ color: inherit; }
   background: linear-gradient(180deg, rgba(255,255,255,.88), rgba(248,250,252,.92));
   box-shadow: inset 0 1px 0 rgba(255,255,255,.65);
   min-height: 0;
-  flex: 1;
+  flex: 0 0 auto;
 }
 
-.company-plan-panel{
+.company-detail-panel[hidden]{
+  display: none;
+}
+
+.company-detail-section-head{
+  display:flex;
+  align-items:flex-start;
+  justify-content:space-between;
+  gap:14px;
+}
+
+.company-detail-section-head h3,
+.company-plan-editor h3{
+  margin:0 0 4px;
+  font-size:18px;
+}
+
+.company-info-grid{
+  display:grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap:10px;
+}
+
+.company-info-item{
+  min-width:0;
+  padding:12px;
+  border:1px solid rgba(12,18,32,.08);
+  border-radius:14px;
+  background:rgba(255,255,255,.82);
+}
+
+.company-info-item span{
+  display:block;
+  font-size:11px;
+  font-weight:800;
+  text-transform:uppercase;
+  letter-spacing:.08em;
+  color:rgba(12,18,32,.54);
+}
+
+.company-info-item strong{
+  display:block;
+  margin-top:6px;
+  font-size:14px;
+  line-height:1.25;
+  color:rgba(12,18,32,.92);
+  overflow-wrap:anywhere;
+}
+
+.company-plan-editor{
   display:flex;
   align-items:flex-end;
   justify-content:space-between;
@@ -3031,11 +3142,6 @@ a{ color: inherit; }
   border:1px solid rgba(12,18,32,.08);
   border-radius:20px;
   background:#fff;
-}
-
-.company-plan-panel h3{
-  margin:0 0 4px;
-  font-size:18px;
 }
 
 .company-plan-controls{
@@ -3047,13 +3153,297 @@ a{ color: inherit; }
 
 .company-financial-grid{
   display:grid;
-  grid-template-columns: repeat(2, minmax(180px, 1fr));
+  grid-template-columns: repeat(4, minmax(150px, 1fr));
   gap:10px;
-  min-width:min(520px, 100%);
 }
 
 .company-financial-grid .btn{
   align-self:end;
+}
+
+.company-installments-panel{
+  padding:14px;
+  border:1px dashed rgba(124,58,237,.26);
+  border-radius:18px;
+  background:linear-gradient(180deg, rgba(250,245,255,.64), rgba(255,255,255,.86));
+}
+
+.company-installments-panel[hidden]{
+  display:none;
+}
+
+.company-installments-head{
+  display:flex;
+  align-items:flex-start;
+  justify-content:space-between;
+  gap:12px;
+  margin-bottom:10px;
+}
+
+.company-installments-head h4{
+  margin:0 0 4px;
+  font-size:16px;
+}
+
+.company-installments-list{
+  display:grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap:8px;
+}
+
+.company-installment-item{
+  min-height:82px;
+  display:grid;
+  grid-template-columns:auto 1fr;
+  align-items:center;
+  gap:6px 8px;
+  padding:10px;
+  border:1px solid rgba(12,18,32,.10);
+  border-radius:14px;
+  background:rgba(255,255,255,.90);
+  cursor:pointer;
+}
+
+.company-installment-item input{
+  width:18px;
+  height:18px;
+}
+
+.company-installment-name{
+  font-weight:800;
+  color:rgba(12,18,32,.86);
+}
+
+.company-installment-item strong{
+  grid-column:1 / -1;
+  font-size:14px;
+}
+
+.company-installment-item small{
+  grid-column:1 / -1;
+  color:rgba(12,18,32,.60);
+}
+
+.company-installment-item.is-paid{
+  border-color:rgba(34,197,94,.28);
+  background:linear-gradient(180deg, rgba(240,253,244,.96), rgba(255,255,255,.92));
+}
+
+.company-installment-item.is-paid small{
+  color:#15803d;
+  font-weight:800;
+}
+
+.company-billing-history-panel{
+  padding:14px;
+  border:1px solid rgba(12,18,32,.08);
+  border-radius:18px;
+  background:rgba(255,255,255,.86);
+}
+
+.company-renewal-panel{
+  padding:14px;
+  border:1px solid rgba(59,130,246,.16);
+  border-radius:18px;
+  background:linear-gradient(180deg, rgba(239,246,255,.72), rgba(255,255,255,.90));
+}
+
+.company-renewal-grid{
+  display:grid;
+  grid-template-columns: repeat(6, minmax(120px, 1fr));
+  gap:10px;
+  align-items:end;
+}
+
+.company-renewal-grid .btn{
+  align-self:end;
+}
+
+.company-billing-history-list{
+  display:flex;
+  flex-direction:column;
+  gap:8px;
+}
+
+.company-billing-history-item{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:12px;
+  padding:10px 12px;
+  border:1px solid rgba(12,18,32,.08);
+  border-radius:14px;
+  background:rgba(248,250,252,.86);
+  cursor:pointer;
+  transition:border-color .15s ease, background .15s ease, box-shadow .15s ease;
+}
+
+.company-billing-history-item:hover,
+.company-billing-history-item:focus-visible{
+  border-color:rgba(124,58,237,.28);
+  background:rgba(245,243,255,.82);
+  box-shadow:0 8px 18px rgba(124,58,237,.08);
+  outline:none;
+}
+
+.company-billing-history-item.is-selected{
+  border-color:rgba(124,58,237,.42);
+  background:linear-gradient(180deg, rgba(245,243,255,.94), rgba(255,255,255,.92));
+  box-shadow:inset 0 0 0 1px rgba(124,58,237,.10);
+}
+
+.company-billing-history-item div{
+  display:flex;
+  flex-direction:column;
+  gap:4px;
+  min-width:0;
+}
+
+.company-billing-history-item span{
+  color:rgba(12,18,32,.62);
+  font-size:12px;
+  line-height:1.25;
+}
+
+.company-billing-history-item > div:last-child{
+  align-items:flex-end;
+  flex:0 0 auto;
+}
+
+.company-detail-panel--financial{
+  gap:8px;
+  padding:10px 14px 12px;
+}
+
+.company-detail-panel--financial .company-detail-section-head h3{
+  font-size:18px;
+  margin-bottom:2px;
+}
+
+.company-detail-panel--financial .company-detail-section-head .muted{
+  margin:0;
+  font-size:13px;
+  line-height:1.25;
+}
+
+.company-detail-panel--financial .field{
+  gap:3px;
+  font-size:12px;
+  line-height:1.15;
+}
+
+.company-detail-panel--financial .field span{
+  line-height:1.15;
+}
+
+.company-detail-panel--financial .field input,
+.company-detail-panel--financial .field select{
+  height:34px;
+  min-height:34px;
+  border-radius:10px;
+  padding:0 10px;
+  font-size:12px;
+}
+
+.company-detail-panel--financial .btn{
+  height:34px;
+  min-height:34px;
+  border-radius:10px;
+  padding:0 12px;
+  font-size:12px;
+}
+
+.company-detail-panel--financial .company-financial-grid{
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap:7px;
+}
+
+.company-detail-panel--financial .company-installments-panel,
+.company-detail-panel--financial .company-renewal-panel,
+.company-detail-panel--financial .company-billing-history-panel{
+  padding:8px 10px;
+  border-radius:14px;
+}
+
+.company-detail-panel--financial .company-installments-head{
+  align-items:center;
+  margin-bottom:6px;
+}
+
+.company-detail-panel--financial .company-installments-head h4{
+  margin:0;
+  font-size:14px;
+  line-height:1.1;
+}
+
+.company-detail-panel--financial .company-installments-head .muted{
+  margin:2px 0 0;
+  font-size:12px;
+  line-height:1.2;
+}
+
+.company-detail-panel--financial .company-installments-list{
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap:6px;
+}
+
+.company-detail-panel--financial .company-installment-item{
+  min-height:52px;
+  grid-template-columns:auto 1fr;
+  gap:2px 7px;
+  padding:7px 8px;
+  border-radius:12px;
+}
+
+.company-detail-panel--financial .company-installment-item input{
+  width:15px;
+  height:15px;
+}
+
+.company-detail-panel--financial .company-installment-name{
+  font-size:12px;
+}
+
+.company-detail-panel--financial .company-installment-item strong{
+  grid-column:2;
+  font-size:13px;
+  line-height:1.1;
+}
+
+.company-detail-panel--financial .company-installment-item small{
+  grid-column:1 / -1;
+  font-size:11px;
+  line-height:1.1;
+}
+
+.company-detail-panel--financial .company-renewal-grid{
+  grid-template-columns: minmax(140px, 1.25fr) minmax(90px, .75fr) minmax(70px, .65fr) repeat(3, minmax(120px, 1fr)) minmax(124px, .9fr);
+  gap:7px;
+}
+
+.company-detail-panel--financial .company-billing-history-list{
+  gap:5px;
+  max-height:116px;
+  overflow:auto;
+}
+
+.company-detail-panel--financial .company-billing-history-item{
+  padding:7px 9px;
+  border-radius:11px;
+}
+
+.company-detail-panel--financial .company-billing-history-item div{
+  gap:2px;
+}
+
+.company-detail-panel--financial .company-billing-history-item strong{
+  font-size:13px;
+  line-height:1.15;
+}
+
+.company-detail-panel--financial .company-billing-history-item span{
+  font-size:11px;
+  line-height:1.15;
 }
 
 .company-detail-users-header{
@@ -3357,9 +3747,23 @@ a{ color: inherit; }
   .company-detail-heading h2{
     font-size: 28px;
   }
+
+  .company-info-grid,
+  .company-financial-grid,
+  .company-renewal-grid{
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .company-installments-list{
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
 }
 
 @media (max-width: 640px){
+  .company-detail-nav{
+    grid-template-columns:1fr;
+  }
+
   .company-detail-head-actions{
     width: 100%;
   }
@@ -3372,7 +3776,23 @@ a{ color: inherit; }
     padding: 12px;
   }
 
-  .company-plan-panel{
+  .company-info-grid,
+  .company-financial-grid,
+  .company-installments-list,
+  .company-renewal-grid{
+    grid-template-columns:1fr;
+  }
+
+  .company-billing-history-item{
+    align-items:flex-start;
+    flex-direction:column;
+  }
+
+  .company-billing-history-item > div:last-child{
+    align-items:flex-start;
+  }
+
+  .company-plan-editor{
     align-items: stretch;
     flex-direction: column;
     padding: 12px;
@@ -3381,11 +3801,6 @@ a{ color: inherit; }
   .company-plan-controls{
     align-items: stretch;
     flex-direction: column;
-  }
-
-  .company-financial-grid{
-    grid-template-columns:1fr;
-    min-width:0;
   }
 
   .company-detail-toolbar{

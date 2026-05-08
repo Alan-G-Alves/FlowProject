@@ -1,23 +1,80 @@
 // public/src/domain/companies.domain.js
 // Lógica de negócio para gerenciamento de empresas (Master Admin)
 
-import { doc, getDoc, collection, getDocs, updateDoc, writeBatch, query, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore.js";
+import { doc, getDoc, collection, getDocs, setDoc, updateDoc, writeBatch, query, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore.js";
 import { show, hide, escapeHtml } from "../utils/dom.js";
 import { setAlert, clearAlert, showInlineAlert, clearInlineAlert } from "../ui/alerts.js";
 import { setView } from "../ui/router.js";
 import { listCompaniesDocs } from "../services/companies.service.js";
 import { isEmailValidBasic, isCnpjValidBasic } from "../utils/validators.js";
 import { normalizePhone, normalizeCnpj } from "../utils/format.js";
-import { DEFAULT_COMPANY_BILLING_CYCLE, DEFAULT_COMPANY_PLAN_ID, getCompanyPlan, normalizeCompanyPlan, formatCompanyPlanPrice } from "../utils/plans.js?v=1778178009";
+import { DEFAULT_COMPANY_BILLING_CYCLE, DEFAULT_COMPANY_PLAN_ID, getCompanyPlan, normalizeCompanyPlan, formatCompanyPlanPrice } from "../utils/plans.js?v=1778178016";
 
 /** =========================
  *  COMPANIES DOMAIN
  *  ========================= */
 
+let activeCompanyDetailId = "";
+let activeCompanyDetailUsers = [];
+let activeCompanyDetailData = null;
+let activeCompanyDetailPlan = null;
+let activeCompanyBillings = [];
+let activeViewedBillingId = "";
+
 function formatDateBR(value) {
   const raw = String(value || "").trim();
   const match = raw.match(/^(\d{4})-(\d{2})-(\d{2})$/);
   return match ? `${match[3]}/${match[2]}/${match[1]}` : (raw || "-");
+}
+
+function pad2(n) {
+  return String(n).padStart(2, "0");
+}
+
+function formatDateISO(date) {
+  return `${date.getFullYear()}-${pad2(date.getMonth() + 1)}-${pad2(date.getDate())}`;
+}
+
+function parseDateISO(value) {
+  const raw = String(value || "").trim();
+  const match = raw.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (!match) return null;
+  const date = new Date(Number(match[1]), Number(match[2]) - 1, Number(match[3]));
+  return Number.isNaN(date.getTime()) ? null : date;
+}
+
+function addDays(date, days) {
+  const next = new Date(date.getTime());
+  next.setDate(next.getDate() + Number(days || 0));
+  return next;
+}
+
+function addMonths(date, months) {
+  const next = new Date(date.getFullYear(), date.getMonth() + Number(months || 0), 1);
+  const lastDay = new Date(next.getFullYear(), next.getMonth() + 1, 0).getDate();
+  next.setDate(Math.min(date.getDate(), lastDay));
+  return next;
+}
+
+function normalizeDateString(value, fallbackDate = new Date()) {
+  const parsed = parseDateISO(value);
+  return formatDateISO(parsed || fallbackDate);
+}
+
+function todayISO() {
+  return formatDateISO(new Date());
+}
+
+function getDueDay(value) {
+  const parsed = parseDateISO(value);
+  return parsed ? parsed.getDate() : 1;
+}
+
+function dateWithDueDay(baseDateString, dueDay) {
+  const base = parseDateISO(baseDateString) || new Date();
+  const lastDay = new Date(base.getFullYear(), base.getMonth() + 1, 0).getDate();
+  const day = Math.min(Math.max(1, Number(dueDay || 1)), lastDay);
+  return formatDateISO(new Date(base.getFullYear(), base.getMonth(), day));
 }
 
 function normalizeBillingCycle(value) {
@@ -33,6 +90,216 @@ function normalizePlanInstallments(value, billingCycle = DEFAULT_COMPANY_BILLING
   const n = Number(value || 1);
   if (!Number.isFinite(n)) return 1;
   return Math.min(5, Math.max(1, Math.trunc(n)));
+}
+
+function normalizeInstallmentPayments(value = {}) {
+  const source = value && typeof value === "object" && !Array.isArray(value) ? value : {};
+  return {
+    p1: source.p1 === true,
+    p2: source.p2 === true,
+    p3: source.p3 === true,
+    p4: source.p4 === true,
+    p5: source.p5 === true
+  };
+}
+
+function getInstallmentPaidCount(payments, installments) {
+  const total = normalizePlanInstallments(installments, "annual");
+  const normalized = normalizeInstallmentPayments(payments);
+  let paid = 0;
+  for (let i = 1; i <= total; i += 1) {
+    if (normalized[`p${i}`] === true) paid += 1;
+  }
+  return paid;
+}
+
+function getInstallmentsPaidCount(installments = []) {
+  return (Array.isArray(installments) ? installments : []).filter(item => item?.paid === true).length;
+}
+
+function getBillingStatus(installments = []) {
+  const list = Array.isArray(installments) ? installments : [];
+  if (!list.length) return "pending";
+  const paid = getInstallmentsPaidCount(list);
+  if (paid >= list.length) return "paid";
+  if (paid > 0) return "partial";
+  const today = todayISO();
+  return list.some(item => String(item?.dueDate || "") < today) ? "overdue" : "pending";
+}
+
+function getBillingStatusLabel(status) {
+  if (status === "paid") return "Pago";
+  if (status === "partial") return "Parcial";
+  if (status === "overdue") return "Atrasado";
+  return "Pendente";
+}
+
+function getBillingStatusClass(status) {
+  if (status === "paid") return "badge-success";
+  if (status === "overdue") return "badge-danger";
+  return "";
+}
+
+function buildBillingRecord({ billingId, companyId, plan, cycle, startDate, dueDate, installmentCount, source = "plan-change", createdBy = "" }) {
+  const billingCycle = normalizeBillingCycle(cycle);
+  const start = normalizeDateString(startDate);
+  const startDateObj = parseDateISO(start) || new Date();
+  const end = formatDateISO(addDays(addMonths(startDateObj, billingCycle === "annual" ? 12 : 1), -1));
+  const due = normalizeDateString(dueDate || start, startDateObj);
+  const installments = normalizePlanInstallments(installmentCount, billingCycle);
+  const totalValue = billingCycle === "annual" ? plan.annualPrice : plan.price;
+  const installmentValue = billingCycle === "annual" ? totalValue / installments : totalValue;
+  const dueBase = parseDateISO(due) || startDateObj;
+  const installmentItems = [];
+
+  for (let i = 1; i <= installments; i += 1) {
+    installmentItems.push({
+      number: i,
+      dueDate: formatDateISO(addMonths(dueBase, i - 1)),
+      value: installmentValue,
+      paid: false,
+      paidAt: null,
+      status: "pending"
+    });
+  }
+
+  const billing = {
+    id: billingId,
+    companyId,
+    planId: plan.id,
+    planName: plan.label,
+    planUserLimit: plan.userLimit,
+    cycle: billingCycle,
+    startDate: start,
+    endDate: end,
+    dueDate: due,
+    dueDay: getDueDay(due),
+    totalValue,
+    installmentCount: installments,
+    installmentValue,
+    paidInstallments: 0,
+    status: "pending",
+    source,
+    installments: installmentItems,
+    createdAt: serverTimestamp(),
+    createdBy
+  };
+
+  return billing;
+}
+
+function buildBillingSummary(billing = {}) {
+  const installments = Array.isArray(billing.installments) ? billing.installments : [];
+  const paidInstallments = getInstallmentsPaidCount(installments);
+  return {
+    currentBillingId: billing.id || "",
+    planId: billing.planId || "",
+    planName: billing.planName || "",
+    cycle: normalizeBillingCycle(billing.cycle),
+    status: getBillingStatus(installments),
+    startDate: billing.startDate || "",
+    endDate: billing.endDate || "",
+    dueDate: billing.dueDate || "",
+    dueDay: Number(billing.dueDay || getDueDay(billing.dueDate)),
+    totalValue: Number(billing.totalValue || 0),
+    installmentCount: Number(billing.installmentCount || installments.length || 1),
+    installmentValue: Number(billing.installmentValue || 0),
+    paidInstallments
+  };
+}
+
+function getCurrentBilling(companyData = {}, billings = [], plan = normalizeCompanyPlan(companyData)) {
+  const billingId = companyData.billing?.currentBillingId;
+  const found = billings.find(item => item.id === billingId) || billings[0];
+  if (found) return found;
+
+  const startDate = companyData.billing?.startDate || companyData.billingStartDate || todayISO();
+  const dueDate = companyData.billing?.dueDate || companyData.billingDueDate || startDate;
+  return buildBillingRecord({
+    billingId: "legacy-current",
+    companyId: activeCompanyDetailId,
+    plan: getCompanyPlan(plan.id),
+    cycle: plan.billingCycle,
+    startDate,
+    dueDate,
+    installmentCount: plan.installments || 1,
+    source: "legacy"
+  });
+}
+
+function sortBillings(billings = []) {
+  return [...billings].sort((a, b) => String(b.startDate || "").localeCompare(String(a.startDate || "")));
+}
+
+function setCompanyDetailTab(refs, tab = "company") {
+  const nextTab = ["company", "financial", "users"].includes(tab) ? tab : "company";
+  const root = refs.modalCompanyDetail || document;
+  root.querySelectorAll?.("[data-company-detail-tab]").forEach((btn) => {
+    btn.classList.toggle("is-active", btn.dataset.companyDetailTab === nextTab);
+  });
+  root.querySelectorAll?.("[data-company-detail-panel]").forEach((panel) => {
+    panel.hidden = panel.dataset.companyDetailPanel !== nextTab;
+  });
+}
+
+function bindCompanyDetailTabs(refs) {
+  const root = refs.modalCompanyDetail || document;
+  root.querySelectorAll?.("[data-company-detail-tab]").forEach((btn) => {
+    if (btn.dataset.boundCompanyDetailTab === "true") return;
+    btn.dataset.boundCompanyDetailTab = "true";
+    btn.addEventListener("click", () => setCompanyDetailTab(refs, btn.dataset.companyDetailTab));
+  });
+}
+
+function updateCompanyPlanDetailControls(refs) {
+  const billingCycle = normalizeBillingCycle(refs.companyPlanBillingCycleDetail?.value);
+  const installmentsWrap = refs.companyPlanInstallmentsDetail?.closest?.(".field");
+  if (installmentsWrap) installmentsWrap.hidden = billingCycle !== "annual";
+  if (refs.companyPlanInstallmentsDetail && billingCycle !== "annual") refs.companyPlanInstallmentsDetail.value = "1";
+}
+
+function updateCompanyRenewalControls(refs) {
+  const plan = getCompanyPlan(refs.companyRenewalPlan?.value || activeCompanyDetailPlan?.id || DEFAULT_COMPANY_PLAN_ID);
+  const cycle = normalizeBillingCycle(refs.companyRenewalCycle?.value || activeCompanyDetailPlan?.billingCycle);
+  const installments = normalizePlanInstallments(refs.companyRenewalInstallments?.value, cycle);
+  const installmentsWrap = refs.companyRenewalInstallments?.closest?.(".field");
+  if (installmentsWrap) installmentsWrap.hidden = cycle !== "annual";
+  if (refs.companyRenewalInstallments && cycle !== "annual") refs.companyRenewalInstallments.value = "1";
+
+  const startDate = normalizeDateString(refs.companyRenewalStartDate?.value || getSuggestedRenewalStartDate());
+  const start = parseDateISO(startDate) || new Date();
+  const endDate = formatDateISO(addDays(addMonths(start, cycle === "annual" ? 12 : 1), -1));
+  if (refs.companyRenewalStartDate && !refs.companyRenewalStartDate.value) refs.companyRenewalStartDate.value = startDate;
+  if (refs.companyRenewalEndDate) refs.companyRenewalEndDate.value = endDate;
+  if (refs.companyRenewalDueDate && !refs.companyRenewalDueDate.value) refs.companyRenewalDueDate.value = dateWithDueDay(startDate, getCurrentBillingDueDay());
+
+  if (refs.companyRenewalSummary) {
+    const total = cycle === "annual" ? plan.annualPrice : plan.price;
+    const parcelText = cycle === "annual" ? ` em ${installments}x de ${formatCompanyPlanPrice(total / installments)}` : "";
+    refs.companyRenewalSummary.textContent = `${plan.label} - ${getBillingCycleLabel(cycle)} ${formatCompanyPlanPrice(total)}${parcelText}.`;
+  }
+}
+
+function getSuggestedRenewalStartDate() {
+  const currentBilling = getCurrentBilling(activeCompanyDetailData || {}, activeCompanyBillings, activeCompanyDetailPlan || normalizeCompanyPlan(activeCompanyDetailData || {}));
+  const end = parseDateISO(currentBilling.endDate);
+  return formatDateISO(end ? addDays(end, 1) : new Date());
+}
+
+function getCurrentBillingDueDay() {
+  const currentBilling = getCurrentBilling(activeCompanyDetailData || {}, activeCompanyBillings, activeCompanyDetailPlan || normalizeCompanyPlan(activeCompanyDetailData || {}));
+  return currentBilling.dueDay || getDueDay(currentBilling.dueDate);
+}
+
+function setupCompanyRenewalDefaults(refs, currentBilling, plan) {
+  if (refs.companyRenewalPlan) refs.companyRenewalPlan.value = plan.id || DEFAULT_COMPANY_PLAN_ID;
+  if (refs.companyRenewalCycle) refs.companyRenewalCycle.value = plan.billingCycle || DEFAULT_COMPANY_BILLING_CYCLE;
+  if (refs.companyRenewalInstallments) refs.companyRenewalInstallments.value = String(plan.installments || 1);
+  const currentEnd = parseDateISO(currentBilling?.endDate);
+  const nextStart = formatDateISO(currentEnd ? addDays(currentEnd, 1) : new Date());
+  if (refs.companyRenewalStartDate) refs.companyRenewalStartDate.value = nextStart;
+  if (refs.companyRenewalDueDate) refs.companyRenewalDueDate.value = dateWithDueDay(nextStart, currentBilling?.dueDay || getDueDay(currentBilling?.dueDate));
+  updateCompanyRenewalControls(refs);
 }
 
 function updateCompanyPlanSelectedPrice(refs) {
@@ -140,6 +407,12 @@ export function closeCompanyDetailModal(deps) {
   refs.modalCompanyDetail.hidden = true;
   deps.currentCompanyDetailId = null;
   deps.companyDetailUsersCache = [];
+  activeCompanyDetailId = "";
+  activeCompanyDetailUsers = [];
+  activeCompanyDetailData = null;
+  activeCompanyDetailPlan = null;
+  activeCompanyBillings = [];
+  activeViewedBillingId = "";
   if (refs.companyUsersSearch) refs.companyUsersSearch.value = "";
   if (refs.companyUsersTbody) refs.companyUsersTbody.innerHTML = "";
 }
@@ -169,7 +442,8 @@ export function openCreateCompanyModal(deps) {
   if (refs.companyFinancialNameEl) refs.companyFinancialNameEl.value = "";
   if (refs.companyFinancialEmailEl) refs.companyFinancialEmailEl.value = "";
   if (refs.companyFinancialPhoneEl) refs.companyFinancialPhoneEl.value = "";
-  if (refs.companyBillingDueDateEl) refs.companyBillingDueDateEl.value = "";
+  if (refs.companyBillingStartDateEl) refs.companyBillingStartDateEl.value = todayISO();
+  if (refs.companyBillingDueDateEl) refs.companyBillingDueDateEl.value = todayISO();
 
   refs.modalCreateCompany.hidden = false;
 }
@@ -180,12 +454,15 @@ export async function openCompanyDetailModal(companyId, deps) {
   if (!refs.modalCompanyDetail) return;
 
   clearInlineAlert(refs.companyUsersAlert);
+  bindCompanyDetailTabs(refs);
+  setCompanyDetailTab(refs, "company");
   if (refs.companyUsersSearch) refs.companyUsersSearch.value = "";
   if (refs.companyUsersTbody) refs.companyUsersTbody.innerHTML = "";
   if (refs.companyUsersEmpty) refs.companyUsersEmpty.hidden = true;
 
   refs.modalCompanyDetail.hidden = false;
   deps.currentCompanyDetailId = companyId;
+  activeCompanyDetailId = companyId;
   await loadCompanyDetail(companyId);
 }
 
@@ -203,10 +480,22 @@ export async function loadCompanyDetail(companyId, deps) {
     const cData = cSnap.data();
     const active = cData.active === true;
     const plan = normalizeCompanyPlan(cData);
+    const bSnap = await getDocs(collection(db, "companies", companyId, "billings"));
+    const billings = [];
+    bSnap.forEach(d => billings.push({ id: d.id, ...d.data() }));
+    activeCompanyBillings = sortBillings(billings);
+    const currentBilling = getCurrentBilling(cData, activeCompanyBillings, plan);
+    activeViewedBillingId = currentBilling.id || "";
+    const currentSummary = buildBillingSummary(currentBilling);
+    activeCompanyDetailId = companyId;
+    activeCompanyDetailData = cData;
+    activeCompanyDetailPlan = plan;
 
     if (refs.companyDetailTitle) refs.companyDetailTitle.textContent = cData.name || companyId;
     if (refs.companyPlanDetail) refs.companyPlanDetail.value = plan.id;
     if (refs.companyPlanBillingCycleDetail) refs.companyPlanBillingCycleDetail.value = plan.billingCycle;
+    if (refs.companyPlanInstallmentsDetail) refs.companyPlanInstallmentsDetail.value = String(plan.installments || 1);
+    updateCompanyPlanDetailControls(refs);
     if (refs.companyPlanSummary) {
       const suffix = plan.billingCycle === "annual" ? "/ano" : "/mes";
       const installmentText = plan.billingCycle === "annual"
@@ -214,14 +503,24 @@ export async function loadCompanyDetail(companyId, deps) {
         : "";
       refs.companyPlanSummary.textContent = `${plan.label} - plano ${getBillingCycleLabel(plan.billingCycle)} ${formatCompanyPlanPrice(plan.billingPrice)}${suffix}${installmentText}. Limite de ${plan.userLimit} usuarios ativos.`;
     }
+    if (refs.companyDetailCompanySummary) refs.companyDetailCompanySummary.textContent = `${plan.label} - limite de ${plan.userLimit} usuarios ativos.`;
+    if (refs.companyDetailCompanyCardInfo) refs.companyDetailCompanyCardInfo.textContent = `${plan.label} (${getBillingCycleLabel(plan.billingCycle)})`;
+    if (refs.companyInfoName) refs.companyInfoName.textContent = cData.name || "-";
+    if (refs.companyInfoCnpj) refs.companyInfoCnpj.textContent = cData.cnpj || "-";
+    if (refs.companyInfoId) refs.companyInfoId.textContent = companyId;
+    if (refs.companyInfoStatus) refs.companyInfoStatus.textContent = active ? "Ativa" : "Bloqueada";
     if (refs.companyFinancialNameDetail) refs.companyFinancialNameDetail.value = cData.financialContactName || "";
     if (refs.companyFinancialEmailDetail) refs.companyFinancialEmailDetail.value = cData.financialContactEmail || "";
     if (refs.companyFinancialPhoneDetail) refs.companyFinancialPhoneDetail.value = cData.financialContactPhone || "";
-    if (refs.companyBillingDueDateDetail) refs.companyBillingDueDateDetail.value = cData.billingDueDate || "";
+    if (refs.companyBillingStartDateDetail) refs.companyBillingStartDateDetail.value = currentBilling.startDate || "";
+    if (refs.companyBillingEndDateDetail) refs.companyBillingEndDateDetail.value = currentBilling.endDate || "";
+    if (refs.companyBillingDueDateDetail) refs.companyBillingDueDateDetail.value = currentBilling.dueDate || cData.billingDueDate || "";
     if (refs.companyFinancialSummary) {
       const name = cData.financialContactName || "Responsavel nao informado";
-      const due = cData.billingDueDate ? formatDateBR(cData.billingDueDate) : "vencimento nao informado";
-      refs.companyFinancialSummary.textContent = `${name} - ${due}.`;
+      refs.companyFinancialSummary.textContent = `${name} - periodo ${formatDateBR(currentBilling.startDate)} a ${formatDateBR(currentBilling.endDate)} - vencimento ${formatDateBR(currentBilling.dueDate)}.`;
+    }
+    if (refs.companyDetailFinancialCardInfo) {
+      refs.companyDetailFinancialCardInfo.textContent = `${currentSummary.paidInstallments}/${currentSummary.installmentCount} parcelas pagas`;
     }
     if (refs.companyDetailMeta) refs.companyDetailMeta.textContent = `CNPJ: ${cData.cnpj || "-"} • ID: ${companyId}`;
     if (refs.companyDetailStatus) {
@@ -236,9 +535,29 @@ export async function loadCompanyDetail(companyId, deps) {
     if (refs.btnSaveCompanyPlan) {
       refs.btnSaveCompanyPlan.onclick = () => saveCompanyPlan(companyId, deps);
     }
+    if (refs.companyPlanBillingCycleDetail) {
+      refs.companyPlanBillingCycleDetail.onchange = () => updateCompanyPlanDetailControls(refs);
+    }
+    if (refs.companyPlanInstallmentsDetail) {
+      refs.companyPlanInstallmentsDetail.onchange = () => updateCompanyPlanDetailControls(refs);
+    }
     if (refs.btnSaveCompanyFinancial) {
       refs.btnSaveCompanyFinancial.onclick = () => saveCompanyFinancial(companyId, deps);
     }
+    setupCompanyRenewalDefaults(refs, currentBilling, plan);
+    if (refs.companyRenewalPlan) refs.companyRenewalPlan.onchange = () => updateCompanyRenewalControls(refs);
+    if (refs.companyRenewalCycle) refs.companyRenewalCycle.onchange = () => updateCompanyRenewalControls(refs);
+    if (refs.companyRenewalInstallments) refs.companyRenewalInstallments.onchange = () => updateCompanyRenewalControls(refs);
+    if (refs.companyRenewalStartDate) {
+      refs.companyRenewalStartDate.onchange = () => {
+        if (refs.companyRenewalDueDate) refs.companyRenewalDueDate.value = dateWithDueDay(refs.companyRenewalStartDate.value, getCurrentBillingDueDay());
+        updateCompanyRenewalControls(refs);
+      };
+    }
+    if (refs.companyRenewalDueDate) refs.companyRenewalDueDate.onchange = () => updateCompanyRenewalControls(refs);
+    if (refs.btnCreateCompanyRenewal) refs.btnCreateCompanyRenewal.onclick = () => createCompanyRenewal(companyId, deps);
+    renderCompanyInstallments(companyId, cData, plan, currentBilling, deps);
+    renderCompanyBillingHistory(companyId, activeCompanyBillings.length ? activeCompanyBillings : [currentBilling], deps);
 
     const uCol = collection(db, "companies", companyId, "users");
     const uSnap = await getDocs(uCol);
@@ -247,7 +566,9 @@ export async function loadCompanyDetail(companyId, deps) {
     users.sort((a, b) => (a.name || "").localeCompare(b.name || ""));
 
     deps.companyDetailUsersCache = users;
+    activeCompanyDetailUsers = users;
     if (refs.companyUsersPlanLimitCount) refs.companyUsersPlanLimitCount.textContent = String(plan.userLimit);
+    if (refs.companyDetailUsersCardInfo) refs.companyDetailUsersCardInfo.textContent = String(users.length);
     renderCompanyUsersTable(companyId, users);
   } catch (err) {
     console.error("Erro ao carregar detalhes da empresa:", err);
@@ -278,6 +599,91 @@ function filterCompanyUsers(users, search) {
     ].map(v => String(v || "").toLowerCase()).join(" ");
     return haystack.includes(qtxt);
   });
+}
+
+function renderCompanyInstallments(companyId, companyData, plan, billing, deps) {
+  const { refs } = deps;
+  if (!refs.companyInstallmentsPanel || !refs.companyInstallmentsList) return;
+
+  const currentBilling = billing || getCurrentBilling(companyData, activeCompanyBillings, plan);
+  const installmentsList = Array.isArray(currentBilling.installments) ? currentBilling.installments : [];
+  refs.companyInstallmentsPanel.hidden = false;
+  refs.companyInstallmentsList.innerHTML = "";
+
+  if (!installmentsList.length) {
+    if (refs.companyInstallmentsSummary) refs.companyInstallmentsSummary.textContent = "Nenhuma parcela encontrada para esta cobranca.";
+    return;
+  }
+
+  const paidCount = getInstallmentsPaidCount(installmentsList);
+
+  if (refs.companyInstallmentsSummary) {
+    refs.companyInstallmentsSummary.textContent = `${getBillingCycleLabel(currentBilling.cycle)} de ${formatDateBR(currentBilling.startDate)} a ${formatDateBR(currentBilling.endDate)} - ${paidCount}/${installmentsList.length} parcela(s) pagas.`;
+  }
+  if (refs.companyDetailFinancialCardInfo) {
+    refs.companyDetailFinancialCardInfo.textContent = `${paidCount}/${installmentsList.length} parcelas pagas`;
+  }
+
+  for (const installment of installmentsList) {
+    const paid = installment.paid === true;
+    const item = document.createElement("label");
+    item.className = `company-installment-item ${paid ? "is-paid" : ""}`;
+    item.innerHTML = `
+      <input type="checkbox" ${paid ? "checked" : ""} data-installment-number="${installment.number}">
+      <span class="company-installment-name">Parcela ${installment.number}</span>
+      <strong>${formatCompanyPlanPrice(installment.value)}</strong>
+      <small>${formatDateBR(installment.dueDate)} - ${paid ? "Pago" : "Pendente"}</small>
+    `;
+    const checkbox = item.querySelector("input");
+    checkbox.addEventListener("change", async () => {
+      checkbox.disabled = true;
+      await setCompanyInstallmentPaid(companyId, currentBilling.id, Number(installment.number), checkbox.checked, deps);
+    });
+    refs.companyInstallmentsList.appendChild(item);
+  }
+}
+
+function renderCompanyBillingHistory(companyId, billings, deps) {
+  const { refs } = deps;
+  if (!refs.companyBillingHistoryList) return;
+  const list = sortBillings(billings || []);
+  refs.companyBillingHistoryList.innerHTML = "";
+  if (!list.length) {
+    refs.companyBillingHistoryList.innerHTML = `<p class="muted">Nenhuma cobranca registrada.</p>`;
+    return;
+  }
+
+  for (const billing of list) {
+    const summary = buildBillingSummary(billing);
+    const item = document.createElement("article");
+    const selected = (billing.id || "") === activeViewedBillingId;
+    item.className = `company-billing-history-item ${selected ? "is-selected" : ""}`;
+    item.tabIndex = 0;
+    item.setAttribute("role", "button");
+    item.setAttribute("aria-pressed", selected ? "true" : "false");
+    item.innerHTML = `
+      <div>
+        <strong>${escapeHtml(billing.planName || "-")} - ${getBillingCycleLabel(billing.cycle)}</strong>
+        <span>${formatDateBR(billing.startDate)} a ${formatDateBR(billing.endDate)} | venc. ${formatDateBR(billing.dueDate)}</span>
+      </div>
+      <div>
+        <strong>${formatCompanyPlanPrice(billing.totalValue || 0)}</strong>
+        <span class="badge ${getBillingStatusClass(summary.status)}">${getBillingStatusLabel(summary.status)}</span>
+      </div>
+    `;
+    const selectBilling = () => {
+      activeViewedBillingId = billing.id || "";
+      renderCompanyInstallments(companyId, activeCompanyDetailData || {}, activeCompanyDetailPlan || normalizeCompanyPlan(activeCompanyDetailData || {}), billing, deps);
+      renderCompanyBillingHistory(companyId, list, deps);
+    };
+    item.addEventListener("click", selectBilling);
+    item.addEventListener("keydown", (event) => {
+      if (event.key !== "Enter" && event.key !== " ") return;
+      event.preventDefault();
+      selectBilling();
+    });
+    refs.companyBillingHistoryList.appendChild(item);
+  }
 }
 
 export function renderCompanyUsersTable(companyId, users, deps) {
@@ -363,8 +769,10 @@ export function renderCompanyUsersTable(companyId, users, deps) {
 
 export function handleCompanyUsersSearch(deps) {
   const { currentCompanyDetailId, companyDetailUsersCache, renderCompanyUsersTable } = deps;
-  if (!currentCompanyDetailId) return;
-  renderCompanyUsersTable(currentCompanyDetailId, companyDetailUsersCache || [], deps);
+  const companyId = currentCompanyDetailId || activeCompanyDetailId;
+  const users = (companyDetailUsersCache && companyDetailUsersCache.length) ? companyDetailUsersCache : activeCompanyDetailUsers;
+  if (!companyId) return;
+  renderCompanyUsersTable(companyId, users || [], deps);
 }
 
 export async function setCompanyUserActive(companyId, uid, active, deps) {
@@ -421,9 +829,15 @@ export async function saveCompanyPlan(companyId, deps) {
 
   const plan = getCompanyPlan(refs.companyPlanDetail?.value || DEFAULT_COMPANY_PLAN_ID);
   const billingCycle = normalizeBillingCycle(refs.companyPlanBillingCycleDetail?.value);
+  const planInstallments = normalizePlanInstallments(refs.companyPlanInstallmentsDetail?.value, billingCycle);
   const billingPrice = billingCycle === "annual" ? plan.annualPrice : plan.price;
+  const planInstallmentValue = billingCycle === "annual" ? billingPrice / planInstallments : billingPrice;
   try {
-    await updateDoc(doc(db, "companies", companyId), {
+    const currentBilling = getCurrentBilling(activeCompanyDetailData || {}, activeCompanyBillings, activeCompanyDetailPlan || normalizeCompanyPlan(activeCompanyDetailData || {}));
+    const planChanged = plan.id !== activeCompanyDetailPlan?.id
+      || billingCycle !== activeCompanyDetailPlan?.billingCycle
+      || planInstallments !== Number(activeCompanyDetailPlan?.installments || 1);
+    const companyPayload = {
       planId: plan.id,
       planName: plan.label,
       planUserLimit: plan.userLimit,
@@ -431,10 +845,43 @@ export async function saveCompanyPlan(companyId, deps) {
       planAnnualPrice: plan.annualPrice,
       planBillingCycle: billingCycle,
       planBillingPrice: billingPrice,
+      planInstallments,
+      planInstallmentValue,
       planUpdatedAt: serverTimestamp(),
       updatedAt: serverTimestamp()
-    });
-    showInlineAlert(refs.companyUsersAlert, `Plano salvo: ${plan.label} (${getBillingCycleLabel(billingCycle)}).`, "success");
+    };
+
+    if (planChanged) {
+      const currentEnd = parseDateISO(currentBilling.endDate);
+      const nextStart = formatDateISO(currentEnd ? addDays(currentEnd, 1) : new Date());
+      const nextDue = dateWithDueDay(nextStart, currentBilling.dueDay || getDueDay(currentBilling.dueDate));
+      const billingRef = doc(collection(db, "companies", companyId, "billings"));
+      const billing = buildBillingRecord({
+        billingId: billingRef.id,
+        companyId,
+        plan,
+        cycle: billingCycle,
+        startDate: nextStart,
+        dueDate: nextDue,
+        installmentCount: planInstallments,
+        source: "plan-change",
+        createdBy: state.user?.uid || ""
+      });
+      const batch = writeBatch(db);
+      batch.set(billingRef, billing);
+      batch.update(doc(db, "companies", companyId), {
+        ...companyPayload,
+        billing: buildBillingSummary(billing),
+        billingStartDate: billing.startDate,
+        billingEndDate: billing.endDate,
+        billingDueDate: billing.dueDate
+      });
+      await batch.commit();
+      showInlineAlert(refs.companyUsersAlert, `Plano salvo e nova cobranca criada para ${formatDateBR(billing.startDate)}.`, "success");
+    } else {
+      await updateDoc(doc(db, "companies", companyId), companyPayload);
+      showInlineAlert(refs.companyUsersAlert, `Plano salvo: ${plan.label} (${getBillingCycleLabel(billingCycle)}).`, "success");
+    }
     await loadCompanyDetail(companyId);
     await loadCompanies?.();
   } catch (err) {
@@ -451,6 +898,7 @@ export async function saveCompanyFinancial(companyId, deps) {
   const financialContactName = (refs.companyFinancialNameDetail?.value || "").trim();
   const financialContactEmail = (refs.companyFinancialEmailDetail?.value || "").trim();
   const financialContactPhone = normalizePhone(refs.companyFinancialPhoneDetail?.value || "");
+  const billingStartDate = (refs.companyBillingStartDateDetail?.value || "").trim();
   const billingDueDate = (refs.companyBillingDueDateDetail?.value || "").trim();
 
   if (financialContactEmail && !isEmailValidBasic(financialContactEmail)) {
@@ -458,11 +906,59 @@ export async function saveCompanyFinancial(companyId, deps) {
   }
 
   try {
+    const currentBilling = getCurrentBilling(activeCompanyDetailData || {}, activeCompanyBillings, activeCompanyDetailPlan || normalizeCompanyPlan(activeCompanyDetailData || {}));
+    const currentPlan = getCompanyPlan(currentBilling.planId || activeCompanyDetailPlan?.id || DEFAULT_COMPANY_PLAN_ID);
+    let billing = buildBillingRecord({
+      billingId: currentBilling.id && currentBilling.id !== "legacy-current" ? currentBilling.id : "",
+      companyId,
+      plan: currentPlan,
+      cycle: currentBilling.cycle || activeCompanyDetailPlan?.billingCycle,
+      startDate: billingStartDate || currentBilling.startDate,
+      dueDate: billingDueDate || currentBilling.dueDate,
+      installmentCount: currentBilling.installmentCount || activeCompanyDetailPlan?.installments || 1,
+      source: currentBilling.source || "manual-update",
+      createdBy: currentBilling.createdBy || state.user?.uid || ""
+    });
+    const oldInstallments = Array.isArray(currentBilling.installments) ? currentBilling.installments : [];
+    billing.installments = billing.installments.map(item => {
+      const previous = oldInstallments.find(old => Number(old.number) === Number(item.number));
+      return previous ? {
+        ...item,
+        paid: previous.paid === true,
+        paidAt: previous.paidAt || null,
+        status: previous.paid === true ? "paid" : "pending"
+      } : item;
+    });
+    billing.status = getBillingStatus(billing.installments);
+    billing.paidInstallments = getInstallmentsPaidCount(billing.installments);
+
+    let targetRef;
+    if (!billing.id || billing.id === "legacy-current") {
+      targetRef = doc(collection(db, "companies", companyId, "billings"));
+      billing.id = targetRef.id;
+      await setDoc(targetRef, billing);
+    } else {
+      targetRef = doc(db, "companies", companyId, "billings", billing.id);
+      await updateDoc(targetRef, {
+        startDate: billing.startDate,
+        endDate: billing.endDate,
+        dueDate: billing.dueDate,
+        dueDay: billing.dueDay,
+        installments: billing.installments,
+        status: billing.status,
+        paidInstallments: billing.paidInstallments,
+        updatedAt: serverTimestamp()
+      });
+    }
+
     await updateDoc(doc(db, "companies", companyId), {
       financialContactName,
       financialContactEmail,
       financialContactPhone,
-      billingDueDate,
+      billing: buildBillingSummary(billing),
+      billingStartDate: billing.startDate,
+      billingEndDate: billing.endDate,
+      billingDueDate: billing.dueDate,
       financialUpdatedAt: serverTimestamp(),
       updatedAt: serverTimestamp()
     });
@@ -472,6 +968,126 @@ export async function saveCompanyFinancial(companyId, deps) {
   } catch (err) {
     console.error("[company-financial:save]", err);
     showInlineAlert(refs.companyUsersAlert, err?.message || "Nao foi possivel salvar os dados financeiros.", "error");
+  }
+}
+
+export async function createCompanyRenewal(companyId, deps) {
+  const { refs, state, db, loadCompanyDetail, loadCompanies } = deps;
+  if (!state.isSuperAdmin) return;
+  clearInlineAlert(refs.companyUsersAlert);
+
+  const plan = getCompanyPlan(refs.companyRenewalPlan?.value || activeCompanyDetailPlan?.id || DEFAULT_COMPANY_PLAN_ID);
+  const billingCycle = normalizeBillingCycle(refs.companyRenewalCycle?.value || activeCompanyDetailPlan?.billingCycle);
+  const planInstallments = normalizePlanInstallments(refs.companyRenewalInstallments?.value, billingCycle);
+  const startDate = (refs.companyRenewalStartDate?.value || "").trim() || getSuggestedRenewalStartDate();
+  const dueDate = (refs.companyRenewalDueDate?.value || "").trim() || dateWithDueDay(startDate, getCurrentBillingDueDay());
+  const billingPrice = billingCycle === "annual" ? plan.annualPrice : plan.price;
+  const planInstallmentValue = billingCycle === "annual" ? billingPrice / planInstallments : billingPrice;
+
+  try {
+    const billingRef = doc(collection(db, "companies", companyId, "billings"));
+    const billing = buildBillingRecord({
+      billingId: billingRef.id,
+      companyId,
+      plan,
+      cycle: billingCycle,
+      startDate,
+      dueDate,
+      installmentCount: planInstallments,
+      source: "renewal",
+      createdBy: state.user?.uid || ""
+    });
+    const batch = writeBatch(db);
+    batch.set(billingRef, billing);
+    batch.update(doc(db, "companies", companyId), {
+      planId: plan.id,
+      planName: plan.label,
+      planUserLimit: plan.userLimit,
+      planPrice: plan.price,
+      planAnnualPrice: plan.annualPrice,
+      planBillingCycle: billingCycle,
+      planBillingPrice: billingPrice,
+      planInstallments,
+      planInstallmentValue,
+      billing: buildBillingSummary(billing),
+      billingStartDate: billing.startDate,
+      billingEndDate: billing.endDate,
+      billingDueDate: billing.dueDate,
+      planUpdatedAt: serverTimestamp(),
+      financialUpdatedAt: serverTimestamp(),
+      updatedAt: serverTimestamp()
+    });
+    await batch.commit();
+    showInlineAlert(refs.companyUsersAlert, `Cobranca renovada: ${formatDateBR(billing.startDate)} a ${formatDateBR(billing.endDate)}.`, "success");
+    await loadCompanyDetail(companyId);
+    await loadCompanies?.();
+  } catch (err) {
+    console.error("[company-renewal:create]", err);
+    showInlineAlert(refs.companyUsersAlert, err?.message || "Nao foi possivel gerar a renovacao.", "error");
+  }
+}
+
+export async function setCompanyInstallmentPaid(companyId, billingId, installmentNumber, paid, deps) {
+  const { refs, state, db, loadCompanyDetail, loadCompanies } = deps;
+  if (!state.isSuperAdmin) return;
+  const number = Number(installmentNumber || 0);
+  if (!Number.isFinite(number) || number < 1) return;
+  clearInlineAlert(refs.companyUsersAlert);
+
+  try {
+    let billing = activeCompanyBillings.find(item => item.id === billingId);
+    let targetBillingId = billingId;
+    if (!billing) {
+      billing = getCurrentBilling(activeCompanyDetailData || {}, activeCompanyBillings, activeCompanyDetailPlan || normalizeCompanyPlan(activeCompanyDetailData || {}));
+    }
+    const installments = (Array.isArray(billing.installments) ? billing.installments : []).map(item => {
+      if (Number(item.number) !== number) return item;
+      return {
+        ...item,
+        paid: paid === true,
+        paidAt: paid === true ? new Date().toISOString() : null,
+        status: paid === true ? "paid" : "pending"
+      };
+    });
+    const status = getBillingStatus(installments);
+    const paidInstallments = getInstallmentsPaidCount(installments);
+    const payload = {
+      ...billing,
+      installments,
+      status,
+      paidInstallments,
+      updatedAt: serverTimestamp()
+    };
+    if (!targetBillingId || targetBillingId === "legacy-current") {
+      const newRef = doc(collection(db, "companies", companyId, "billings"));
+      targetBillingId = newRef.id;
+      payload.id = targetBillingId;
+      await setDoc(newRef, payload);
+    } else {
+      await updateDoc(doc(db, "companies", companyId, "billings", targetBillingId), {
+        installments,
+        status,
+        paidInstallments,
+        updatedAt: serverTimestamp()
+      });
+    }
+    const isCurrentBilling = targetBillingId === activeCompanyDetailData?.billing?.currentBillingId
+      || (!activeCompanyDetailData?.billing?.currentBillingId && targetBillingId === activeCompanyBillings[0]?.id);
+    const companyPayload = {
+      financialUpdatedAt: serverTimestamp(),
+      updatedAt: serverTimestamp()
+    };
+    if (isCurrentBilling) {
+      companyPayload.billing = buildBillingSummary({ ...payload, id: targetBillingId });
+    }
+    await updateDoc(doc(db, "companies", companyId), companyPayload);
+    showInlineAlert(refs.companyUsersAlert, "Status da parcela atualizado.", "success");
+    await loadCompanyDetail(companyId);
+    await loadCompanies?.();
+  } catch (err) {
+    console.error("[company-installment:paid]", err);
+    showInlineAlert(refs.companyUsersAlert, err?.message || "Nao foi possivel atualizar a parcela.", "error");
+    await loadCompanyDetail(companyId).catch(() => {});
   }
 }
 
@@ -495,6 +1111,7 @@ export async function createCompany(deps) {
     const financialContactName = (refs.companyFinancialNameEl?.value || "").trim();
     const financialContactEmail = (refs.companyFinancialEmailEl?.value || "").trim();
     const financialContactPhone = normalizePhone(refs.companyFinancialPhoneEl?.value || "");
+    const billingStartDate = (refs.companyBillingStartDateEl?.value || "").trim() || todayISO();
     const billingDueDate = (refs.companyBillingDueDateEl?.value || "").trim();
 
     const adminName = (refs.adminNameEl?.value || "").trim();
@@ -522,6 +1139,7 @@ export async function createCompany(deps) {
         name: financialContactName,
         email: financialContactEmail,
         phone: financialContactPhone,
+        billingStartDate,
         billingDueDate
       },
       admin: {

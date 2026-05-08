@@ -125,6 +125,117 @@ function normalizeCompanyPlan(companyData = {}) {
   };
 }
 
+function pad2(n) {
+  return String(n).padStart(2, "0");
+}
+
+function formatDateISO(date) {
+  return `${date.getUTCFullYear()}-${pad2(date.getUTCMonth() + 1)}-${pad2(date.getUTCDate())}`;
+}
+
+function parseDateISO(value) {
+  const raw = String(value || "").trim();
+  const match = raw.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (!match) return null;
+  const date = new Date(Date.UTC(Number(match[1]), Number(match[2]) - 1, Number(match[3])));
+  return Number.isNaN(date.getTime()) ? null : date;
+}
+
+function addDays(date, days) {
+  const next = new Date(date.getTime());
+  next.setUTCDate(next.getUTCDate() + Number(days || 0));
+  return next;
+}
+
+function addMonths(date, months) {
+  const year = date.getUTCFullYear();
+  const month = date.getUTCMonth() + Number(months || 0);
+  const day = date.getUTCDate();
+  const lastDay = new Date(Date.UTC(year, month + 1, 0)).getUTCDate();
+  return new Date(Date.UTC(year, month, Math.min(day, lastDay)));
+}
+
+function normalizeDateString(value, fallbackDate = new Date()) {
+  const parsed = parseDateISO(value);
+  return formatDateISO(parsed || fallbackDate);
+}
+
+function getDueDay(dueDate) {
+  const parsed = parseDateISO(dueDate);
+  return parsed ? parsed.getUTCDate() : 1;
+}
+
+function dateWithDueDay(baseDateString, dueDay) {
+  const base = parseDateISO(baseDateString) || new Date();
+  const day = Math.min(Math.max(1, Number(dueDay || 1)), new Date(Date.UTC(base.getUTCFullYear(), base.getUTCMonth() + 1, 0)).getUTCDate());
+  return formatDateISO(new Date(Date.UTC(base.getUTCFullYear(), base.getUTCMonth(), day)));
+}
+
+function buildBillingRecord({ billingId, companyId, plan, cycle, startDate, dueDate, installmentCount, createdBy, source = "initial" }) {
+  const normalizedCycle = normalizePlanBillingCycle(cycle);
+  const start = normalizeDateString(startDate);
+  const startDateObj = parseDateISO(start) || new Date();
+  const end = formatDateISO(addDays(addMonths(startDateObj, normalizedCycle === "annual" ? 12 : 1), -1));
+  const due = normalizeDateString(dueDate, startDateObj);
+  const installmentsCount = normalizePlanInstallments(installmentCount, normalizedCycle);
+  const totalValue = normalizedCycle === "annual" ? plan.annualPrice : plan.price;
+  const installmentValue = normalizedCycle === "annual" ? totalValue / installmentsCount : totalValue;
+  const dueDay = getDueDay(due);
+  const installments = [];
+
+  for (let i = 1; i <= installmentsCount; i += 1) {
+    const dueBase = i === 1 ? due : formatDateISO(addMonths(parseDateISO(due) || startDateObj, i - 1));
+    installments.push({
+      number: i,
+      dueDate: dueBase,
+      value: installmentValue,
+      paid: false,
+      paidAt: null,
+      status: "pending",
+    });
+  }
+
+  const billing = {
+    id: billingId,
+    companyId,
+    planId: plan.id,
+    planName: plan.label,
+    planUserLimit: plan.userLimit,
+    cycle: normalizedCycle,
+    startDate: start,
+    endDate: end,
+    dueDate: due,
+    dueDay,
+    totalValue,
+    installmentCount: installmentsCount,
+    installmentValue,
+    paidInstallments: 0,
+    status: "pending",
+    source,
+    installments,
+    createdAt: admin.firestore.FieldValue.serverTimestamp(),
+    createdBy,
+  };
+
+  const summary = {
+    currentBillingId: billingId,
+    planId: plan.id,
+    planName: plan.label,
+    cycle: normalizedCycle,
+    status: "pending",
+    startDate: start,
+    endDate: end,
+    dueDate: due,
+    dueDay,
+    totalValue,
+    installmentCount: installmentsCount,
+    installmentValue,
+    paidInstallments: 0,
+  };
+
+  return { billing, summary };
+}
+
 async function assertCompanyUserLimitAvailable(db, companyId) {
   const companySnap = await db.doc(`companies/${companyId}`).get();
   const plan = normalizeCompanyPlan(companySnap.exists ? companySnap.data() : {});
@@ -588,6 +699,7 @@ exports.createCompanyWithAdmin = functions.https.onCall(async (data, context) =>
   const financialContactName = normalizeString(financialPayload.name);
   const financialContactEmail = normalizeEmail(financialPayload.email);
   const financialContactPhone = normalizeString(financialPayload.phone);
+  const billingStartDate = normalizeDateString(financialPayload.billingStartDate);
   const billingDueDate = normalizeString(financialPayload.billingDueDate);
 
   if (!companyId || typeof companyId !== "string") {
@@ -643,6 +755,18 @@ exports.createCompanyWithAdmin = functions.https.onCall(async (data, context) =>
 
   // ===== Escreve Firestore (transação simples)
   const batch = db.batch();
+  const billingRef = companyRef.collection("billings").doc();
+  const { billing, summary: billingSummary } = buildBillingRecord({
+    billingId: billingRef.id,
+    companyId,
+    plan,
+    cycle: planBillingCycle,
+    startDate: billingStartDate,
+    dueDate: billingDueDate || billingStartDate,
+    installmentCount: planInstallments,
+    createdBy: callerUid,
+    source: "initial",
+  });
 
   batch.set(companyRef, {
     name: companyName,
@@ -657,13 +781,18 @@ exports.createCompanyWithAdmin = functions.https.onCall(async (data, context) =>
     planBillingPrice,
     planInstallments,
     planInstallmentValue,
+    billing: billingSummary,
+    billingStartDate: billing.startDate,
+    billingEndDate: billing.endDate,
     financialContactName,
     financialContactEmail,
     financialContactPhone,
-    billingDueDate,
+    billingDueDate: billing.dueDate,
     createdAt: admin.firestore.FieldValue.serverTimestamp(),
     createdBy: callerUid,
   });
+
+  batch.set(billingRef, billing);
 
   batch.set(db.doc(`userCompanies/${uid}`), { companyId });
 
@@ -749,6 +878,7 @@ exports.createCompanyWithAdminHttp = functions
       const financialContactName = normalizeString(financialPayload.name);
       const financialContactEmail = normalizeEmail(financialPayload.email);
       const financialContactPhone = normalizeString(financialPayload.phone);
+      const billingStartDate = normalizeDateString(financialPayload.billingStartDate);
       const billingDueDate = normalizeString(financialPayload.billingDueDate);
 
       if (!companyId || typeof companyId !== "string") {
@@ -774,6 +904,19 @@ exports.createCompanyWithAdminHttp = functions
         return res.status(409).json({ error: { message: "Empresa já existe." } });
       }
 
+      const billingRef = companyRef.collection("billings").doc();
+      const { billing, summary: billingSummary } = buildBillingRecord({
+        billingId: billingRef.id,
+        companyId,
+        plan,
+        cycle: planBillingCycle,
+        startDate: billingStartDate,
+        dueDate: billingDueDate || billingStartDate,
+        installmentCount: planInstallments,
+        createdBy: callerUid,
+        source: "initial",
+      });
+
       // 1) cria empresa
       await companyRef.set({
         name: companyName,
@@ -788,13 +931,17 @@ exports.createCompanyWithAdminHttp = functions
         planBillingPrice,
         planInstallments,
         planInstallmentValue,
+        billing: billingSummary,
+        billingStartDate: billing.startDate,
+        billingEndDate: billing.endDate,
         financialContactName,
         financialContactEmail,
         financialContactPhone,
-        billingDueDate,
+        billingDueDate: billing.dueDate,
         createdAt: admin.firestore.FieldValue.serverTimestamp(),
         createdBy: callerUid
       });
+      await billingRef.set(billing);
 
       // 2) cria usuário admin no Auth
       const userRecord = await admin.auth().createUser({

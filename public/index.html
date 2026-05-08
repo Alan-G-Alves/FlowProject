@@ -8,7 +8,7 @@
 </script>
 <meta content="width=device-width, initial-scale=1.0" name="viewport"/>
 <title>FlowProject</title>
-<link href="./styles.css?v=1778178009" rel="stylesheet"/>
+<link href="./styles.css?v=1778178016" rel="stylesheet"/>
 <link href="logof.png" rel="icon" type="image/png"/>
 <style>
   /* SaaS Search (My Projects Kanban) */
@@ -1758,6 +1758,10 @@
 <input id="companyFinancialPhone" placeholder="11999999999"/>
 </label>
 <label class="field" style="grid-column: span 6;">
+<span>Inicio do plano</span>
+<input id="companyBillingStartDate" type="date"/>
+</label>
+<label class="field" style="grid-column: span 6;">
 <span>Data de vencimento/cobranca</span>
 <input id="companyBillingDueDate" type="date"/>
 </label>
@@ -2244,7 +2248,46 @@
 </div>
 <div class="modal-body company-detail-modal-body">
 <div class="alert" id="companyUsersAlert" style="display:none;"></div>
-<section class="company-plan-panel">
+<div class="company-detail-nav" role="tablist" aria-label="Detalhes da empresa">
+<button class="company-detail-nav-card is-active" data-company-detail-tab="company" id="companyDetailTabCompany" type="button">
+<span>Dados da empresa</span>
+<strong id="companyDetailCompanyCardInfo">Plano e cadastro</strong>
+</button>
+<button class="company-detail-nav-card" data-company-detail-tab="financial" id="companyDetailTabFinancial" type="button">
+<span>Financeiro</span>
+<strong id="companyDetailFinancialCardInfo">Contato e parcelas</strong>
+</button>
+<button class="company-detail-nav-card" data-company-detail-tab="users" id="companyDetailTabUsers" type="button">
+<span>Usuarios da empresa</span>
+<strong><span id="companyDetailUsersCardInfo">0</span> usuarios</strong>
+</button>
+</div>
+<section class="company-detail-panel company-detail-panel--company" data-company-detail-panel="company">
+<div class="company-detail-section-head">
+<div>
+<h3>Dados da empresa</h3>
+<p class="muted" id="companyDetailCompanySummary">Informacoes principais da empresa.</p>
+</div>
+</div>
+<div class="company-info-grid">
+<div class="company-info-item">
+<span>Nome</span>
+<strong id="companyInfoName">-</strong>
+</div>
+<div class="company-info-item">
+<span>CNPJ</span>
+<strong id="companyInfoCnpj">-</strong>
+</div>
+<div class="company-info-item">
+<span>ID da empresa</span>
+<strong id="companyInfoId">-</strong>
+</div>
+<div class="company-info-item">
+<span>Status</span>
+<strong id="companyInfoStatus">-</strong>
+</div>
+</div>
+<div class="company-plan-editor">
 <div>
 <h3>Plano da empresa</h3>
 <p class="muted" id="companyPlanSummary">Selecione o plano vinculado a esta empresa.</p>
@@ -2267,13 +2310,26 @@
 <option value="annual">anual</option>
 </select>
 </label>
+<label class="field company-plan-installments-detail" hidden>
+<span>Parcelamento</span>
+<select id="companyPlanInstallmentsDetail">
+<option value="1">1x</option>
+<option value="2">2x</option>
+<option value="3">3x</option>
+<option value="4">4x</option>
+<option value="5">5x</option>
+</select>
+</label>
 <button class="btn primary" id="btnSaveCompanyPlan" type="button">Salvar plano</button>
 </div>
+</div>
 </section>
-<section class="company-plan-panel">
+<section class="company-detail-panel company-detail-panel--financial" data-company-detail-panel="financial" hidden>
+<div class="company-detail-section-head">
 <div>
 <h3>Financeiro</h3>
 <p class="muted" id="companyFinancialSummary">Dados financeiros da empresa.</p>
+</div>
 </div>
 <div class="company-financial-grid">
 <label class="field">
@@ -2289,13 +2345,89 @@
 <input id="companyFinancialPhoneDetail" placeholder="11999999999"/>
 </label>
 <label class="field">
+<span>Inicio do plano</span>
+<input id="companyBillingStartDateDetail" type="date"/>
+</label>
+<label class="field">
+<span>Fim do plano</span>
+<input id="companyBillingEndDateDetail" readonly type="date"/>
+</label>
+<label class="field">
 <span>Vencimento/cobranca</span>
 <input id="companyBillingDueDateDetail" type="date"/>
 </label>
 <button class="btn primary" id="btnSaveCompanyFinancial" type="button">Salvar financeiro</button>
 </div>
+<div class="company-installments-panel" id="companyInstallmentsPanel">
+<div class="company-installments-head">
+<div>
+<h4>Parcelas da cobranca atual</h4>
+<p class="muted" id="companyInstallmentsSummary">Marque as parcelas pagas.</p>
+</div>
+</div>
+<div class="company-installments-list" id="companyInstallmentsList"></div>
+</div>
+<div class="company-renewal-panel">
+<div class="company-installments-head">
+<div>
+<h4>Renovar plano</h4>
+<p class="muted" id="companyRenewalSummary">Gere a proxima cobranca com datas sugeridas.</p>
+</div>
+</div>
+<div class="company-renewal-grid">
+<label class="field">
+<span>Plano da renovacao</span>
+<select id="companyRenewalPlan">
+<option value="plan-1-20">1 a 20 usuarios</option>
+<option value="plan-21-40">21 a 40 usuarios</option>
+<option value="plan-41-60">41 a 60 usuarios</option>
+<option value="plan-61-80">61 a 80 usuarios</option>
+<option value="plan-81-100">81 a 100 usuarios</option>
+</select>
+</label>
+<label class="field">
+<span>Tipo</span>
+<select id="companyRenewalCycle">
+<option value="monthly">mensal</option>
+<option value="annual">anual</option>
+</select>
+</label>
+<label class="field company-renewal-installments" hidden>
+<span>Parcelas</span>
+<select id="companyRenewalInstallments">
+<option value="1">1x</option>
+<option value="2">2x</option>
+<option value="3">3x</option>
+<option value="4">4x</option>
+<option value="5">5x</option>
+</select>
+</label>
+<label class="field">
+<span>Inicio sugerido</span>
+<input id="companyRenewalStartDate" type="date"/>
+</label>
+<label class="field">
+<span>Fim previsto</span>
+<input id="companyRenewalEndDate" readonly type="date"/>
+</label>
+<label class="field">
+<span>Vencimento</span>
+<input id="companyRenewalDueDate" type="date"/>
+</label>
+<button class="btn primary" id="btnCreateCompanyRenewal" type="button">Gerar cobranca</button>
+</div>
+</div>
+<div class="company-billing-history-panel">
+<div class="company-installments-head">
+<div>
+<h4>Historico de cobrancas</h4>
+<p class="muted">Acompanhe mudancas de plano e ciclos anteriores.</p>
+</div>
+</div>
+<div class="company-billing-history-list" id="companyBillingHistoryList"></div>
+</div>
 </section>
-<section class="company-detail-users-panel">
+<section class="company-detail-panel company-detail-users-panel" data-company-detail-panel="users" hidden>
 <div class="company-detail-users-header">
 <div>
 <h3>Usuarios da empresa</h3>
