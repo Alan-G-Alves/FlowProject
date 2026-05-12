@@ -978,7 +978,7 @@ a{ color: inherit; }
   align-items:center;
   justify-content:space-between;
   gap:10px;
-  margin-bottom:8px;
+  margin-bottom:6px;
 }
 
 .reminder-targets-hint{
@@ -989,12 +989,43 @@ a{ color: inherit; }
 .reminder-targets-list{
   display:grid;
   grid-template-columns:repeat(2, minmax(0, 1fr));
-  gap:8px;
-  max-height:180px;
-  overflow:auto;
-  padding-right:4px;
+  gap:4px 14px;
+  max-height:72px;
+  min-height:28px;
+  overflow-y:auto;
+  overflow-x:hidden;
+  padding:2px 4px 2px 0;
   scrollbar-width:thin;
   scrollbar-color:rgba(12,18,32,.18) transparent;
+}
+
+.reminder-target-row{
+  display:flex;
+  align-items:center;
+  gap:7px;
+  min-width:0;
+  padding:2px 0;
+}
+
+.reminder-target-row input[type="checkbox"]{
+  width:13px;
+  height:13px;
+  margin:0;
+  flex:0 0 auto;
+  accent-color:rgb(59,130,246);
+}
+
+.reminder-target-row label{
+  display:block !important;
+  min-width:0;
+  overflow:hidden;
+  text-overflow:ellipsis;
+  white-space:nowrap;
+  font-size:12px;
+  line-height:1.2;
+  font-weight:700;
+  color:#0f172a !important;
+  cursor:pointer;
 }
 
 .reminder-targets-list::-webkit-scrollbar{
@@ -1010,46 +1041,76 @@ a{ color: inherit; }
   position:relative;
   display:flex;
   align-items:center;
-  gap:10px;
-  padding:10px 12px;
-  border:1px solid rgba(12,18,32,.08);
-  border-radius:14px;
-  background:rgba(255,255,255,.72);
+  justify-content:flex-start;
+  gap:7px;
+  min-width:0;
+  width:100%;
+  padding:2px 0;
+  border:0;
+  border-radius:0;
+  background:transparent;
   cursor:pointer;
-  transition:border-color .18s ease, background .18s ease, box-shadow .18s ease;
+  overflow:hidden;
+  text-overflow:ellipsis;
+  white-space:nowrap;
+  font-size:12px;
+  font-weight:700;
+  line-height:1.25;
+  color:rgba(12,18,32,.92) !important;
+  transition:color .18s ease;
 }
 
 .reminder-target-option:hover{
-  border-color:rgba(99,102,241,.22);
-  background:rgba(255,255,255,.9);
-  box-shadow:0 8px 16px rgba(99,102,241,.06);
+  background:transparent;
+  box-shadow:none;
 }
 
 .reminder-target-option input{
-  width:16px;
-  height:16px;
+  width:13px;
+  height:13px;
   margin:0;
   accent-color:rgb(59,130,246);
   flex:0 0 auto;
 }
 
-.reminder-target-option strong{
-  display:block;
-  font-size:13px;
+.reminder-target-name{
+  display:inline-block !important;
+  flex:1 1 auto;
+  min-width:0;
+  line-height:1.2;
+  max-width:100%;
+  overflow:hidden;
+  text-overflow:ellipsis;
+  white-space:nowrap;
+  font-size:11px;
+  font-weight:700;
   color:rgba(12,18,32,.92);
 }
 
-.reminder-target-option span{
-  display:block;
-  margin-top:1px;
+.reminder-target-option > div{
+  display:block !important;
+  flex:1 1 auto;
+  min-width:0;
+}
+
+.reminder-target-option strong{
+  display:block !important;
+  overflow:hidden;
+  text-overflow:ellipsis;
+  white-space:nowrap;
   font-size:11px;
-  color:rgba(12,18,32,.58);
+  line-height:1.2;
+  color:rgba(12,18,32,.92);
+}
+
+.reminder-target-option > div span{
+  display:none;
 }
 
 .reminder-target-option:has(input:checked){
-  border-color:rgba(99,102,241,.26);
-  background:rgba(239,246,255,.82);
-  box-shadow:0 0 0 2px rgba(99,102,241,.08);
+  border-color:transparent;
+  background:transparent;
+  box-shadow:none;
 }
 
 .reminder-self-hint{
@@ -1313,6 +1374,10 @@ a{ color: inherit; }
   .dashboard-reminders-list,
   .reminder-targets-list{
     grid-template-columns:1fr;
+  }
+  .reminder-targets-list{
+    display:flex;
+    max-height:74px;
   }
   .dashboard-reminders-list{
     column-count:1;
@@ -2369,6 +2434,11 @@ a{ color: inherit; }
 .table th{ font-size: 12px; color: rgba(12,18,32,.65); }
 .table td{ font-size: 13px; }
 .action-row{ display:flex; gap:8px; }
+.company-card-actions{
+  display:flex;
+  justify-content:flex-end;
+  margin-top:14px;
+}
 .btn.sm{ padding: 6px 10px; font-size: 12px; border-radius: 12px; }
 
 

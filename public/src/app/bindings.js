@@ -46,7 +46,10 @@ export function bindUIEvents(deps){
     if (!email) return setAlert(refs.loginAlert, "Digite seu e-mail para redefinir a senha.");
 
     try {
-      await sendPasswordResetEmail(auth, email);
+      await sendPasswordResetEmail(auth, email, {
+        url: "https://portalprojectflow.com/login",
+        handleCodeInApp: false
+      });
       setAlert(refs.loginAlert, "Link de redefinição enviado para seu e-mail.", "info");
     } catch (err) {
       setAlert(refs.loginAlert, mapAuthError(err));

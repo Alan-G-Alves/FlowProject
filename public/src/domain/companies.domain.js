@@ -351,6 +351,7 @@ export async function loadCompanies(deps) {
 
   for (const c of filtered.sort((a, b) => (a.name || "").localeCompare(b.name || ""))) {
     const plan = normalizeCompanyPlan(c);
+    const canDeleteTest = c.accountType === "individual" || c.createdBy === "stripe" || !!c.stripeCustomerId || String(c.id || "").startsWith("cpf-");
     const el = document.createElement("div");
     el.className = "card";
     el.innerHTML = `
@@ -361,10 +362,41 @@ export async function loadCompanies(deps) {
         <span class="badge">${c.active === false ? "Inativa" : "Ativa"}</span>
         <span class="badge">${escapeHtml(plan.label)}</span>
       </div>
+      ${canDeleteTest ? `<div class="company-card-actions"><button class="btn danger sm" data-delete-test-company="${escapeHtml(c.id)}" type="button">Excluir teste</button></div>` : ""}
     `;
     el.style.cursor = "pointer";
-    el.addEventListener("click", () => openCompanyDetailModal(c.id));
+    el.addEventListener("click", (event) => {
+      const deleteButton = event.target?.closest?.("[data-delete-test-company]");
+      if (deleteButton) {
+        event.preventDefault();
+        event.stopPropagation();
+        deleteTestCompanySignup(deleteButton.getAttribute("data-delete-test-company"), c.name || c.id, deps);
+        return;
+      }
+      openCompanyDetailModal(c.id);
+    });
     refs.companiesGrid.appendChild(el);
+  }
+}
+
+export async function deleteTestCompanySignup(companyId, companyName, deps) {
+  const { state, refs, callHttpFunctionWithAuth, loadCompanies } = deps;
+  if (!state.isSuperAdmin || !companyId || typeof callHttpFunctionWithAuth !== "function") return;
+
+  const typed = prompt(`Digite o ID da empresa para excluir este cadastro de teste:\n${companyId}`);
+  if (typed !== companyId) return;
+
+  try {
+    clearInlineAlert(refs.companyUsersAlert);
+    await callHttpFunctionWithAuth("deleteTestCompanySignup", {
+      companyId,
+      confirmCompanyId: typed
+    });
+    await loadCompanies?.();
+    alert(`Cadastro de teste excluido: ${companyName || companyId}`);
+  } catch (err) {
+    console.error("[delete-test-company]", err);
+    alert(err?.message || "Nao foi possivel excluir o cadastro de teste.");
   }
 }
 

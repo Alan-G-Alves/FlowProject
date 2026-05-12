@@ -31,6 +31,22 @@ import { escapeHtml } from "../utils/dom.js";
 import { getTeamNameById, initialFromName } from "../utils/helpers.js";
 import { ensureClientsCache } from "./clients.domain.js";
 
+function isIndividualAccount(company = {}) {
+  return String(company?.accountType || "").trim().toLowerCase() === "individual";
+}
+
+function configureProjectResponsibleFields(refs, company = {}, mode = "create") {
+  const individual = isIndividualAccount(company);
+  const managerEl = mode === "edit" ? refs.editProjectManagerEl : refs.projectManagerEl;
+  const coordinatorEl = mode === "edit" ? refs.editProjectCoordinatorEl : refs.projectCoordinatorEl;
+  const managerField = managerEl?.closest("label");
+  const coordinatorField = coordinatorEl?.closest("label");
+
+  if (coordinatorField) coordinatorField.hidden = individual;
+  if (coordinatorEl && individual) coordinatorEl.value = "";
+  if (managerField) managerField.style.gridColumn = individual ? "span 12" : "";
+}
+
 /**
  * Listener realtime do Kanban (Meus Projetos)
  */
@@ -794,11 +810,18 @@ export async function openCreateProjectModal(deps) {
   // Preenche select de equipes
   populateTeamSelect(refs.projectTeamEl, state.teams);
 
-  // Preenche select de gestores (apenas role='gestor')
-  populateManagerSelect(refs.projectManagerEl, state._usersCache);
+  configureProjectResponsibleFields(refs, state.company, "create");
 
-  // Preenche select de coordenadores (apenas role='coordenador')
-  populateCoordinatorSelectNew(refs.projectCoordinatorEl, state._usersCache);
+  // Preenche select de gestores/responsavel do projeto
+  populateManagerSelect(refs.projectManagerEl, state._usersCache, state.company);
+  if (isIndividualAccount(state.company) && refs.projectManagerEl && !refs.projectManagerEl.value) {
+    const ownerUid = String(state.company?.ownerUid || "").trim();
+    if (ownerUid) refs.projectManagerEl.value = ownerUid;
+  }
+
+  if (!isIndividualAccount(state.company)) {
+    populateCoordinatorSelectNew(refs.projectCoordinatorEl, state._usersCache);
+  }
 
   // Preenche select de clientes (opcional)
   // Garante que o cache de clientes foi carregado (sem depender de abrir a tela "Clientes")
@@ -900,11 +923,13 @@ export async function createProject(deps) {
     // EstratÃ©gia simples (sem criar coleÃ§Ã£o extra): busca o maior projectNumber e soma +1.
     // (AssunÃ§Ã£o) Volume por empresa Ã© baixo a mÃ©dio.
     let nextProjectNumber = 1;
+    let existingProjects = [];
     try {
       const snapAll = await getDocs(collection(db, `companies/${companyId}/projects`));
       let maxNum = 0;
       snapAll.forEach(s => {
         const d = s.data() || {};
+        existingProjects.push({ id: s.id, ...d });
         const n = d.projectNumber ?? d.number ?? d.seq ?? d.codeNumber;
         const nn = (typeof n === "number") ? n : Number(String(n || "").replace(/[^0-9]/g, ""));
         if (!Number.isNaN(nn) && nn > maxNum) maxNum = nn;
@@ -913,6 +938,20 @@ export async function createProject(deps) {
     } catch (e) {
       // fallback: mantÃ©m 1
       console.warn("NÃ£o consegui calcular projectNumber, usando 1.", e);
+    }
+
+    const companySnap = await getDoc(doc(db, "companies", companyId));
+    const companyData = companySnap.exists() ? companySnap.data() : (state.company || {});
+    const isIndividualAccount = String(companyData?.accountType || "").toLowerCase() === "individual";
+    const projectLimit = Number(companyData?.planProjectLimit || 0);
+    if (isIndividualAccount && Number.isFinite(projectLimit) && projectLimit > 0) {
+      const activeProjectsCount = existingProjects.filter((project) => {
+        const projectStatus = String(project?.status || "a-fazer").toLowerCase();
+        return projectStatus !== "concluido";
+      }).length;
+      if (activeProjectsCount >= projectLimit) {
+        throw new Error(`Limite do plano atingido: ${activeProjectsCount}/${projectLimit} projetos ativos.`);
+      }
     }
 
     const payload = {
@@ -988,19 +1027,29 @@ function populateTeamSelect(selectEl, teams) {
 /**
  * Popula select de gestores (apenas role='gestor')
  */
-function populateManagerSelect(selectEl, users) {
+function populateManagerSelect(selectEl, users, company = {}) {
   if (!selectEl) return;
-  selectEl.innerHTML = '<option value="">Selecione um gestor</option>';
+  const individual = isIndividualAccount(company);
+  selectEl.innerHTML = individual
+    ? '<option value="">Selecione o responsavel</option>'
+    : '<option value="">Selecione um gestor</option>';
 
   if (!users || !Array.isArray(users)) return;
 
-  const managers = users.filter(u => u.role === "gestor" && u.active !== false);
+  const ownerUid = String(company?.ownerUid || "").trim();
+  const managers = users.filter(u => {
+    if (!u || u.active === false) return false;
+    if (individual) return u.uid === ownerUid || u.role === "admin";
+    return u.role === "gestor";
+  });
   managers.sort((a, b) => (a.name || "").localeCompare(b.name || ""));
 
   for (const user of managers) {
     const opt = document.createElement("option");
     opt.value = user.uid;
-    opt.textContent = user.name || user.email;
+    opt.textContent = individual
+      ? `${user.name || user.email} (responsavel)`
+      : (user.name || user.email);
     selectEl.appendChild(opt);
   }
 }
@@ -1252,8 +1301,11 @@ export async function openEditProjectModal(projectId, deps) {
     if (refs.editProjectContractFileEl) refs.editProjectContractFileEl.value = "";
 
     populateTeamSelect(refs.editProjectTeamEl, state.teams);
-    populateManagerSelect(refs.editProjectManagerEl, state._usersCache);
-    populateCoordinatorSelectNew(refs.editProjectCoordinatorEl, state._usersCache);
+    configureProjectResponsibleFields(refs, state.company, "edit");
+    populateManagerSelect(refs.editProjectManagerEl, state._usersCache, state.company);
+    if (!isIndividualAccount(state.company)) {
+      populateCoordinatorSelectNew(refs.editProjectCoordinatorEl, state._usersCache);
+    }
     populateClientSelect(refs.editProjectClientEl, state._clientsCache || []);
 
     if (refs.editProjectNameEl) refs.editProjectNameEl.value = proj.name || "";
@@ -1261,7 +1313,7 @@ export async function openEditProjectModal(projectId, deps) {
     if (refs.editProjectClientEl) refs.editProjectClientEl.value = proj.clientId || "";
     if (refs.editProjectTeamEl) refs.editProjectTeamEl.value = proj.teamId || "";
     if (refs.editProjectManagerEl) refs.editProjectManagerEl.value = proj.managerUid || "";
-    if (refs.editProjectCoordinatorEl) refs.editProjectCoordinatorEl.value = proj.coordinatorUid || "";
+    if (refs.editProjectCoordinatorEl) refs.editProjectCoordinatorEl.value = isIndividualAccount(state.company) ? "" : (proj.coordinatorUid || "");
     if (refs.editProjectStatusEl) refs.editProjectStatusEl.value = proj.status || "a-fazer";
     if (refs.editProjectPriorityEl) refs.editProjectPriorityEl.value = proj.priority || "media";
     if (refs.editProjectStartDateEl) refs.editProjectStartDateEl.value = proj.startDate || "";

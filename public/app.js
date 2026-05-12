@@ -54,12 +54,12 @@ import { setAlert, clearAlert, clearInlineAlert, showInlineAlert, showDialogAler
 import { getCompanyDoc, listCompaniesDocs } from "./src/services/companies.service.js";
 import { createNotification } from "./src/services/notifications.service.js?v=1776052722";
 import * as refs from "./src/ui/refs.js?v=1778178016";
-import * as companiesDomain from "./src/domain/companies.domain.js?v=1778178016";
+import * as companiesDomain from "./src/domain/companies.domain.js?v=1778529000";
 import * as teamsDomain from "./src/domain/teams.domain.js?v=1772614200";
-import * as usersDomain from "./src/domain/users.domain.js?v=1778178000";
+import * as usersDomain from "./src/domain/users.domain.js?v=1778616200";
 import * as managerUsersDomain from "./src/domain/manager-users.domain.js?v=1778178000";
 import * as clientsDomain from "./src/domain/clients.domain.js?v=1776052720";
-import * as projectsDomain from "./src/domain/projects.domain.js?v=1777945200";
+import * as projectsDomain from "./src/domain/projects.domain.js?v=1778616200";
 import * as myActivitiesDomain from "./src/domain/my-activities.domain.js?v=1778033300";
 import * as myFeedbacksDomain from "./src/domain/my-feedbacks.domain.js?v=1776040900";
 import * as osApprovalsDomain from "./src/domain/os-approvals.domain.js?v=1776052722";
@@ -1535,6 +1535,7 @@ function renderDashboardCards(profile){
 
   const cards = [];
   const role = (profile?.role || "").toString().toLowerCase();
+  const isIndividualAccount = String(state.company?.accountType || "").toLowerCase() === "individual";
   const canSeeOwnProjectsSplit = ["gestor", "admin", "coordenador"].includes(role);
   const canApproveOs = ["gestor", "admin", "coordenador"].includes(role);
 
@@ -1553,6 +1554,31 @@ function renderDashboardCards(profile){
     });
 
     
+} else if (isIndividualAccount) {
+    cards.push({
+      title: "Meus Projetos",
+      desc: "Visualize seus projetos em formato Kanban.",
+      badge: "Kanban",
+      action: () => navigateTo(ROUTES.myProjects)
+    });
+
+    if (canApproveOs) {
+      cards.push({
+        title: "OS para Aprovar",
+        desc: "Revise apontamentos enviados, aprove individualmente ou em massa e faca estornos quando necessario.",
+        badge: "Operacao",
+        action: () => navigateTo(ROUTES.osApprovals)
+      });
+    }
+
+    if (role === "admin"){
+      cards.push({
+        title: "Administracao",
+        desc: "Gerencie equipes e recursos da conta.",
+        badge: "Admin",
+        action: () => navigateTo(ROUTES.admin)
+      });
+    }
 } else {
     if (canSeeOwnProjectsSplit) {
       cards.push({
@@ -1963,21 +1989,44 @@ function updateReminderToggleAllLabel(){
   refs.btnReminderToggleAllUsers.textContent = checkedCount === options.length && options.length ? "Limpar selecao" : "Selecionar todos";
 }
 
+function updateReminderRecipientHint(){
+  if (!refs.reminderSelfHint) return;
+  if (!canBroadcastDashboardReminder()) {
+    refs.reminderSelfHint.textContent = "Este lembrete sera salvo apenas no seu mural.";
+    return;
+  }
+
+  const currentUid = auth.currentUser?.uid || "";
+  const selected = Array.from(refs.reminderTargetsList?.querySelectorAll("input[type='checkbox']:checked") || []);
+  const hasSelf = selected.some((input) => input.value === currentUid);
+  const selectedOthers = selected.filter((input) => input.value !== currentUid).length;
+
+  if (selectedOthers > 0 && hasSelf) {
+    refs.reminderSelfHint.textContent = "Este lembrete sera salvo no seu mural e dos destinatarios selecionados.";
+  } else if (selectedOthers > 0) {
+    refs.reminderSelfHint.textContent = "Este lembrete sera salvo no mural dos destinatarios selecionados.";
+  } else {
+    refs.reminderSelfHint.textContent = "Este lembrete sera salvo apenas no seu mural.";
+  }
+}
+
 function renderDashboardReminderTargetOptions(users){
   if (!refs.reminderTargetsList) return;
   const currentUid = auth.currentUser?.uid || "";
   refs.reminderTargetsList.innerHTML = users.length
-    ? users.map((user) => `
-        <label class="reminder-target-option">
-          <input type="checkbox" value="${escapeHtml(user.uid)}" ${user.uid === currentUid ? "checked" : ""} />
-          <div>
-            <strong>${escapeHtml(user.name || user.email || "Usuario")}</strong>
-            <span>${escapeHtml(humanizeRole(user.role || "tecnico"))}${user.uid === currentUid ? " - voce" : ""}</span>
+    ? users.map((user) => {
+        const inputId = `reminder-target-${String(user.uid || "").replace(/[^a-zA-Z0-9_-]/g, "")}`;
+        const label = `${user.name || user.email || "Usuario"}${user.uid === currentUid ? " (voce)" : ""}`;
+        return `
+          <div class="reminder-target-row">
+            <input id="${escapeHtml(inputId)}" type="checkbox" value="${escapeHtml(user.uid)}" ${user.uid === currentUid ? "checked" : ""} />
+            <label for="${escapeHtml(inputId)}">${escapeHtml(label)}</label>
           </div>
-        </label>
-      `).join("")
+        `;
+      }).join("")
     : '<div class="reminder-self-hint">Nenhum usuario elegivel encontrado para receber lembretes.</div>';
   updateReminderToggleAllLabel();
+  updateReminderRecipientHint();
 }
 
 function getSelectedReminderRecipients(){
@@ -2025,7 +2074,7 @@ async function openReminderComposer(){
   if (refs.reminderMessageInput) refs.reminderMessageInput.value = "";
   if (canBroadcastDashboardReminder()) {
     if (refs.reminderTargetsWrap) refs.reminderTargetsWrap.hidden = false;
-    if (refs.reminderSelfHintWrap) refs.reminderSelfHintWrap.hidden = true;
+    if (refs.reminderSelfHintWrap) refs.reminderSelfHintWrap.hidden = false;
     const users = await loadDashboardReminderUsers();
     renderDashboardReminderTargetOptions(users);
     if (refs.btnReminderToggleAllUsers) refs.btnReminderToggleAllUsers.hidden = users.length <= 1;
@@ -2226,7 +2275,7 @@ function openCompaniesView() {
 }
 
 async function loadCompanies() {
-  await companiesDomain.loadCompanies({ refs, openCompanyDetailModal });
+  await companiesDomain.loadCompanies(getDeps());
 }
 
 function clearCompanyCreateSuccess() {
@@ -3205,8 +3254,12 @@ refs.btnReminderToggleAllUsers?.addEventListener("click", () => {
   const shouldSelectAll = options.some((input) => !input.checked);
   options.forEach((input) => { input.checked = shouldSelectAll; });
   updateReminderToggleAllLabel();
+  updateReminderRecipientHint();
 });
-refs.reminderTargetsList?.addEventListener("change", () => updateReminderToggleAllLabel());
+refs.reminderTargetsList?.addEventListener("change", () => {
+  updateReminderToggleAllLabel();
+  updateReminderRecipientHint();
+});
 refs.modalReminderComposer?.addEventListener("click", (event) => {
   if (event.target?.matches?.("[data-close-reminder-composer='true']")) closeReminderComposer();
 });
@@ -3325,7 +3378,10 @@ refs.btnForgot?.addEventListener("click", async () => {
   if (!email) return setAlert(refs.loginAlert, "Digite seu e-mail para redefinir a senha.");
 
   try {
-    await sendPasswordResetEmail(auth, email);
+    await sendPasswordResetEmail(auth, email, {
+      url: "https://portalprojectflow.com/login",
+      handleCodeInApp: false
+    });
     setAlert(refs.loginAlert, "Link de redefinição enviado para seu e-mail.", "info");
   } catch (err) {
     setAlert(refs.loginAlert, mapAuthError(err));

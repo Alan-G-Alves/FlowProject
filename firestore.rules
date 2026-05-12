@@ -70,6 +70,21 @@ service cloud.firestore {
         && myCompanyUserDoc(companyId).data.active == true;
     }
 
+    function companyIsIndividual(companyId) {
+      return exists(/databases/$(database)/documents/companies/$(companyId))
+        && get(/databases/$(database)/documents/companies/$(companyId)).data.accountType == "individual";
+    }
+
+    function userRoleAllowedForCompany(companyId, uid) {
+      return !companyIsIndividual(companyId)
+        || request.resource.data.role == "tecnico"
+        || (
+          resource != null
+          && uid == get(/databases/$(database)/documents/companies/$(companyId)).data.ownerUid
+          && request.resource.data.role == resource.data.role
+        );
+    }
+
     // Campos conhecidos do documento companies/{companyId}/users/{uid}.
     //
     // Importante: para UPDATE, nÃ£o podemos exigir que o documento tenha *apenas* esses campos,
@@ -241,15 +256,23 @@ service cloud.firestore {
 
       // Master pode criar e também (importante) bloquear/desbloquear qualquer empresa
       allow create: if isSuperAdmin()
-        && request.resource.data.keys().hasOnly(["name", "cnpj", "active", "planId", "planName", "planUserLimit", "planPrice", "planAnnualPrice", "planBillingCycle", "planBillingPrice", "planInstallments", "planInstallmentValue", "planInstallmentPayments", "planUpdatedAt", "billing", "billingStartDate", "billingEndDate", "financialContactName", "financialContactEmail", "financialContactPhone", "billingDueDate", "financialUpdatedAt", "createdAt", "createdBy"])
+        && request.resource.data.keys().hasOnly(["name", "displayName", "cnpj", "cpf", "cpfHash", "accountType", "documentType", "active", "ownerUid", "ownerEmail", "planId", "planName", "planUserLimit", "planParticipantLimit", "planProjectLimit", "planPrice", "planAnnualPrice", "planBillingCycle", "planBillingPrice", "planInstallments", "planInstallmentValue", "planInstallmentPayments", "planUpdatedAt", "billing", "billingStartDate", "billingEndDate", "financialContactName", "financialContactEmail", "financialContactPhone", "billingDueDate", "financialUpdatedAt", "stripeCustomerId", "stripeSubscriptionId", "stripeCheckoutSessionId", "stripeStatus", "createdAt", "createdBy"])
         && request.resource.data.name is string
         && request.resource.data.name.size() > 0
         && request.resource.data.cnpj is string
-        && request.resource.data.cnpj.size() > 0
+        && ((("accountType" in request.resource.data) && request.resource.data.accountType == "individual") || request.resource.data.cnpj.size() > 0)
         && request.resource.data.active is bool
-        && (!("planId" in request.resource.data) || request.resource.data.planId in ["plan-1-20", "plan-21-40", "plan-41-60", "plan-61-80", "plan-81-100"])
+        && (!("accountType" in request.resource.data) || request.resource.data.accountType in ["individual"])
+        && (!("documentType" in request.resource.data) || request.resource.data.documentType in ["cpf"])
+        && (!("cpf" in request.resource.data) || request.resource.data.cpf is string)
+        && (!("cpfHash" in request.resource.data) || request.resource.data.cpfHash is string)
+        && (!("ownerUid" in request.resource.data) || request.resource.data.ownerUid is string)
+        && (!("ownerEmail" in request.resource.data) || request.resource.data.ownerEmail is string)
+        && (!("planId" in request.resource.data) || request.resource.data.planId in ["plan-1-20", "plan-21-40", "plan-41-60", "plan-61-80", "plan-81-100", "manager-start", "manager-pro", "manager-plus"])
         && (!("planName" in request.resource.data) || request.resource.data.planName is string)
-        && (!("planUserLimit" in request.resource.data) || request.resource.data.planUserLimit in [20, 40, 60, 80, 100])
+        && (!("planUserLimit" in request.resource.data) || request.resource.data.planUserLimit in [3, 6, 11, 20, 40, 60, 80, 100])
+        && (!("planParticipantLimit" in request.resource.data) || request.resource.data.planParticipantLimit in [2, 5, 10])
+        && (!("planProjectLimit" in request.resource.data) || request.resource.data.planProjectLimit in [10, 20, 40])
         && (!("planPrice" in request.resource.data) || request.resource.data.planPrice is number)
         && (!("planAnnualPrice" in request.resource.data) || request.resource.data.planAnnualPrice is number)
         && (!("planBillingCycle" in request.resource.data) || request.resource.data.planBillingCycle in ["monthly", "annual"])
@@ -274,6 +297,10 @@ service cloud.firestore {
         && (!("financialContactPhone" in request.resource.data) || request.resource.data.financialContactPhone is string)
         && (!("billingDueDate" in request.resource.data) || request.resource.data.billingDueDate is string)
         && (!("financialUpdatedAt" in request.resource.data) || request.resource.data.financialUpdatedAt is timestamp)
+        && (!("stripeCustomerId" in request.resource.data) || request.resource.data.stripeCustomerId is string)
+        && (!("stripeSubscriptionId" in request.resource.data) || request.resource.data.stripeSubscriptionId is string)
+        && (!("stripeCheckoutSessionId" in request.resource.data) || request.resource.data.stripeCheckoutSessionId is string)
+        && (!("stripeStatus" in request.resource.data) || request.resource.data.stripeStatus is string)
         && request.resource.data.createdBy == myUid();
 
       allow update: if isSuperAdmin()
@@ -281,15 +308,23 @@ service cloud.firestore {
         && request.resource.data.active is bool;
 
       allow update: if isSuperAdmin()
-        && request.resource.data.keys().hasOnly(["name", "cnpj", "active", "planId", "planName", "planUserLimit", "planPrice", "planAnnualPrice", "planBillingCycle", "planBillingPrice", "planInstallments", "planInstallmentValue", "planInstallmentPayments", "planUpdatedAt", "billing", "billingStartDate", "billingEndDate", "financialContactName", "financialContactEmail", "financialContactPhone", "billingDueDate", "financialUpdatedAt", "createdAt", "createdBy", "number", "displayName", "logoURL", "logoPath", "logoReportDataUrl", "reportPermissions", "projectTechPermissions", "activityNoteMinChars", "expenseObservationMinChars", "updatedAt"])
+        && request.resource.data.keys().hasOnly(["name", "displayName", "cnpj", "cpf", "cpfHash", "accountType", "documentType", "active", "ownerUid", "ownerEmail", "planId", "planName", "planUserLimit", "planParticipantLimit", "planProjectLimit", "planPrice", "planAnnualPrice", "planBillingCycle", "planBillingPrice", "planInstallments", "planInstallmentValue", "planInstallmentPayments", "planUpdatedAt", "billing", "billingStartDate", "billingEndDate", "financialContactName", "financialContactEmail", "financialContactPhone", "billingDueDate", "financialUpdatedAt", "stripeCustomerId", "stripeSubscriptionId", "stripeCheckoutSessionId", "stripeStatus", "createdAt", "createdBy", "number", "logoURL", "logoPath", "logoReportDataUrl", "reportPermissions", "projectTechPermissions", "activityNoteMinChars", "expenseObservationMinChars", "updatedAt"])
         && request.resource.data.name is string
         && request.resource.data.name.size() > 0
         && request.resource.data.cnpj is string
-        && request.resource.data.cnpj.size() > 0
+        && ((("accountType" in request.resource.data) && request.resource.data.accountType == "individual") || request.resource.data.cnpj.size() > 0)
         && request.resource.data.active is bool
-        && (!("planId" in request.resource.data) || request.resource.data.planId in ["plan-1-20", "plan-21-40", "plan-41-60", "plan-61-80", "plan-81-100"])
+        && (!("accountType" in request.resource.data) || request.resource.data.accountType in ["individual"])
+        && (!("documentType" in request.resource.data) || request.resource.data.documentType in ["cpf"])
+        && (!("cpf" in request.resource.data) || request.resource.data.cpf is string)
+        && (!("cpfHash" in request.resource.data) || request.resource.data.cpfHash is string)
+        && (!("ownerUid" in request.resource.data) || request.resource.data.ownerUid is string)
+        && (!("ownerEmail" in request.resource.data) || request.resource.data.ownerEmail is string)
+        && (!("planId" in request.resource.data) || request.resource.data.planId in ["plan-1-20", "plan-21-40", "plan-41-60", "plan-61-80", "plan-81-100", "manager-start", "manager-pro", "manager-plus"])
         && (!("planName" in request.resource.data) || request.resource.data.planName is string)
-        && (!("planUserLimit" in request.resource.data) || request.resource.data.planUserLimit in [20, 40, 60, 80, 100])
+        && (!("planUserLimit" in request.resource.data) || request.resource.data.planUserLimit in [3, 6, 11, 20, 40, 60, 80, 100])
+        && (!("planParticipantLimit" in request.resource.data) || request.resource.data.planParticipantLimit in [2, 5, 10])
+        && (!("planProjectLimit" in request.resource.data) || request.resource.data.planProjectLimit in [10, 20, 40])
         && (!("planPrice" in request.resource.data) || request.resource.data.planPrice is number)
         && (!("planAnnualPrice" in request.resource.data) || request.resource.data.planAnnualPrice is number)
         && (!("planBillingCycle" in request.resource.data) || request.resource.data.planBillingCycle in ["monthly", "annual"])
@@ -314,6 +349,10 @@ service cloud.firestore {
         && (!("financialContactPhone" in request.resource.data) || request.resource.data.financialContactPhone is string)
         && (!("billingDueDate" in request.resource.data) || request.resource.data.billingDueDate is string)
         && (!("financialUpdatedAt" in request.resource.data) || request.resource.data.financialUpdatedAt is timestamp)
+        && (!("stripeCustomerId" in request.resource.data) || request.resource.data.stripeCustomerId is string)
+        && (!("stripeSubscriptionId" in request.resource.data) || request.resource.data.stripeSubscriptionId is string)
+        && (!("stripeCheckoutSessionId" in request.resource.data) || request.resource.data.stripeCheckoutSessionId is string)
+        && (!("stripeStatus" in request.resource.data) || request.resource.data.stripeStatus is string)
         && (!("number" in request.resource.data) || request.resource.data.number is int)
         && (!("activityNoteMinChars" in request.resource.data) || (request.resource.data.activityNoteMinChars is int && request.resource.data.activityNoteMinChars >= 0 && request.resource.data.activityNoteMinChars <= 1000))
         && (!("expenseObservationMinChars" in request.resource.data) || (request.resource.data.expenseObservationMinChars is int && request.resource.data.expenseObservationMinChars >= 0 && request.resource.data.expenseObservationMinChars <= 1000));
@@ -419,6 +458,7 @@ match /counters/{counterId} {
 
         // master / admin da empresa
         allow create, update: if (isSuperAdmin() || isCompanyAdmin(companyId))
+          && userRoleAllowedForCompany(companyId, uid)
           && userWriteValid();
 
         allow update: if isSuperAdmin()

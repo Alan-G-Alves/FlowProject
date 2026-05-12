@@ -1,8 +1,14 @@
 const functions = require("firebase-functions");
+const { onRequest } = require("firebase-functions/v2/https");
+const { defineSecret } = require("firebase-functions/params");
 const admin = require("firebase-admin");
 const crypto = require("crypto");
+const Stripe = require("stripe");
 
 admin.initializeApp();
+
+const STRIPE_SECRET_KEY = defineSecret("STRIPE_SECRET_KEY");
+const STRIPE_WEBHOOK_SECRET = defineSecret("STRIPE_WEBHOOK_SECRET");
 
 /**
  * Storage helpers
@@ -91,8 +97,100 @@ const COMPANY_PLANS = [
   { id: "plan-81-100", label: "81 a 100 usuarios", userLimit: 100, price: 847, annualPrice: 8131.2 },
 ];
 
+const INDIVIDUAL_MANAGER_PLANS = [
+  { id: "manager-start", label: "Gestor Start", includedUsers: 3, participantLimit: 2, projectLimit: 10, price: 29.9, priceCents: 2990 },
+  { id: "manager-pro", label: "Gestor Pro", includedUsers: 6, participantLimit: 5, projectLimit: 20, price: 57.9, priceCents: 5790 },
+  { id: "manager-plus", label: "Gestor Plus", includedUsers: 11, participantLimit: 10, projectLimit: 40, price: 87.9, priceCents: 8790 },
+];
+
 function getCompanyPlan(planId) {
   return COMPANY_PLANS.find((plan) => plan.id === planId) || COMPANY_PLANS[0];
+}
+
+function getIndividualManagerPlan(planId) {
+  return INDIVIDUAL_MANAGER_PLANS.find((plan) => plan.id === planId) || INDIVIDUAL_MANAGER_PLANS[0];
+}
+
+function getConfigValue(path, fallback = "") {
+  const envName = path.toUpperCase().replace(/\./g, "_");
+  if (process.env[envName]) return process.env[envName];
+  if (envName === "STRIPE_SECRET_KEY") {
+    try { return STRIPE_SECRET_KEY.value(); } catch (err) { return fallback; }
+  }
+  if (envName === "STRIPE_WEBHOOK_SECRET") {
+    try { return STRIPE_WEBHOOK_SECRET.value(); } catch (err) { return fallback; }
+  }
+  return fallback;
+}
+
+function getStripeClient() {
+  const secretKey = getConfigValue("stripe.secret_key").trim();
+  if (!secretKey) throw new Error("STRIPE_SECRET_KEY nao configurada.");
+  return new Stripe(secretKey);
+}
+
+function setCors(res) {
+  res.set("Access-Control-Allow-Origin", "*");
+  res.set("Access-Control-Allow-Methods", "POST, OPTIONS");
+  res.set("Access-Control-Allow-Headers", "Content-Type, Authorization, Stripe-Signature");
+}
+
+function normalizeCpf(value) {
+  return String(value || "").replace(/\D/g, "");
+}
+
+function isCpfValidBasic(value) {
+  const cpf = normalizeCpf(value);
+  if (cpf.length !== 11) return false;
+  if (/^(\d)\1+$/.test(cpf)) return false;
+
+  let sum = 0;
+  for (let i = 0; i < 9; i += 1) sum += Number(cpf[i]) * (10 - i);
+  let digit = 11 - (sum % 11);
+  if (digit >= 10) digit = 0;
+  if (digit !== Number(cpf[9])) return false;
+
+  sum = 0;
+  for (let i = 0; i < 10; i += 1) sum += Number(cpf[i]) * (11 - i);
+  digit = 11 - (sum % 11);
+  if (digit >= 10) digit = 0;
+  return digit === Number(cpf[10]);
+}
+
+function sha256(value) {
+  return crypto.createHash("sha256").update(String(value || "")).digest("hex");
+}
+
+function buildIndividualCompanyId(cpf) {
+  return `cpf-${sha256(normalizeCpf(cpf)).slice(0, 18)}`;
+}
+
+function getPublicBaseUrl(req) {
+  const configured = getConfigValue("app.public_url", "");
+  if (configured) return configured.replace(/\/+$/, "");
+  const origin = req.get("origin") || "https://portalprojectflow.com";
+  return origin.replace(/\/+$/, "");
+}
+
+function getPublicAppBaseUrl() {
+  return (getConfigValue("app.public_url", "") || "https://portalprojectflow.com").replace(/\/+$/, "");
+}
+
+function buildPasswordResetActionSettings() {
+  return {
+    url: `${getPublicAppBaseUrl()}/login`,
+    handleCodeInApp: false,
+  };
+}
+
+async function generatePublicPasswordResetLink(email) {
+  const link = await admin.auth().generatePasswordResetLink(email, buildPasswordResetActionSettings());
+  try {
+    const parsed = new URL(link);
+    return `${getPublicAppBaseUrl()}${parsed.pathname}${parsed.search}${parsed.hash || ""}`;
+  } catch (err) {
+    return link;
+  }
 }
 
 function normalizePlanBillingCycle(value) {
@@ -123,6 +221,18 @@ function normalizeCompanyPlan(companyData = {}) {
     installments,
     installmentValue: billingCycle === "annual" ? billingPrice / installments : billingPrice,
   };
+}
+
+function isIndividualCompany(companyData = {}) {
+  return String(companyData.accountType || "").trim().toLowerCase() === "individual";
+}
+
+async function getCompanyDataOrThrow(db, companyId) {
+  const companySnap = await db.doc(`companies/${companyId}`).get();
+  if (!companySnap.exists) {
+    throw new functions.https.HttpsError("not-found", "Empresa nao encontrada.");
+  }
+  return companySnap.data() || {};
 }
 
 function pad2(n) {
@@ -249,6 +359,124 @@ async function assertCompanyUserLimitAvailable(db, companyId) {
   }
 }
 
+async function activateIndividualSignup(signupId, stripePayload = {}) {
+  const db = admin.firestore();
+  const signupRef = db.doc(`individualSignups/${signupId}`);
+  const signupSnap = await signupRef.get();
+  if (!signupSnap.exists) {
+    console.warn("[stripe] individual signup nao encontrado", signupId);
+    return null;
+  }
+
+  const signup = signupSnap.data() || {};
+  if (signup.status === "active" && signup.ownerUid) return signup;
+
+  const plan = getIndividualManagerPlan(signup.planId);
+  const email = normalizeEmail(signup.email);
+  const name = normalizeString(signup.name);
+  const cpf = normalizeCpf(signup.cpf);
+  const phone = normalizeString(signup.phone);
+  const companyId = signup.companyId || buildIndividualCompanyId(cpf);
+
+  if (!email || !name || !isCpfValidBasic(cpf)) {
+    throw new Error("Dados do cadastro individual invalidos.");
+  }
+
+  let userRecord;
+  try {
+    userRecord = await admin.auth().getUserByEmail(email);
+    const uc = await db.doc(`userCompanies/${userRecord.uid}`).get();
+    if (uc.exists && uc.data()?.companyId !== companyId) {
+      throw new Error("E-mail ja esta vinculado a outra conta FlowProject.");
+    }
+  } catch (err) {
+    if (err?.code !== "auth/user-not-found") throw err;
+    const tempPassword = Math.random().toString(36).slice(-10) + "A1!";
+    userRecord = await admin.auth().createUser({
+      email,
+      password: tempPassword,
+      displayName: name,
+      disabled: false,
+    });
+  }
+
+  const uid = userRecord.uid;
+  const companyRef = db.doc(`companies/${companyId}`);
+  const companySnap = await companyRef.get();
+  const resetLink = await generatePublicPasswordResetLink(email);
+  const now = admin.firestore.FieldValue.serverTimestamp();
+
+  const companyPayload = {
+    name: signup.workspaceName || `Espaco de ${name}`,
+    displayName: signup.workspaceName || `Espaco de ${name}`,
+    cnpj: "",
+    cpf,
+    cpfHash: sha256(cpf),
+    accountType: "individual",
+    documentType: "cpf",
+    active: true,
+    ownerUid: uid,
+    ownerEmail: email,
+    planId: plan.id,
+    planName: plan.label,
+    planUserLimit: plan.includedUsers,
+    planParticipantLimit: plan.participantLimit,
+    planProjectLimit: plan.projectLimit,
+    planPrice: plan.price,
+    planBillingCycle: "monthly",
+    planBillingPrice: plan.price,
+    stripeCustomerId: stripePayload.customerId || signup.stripeCustomerId || "",
+    stripeSubscriptionId: stripePayload.subscriptionId || signup.stripeSubscriptionId || "",
+    stripeCheckoutSessionId: stripePayload.checkoutSessionId || signup.checkoutSessionId || "",
+    stripeStatus: stripePayload.subscriptionStatus || "active",
+    updatedAt: now,
+  };
+
+  if (!companySnap.exists) {
+    companyPayload.createdAt = now;
+    companyPayload.createdBy = "stripe";
+  }
+
+  const batch = db.batch();
+  batch.set(companyRef, companyPayload, { merge: true });
+  batch.set(db.doc(`userCompanies/${uid}`), { companyId });
+  batch.set(db.doc(`companies/${companyId}/users/${uid}`), {
+    name,
+    role: "admin",
+    email,
+    emailLower: email,
+    phone,
+    active: true,
+    teamIds: [],
+    teamId: "",
+    cpf,
+    createdAt: now,
+    createdBy: "stripe",
+  }, { merge: true });
+  batch.set(db.doc(`companies/${companyId}/teams/default`), {
+    name: "Geral",
+    active: true,
+    createdAt: now,
+    createdBy: uid,
+  }, { merge: true });
+  batch.set(signupRef, {
+    status: "active",
+    activatedAt: now,
+    ownerUid: uid,
+    companyId,
+    resetLink,
+    planSnapshot: plan,
+    stripeCustomerId: companyPayload.stripeCustomerId,
+    stripeSubscriptionId: companyPayload.stripeSubscriptionId,
+    stripeCheckoutSessionId: companyPayload.stripeCheckoutSessionId,
+    stripeStatus: companyPayload.stripeStatus,
+    updatedAt: now,
+  }, { merge: true });
+
+  await batch.commit();
+  return { ...signup, status: "active", ownerUid: uid, companyId, resetLink };
+}
+
 /**
  * Regras de permissão (alinhadas ao seu projeto)
  * - Admin da empresa: pode criar admin/gestor/coordenador/tecnico
@@ -256,6 +484,14 @@ async function assertCompanyUserLimitAvailable(db, companyId) {
  * - Técnico: não cria usuários
  */
 async function assertCallerPermission(db, callerUid, companyId, requestedRole) {
+  const companyData = await getCompanyDataOrThrow(db, companyId);
+  if (isIndividualCompany(companyData) && requestedRole !== "tecnico") {
+    throw new functions.https.HttpsError(
+      "permission-denied",
+      "Plano pessoa fisica permite cadastrar apenas Recursos."
+    );
+  }
+
   const callerCompanySnap = await db.doc(`userCompanies/${callerUid}`).get();
   const callerCompanyId = callerCompanySnap.exists ? callerCompanySnap.data().companyId : null;
 
@@ -464,7 +700,7 @@ exports.createUserInTenant = functions.https.onCall(async (data, context) => {
   }
 
   // 8) Gera link de reset
-  const resetLink = await admin.auth().generatePasswordResetLink(safeEmailLower);
+  const resetLink = await generatePublicPasswordResetLink(safeEmailLower);
 
   return { uid, resetLink, number: techNumber };
 });
@@ -606,7 +842,7 @@ exports.createUserInTenantHttp = functions.https.onRequest(async (req, res) => {
       }
     }
 
-    const resetLink = await admin.auth().generatePasswordResetLink(safeEmailLower);
+    const resetLink = await generatePublicPasswordResetLink(safeEmailLower);
     return res.status(200).json({ uid, resetLink, number: techNumber });
   } catch (e) {
     console.error("createUserInTenantHttp:", e);
@@ -809,7 +1045,7 @@ exports.createCompanyWithAdmin = functions.https.onCall(async (data, context) =>
   await batch.commit();
 
   // ===== Link de reset de senha (para enviar ao admin)
-  const resetLink = await admin.auth().generatePasswordResetLink(adminEmail);
+  const resetLink = await generatePublicPasswordResetLink(adminEmail);
 
   return { companyId, uid, resetLink };
 });
@@ -966,7 +1202,7 @@ exports.createCompanyWithAdminHttp = functions
       });
 
       // 5) gera link de redefinição de senha
-      const resetLink = await admin.auth().generatePasswordResetLink(adminEmail);
+      const resetLink = await generatePublicPasswordResetLink(adminEmail);
 
       return res.status(200).json({ companyId, uid, resetLink });
 
@@ -975,3 +1211,336 @@ exports.createCompanyWithAdminHttp = functions
       return res.status(500).json({ error: { message: "Erro interno ao criar empresa." } });
     }
   });
+
+exports.createIndividualCheckoutSession = onRequest({ secrets: [STRIPE_SECRET_KEY] }, async (req, res) => {
+  setCors(res);
+  if (req.method === "OPTIONS") return res.status(204).send("");
+  if (req.method !== "POST") return res.status(405).json({ error: { message: "Metodo nao permitido." } });
+
+  try {
+    const body = req.body || {};
+    const plan = getIndividualManagerPlan(body.planId);
+    const name = normalizeString(body.name);
+    const email = normalizeEmail(body.email);
+    const phone = normalizeString(body.phone);
+    const cpf = normalizeCpf(body.cpf);
+    const workspaceName = normalizeString(body.workspaceName) || (name ? `Espaco de ${name}` : "");
+
+    if (!name) return res.status(400).json({ error: { message: "Informe seu nome." } });
+    if (!email) return res.status(400).json({ error: { message: "Informe um e-mail valido." } });
+    if (!isCpfValidBasic(cpf)) return res.status(400).json({ error: { message: "Informe um CPF valido." } });
+
+    const db = admin.firestore();
+    const companyId = buildIndividualCompanyId(cpf);
+    const companySnap = await db.doc(`companies/${companyId}`).get();
+    if (companySnap.exists && companySnap.data()?.active !== false) {
+      return res.status(409).json({ error: { message: "Este CPF ja possui uma conta ativa no FlowProject." } });
+    }
+
+    try {
+      const existingUser = await admin.auth().getUserByEmail(email);
+      const existingCompany = await db.doc(`userCompanies/${existingUser.uid}`).get();
+      if (existingCompany.exists && existingCompany.data()?.companyId !== companyId) {
+        return res.status(409).json({ error: { message: "Este e-mail ja esta em uso em outra conta FlowProject." } });
+      }
+    } catch (err) {
+      if (err?.code !== "auth/user-not-found") throw err;
+    }
+
+    const signupRef = db.collection("individualSignups").doc();
+    const successToken = crypto.randomBytes(18).toString("hex");
+    const baseUrl = getPublicBaseUrl(req);
+    const stripe = getStripeClient();
+
+    await signupRef.set({
+      id: signupRef.id,
+      status: "checkout_created",
+      accountType: "individual",
+      documentType: "cpf",
+      planId: plan.id,
+      planSnapshot: plan,
+      name,
+      email,
+      phone,
+      cpf,
+      cpfHash: sha256(cpf),
+      companyId,
+      workspaceName,
+      successTokenHash: sha256(successToken),
+      createdAt: admin.firestore.FieldValue.serverTimestamp(),
+      updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+    });
+
+    const session = await stripe.checkout.sessions.create({
+      mode: "subscription",
+      customer_email: email,
+      client_reference_id: signupRef.id,
+      line_items: [{
+        quantity: 1,
+        price_data: {
+          currency: "brl",
+          unit_amount: plan.priceCents,
+          recurring: { interval: "month" },
+          product_data: {
+            name: `FlowProject ${plan.label}`,
+            description: `${plan.includedUsers} usuarios: 1 Gestor, ${plan.participantLimit} Participantes e ${plan.projectLimit} projetos`,
+          },
+        },
+      }],
+      metadata: {
+        signupId: signupRef.id,
+        planId: plan.id,
+        accountType: "individual",
+      },
+      subscription_data: {
+        metadata: {
+          signupId: signupRef.id,
+          planId: plan.id,
+          accountType: "individual",
+        },
+      },
+      success_url: `${baseUrl}/venda?checkout=success&session_id={CHECKOUT_SESSION_ID}&token=${successToken}`,
+      cancel_url: `${baseUrl}/venda?checkout=cancelled`,
+      allow_promotion_codes: true,
+    });
+
+    await signupRef.set({
+      checkoutSessionId: session.id,
+      checkoutUrl: session.url,
+      stripeStatus: "checkout_created",
+      updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+    }, { merge: true });
+
+    return res.status(200).json({ url: session.url, sessionId: session.id });
+  } catch (err) {
+    console.error("createIndividualCheckoutSession:", err);
+    return res.status(500).json({ error: { message: err?.message || "Erro ao iniciar checkout." } });
+  }
+});
+
+exports.getIndividualCheckoutResult = functions.https.onRequest(async (req, res) => {
+  setCors(res);
+  if (req.method === "OPTIONS") return res.status(204).send("");
+  if (req.method !== "POST") return res.status(405).json({ error: { message: "Metodo nao permitido." } });
+
+  try {
+    const sessionId = normalizeString(req.body?.sessionId);
+    const token = normalizeString(req.body?.token);
+    if (!sessionId || !token) return res.status(400).json({ error: { message: "Sessao invalida." } });
+
+    const db = admin.firestore();
+    const snap = await db.collection("individualSignups").where("checkoutSessionId", "==", sessionId).limit(1).get();
+    if (snap.empty) return res.status(404).json({ error: { message: "Checkout nao encontrado." } });
+
+    const docSnap = snap.docs[0];
+    const data = docSnap.data() || {};
+    if (data.successTokenHash !== sha256(token)) {
+      return res.status(403).json({ error: { message: "Token de checkout invalido." } });
+    }
+
+    if (data.status !== "active") {
+      return res.status(200).json({ status: data.status || "pending", message: "Pagamento confirmado, ativacao em processamento." });
+    }
+
+    return res.status(200).json({
+      status: "active",
+      email: data.email,
+      companyId: data.companyId,
+      resetLink: data.resetLink || "",
+    });
+  } catch (err) {
+    console.error("getIndividualCheckoutResult:", err);
+    return res.status(500).json({ error: { message: err?.message || "Erro ao consultar checkout." } });
+  }
+});
+
+exports.stripeWebhook = onRequest({ secrets: [STRIPE_SECRET_KEY, STRIPE_WEBHOOK_SECRET] }, async (req, res) => {
+  const stripe = getStripeClient();
+  const endpointSecret = getConfigValue("stripe.webhook_secret").trim();
+  const signature = req.headers["stripe-signature"];
+  let event;
+
+  try {
+    if (!endpointSecret) throw new Error("STRIPE_WEBHOOK_SECRET nao configurado.");
+    event = stripe.webhooks.constructEvent(req.rawBody, signature, endpointSecret);
+  } catch (err) {
+    console.error("[stripeWebhook] assinatura invalida:", err?.message || err);
+    return res.status(400).send(`Webhook Error: ${err?.message || err}`);
+  }
+
+  try {
+    const db = admin.firestore();
+    const now = admin.firestore.FieldValue.serverTimestamp();
+
+    if (event.type === "checkout.session.completed") {
+      const session = event.data.object;
+      const signupId = session.client_reference_id || session.metadata?.signupId;
+      if (signupId) {
+        let subscriptionStatus = "active";
+        if (session.subscription) {
+          const subscription = await stripe.subscriptions.retrieve(session.subscription);
+          subscriptionStatus = subscription.status || "active";
+        }
+        await activateIndividualSignup(signupId, {
+          customerId: session.customer || "",
+          subscriptionId: session.subscription || "",
+          checkoutSessionId: session.id,
+          subscriptionStatus,
+        });
+      }
+    }
+
+    if (event.type === "customer.subscription.updated" || event.type === "customer.subscription.deleted") {
+      const subscription = event.data.object;
+      const signupId = subscription.metadata?.signupId || "";
+      const status = subscription.status || (event.type === "customer.subscription.deleted" ? "canceled" : "");
+      if (signupId) {
+        const signupRef = db.doc(`individualSignups/${signupId}`);
+        const signupSnap = await signupRef.get();
+        const signup = signupSnap.exists ? signupSnap.data() : {};
+        const companyId = signup?.companyId || "";
+        await signupRef.set({ stripeStatus: status, status: status === "active" ? "active" : "subscription_" + status, updatedAt: now }, { merge: true });
+        if (companyId) {
+          await db.doc(`companies/${companyId}`).set({
+            stripeStatus: status,
+            active: !["canceled", "unpaid", "incomplete_expired"].includes(status),
+            updatedAt: now,
+          }, { merge: true });
+        }
+      }
+    }
+
+    if (event.type === "invoice.payment_failed") {
+      const invoice = event.data.object;
+      const subscriptionId = typeof invoice.subscription === "string" ? invoice.subscription : "";
+      if (subscriptionId) {
+        const companies = await db.collection("companies").where("stripeSubscriptionId", "==", subscriptionId).limit(1).get();
+        if (!companies.empty) {
+          await companies.docs[0].ref.set({ stripeStatus: "past_due", updatedAt: now }, { merge: true });
+        }
+      }
+    }
+
+    return res.status(200).json({ received: true });
+  } catch (err) {
+    console.error("[stripeWebhook] processamento falhou:", err);
+    return res.status(500).send("Webhook processing failed");
+  }
+});
+
+async function assertSuperAdminRequest(req) {
+  const authHeader = req.headers.authorization || "";
+  const match = authHeader.match(/^Bearer\s+(.+)$/i);
+  if (!match) throw new Error("UNAUTHENTICATED");
+  const decoded = await admin.auth().verifyIdToken(match[1]);
+  const platformSnap = await admin.firestore().doc(`platformUsers/${decoded.uid}`).get();
+  const platformUser = platformSnap.exists ? platformSnap.data() : null;
+  if (!platformUser || platformUser.role !== "superadmin" || platformUser.active === false) {
+    throw new Error("PERMISSION_DENIED");
+  }
+  return decoded;
+}
+
+async function deleteDocumentTree(docRef) {
+  const collections = await docRef.listCollections();
+  for (const col of collections) {
+    const snap = await col.get();
+    for (const child of snap.docs) {
+      await deleteDocumentTree(child.ref);
+    }
+  }
+  await docRef.delete();
+}
+
+exports.deleteTestCompanySignup = onRequest({ secrets: [STRIPE_SECRET_KEY] }, async (req, res) => {
+  setCors(res);
+  if (req.method === "OPTIONS") return res.status(204).send("");
+  if (req.method !== "POST") return res.status(405).json({ error: { message: "Metodo nao permitido." } });
+
+  try {
+    const decoded = await assertSuperAdminRequest(req);
+    const companyId = normalizeString(req.body?.companyId);
+    const confirmCompanyId = normalizeString(req.body?.confirmCompanyId);
+    if (!companyId || companyId !== confirmCompanyId) {
+      return res.status(400).json({ error: { message: "Confirme o ID da empresa para excluir este teste." } });
+    }
+
+    const db = admin.firestore();
+    const companyRef = db.doc(`companies/${companyId}`);
+    const companySnap = await companyRef.get();
+    if (!companySnap.exists) return res.status(404).json({ error: { message: "Empresa nao encontrada." } });
+
+    const company = companySnap.data() || {};
+    const isTestSignup = company.accountType === "individual" || company.createdBy === "stripe" || !!company.stripeCustomerId || companyId.startsWith("cpf-");
+    if (!isTestSignup) {
+      return res.status(400).json({ error: { message: "Esta acao e permitida apenas para cadastros individuais/teste criados pelo checkout." } });
+    }
+
+    const stripe = getStripeClient();
+    const stripeSubscriptionIds = new Set();
+    const stripeCustomerIds = new Set();
+    if (company.stripeSubscriptionId) stripeSubscriptionIds.add(company.stripeSubscriptionId);
+    if (company.stripeCustomerId) stripeCustomerIds.add(company.stripeCustomerId);
+
+    const signupRefs = new Map();
+    const byCompany = await db.collection("individualSignups").where("companyId", "==", companyId).get();
+    byCompany.docs.forEach((docSnap) => signupRefs.set(docSnap.id, docSnap));
+    if (company.ownerEmail) {
+      const byEmail = await db.collection("individualSignups").where("email", "==", normalizeEmail(company.ownerEmail)).get();
+      byEmail.docs.forEach((docSnap) => signupRefs.set(docSnap.id, docSnap));
+    }
+    for (const signupSnap of signupRefs.values()) {
+      const signup = signupSnap.data() || {};
+      if (signup.stripeSubscriptionId) stripeSubscriptionIds.add(signup.stripeSubscriptionId);
+      if (signup.stripeCustomerId) stripeCustomerIds.add(signup.stripeCustomerId);
+    }
+
+    const usersSnap = await db.collection(`companies/${companyId}/users`).get();
+    const userIds = new Set(usersSnap.docs.map((docSnap) => docSnap.id));
+    if (company.ownerUid) userIds.add(company.ownerUid);
+
+    for (const subscriptionId of stripeSubscriptionIds) {
+      try {
+        await stripe.subscriptions.cancel(subscriptionId);
+      } catch (err) {
+        if (err?.code !== "resource_missing") console.warn("[deleteTestCompanySignup] subscription:", subscriptionId, err?.message || err);
+      }
+    }
+
+    for (const customerId of stripeCustomerIds) {
+      try {
+        await stripe.customers.del(customerId);
+      } catch (err) {
+        if (err?.code !== "resource_missing") console.warn("[deleteTestCompanySignup] customer:", customerId, err?.message || err);
+      }
+    }
+
+    for (const uid of userIds) {
+      await db.doc(`userCompanies/${uid}`).delete().catch(() => {});
+      await admin.auth().deleteUser(uid).catch((err) => {
+        if (err?.code !== "auth/user-not-found") throw err;
+      });
+    }
+
+    for (const signupSnap of signupRefs.values()) {
+      await signupSnap.ref.delete();
+    }
+    await deleteDocumentTree(companyRef);
+
+    return res.status(200).json({
+      ok: true,
+      message: "Cadastro de teste excluido.",
+      companyId,
+      deletedBy: decoded.uid,
+      removedUsers: userIds.size,
+      removedSignups: signupRefs.size,
+      canceledSubscriptions: stripeSubscriptionIds.size,
+      removedCustomers: stripeCustomerIds.size,
+    });
+  } catch (err) {
+    console.error("deleteTestCompanySignup:", err);
+    if (err?.message === "UNAUTHENTICATED") return res.status(401).json({ error: { message: "Voce precisa estar logado." } });
+    if (err?.message === "PERMISSION_DENIED") return res.status(403).json({ error: { message: "Apenas Super Admin pode excluir cadastros de teste." } });
+    return res.status(500).json({ error: { message: err?.message || "Nao foi possivel excluir o cadastro de teste." } });
+  }
+});

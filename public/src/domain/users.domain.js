@@ -327,6 +327,44 @@ async function assertCompanyUserLimitAvailable(db, companyId, willBeActive = tru
   }
 }
 
+function isIndividualAccount(state) {
+  return String(state?.company?.accountType || "").trim().toLowerCase() === "individual";
+}
+
+function getCompanyOwnerUid(state) {
+  return String(state?.company?.ownerUid || "").trim();
+}
+
+function configureUserRoleOptions(deps, mode = "create", user = null) {
+  const { refs, state } = deps;
+  const select = refs.newUserRoleEl;
+  if (!select) return;
+
+  const roleField = select.closest("label");
+  const nameField = refs.newUserNameEl?.closest("label");
+  const currentRole = String(user?.role || "tecnico").trim() || "tecnico";
+  const individual = isIndividualAccount(state);
+  const roles = individual
+    ? [{ value: "tecnico", label: "Recurso" }]
+    : [
+        { value: "tecnico", label: "Recurso" },
+        { value: "coordenador", label: "Coordenador" },
+        { value: "gestor", label: "Gestor" },
+        { value: "admin", label: "Admin" },
+      ];
+
+  if (individual && mode !== "create" && currentRole !== "tecnico") {
+    roles.push({ value: currentRole, label: normalizeRole(currentRole) });
+  }
+
+  select.innerHTML = roles.map((role) => `<option value="${role.value}">${role.label}</option>`).join("");
+  select.value = mode === "create" ? "tecnico" : currentRole;
+  select.disabled = mode === "view" || (individual && mode !== "create" && currentRole !== "tecnico");
+
+  if (roleField) roleField.hidden = individual && mode === "create";
+  if (nameField) nameField.style.gridColumn = individual && mode === "create" ? "span 12" : "";
+}
+
 function initNewUserRichFields(deps) {
   const { refs, state } = deps;
 
@@ -911,7 +949,8 @@ function setCreateUserModalMode(deps, mode, user = null) {
     : (isEdit ? "Atualize os dados do usuario." : "Cadastre um usuario, selecione equipes e informe foto e skills quando precisar.");
 
   if (refs.newUserNameEl) refs.newUserNameEl.disabled = isView;
-  if (refs.newUserRoleEl) refs.newUserRoleEl.disabled = isView;
+  configureUserRoleOptions(deps, mode, user);
+  if (refs.newUserRoleEl && !isIndividualAccount(state)) refs.newUserRoleEl.disabled = isView;
   if (refs.newUserEmailEl) refs.newUserEmailEl.disabled = isEdit || isView;
   if (refs.newUserPhoneEl) refs.newUserPhoneEl.disabled = isView;
   if (refs.newUserActiveEl) refs.newUserActiveEl.disabled = isView;
@@ -935,6 +974,7 @@ function setCreateUserModalMode(deps, mode, user = null) {
 
 function fillCreateUserModal(user, deps) {
   const { refs, state } = deps;
+  configureUserRoleOptions(deps, state._adminUserModalMode || "create", user);
   refs.newUserUidEl.value = user?.uid || "";
   refs.newUserNameEl.value = user?.name || "";
   refs.newUserRoleEl.value = user?.role || "tecnico";
@@ -1122,6 +1162,10 @@ export async function createUser(deps) {
   if (!name) return setAlert(refs.createUserAlert, "Informe o nome do usuário.");
   if (!role) return setAlert(refs.createUserAlert, "Selecione a função.");
   if (!email || !isEmailValidBasic(email)) return setAlert(refs.createUserAlert, "Informe um e-mail válido.");
+
+  if (isIndividualAccount(state) && role !== "tecnico") {
+    return setAlert(refs.createUserAlert, "Plano pessoa fisica permite cadastrar apenas Recursos.");
+  }
 
   if (role !== "admin" && teamIds.length === 0) {
     return setAlert(refs.createUserAlert, "Selecione pelo menos 1 equipe para este usuário.");
@@ -1324,6 +1368,9 @@ async function updateCompanyUser(deps) {
   if (!name) return setAlert(refs.createUserAlert, "Informe o nome do usuario.");
   if (!role) return setAlert(refs.createUserAlert, "Selecione a funcao.");
   if (!email || !isEmailValidBasic(email)) return setAlert(refs.createUserAlert, "Informe um e-mail valido.");
+  if (isIndividualAccount(state) && uid !== getCompanyOwnerUid(state) && role !== "tecnico") {
+    return setAlert(refs.createUserAlert, "Plano pessoa fisica permite manter apenas o dono da conta e Recursos.");
+  }
   if (role !== "admin" && teamIds.length === 0) {
     return setAlert(refs.createUserAlert, "Selecione pelo menos 1 equipe para este usuario.");
   }
