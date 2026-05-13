@@ -443,6 +443,12 @@ a{color:inherit}
   margin:16px 0 0;
   font-size:18px;
 }
+.plan-users{
+  margin-top:8px;
+  color:#020817;
+  font-size:18px;
+  font-weight:800;
+}
 .price{
   margin-top:12px;
 }

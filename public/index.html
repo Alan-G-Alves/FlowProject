@@ -8,7 +8,7 @@
 </script>
 <meta content="width=device-width, initial-scale=1.0" name="viewport"/>
 <title>FlowProject</title>
-<link href="./styles.css?v=1778178016" rel="stylesheet"/>
+<link href="./styles.css?v=1778627600" rel="stylesheet"/>
 <link href="logof.png" rel="icon" type="image/png"/>
 <style>
   /* SaaS Search (My Projects Kanban) */
@@ -317,6 +317,23 @@
 </div>
 </div>
 <div class="grid" id="dashCards"></div>
+<section class="admin-onboarding" hidden id="dashboardAdminOnboarding">
+  <div class="admin-onboarding-head">
+    <div>
+      <span class="admin-onboarding-eyebrow">Primeiros passos</span>
+      <h2>Configure sua empresa no FlowProject</h2>
+      <p class="muted">Complete o essencial para começar a controlar projetos, recursos e atividades.</p>
+    </div>
+    <div class="admin-onboarding-progress">
+      <strong id="adminOnboardingProgressText">0/7</strong>
+      <span id="adminOnboardingProgressLabel">pendente</span>
+    </div>
+  </div>
+  <div class="admin-onboarding-bar" aria-hidden="true">
+    <span id="adminOnboardingProgressBar"></span>
+  </div>
+  <div class="admin-onboarding-list" id="adminOnboardingList"></div>
+</section>
 <div class="dashboard-home-grid">
   <section class="dashboard-agenda" id="dashboardAgenda">
     <div class="dashboard-agenda-head">
@@ -3251,7 +3268,7 @@
   </div>
 </div>
 
-<script src="./app.js?v=1778621600" type="module"></script>
+<script src="./app.js?v=1778627600" type="module"></script>
 <script>
   // Toggle senha (somente UI)
   document.addEventListener("click", function(e){

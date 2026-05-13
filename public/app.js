@@ -183,6 +183,8 @@ _dashboardAgendaCursor.setDate(1);
 let _dashboardReminders = [];
 let _dashboardReminderUsers = [];
 let _activeReminderDetailId = "";
+let _adminOnboardingLoading = false;
+let _adminOnboardingLastDoneCount = null;
 let _authReadyForRoutes = false;
 let _routeUnsubscribe = null;
 
@@ -1517,6 +1519,403 @@ refs.profilePhotoFile?.addEventListener("change", async (e) => {
 function refreshDashboardHomeWidgets(){
   loadDashboardAgenda().catch((err) => console.warn("[dashboard-agenda]", err));
   loadDashboardReminders().catch((err) => console.warn("[dashboard-reminders]", err));
+  renderAdminOnboarding().catch((err) => console.warn("[admin-onboarding]", err));
+}
+
+function canShowAdminOnboarding(){
+  if (!state.companyId || state.isSuperAdmin) return false;
+  const role = String(state.profile?.role || "").toLowerCase();
+  return role === "admin" || isIndividualManagerOnboarding();
+}
+
+function isIndividualManagerOnboarding(){
+  const role = String(state.profile?.role || "").toLowerCase();
+  const accountType = String(state.company?.accountType || "").toLowerCase();
+  return role === "gestor" && accountType === "individual";
+}
+
+function hasAdminCheckedCompanySettings(){
+  const onboarding = state.profile?.onboarding && typeof state.profile.onboarding === "object"
+    ? state.profile.onboarding
+    : {};
+  return Boolean(onboarding.companySettingsChecked);
+}
+
+async function getAdminOnboardingStats(){
+  if (!state.companyId) return null;
+  const base = ["companies", state.companyId];
+  const [
+    teamsSnap,
+    usersSnap,
+    clientsSnap,
+    projectsSnap,
+    tasksSnap,
+    activitiesSnap
+  ] = await Promise.all([
+    getDocs(collection(db, ...base, "teams")),
+    getDocs(collection(db, ...base, "users")),
+    getDocs(collection(db, ...base, "clients")),
+    getDocs(collection(db, ...base, "projects")),
+    getDocs(collection(db, ...base, "tasks")),
+    getDocs(collection(db, ...base, "activities"))
+  ]);
+
+  const users = usersSnap.docs.map((docSnap) => docSnap.data() || {});
+  return {
+    teams: teamsSnap.docs.filter((docSnap) => (docSnap.data() || {}).active !== false).length,
+    resources: users.filter((user) => String(user.role || "").toLowerCase() === "tecnico" && user.active !== false).length,
+    clients: clientsSnap.docs.filter((docSnap) => (docSnap.data() || {}).active !== false).length,
+    projects: projectsSnap.docs.filter((docSnap) => (docSnap.data() || {}).active !== false).length,
+    tasks: tasksSnap.size,
+    activities: activitiesSnap.size,
+    settingsChecked: hasAdminCheckedCompanySettings()
+  };
+}
+
+function getAdminOnboardingSteps(stats){
+  const isIndividualAccount = String(state.company?.accountType || "").toLowerCase() === "individual";
+  if (isIndividualManagerOnboarding()) {
+    return [
+      {
+        key: "resource",
+        title: "Criar primeiro recurso",
+        desc: "Cadastre quem vai receber atividades e apontar horas nos seus projetos.",
+        done: stats.resources > 0,
+        actionLabel: "Criar recurso",
+        action: () => {
+          navigateTo(ROUTES.managerUsers);
+          setTimeout(() => refs.btnOpenCreateTech?.click(), 350);
+        }
+      },
+      {
+        key: "client",
+        title: "Criar primeiro cliente",
+        desc: "Inclua o cliente e os key users que participam das entregas.",
+        done: stats.clients > 0,
+        actionLabel: "Criar cliente",
+        action: () => {
+          navigateTo(ROUTES.clients);
+          setTimeout(() => refs.btnOpenCreateClient?.click(), 350);
+        }
+      },
+      {
+        key: "project",
+        title: "Criar primeiro projeto",
+        desc: "Abra o projeto que vai concentrar tarefas, recursos e acompanhamento.",
+        done: stats.projects > 0,
+        actionLabel: "Criar projeto",
+        action: () => {
+          navigateTo(ROUTES.myProjects);
+          setTimeout(() => refs.btnOpenCreateProjectFromKanban?.click(), 350);
+        }
+      },
+      {
+        key: "task",
+        title: "Adicionar primeira tarefa",
+        desc: "Entre no workspace do projeto e adicione a primeira tarefa.",
+        done: stats.tasks > 0,
+        actionLabel: "Abrir projetos",
+        action: () => navigateTo(ROUTES.myProjects)
+      },
+      {
+        key: "activity",
+        title: "Programar primeira atividade",
+        desc: "Dentro da tarefa, programe a atividade que sera executada pelo recurso.",
+        done: stats.activities > 0,
+        actionLabel: "Abrir projetos",
+        action: () => navigateTo(ROUTES.myProjects)
+      }
+    ];
+  }
+
+  return [
+    {
+      key: "team",
+      title: "Criar primeira equipe",
+      desc: isIndividualAccount ? "Mantenha uma equipe base para organizar seus recursos." : "Use equipes para separar areas, contratos ou frentes de trabalho.",
+      done: stats.teams > 0,
+      actionLabel: "Criar equipe",
+      action: () => {
+        navigateTo(ROUTES.admin);
+        setTimeout(() => refs.btnOpenCreateTeam?.click(), 250);
+      }
+    },
+    {
+      key: "resource",
+      title: "Criar primeiro recurso",
+      desc: "Cadastre quem vai receber atividades e apontar horas.",
+      done: stats.resources > 0,
+      actionLabel: "Criar recurso",
+      action: () => {
+        navigateTo(ROUTES.admin);
+        setTimeout(() => refs.btnOpenCreateUser?.click(), 250);
+      }
+    },
+    {
+      key: "client",
+      title: "Criar primeiro cliente",
+      desc: "Inclua o cliente e os key users que serao usados nas atividades.",
+      done: stats.clients > 0,
+      actionLabel: "Criar cliente",
+      action: () => {
+        navigateTo(ROUTES.clients);
+        setTimeout(() => refs.btnOpenCreateClient?.click(), 250);
+      }
+    },
+    {
+      key: "project",
+      title: "Criar primeiro projeto",
+      desc: "Abra o projeto que vai concentrar tarefas, recursos e acompanhamento.",
+      done: stats.projects > 0,
+      actionLabel: "Criar projeto",
+      action: () => {
+        navigateTo(isIndividualAccount ? ROUTES.myProjects : ROUTES.projects);
+        setTimeout(() => (refs.btnOpenCreateProjectFromKanban || refs.btnOpenCreateProject)?.click(), 250);
+      }
+    },
+    {
+      key: "task",
+      title: "Adicionar primeira tarefa",
+      desc: "Entre no workspace de um projeto e adicione a primeira tarefa.",
+      done: stats.tasks > 0,
+      actionLabel: "Abrir projetos",
+      action: () => navigateTo(ROUTES.myProjects)
+    },
+    {
+      key: "activity",
+      title: "Programar primeira atividade",
+      desc: "Dentro da tarefa, programe a atividade que sera executada pelo recurso.",
+      done: stats.activities > 0,
+      actionLabel: "Abrir projetos",
+      action: () => navigateTo(ROUTES.myProjects)
+    },
+    {
+      key: "settings",
+      title: "Conferir configuracoes da empresa",
+      desc: "Revise marca, permissoes de relatorio e regras de apontamento.",
+      done: stats.settingsChecked,
+      actionLabel: "Conferir",
+      action: () => markAdminSettingsChecked()
+    }
+  ];
+}
+
+function getDashboardOnboardingCopy(stepCount = 7){
+  if (isIndividualManagerOnboarding()) {
+    return {
+      title: "Guia de configuracao",
+      desc: "Complete o essencial para acompanhar suas entregas.",
+      progress: `0/${stepCount}`
+    };
+  }
+  return {
+    title: "Guia de configuracao",
+    desc: "Complete o essencial para controlar projetos, recursos e atividades.",
+    progress: `0/${stepCount}`
+  };
+}
+
+function updateDashboardOnboardingCopy(stepCount = 7){
+  if (!refs.dashboardAdminOnboarding) return;
+  const copy = getDashboardOnboardingCopy(stepCount);
+  const titleEl = refs.dashboardAdminOnboarding.querySelector("h2");
+  const descEl = refs.dashboardAdminOnboarding.querySelector(".admin-onboarding-head p");
+  if (titleEl) titleEl.textContent = copy.title;
+  if (descEl) descEl.textContent = copy.desc;
+  if (refs.adminOnboardingProgressText) refs.adminOnboardingProgressText.textContent = copy.progress;
+}
+
+function getProfileOnboarding(){
+  return state.profile?.onboarding && typeof state.profile.onboarding === "object"
+    ? state.profile.onboarding
+    : {};
+}
+
+async function saveProfileOnboardingPatch(patch = {}){
+  if (!state.companyId || !auth.currentUser?.uid) return;
+  const uid = auth.currentUser.uid;
+  const onboarding = {
+    ...getProfileOnboarding(),
+    ...patch
+  };
+  state.profile = { ...(state.profile || {}), onboarding };
+  await updateDoc(doc(db, "companies", state.companyId, "users", uid), { onboarding });
+}
+
+function ensureOnboardingActionsEl(){
+  if (!refs.dashboardAdminOnboarding) return null;
+  const head = refs.dashboardAdminOnboarding.querySelector(".admin-onboarding-head");
+  if (!head) return null;
+  let actions = refs.dashboardAdminOnboarding.querySelector(".admin-onboarding-actions");
+  if (!actions) {
+    actions = document.createElement("div");
+    actions.className = "admin-onboarding-actions";
+    head.appendChild(actions);
+  }
+  return actions;
+}
+
+function ensureOnboardingMessageEl(){
+  if (!refs.dashboardAdminOnboarding) return null;
+  let message = refs.dashboardAdminOnboarding.querySelector(".admin-onboarding-message");
+  if (!message) {
+    message = document.createElement("div");
+    message.className = "admin-onboarding-message";
+    message.hidden = true;
+    refs.dashboardAdminOnboarding.insertBefore(message, refs.adminOnboardingList || null);
+  }
+  return message;
+}
+
+function updateDashboardOnboardingMessage(steps, doneCount){
+  const message = ensureOnboardingMessageEl();
+  if (!message) return;
+  const nextStep = steps.find((step) => !step.done);
+  const shouldCelebrate = _adminOnboardingLastDoneCount !== null && doneCount > _adminOnboardingLastDoneCount;
+
+  if (shouldCelebrate) {
+    message.hidden = false;
+    message.classList.add("is-visible");
+    message.textContent = nextStep
+      ? `Passo concluido. Proximo: ${nextStep.title}.`
+      : "Configuracao concluida.";
+  } else if (!nextStep) {
+    message.hidden = false;
+    message.classList.add("is-visible");
+    message.textContent = "Configuracao concluida.";
+  } else {
+    message.hidden = true;
+    message.classList.remove("is-visible");
+    message.textContent = "";
+  }
+
+  _adminOnboardingLastDoneCount = doneCount;
+}
+
+function renderDashboardOnboardingControls(doneCount, totalSteps){
+  if (!refs.dashboardAdminOnboarding) return;
+  const onboarding = getProfileOnboarding();
+  const isMinimized = Boolean(onboarding.guideMinimized);
+  const isComplete = totalSteps > 0 && doneCount === totalSteps;
+  refs.dashboardAdminOnboarding.classList.toggle("is-minimized", isMinimized);
+  refs.dashboardAdminOnboarding.classList.toggle("is-complete", isComplete);
+
+  const actions = ensureOnboardingActionsEl();
+  if (!actions) return;
+  actions.innerHTML = `
+    <button class="admin-onboarding-icon-btn" type="button" data-onboarding-toggle title="${isMinimized ? "Expandir guia" : "Minimizar guia"}" aria-label="${isMinimized ? "Expandir guia" : "Minimizar guia"}">${isMinimized ? "+" : "-"}</button>
+    ${isComplete ? '<button class="admin-onboarding-icon-btn" type="button" data-onboarding-hide title="Ocultar guia" aria-label="Ocultar guia">x</button>' : ""}
+  `;
+
+  actions.querySelector("[data-onboarding-toggle]")?.addEventListener("click", async () => {
+    const next = !Boolean(getProfileOnboarding().guideMinimized);
+    refs.dashboardAdminOnboarding?.classList.toggle("is-minimized", next);
+    try{
+      await saveProfileOnboardingPatch({ guideMinimized: next });
+      renderAdminOnboarding().catch((err) => console.warn("[admin-onboarding:toggle-refresh]", err));
+    }catch(err){
+      console.warn("[admin-onboarding:toggle]", err);
+    }
+  });
+
+  actions.querySelector("[data-onboarding-hide]")?.addEventListener("click", async () => {
+    refs.dashboardAdminOnboarding.hidden = true;
+    try{
+      await saveProfileOnboardingPatch({
+        guideHidden: true,
+        guideHiddenAt: new Date().toISOString()
+      });
+    }catch(err){
+      console.warn("[admin-onboarding:hide]", err);
+    }
+  });
+}
+
+function renderAdminOnboardingSkeleton(){
+  if (!refs.dashboardAdminOnboarding || !refs.adminOnboardingList) return;
+  refs.dashboardAdminOnboarding.hidden = false;
+  refs.dashboardAdminOnboarding.classList.remove("is-complete");
+  updateDashboardOnboardingCopy(isIndividualManagerOnboarding() ? 5 : 7);
+  renderDashboardOnboardingControls(0, isIndividualManagerOnboarding() ? 5 : 7);
+  if (refs.adminOnboardingProgressLabel) refs.adminOnboardingProgressLabel.textContent = "carregando";
+  if (refs.adminOnboardingProgressBar) refs.adminOnboardingProgressBar.style.width = "0%";
+  refs.adminOnboardingList.innerHTML = '<div class="admin-onboarding-empty">Carregando primeiros passos...</div>';
+}
+
+async function renderAdminOnboarding(){
+  if (!refs.dashboardAdminOnboarding || !refs.adminOnboardingList) return;
+  if (!canShowAdminOnboarding()){
+    refs.dashboardAdminOnboarding.hidden = true;
+    return;
+  }
+  if (_adminOnboardingLoading) return;
+  _adminOnboardingLoading = true;
+  renderAdminOnboardingSkeleton();
+  try{
+    const stats = await getAdminOnboardingStats();
+    const steps = getAdminOnboardingSteps(stats);
+    updateDashboardOnboardingCopy(steps.length);
+    const doneCount = steps.filter((step) => step.done).length;
+    const pct = Math.round((doneCount / steps.length) * 100);
+    const onboarding = getProfileOnboarding();
+    const isComplete = doneCount === steps.length;
+
+    if (isComplete && onboarding.guideHidden) {
+      refs.dashboardAdminOnboarding.hidden = true;
+      return;
+    }
+
+    refs.dashboardAdminOnboarding.hidden = false;
+    renderDashboardOnboardingControls(doneCount, steps.length);
+    updateDashboardOnboardingMessage(steps, doneCount);
+
+    if (refs.adminOnboardingProgressText) refs.adminOnboardingProgressText.textContent = `${doneCount}/${steps.length}`;
+    if (refs.adminOnboardingProgressLabel) refs.adminOnboardingProgressLabel.textContent = doneCount === steps.length ? "completo" : `${pct}% concluido`;
+    if (refs.adminOnboardingProgressBar) refs.adminOnboardingProgressBar.style.width = `${pct}%`;
+
+    const firstPendingKey = steps.find((step) => !step.done)?.key || "";
+    refs.adminOnboardingList.innerHTML = steps.map((step) => `
+      <article class="admin-onboarding-step ${step.done ? "is-done" : ""} ${step.key === firstPendingKey ? "is-active" : ""}">
+        <span class="admin-onboarding-check" aria-hidden="true">${step.done ? "✓" : ""}</span>
+        <div>
+          <strong>${escapeHtml(step.title)}</strong>
+          <p>${escapeHtml(step.desc)}</p>
+        </div>
+        ${step.done ? '<span class="admin-onboarding-status">Feito</span>' : `<button class="btn sm" type="button" data-admin-onboarding-action="${escapeHtml(step.key)}">${escapeHtml(step.actionLabel)}</button>`}
+      </article>
+    `).join("");
+
+    refs.adminOnboardingList.querySelectorAll("[data-admin-onboarding-action]").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        const key = btn.getAttribute("data-admin-onboarding-action");
+        const step = steps.find((item) => item.key === key);
+        step?.action?.();
+      });
+    });
+  }catch(err){
+    console.warn("[admin-onboarding:render]", err);
+    refs.adminOnboardingList.innerHTML = '<div class="admin-onboarding-empty">Nao foi possivel carregar o checklist agora.</div>';
+  }finally{
+    _adminOnboardingLoading = false;
+  }
+}
+
+async function markAdminSettingsChecked(){
+  if (!state.companyId || !auth.currentUser?.uid) return;
+  const uid = auth.currentUser.uid;
+  const onboarding = {
+    ...(state.profile?.onboarding && typeof state.profile.onboarding === "object" ? state.profile.onboarding : {}),
+    companySettingsChecked: true,
+    companySettingsCheckedAt: new Date().toISOString()
+  };
+  state.profile = { ...(state.profile || {}), onboarding };
+  navigateTo(ROUTES.settings);
+  try{
+    await updateDoc(doc(db, "companies", state.companyId, "users", uid), { onboarding });
+    renderAdminOnboarding().catch((err) => console.warn("[admin-onboarding:refresh]", err));
+  }catch(err){
+    console.warn("[admin-onboarding:settings-check]", err);
+  }
 }
 
 function sortDashboardReminders(items){

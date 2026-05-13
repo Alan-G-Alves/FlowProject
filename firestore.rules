@@ -99,7 +99,7 @@ service cloud.firestore {
         "createdAt","createdBy",
         "photoURL","hourlyRate",
         "address","cpf","cnpj","birthDate","age",
-        "attachments"
+        "attachments","onboarding"
       ]);
     }
 
@@ -112,7 +112,7 @@ service cloud.firestore {
         "createdAt","createdBy",
         "photoURL","hourlyRate",
         "address","cpf","cnpj","birthDate","age",
-        "attachments"
+        "attachments","onboarding"
       ]);
     }
 
@@ -470,7 +470,13 @@ match /counters/{counterId} {
         allow update: if isSignedIn()
           && uid == myUid()
           && companyId == myCompanyId()
-          && request.resource.data.diff(resource.data).changedKeys().hasOnly(["name","phone","photoURL","hourlyRate","address","birthDate","age"])
+          && request.resource.data.diff(resource.data).changedKeys().hasOnly(["onboarding"])
+            && userFieldsAllowedOnUpdate();
+
+        allow update: if isSignedIn()
+          && uid == myUid()
+          && companyId == myCompanyId()
+          && request.resource.data.diff(resource.data).changedKeys().hasOnly(["name","phone","photoURL","hourlyRate","address","birthDate","age","onboarding"])
             && ((resource == null && userFieldsAllowedOnCreate()) || (resource != null && userFieldsAllowedOnUpdate()))
             && nameValid()
             && phoneValid()
