@@ -203,6 +203,44 @@ function canCreateManualExpense(role) {
   return ["admin", "gestor", "coordenador"].includes(String(role || "").toLowerCase());
 }
 
+function normalizeExpenseBaseFields(item, state, currentUid) {
+  const currentRole = String(state?.profile?.role || "").toLowerCase();
+  const createdBy = String(item?.createdBy || item?.techUid || currentUid || "").trim();
+  const createdByName = String(item?.createdByName || item?.techName || state?.profile?.name || "Usuario").trim();
+  const source = ["activity", "manual"].includes(String(item?.source || "").toLowerCase())
+    ? String(item.source).toLowerCase()
+    : (item?.activityId ? "activity" : "manual");
+
+  return {
+    companyId: String(item?.companyId || state?.companyId || "").trim(),
+    projectId: String(item?.projectId || "").trim(),
+    projectName: String(item?.projectName || "Projeto").trim(),
+    clientId: String(item?.clientId || "").trim(),
+    clientName: String(item?.clientName || "").trim(),
+    taskId: String(item?.taskId || "").trim(),
+    taskName: String(item?.taskName || "").trim(),
+    activityId: String(item?.activityId || "").trim(),
+    activityName: String(item?.activityName || "").trim(),
+    workDate: String(item?.workDate || "").trim(),
+    type: ["alimentacao", "trajeto", "estadia", "outras"].includes(String(item?.type || "").toLowerCase())
+      ? String(item.type).toLowerCase()
+      : "outras",
+    observation: String(item?.observation || "Despesa registrada.").trim(),
+    amount: Number(item?.amount || 0),
+    source,
+    createdBy,
+    createdByName,
+    createdByRole: String(item?.createdByRole || currentRole || "usuario").trim(),
+    techUid: String(item?.techUid || createdBy || "").trim(),
+    techName: String(item?.techName || createdByName || "").trim(),
+    managerUid: String(item?.managerUid || "").trim(),
+    managerName: String(item?.managerName || "").trim(),
+    coordinatorUid: String(item?.coordinatorUid || "").trim(),
+    coordinatorName: String(item?.coordinatorName || "").trim(),
+    receipt: item?.receipt && typeof item.receipt === "object" ? item.receipt : {}
+  };
+}
+
 function userRoleByUid(users, uid) {
   const user = users.find((entry) => String(entry.uid || entry.id || "") === String(uid || ""));
   return String(user?.role || "").toLowerCase();
@@ -1135,8 +1173,10 @@ async function updateExpenseStatus(ids, nextStatus, deps, rejectionReason = "", 
   for (const id of ids) {
     const item = _expenseItemsCache.find((entry) => entry.id === id);
     if (!item) continue;
+    const baseFields = normalizeExpenseBaseFields(item, state, currentUid);
     const payload = nextStatus === "approved"
       ? {
+          ...baseFields,
           status: "approved",
           chargedToClient: options.chargedToClient === true,
           approvedAt: serverTimestamp(),
@@ -1153,7 +1193,9 @@ async function updateExpenseStatus(ids, nextStatus, deps, rejectionReason = "", 
           updatedBy: currentUid
         }
       : {
+          ...baseFields,
           status: "rejected",
+          chargedToClient: item.chargedToClient === true,
           rejectedAt: serverTimestamp(),
           rejectedBy: currentUid,
           rejectedByName: currentName,
@@ -1169,7 +1211,9 @@ async function updateExpenseStatus(ids, nextStatus, deps, rejectionReason = "", 
         };
 
     await updateDoc(doc(db, `companies/${state.companyId}/expenses`, id), payload);
-    await recalcProjectExpenseTotals(db, state.companyId, item.projectId);
+    await recalcProjectExpenseTotals(db, state.companyId, item.projectId).catch((err) => {
+      console.warn("[expense-approval:recalc-project-totals]", err);
+    });
     await createNotifications(db, state.companyId, [item.createdBy, item.techUid], {
       type: nextStatus === "approved" ? "expense_approved" : "expense_rejected",
       title: nextStatus === "approved" ? "Despesa aprovada" : "Despesa reprovada",
@@ -1418,31 +1462,57 @@ function bindEvents(deps) {
     if (!expenseId || !action) return;
     if (!canApproveExpenses(deps?.state?.profile?.role)) return;
 
-    if (action === "approve") {
-      const card = button.closest(".expense-approval-card");
-      const selectedCharge = card?.querySelector(`input[name="expense-charge-${expenseId}"]:checked`)?.value || "";
-      if (!selectedCharge) {
+    const card = button.closest(".expense-approval-card");
+    const actionButtons = Array.from(card?.querySelectorAll?.("[data-expense-action]") || []);
+    const previousLabels = new Map(actionButtons.map((item) => [item, item.textContent]));
+
+    try {
+      actionButtons.forEach((item) => {
+        item.disabled = true;
+        if (item === button) item.textContent = action === "approve" ? "Aprovando..." : "Reprovando...";
+      });
+
+      if (action === "approve") {
+        const selectedCharge = card?.querySelector(`input[name^="expense-charge-"]:checked`)?.value || "";
+        if (!selectedCharge) {
         await showExpenseDialog("Defina quem assume a despesa antes de concluir a aprovação.", {
           title: "Responsabilidade pendente",
           type: "error"
         });
-        return;
-      }
-      await updateExpenseStatus([expenseId], "approved", deps, "", {
-        chargedToClient: selectedCharge === "client"
-      });
-    } else {
-      const reason = (prompt("Informe o motivo da reprovacao (minimo de 10 caracteres):") || "").trim();
-      if (reason.length < 10) {
+          return;
+        }
+        await updateExpenseStatus([expenseId], "approved", deps, "", {
+          chargedToClient: selectedCharge === "client"
+        });
+      } else {
+        const reason = (prompt("Informe o motivo da reprovacao (minimo de 10 caracteres):") || "").trim();
+        if (reason.length < 10) {
         await showExpenseDialog("Informe um motivo com pelo menos 10 caracteres para reprovar a despesa.", {
           title: "Motivo insuficiente",
           type: "error"
         });
-        return;
+          return;
+        }
+        await updateExpenseStatus([expenseId], "rejected", deps, reason);
       }
-      await updateExpenseStatus([expenseId], "rejected", deps, reason);
+      await loadExpenseApprovals(deps);
+      await showExpenseDialog(action === "approve" ? "Despesa aprovada com sucesso." : "Despesa reprovada com sucesso.", {
+        title: action === "approve" ? "Despesa aprovada" : "Despesa reprovada",
+        type: "success",
+        confirmLabel: "Fechar"
+      });
+    } catch (err) {
+      console.error("[expense-approval:status]", err);
+      await showExpenseDialog(err?.message || "Nao foi possivel atualizar a despesa. Verifique sua permissao e tente novamente.", {
+        title: "Falha ao atualizar",
+        type: "error"
+      });
+    } finally {
+      actionButtons.forEach((item) => {
+        item.disabled = false;
+        item.textContent = previousLabels.get(item) || item.textContent;
+      });
     }
-    await loadExpenseApprovals(deps);
   });
 }
 

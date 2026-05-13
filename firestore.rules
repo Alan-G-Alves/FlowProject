@@ -683,6 +683,31 @@ allow delete: if false;
             && expenseReceiptValid();
         }
 
+        function canReviewExpense() {
+          return isSuperAdmin()
+            || isCompanyAdmin(companyId)
+            || (
+              (isManager(companyId) || isCoordinator(companyId) || isCoordenador(companyId))
+              && (
+                resource.data.createdBy == myUid()
+                || (("createdByRole" in resource.data) && resource.data.createdByRole == "tecnico")
+              )
+            );
+        }
+
+        function expenseReviewFieldsValid() {
+          return request.resource.data.diff(resource.data).changedKeys().hasOnly([
+              "status", "chargedToClient",
+              "approvedBy", "approvedByName", "approvedByEmail", "approvedByRole", "approvedAt",
+              "rejectedBy", "rejectedByName", "rejectedByRole", "rejectedAt", "rejectionReason",
+              "updatedAt", "updatedBy"
+            ])
+            && resource.data.status == "pending"
+            && request.resource.data.status in ["approved", "rejected"]
+            && request.resource.data.chargedToClient is bool
+            && request.resource.data.updatedBy == myUid();
+        }
+
         allow read: if isSuperAdmin()
           || isCompanyAdmin(companyId)
           || (
@@ -714,6 +739,9 @@ allow delete: if false;
             )
           ))
           && expenseBaseValid();
+
+        allow update: if canReviewExpense()
+          && expenseReviewFieldsValid();
 
         allow update: if isCompanyMember(companyId)
           && resource.data.createdBy == myUid()
