@@ -8,7 +8,7 @@
 </script>
 <meta content="width=device-width, initial-scale=1.0" name="viewport"/>
 <title>FlowProject</title>
-<link href="./styles.css?v=1778628200" rel="stylesheet"/>
+<link href="./styles.css?v=1778633800" rel="stylesheet"/>
 <link href="logof.png" rel="icon" type="image/png"/>
 <style>
   /* SaaS Search (My Projects Kanban) */
@@ -1206,7 +1206,13 @@
   <div class="container os-approvals-page">
     <div class="page-header">
       <div>
-        <h1>Aprovacao de OS</h1>
+        <div class="page-title-with-info">
+          <h1>Aprovacao de OS</h1>
+          <button class="info-tooltip-btn" type="button" aria-label="Informacao sobre aprovacao de OS">
+            i
+            <span class="info-tooltip-text">Para aparecer OS nesta tela, o tecnico deve fazer o apontamento da atividade.</span>
+          </button>
+        </div>
         <p class="muted">Revise OS enviadas pelos recursos, aprove individualmente ou em massa e acompanhe os estornos.</p>
       </div>
       <div class="chips os-approvals-toolbar">
@@ -1274,7 +1280,13 @@
   <div class="container expense-approvals-page">
     <div class="page-header">
       <div>
-        <h1>Aprovacao de Despesas</h1>
+        <div class="page-title-with-info">
+          <h1>Aprovacao de Despesas</h1>
+          <button class="info-tooltip-btn" type="button" aria-label="Informacao sobre aprovacao de despesas">
+            i
+            <span class="info-tooltip-text">Aparecerao aqui todas as despesas lancadas pelos tecnicos ou lancadas em Nova Despesa pelo gestor.</span>
+          </button>
+        </div>
         <p class="muted">Revise comprovantes, aprove despesas do projeto e acompanhe o impacto entre reembolso do cliente e custo interno.</p>
       </div>
       <div class="chips expense-approvals-toolbar">
@@ -1914,6 +1926,11 @@
 <option value="false">Inativo</option>
 </select>
 </label>
+<label class="field" id="newUserHourlyRateField" style="grid-column: span 4;" hidden>
+<span>Valor/Hora</span>
+<input id="newUserHourlyRate" placeholder="Ex.: 120,00" inputmode="decimal"/>
+<small class="muted">Informe apenas o valor (sem "R$").</small>
+</label>
 <div class="field" style="grid-column: span 12;">
 <span>Equipes (chips)</span>
 <div class="chips-select" id="teamChips"></div>
@@ -2042,6 +2059,11 @@
           </label>
 
           <label class="field" style="grid-column: span 6;">
+            <span>E-mail</span>
+            <input id="techEmail" placeholder="recurso@empresa.com" type="email"/>
+          </label>
+
+          <label class="field" style="grid-column: span 4;">
             <span>Status</span>
             <select id="techActive">
               <option value="true" selected>Ativo</option>
@@ -2049,17 +2071,12 @@
             </select>
           </label>
 
-          <label class="field" style="grid-column: span 6;">
-            <span>E-mail</span>
-            <input id="techEmail" placeholder="recurso@empresa.com" type="email"/>
-          </label>
-
-          <label class="field" style="grid-column: span 6;">
+          <label class="field" style="grid-column: span 4;">
             <span>Telefone</span>
             <input id="techPhone" placeholder="11999999999"/>
           </label>
 
-          <label class="field" style="grid-column: span 6;">
+          <label class="field" style="grid-column: span 4;">
             <span>Valor/Hora</span>
             <input id="techHourlyRate" placeholder="Ex.: 120,00" inputmode="decimal"/>
             <small class="muted">Informe apenas o valor (sem "R$").</small>
@@ -3227,11 +3244,11 @@
 <!-- MODAL: Marca da Empresa -->
 <div class="modal" hidden id="modalCompanyBrand">
   <div class="modal-backdrop" data-close-company-brand="true"></div>
-  <div class="modal-card">
+  <div class="modal-card company-brand-modal-card">
     <div class="modal-header">
       <div>
         <h2>Marca da empresa</h2>
-        <p class="muted">Personalize o nome e o logo exibidos no menu lateral.</p>
+        <p class="muted">Personalize como sua empresa aparece no menu lateral e nos relatorios.</p>
       </div>
       <button class="btn ghost" id="btnCloseCompanyBrand" type="button">X</button>
     </div>
@@ -3239,23 +3256,32 @@
     <div class="modal-body">
       <div class="alert" hidden id="companyBrandAlert"></div>
 
-      <div class="company-brand-preview">
-        <img alt="Logo da empresa" id="companyBrandPreviewImg" src="logof.png" />
-        <div>
-          <strong id="companyBrandPreviewName">FlowProject</strong>
-          <span>Previa no menu lateral</span>
+      <div class="company-brand-layout">
+        <div class="company-brand-preview">
+          <span class="company-brand-preview-label">Previa no menu lateral</span>
+          <div class="company-brand-preview-sidebar">
+            <img alt="Logo da empresa" id="companyBrandPreviewImg" src="logof.png" />
+            <div>
+              <strong id="companyBrandPreviewName">FlowProject</strong>
+              <span>Espaco da sua marca</span>
+            </div>
+          </div>
         </div>
-      </div>
 
-      <div class="form-grid">
-        <div class="form-field span-2">
-          <label for="companyBrandName">Nome exibido</label>
-          <input id="companyBrandName" maxlength="40" placeholder="Nome da empresa" />
-        </div>
-        <div class="form-field span-2">
-          <label for="companyBrandLogoFile">Logo da empresa</label>
-          <input id="companyBrandLogoFile" accept="image/*" type="file" />
-          <small class="muted">Use PNG, JPG ou WebP com ate 2MB.</small>
+        <div class="company-brand-fields">
+          <div class="form-field">
+            <label for="companyBrandName">Nome exibido</label>
+            <input id="companyBrandName" maxlength="40" placeholder="Nome da empresa" />
+            <small class="muted">Use um nome curto para ficar legivel no menu.</small>
+          </div>
+          <div class="form-field">
+            <label for="companyBrandLogoFile">Logo da empresa</label>
+            <label class="company-brand-upload" for="companyBrandLogoFile">
+              <strong>Selecionar imagem</strong>
+              <span>PNG, JPG ou WebP com ate 2MB.</span>
+            </label>
+            <input class="sr-only-file" id="companyBrandLogoFile" accept="image/*" type="file" />
+          </div>
         </div>
       </div>
     </div>
@@ -3268,7 +3294,7 @@
   </div>
 </div>
 
-<script src="./app.js?v=1778632600" type="module"></script>
+<script src="./app.js?v=1778636300" type="module"></script>
 <script>
   // Toggle senha (somente UI)
   document.addEventListener("click", function(e){

@@ -328,7 +328,40 @@ async function assertCompanyUserLimitAvailable(db, companyId, willBeActive = tru
 }
 
 function isIndividualAccount(state) {
-  return String(state?.company?.accountType || "").trim().toLowerCase() === "individual";
+  const company = state?.company || {};
+  const accountType = String(company.accountType || company.type || company.customerType || "").trim().toLowerCase();
+  const planId = String(company.planId || company.plan || "").trim().toLowerCase();
+  const planName = String(company.planName || company.planLabel || company.label || "").trim().toLowerCase();
+  const documentType = String(company.documentType || company.docType || "").trim().toLowerCase();
+  const companyId = String(state?.companyId || company.id || "").trim().toLowerCase();
+  return (
+    accountType === "individual" ||
+    accountType === "b2c" ||
+    accountType === "cpf" ||
+    accountType === "gestor" ||
+    planId.startsWith("manager-") ||
+    planName.startsWith("gestor ") ||
+    planName.includes("gestor start") ||
+    planName.includes("gestor pro") ||
+    planName.includes("gestor plus") ||
+    documentType === "cpf" ||
+    companyId.startsWith("cpf-")
+  );
+}
+
+function formatDecimalInput(value){
+  if (value === null || value === undefined || value === "") return "";
+  const n = Number(value);
+  if (!Number.isFinite(n)) return "";
+  return n.toLocaleString("pt-BR", { minimumFractionDigits: 0, maximumFractionDigits: 2 });
+}
+
+function parseBRDecimalToNumber(raw){
+  const s = (raw ?? "").toString().trim().replace(/[^0-9,.-]/g, "");
+  if (!s) return null;
+  const normalized = s.replace(/\./g, "").replace(/,/g, ".");
+  const n = Number(normalized);
+  return Number.isFinite(n) ? n : null;
 }
 
 function getCompanyOwnerUid(state) {
@@ -342,8 +375,14 @@ function configureUserRoleOptions(deps, mode = "create", user = null) {
 
   const roleField = select.closest("label");
   const nameField = refs.newUserNameEl?.closest("label");
+  const emailField = refs.newUserEmailEl?.closest("label");
+  const phoneField = refs.newUserPhoneEl?.closest("label");
+  const activeField = refs.newUserActiveEl?.closest("label");
+  const hourlyRateField = refs.newUserHourlyRateEl?.closest("label");
   const currentRole = String(user?.role || "tecnico").trim() || "tecnico";
   const individual = isIndividualAccount(state);
+  const useIndividualLayout = individual;
+  const showHourlyRate = individual && (mode === "create" || currentRole === "tecnico" || currentRole === "recurso");
   const roles = individual
     ? [{ value: "tecnico", label: "Recurso" }]
     : [
@@ -361,8 +400,19 @@ function configureUserRoleOptions(deps, mode = "create", user = null) {
   select.value = mode === "create" ? "tecnico" : currentRole;
   select.disabled = mode === "view" || (individual && mode !== "create" && currentRole !== "tecnico");
 
-  if (roleField) roleField.hidden = individual && mode === "create";
-  if (nameField) nameField.style.gridColumn = individual && mode === "create" ? "span 12" : "";
+  if (roleField) {
+    const hideRole = useIndividualLayout;
+    roleField.hidden = hideRole;
+    roleField.style.display = hideRole ? "none" : "";
+  }
+  if (nameField) nameField.style.gridColumn = useIndividualLayout ? "span 6" : "";
+  if (emailField) emailField.style.gridColumn = useIndividualLayout ? "span 6" : "";
+  if (phoneField) phoneField.style.gridColumn = useIndividualLayout ? "span 4" : "";
+  if (activeField) activeField.style.gridColumn = useIndividualLayout ? "span 4" : "";
+  if (hourlyRateField) {
+    hourlyRateField.hidden = !showHourlyRate;
+    hourlyRateField.style.display = showHourlyRate ? "" : "none";
+  }
 }
 
 function initNewUserRichFields(deps) {
@@ -477,8 +527,11 @@ export function updateAdminSummary(deps) {
   const { refs, state } = deps;
   const allUsers = Array.isArray(state._usersCache) ? state._usersCache : [];
   const allTeams = Array.isArray(state._teamsAllCache) ? state._teamsAllCache : (Array.isArray(state.teams) ? state.teams : []);
+  const individual = isIndividualAccount(state);
   const blockedUsers = allUsers.filter((u) => u.active === false).length;
-  const managersCount = allUsers.filter((u) => u.role === "gestor").length;
+  const managersCount = individual
+    ? allUsers.filter((u) => u.role === "gestor" || u.role === "admin").length
+    : allUsers.filter((u) => u.role === "gestor").length;
   const techsCount = allUsers.filter((u) => u.role === "tecnico").length;
   const adminsCount = allUsers.filter((u) => u.role === "admin").length;
   const coordinatorsCount = allUsers.filter((u) => u.role === "coordenador").length;
@@ -488,6 +541,13 @@ export function updateAdminSummary(deps) {
   if (refs.adminTechsCount) refs.adminTechsCount.textContent = String(techsCount);
   if (refs.adminAdminsCount) refs.adminAdminsCount.textContent = String(adminsCount);
   if (refs.adminCoordinatorsCount) refs.adminCoordinatorsCount.textContent = String(coordinatorsCount);
+  const adminPill = refs.adminAdminsCount?.closest?.(".admin-mini-pill");
+  const coordinatorPill = refs.adminCoordinatorsCount?.closest?.(".admin-mini-pill");
+  [adminPill, coordinatorPill].forEach((pill) => {
+    if (!pill) return;
+    pill.hidden = individual;
+    pill.style.display = individual ? "none" : "";
+  });
   if (refs.adminTeamsCount) refs.adminTeamsCount.textContent = String(allTeams.length);
   if (refs.adminBlockedUsersCount) refs.adminBlockedUsersCount.textContent = String(blockedUsers);
 }
@@ -784,7 +844,6 @@ export async function loadUsers(deps) {
       <td>
         <div style="display:flex; flex-direction:column; gap:2px;">
           <div><b>${u.name || "—"}</b></div>
-          <div class="muted" style="font-size:12px;">UID: ${u.uid}</div>
         </div>
       </td>
       <td>${normalizeRole(u.role)}</td>
@@ -948,12 +1007,19 @@ function setCreateUserModalMode(deps, mode, user = null) {
     ? "Visualizacao dos dados do usuario."
     : (isEdit ? "Atualize os dados do usuario." : "Cadastre um usuario, selecione equipes e informe foto e skills quando precisar.");
 
+  const uidLabel = refs.newUserUidEl?.closest("label");
+  if (uidLabel) {
+    uidLabel.hidden = true;
+    uidLabel.style.display = "none";
+  }
+
   if (refs.newUserNameEl) refs.newUserNameEl.disabled = isView;
   configureUserRoleOptions(deps, mode, user);
   if (refs.newUserRoleEl && !isIndividualAccount(state)) refs.newUserRoleEl.disabled = isView;
   if (refs.newUserEmailEl) refs.newUserEmailEl.disabled = isEdit || isView;
   if (refs.newUserPhoneEl) refs.newUserPhoneEl.disabled = isView;
   if (refs.newUserActiveEl) refs.newUserActiveEl.disabled = isView;
+  if (refs.newUserHourlyRateEl) refs.newUserHourlyRateEl.disabled = isView;
   if (refs.newUserAddressEl) refs.newUserAddressEl.disabled = isView;
   if (refs.newUserBirthDateEl) refs.newUserBirthDateEl.disabled = isView;
   if (refs.newUserCpfEl) refs.newUserCpfEl.disabled = isView;
@@ -981,6 +1047,7 @@ function fillCreateUserModal(user, deps) {
   refs.newUserEmailEl.value = user?.email || "";
   refs.newUserPhoneEl.value = user?.phone || "";
   refs.newUserActiveEl.value = (user?.active === false) ? "false" : "true";
+  if (refs.newUserHourlyRateEl) refs.newUserHourlyRateEl.value = formatDecimalInput(user?.hourlyRate);
   if (refs.newUserAddressEl) refs.newUserAddressEl.value = user?.address || "";
   if (refs.newUserBirthDateEl) refs.newUserBirthDateEl.value = user?.birthDate || "";
   if (refs.newUserCpfEl) refs.newUserCpfEl.value = formatCpf(user?.cpf || "");
@@ -1048,6 +1115,7 @@ export function openCreateUserModal(deps) {
   refs.newUserEmailEl.value = "";
   refs.newUserPhoneEl.value = "";
   refs.newUserActiveEl.value = "true";
+  if (refs.newUserHourlyRateEl) refs.newUserHourlyRateEl.value = "";
   if (refs.newUserAddressEl) refs.newUserAddressEl.value = "";
   if (refs.newUserBirthDateEl) refs.newUserBirthDateEl.value = "";
   if (refs.newUserCpfEl) refs.newUserCpfEl.value = "";
@@ -1143,6 +1211,7 @@ export async function createUser(deps) {
   const role = (refs.newUserRoleEl?.value || "").trim();
   const email = (refs.newUserEmailEl?.value || "").trim();
   const phone = normalizePhone(refs.newUserPhoneEl?.value || "");
+  const hourlyRate = refs.newUserHourlyRateEl ? parseBRDecimalToNumber(refs.newUserHourlyRateEl.value) : null;
   const active = (refs.newUserActiveEl?.value || "true") === "true";
   const extraFields = collectUserExtraFields(refs);
   const teamIds = Array.from(new Set(state.selectedTeamIds || []));
@@ -1223,7 +1292,8 @@ export async function createUser(deps) {
             teamIds,
             tempAvatarPath: (state._newUserTempAvatarPath || "").trim(),
             softSkills,
-            hardSkills
+            hardSkills,
+            ...(hourlyRate === null ? {} : { hourlyRate })
           })
         });
 
@@ -1250,6 +1320,7 @@ export async function createUser(deps) {
             teamId: teamIds[0] || "",
             softSkills,
             hardSkills,
+            ...(hourlyRate === null ? {} : { hourlyRate }),
             ...extraFields
           }, { merge: true });
         } catch (mergeErr) {
@@ -1295,6 +1366,7 @@ export async function createUser(deps) {
       teamId: teamIds[0] || "",
       softSkills,
       hardSkills,
+      ...(hourlyRate === null ? {} : { hourlyRate }),
       ...extraFields,
       createdAt: serverTimestamp(),
       createdBy: auth.currentUser.uid
@@ -1354,6 +1426,7 @@ async function updateCompanyUser(deps) {
   const role = (refs.newUserRoleEl?.value || "").trim();
   const email = (refs.newUserEmailEl?.value || "").trim();
   const phone = normalizePhone(refs.newUserPhoneEl?.value || "");
+  const hourlyRate = refs.newUserHourlyRateEl ? parseBRDecimalToNumber(refs.newUserHourlyRateEl.value) : null;
   const active = (refs.newUserActiveEl?.value || "true") === "true";
   const extraFields = collectUserExtraFields(refs);
   const teamIds = Array.from(new Set(state.selectedTeamIds || []));
@@ -1387,6 +1460,7 @@ async function updateCompanyUser(deps) {
       teamId: teamIds[0] || "",
       softSkills,
       hardSkills,
+      ...(hourlyRate === null ? {} : { hourlyRate }),
       ...extraFields,
       ...(extraFields.birthDate ? {} : { age: deleteField() })
     };

@@ -362,6 +362,7 @@ export const newUserRoleEl = byId("newUserRole");
 export const newUserEmailEl = byId("newUserEmail");
 export const newUserPhoneEl = byId("newUserPhone");
 export const newUserActiveEl = byId("newUserActive");
+export const newUserHourlyRateEl = byId("newUserHourlyRate");
 export const newUserAddressEl = byId("newUserAddress");
 export const newUserBirthDateEl = byId("newUserBirthDate");
 export const newUserAgePreview = byId("newUserAgePreview");
