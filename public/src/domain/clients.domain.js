@@ -1048,6 +1048,9 @@ async function saveClientFromModal(deps){
     }
 
     closeCreateClientModal(deps);
+    if (typeof deps.onOnboardingProgressChanged === "function") {
+      deps.onOnboardingProgressChanged();
+    }
   }catch(err){
     console.error("[clients] saveClientFromModal error:", err);
     setAlert(refs.createClientAlert, err?.message || "Não foi possível salvar o cliente.", "error");

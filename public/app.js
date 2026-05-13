@@ -58,13 +58,13 @@ import * as companiesDomain from "./src/domain/companies.domain.js?v=1778529000"
 import * as teamsDomain from "./src/domain/teams.domain.js?v=1772614200";
 import * as usersDomain from "./src/domain/users.domain.js?v=1778616200";
 import * as managerUsersDomain from "./src/domain/manager-users.domain.js?v=1778178000";
-import * as clientsDomain from "./src/domain/clients.domain.js?v=1776052720";
+import * as clientsDomain from "./src/domain/clients.domain.js?v=1778628200";
 import * as projectsDomain from "./src/domain/projects.domain.js?v=1778616200";
-import * as myActivitiesDomain from "./src/domain/my-activities.domain.js?v=1778033300";
-import * as myFeedbacksDomain from "./src/domain/my-feedbacks.domain.js?v=1776040900";
+import * as myActivitiesDomain from "./src/domain/my-activities.domain.js?v=1778629800";
+import * as myFeedbacksDomain from "./src/domain/my-feedbacks.domain.js?v=1778629800";
 import * as osApprovalsDomain from "./src/domain/os-approvals.domain.js?v=1776052722";
 import * as expensesDomain from "./src/domain/expenses.domain.js?v=1777953600";
-import * as projectWorkspaceDomain from "./src/domain/project-workspace.domain.js?v=1778178003";
+import * as projectWorkspaceDomain from "./src/domain/project-workspace.domain.js?v=1778628800";
 import * as reportsDomain from "./src/domain/reports.domain.js?v=1777057015";
 import * as lgpdDomain from "./src/domain/lgpd.domain.js?v=1777475100";
 import * as profileModal from "./src/ui/modals/profile.modal.js?v=1770332251";
@@ -185,6 +185,8 @@ let _dashboardReminderUsers = [];
 let _activeReminderDetailId = "";
 let _adminOnboardingLoading = false;
 let _adminOnboardingLastDoneCount = null;
+let _adminOnboardingRefreshTimer = null;
+let _guideHighlightTimer = null;
 let _authReadyForRoutes = false;
 let _routeUnsubscribe = null;
 
@@ -483,8 +485,18 @@ function setBrowserRouteSilently(route){
   if (getRoutePath() !== next) window.history.replaceState({}, "", next);
 }
 
+function normalizeRoleKeyValue(role){
+  const normalized = String(role || "")
+    .trim()
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "");
+  if (normalized === "recurso" || normalized === "tecnico") return "tecnico";
+  return normalized;
+}
+
 function currentRoleKey(){
-  return String(state.profile?.role || "").toLowerCase();
+  return normalizeRoleKeyValue(state.profile?.role);
 }
 
 function canAccessRoute(route){
@@ -1440,6 +1452,7 @@ async function saveProfile(){
     // Atualiza estado local e UI
     state.profile = { ...(state.profile || {}), name, phone, photoURL };
     renderTopbar(state.profile, user);
+    scheduleAdminOnboardingRefresh(500);
 
     setAlert(refs.profileAlert, "Perfil atualizado!", "success");
     setTimeout(closeProfileModal, 400);
@@ -1524,14 +1537,19 @@ function refreshDashboardHomeWidgets(){
 
 function canShowAdminOnboarding(){
   if (!state.companyId || state.isSuperAdmin) return false;
-  const role = String(state.profile?.role || "").toLowerCase();
-  return role === "admin" || isIndividualManagerOnboarding();
+  const role = currentRoleKey();
+  return role === "admin" || role === "tecnico" || isIndividualManagerOnboarding();
 }
 
 function isIndividualManagerOnboarding(){
-  const role = String(state.profile?.role || "").toLowerCase();
+  const role = currentRoleKey();
   const accountType = String(state.company?.accountType || "").toLowerCase();
   return role === "gestor" && accountType === "individual";
+}
+
+function isTechOnboarding(){
+  const role = currentRoleKey();
+  return role === "tecnico";
 }
 
 function hasAdminCheckedCompanySettings(){
@@ -1544,6 +1562,44 @@ function hasAdminCheckedCompanySettings(){
 async function getAdminOnboardingStats(){
   if (!state.companyId) return null;
   const base = ["companies", state.companyId];
+  const currentUid = auth.currentUser?.uid || "";
+
+  if (isTechOnboarding()) {
+    let ownActivities = [];
+    let receivedFeedbacks = 0;
+    if (currentUid) {
+      try {
+        const activitiesQuery = query(collection(db, ...base, "activities"), where("techUids", "array-contains", currentUid));
+        const activitiesSnap = await getDocs(activitiesQuery);
+        ownActivities = activitiesSnap.docs.map((docSnap) => ({ id: docSnap.id, ...(docSnap.data() || {}) }));
+      } catch (err) {
+        console.warn("[onboarding:tech-activities]", err);
+      }
+      try {
+        const feedbacksSnap = await getDocs(collection(db, ...base, "users", currentUid, "feedbacks"));
+        receivedFeedbacks = feedbacksSnap.size;
+      } catch (err) {
+        console.warn("[onboarding:feedback-stats]", err);
+      }
+    }
+    const ownSubmittedActivities = ownActivities.filter((activity) => {
+      const status = String(activity.status || "").toLowerCase();
+      return status === "os_gerada" || status === "os_aprovada";
+    });
+    return {
+      teams: 0,
+      resources: 0,
+      clients: 0,
+      projects: 0,
+      tasks: 0,
+      activities: ownActivities.length,
+      ownActivities: ownActivities.length,
+      ownSubmittedActivities: ownSubmittedActivities.length,
+      receivedFeedbacks,
+      settingsChecked: hasAdminCheckedCompanySettings()
+    };
+  }
+
   const [
     teamsSnap,
     usersSnap,
@@ -1561,6 +1617,25 @@ async function getAdminOnboardingStats(){
   ]);
 
   const users = usersSnap.docs.map((docSnap) => docSnap.data() || {});
+  const activities = activitiesSnap.docs.map((docSnap) => ({ id: docSnap.id, ...(docSnap.data() || {}) }));
+  const ownActivities = activities.filter((activity) => {
+    const techUids = Array.isArray(activity.techUids) ? activity.techUids.filter(Boolean) : [];
+    return currentUid && techUids.includes(currentUid);
+  });
+  const ownSubmittedActivities = ownActivities.filter((activity) => {
+    const status = String(activity.status || "").toLowerCase();
+    return status === "os_gerada" || status === "os_aprovada";
+  });
+  let receivedFeedbacks = 0;
+  if (currentUid) {
+    try {
+      const feedbacksSnap = await getDocs(collection(db, ...base, "users", currentUid, "feedbacks"));
+      receivedFeedbacks = feedbacksSnap.size;
+    } catch (err) {
+      console.warn("[onboarding:feedback-stats]", err);
+    }
+  }
+
   return {
     teams: teamsSnap.docs.filter((docSnap) => (docSnap.data() || {}).active !== false).length,
     resources: users.filter((user) => String(user.role || "").toLowerCase() === "tecnico" && user.active !== false).length,
@@ -1568,12 +1643,54 @@ async function getAdminOnboardingStats(){
     projects: projectsSnap.docs.filter((docSnap) => (docSnap.data() || {}).active !== false).length,
     tasks: tasksSnap.size,
     activities: activitiesSnap.size,
+    ownActivities: ownActivities.length,
+    ownSubmittedActivities: ownSubmittedActivities.length,
+    receivedFeedbacks,
     settingsChecked: hasAdminCheckedCompanySettings()
   };
 }
 
 function getAdminOnboardingSteps(stats){
   const isIndividualAccount = String(state.company?.accountType || "").toLowerCase() === "individual";
+  if (isTechOnboarding()) {
+    const onboarding = getProfileOnboarding();
+    const profileComplete = Boolean(String(state.profile?.name || "").trim() && String(state.profile?.phone || "").trim());
+    return [
+      {
+        key: "tech-profile",
+        title: "Completar perfil",
+        desc: "Confira nome, telefone e foto para deixar seu acesso identificado.",
+        done: profileComplete,
+        actionLabel: "Editar perfil",
+        action: () => guideCompleteProfileAction()
+      },
+      {
+        key: "tech-activities",
+        title: "Abrir minhas atividades",
+        desc: "Veja as atividades vinculadas ao seu usuario.",
+        done: Boolean(onboarding.techActivitiesViewed),
+        actionLabel: "Abrir atividades",
+        action: () => guideOpenTechActivitiesAction()
+      },
+      {
+        key: "tech-submit-os",
+        title: "Enviar primeira OS",
+        desc: "Aponte uma atividade e envie para aprovacao do gestor.",
+        done: stats.ownSubmittedActivities > 0,
+        actionLabel: "Apontar OS",
+        action: () => guideSubmitTechActivityAction()
+      },
+      {
+        key: "tech-feedbacks",
+        title: "Consultar feedbacks",
+        desc: "Acompanhe avaliacoes, reconhecimentos e pontos de evolucao.",
+        done: Boolean(onboarding.techFeedbacksViewed),
+        actionLabel: "Abrir feedbacks",
+        action: () => guideOpenTechFeedbacksAction()
+      }
+    ];
+  }
+
   if (isIndividualManagerOnboarding()) {
     return [
       {
@@ -1584,7 +1701,14 @@ function getAdminOnboardingSteps(stats){
         actionLabel: "Criar recurso",
         action: () => {
           navigateTo(ROUTES.managerUsers);
-          setTimeout(() => refs.btnOpenCreateTech?.click(), 350);
+          setTimeout(() => {
+            highlightGuideTarget(refs.btnOpenCreateTech);
+            refs.btnOpenCreateTech?.click();
+            setTimeout(() => {
+              showOnboardingActionHint("resource");
+              highlightGuideTarget(refs.modalCreateTech || refs.btnCreateTech);
+            }, 250);
+          }, 350);
         }
       },
       {
@@ -1595,7 +1719,14 @@ function getAdminOnboardingSteps(stats){
         actionLabel: "Criar cliente",
         action: () => {
           navigateTo(ROUTES.clients);
-          setTimeout(() => refs.btnOpenCreateClient?.click(), 350);
+          setTimeout(() => {
+            highlightGuideTarget(refs.btnOpenCreateClient);
+            refs.btnOpenCreateClient?.click();
+            setTimeout(() => {
+              showOnboardingActionHint("client");
+              highlightGuideTarget(refs.modalCreateClient || refs.btnCreateClient);
+            }, 250);
+          }, 350);
         }
       },
       {
@@ -1606,7 +1737,14 @@ function getAdminOnboardingSteps(stats){
         actionLabel: "Criar projeto",
         action: () => {
           navigateTo(ROUTES.myProjects);
-          setTimeout(() => refs.btnOpenCreateProjectFromKanban?.click(), 350);
+          setTimeout(() => {
+            highlightGuideTarget(refs.btnOpenCreateProjectFromKanban);
+            refs.btnOpenCreateProjectFromKanban?.click();
+            setTimeout(() => {
+              showOnboardingActionHint("project");
+              highlightGuideTarget(refs.modalCreateProject || refs.btnCreateProject);
+            }, 250);
+          }, 350);
         }
       },
       {
@@ -1615,7 +1753,7 @@ function getAdminOnboardingSteps(stats){
         desc: "Entre no workspace do projeto e adicione a primeira tarefa.",
         done: stats.tasks > 0,
         actionLabel: "Abrir projetos",
-        action: () => navigateTo(ROUTES.myProjects)
+        action: () => guideCreateTaskAction()
       },
       {
         key: "activity",
@@ -1623,7 +1761,7 @@ function getAdminOnboardingSteps(stats){
         desc: "Dentro da tarefa, programe a atividade que sera executada pelo recurso.",
         done: stats.activities > 0,
         actionLabel: "Abrir projetos",
-        action: () => navigateTo(ROUTES.myProjects)
+        action: () => guideCreateActivityAction()
       }
     ];
   }
@@ -1679,7 +1817,7 @@ function getAdminOnboardingSteps(stats){
       desc: "Entre no workspace de um projeto e adicione a primeira tarefa.",
       done: stats.tasks > 0,
       actionLabel: "Abrir projetos",
-      action: () => navigateTo(ROUTES.myProjects)
+      action: () => guideCreateTaskAction()
     },
     {
       key: "activity",
@@ -1687,7 +1825,7 @@ function getAdminOnboardingSteps(stats){
       desc: "Dentro da tarefa, programe a atividade que sera executada pelo recurso.",
       done: stats.activities > 0,
       actionLabel: "Abrir projetos",
-      action: () => navigateTo(ROUTES.myProjects)
+      action: () => guideCreateActivityAction()
     },
     {
       key: "settings",
@@ -1701,6 +1839,13 @@ function getAdminOnboardingSteps(stats){
 }
 
 function getDashboardOnboardingCopy(stepCount = 7){
+  if (isTechOnboarding()) {
+    return {
+      title: "Guia de primeiro acesso",
+      desc: "Complete os passos iniciais para acompanhar e apontar suas atividades.",
+      progress: `0/${stepCount}`
+    };
+  }
   if (isIndividualManagerOnboarding()) {
     return {
       title: "Guia de configuracao",
@@ -1792,6 +1937,224 @@ function updateDashboardOnboardingMessage(steps, doneCount){
   _adminOnboardingLastDoneCount = doneCount;
 }
 
+function scheduleAdminOnboardingRefresh(delay = 900){
+  if (_adminOnboardingRefreshTimer) clearTimeout(_adminOnboardingRefreshTimer);
+  _adminOnboardingRefreshTimer = setTimeout(() => {
+    _adminOnboardingRefreshTimer = null;
+    renderAdminOnboarding().catch((err) => console.warn("[admin-onboarding:auto-refresh]", err));
+  }, delay);
+}
+
+function highlightGuideTarget(el, options = {}){
+  if (!el) return;
+  if (_guideHighlightTimer) clearTimeout(_guideHighlightTimer);
+  document.querySelectorAll(".fp-guide-highlight").forEach((node) => node.classList.remove("fp-guide-highlight"));
+  el.classList.add("fp-guide-highlight");
+  try { el.scrollIntoView({ behavior: "smooth", block: "center", inline: "center" }); } catch (_) {}
+  _guideHighlightTimer = setTimeout(() => {
+    el.classList.remove("fp-guide-highlight");
+    _guideHighlightTimer = null;
+  }, options.duration || 4500);
+}
+
+function showOnboardingActionHint(kind){
+  const hints = {
+    resource: "Preencha nome, e-mail e equipe do recurso para continuar o guia.",
+    client: "Cadastre o cliente principal e, se possivel, inclua um key user.",
+    project: "Crie o primeiro projeto para liberar as proximas etapas do guia.",
+    task: "Abra um projeto e cadastre a primeira tarefa.",
+    activity: "Abra uma tarefa e programe a primeira atividade."
+  };
+  const alertMap = {
+    resource: refs.createTechAlert,
+    client: refs.createClientAlert,
+    project: refs.createProjectAlert,
+    task: refs.projectTaskAlert,
+    activity: refs.projectTaskAlert
+  };
+  const alertEl = alertMap[kind];
+  const text = hints[kind];
+  if (alertEl && text) setAlert(alertEl, text, "info");
+}
+
+function waitForGuideCondition(check, { timeout = 5000, interval = 150 } = {}){
+  const startedAt = Date.now();
+  return new Promise((resolve) => {
+    const tick = () => {
+      let result = null;
+      try { result = check?.(); } catch (_) {}
+      if (result) {
+        resolve(result);
+        return;
+      }
+      if (Date.now() - startedAt >= timeout) {
+        resolve(null);
+        return;
+      }
+      setTimeout(tick, interval);
+    };
+    tick();
+  });
+}
+
+function isElementGuideVisible(el){
+  if (!el || el.hidden) return false;
+  const style = window.getComputedStyle(el);
+  if (style.display === "none" || style.visibility === "hidden") return false;
+  const rect = el.getBoundingClientRect();
+  return rect.width > 0 && rect.height > 0;
+}
+
+function withFirstProjectWorkspaceForGuide(callback){
+  navigateTo(ROUTES.myProjects);
+  setTimeout(async () => {
+    const panel = refs.projectWorkspacePanel || document.getElementById("projectWorkspacePanel");
+    const isWorkspaceOpen = panel && panel.classList.contains("is-open") && !panel.hidden;
+    if (isWorkspaceOpen) {
+      callback?.();
+      return;
+    }
+
+    const firstCard = document.querySelector(".kanban-card[data-project-id]");
+    if (!firstCard) {
+      highlightGuideTarget(refs.btnOpenCreateProjectFromKanban);
+      const message = ensureOnboardingMessageEl();
+      if (message) {
+        message.hidden = false;
+        message.classList.add("is-visible");
+        message.textContent = "Crie um projeto antes de adicionar tarefas e atividades.";
+      }
+      return;
+    }
+
+    highlightGuideTarget(firstCard);
+    firstCard.click();
+    await waitForGuideCondition(() => {
+      const workspacePanel = refs.projectWorkspacePanel || document.getElementById("projectWorkspacePanel");
+      const taskButton = refs.btnOpenTaskForm || document.getElementById("btnOpenTaskForm");
+      return workspacePanel?.classList.contains("is-open") && isElementGuideVisible(taskButton);
+    });
+    callback?.();
+  }, 500);
+}
+
+function guideCreateTaskAction(){
+  withFirstProjectWorkspaceForGuide(async () => {
+    const taskButton = await waitForGuideCondition(() => {
+      const btn = refs.btnOpenTaskForm || document.getElementById("btnOpenTaskForm");
+      return isElementGuideVisible(btn) ? btn : null;
+    });
+    showOnboardingActionHint("task");
+    highlightGuideTarget(taskButton || refs.btnOpenTaskForm);
+    taskButton?.click();
+    const taskForm = await waitForGuideCondition(() => {
+      const form = refs.projectTaskFormWrap || document.getElementById("projectTaskFormWrap");
+      return isElementGuideVisible(form) ? form : null;
+    }, { timeout: 3000 });
+    highlightGuideTarget(taskForm || refs.btnSaveTask);
+  });
+}
+
+function guideCreateActivityAction(){
+  withFirstProjectWorkspaceForGuide(async () => {
+    const addActivityBtn = await waitForGuideCondition(() => {
+      const btn = document.querySelector("[data-open-activity-form]");
+      return isElementGuideVisible(btn) ? btn : null;
+    }, { timeout: 2500 });
+    if (!addActivityBtn) {
+      showOnboardingActionHint("task");
+      const taskButton = refs.btnOpenTaskForm || document.getElementById("btnOpenTaskForm");
+      highlightGuideTarget(taskButton);
+      taskButton?.click();
+      const taskForm = await waitForGuideCondition(() => {
+        const form = refs.projectTaskFormWrap || document.getElementById("projectTaskFormWrap");
+        return isElementGuideVisible(form) ? form : null;
+      }, { timeout: 3000 });
+      highlightGuideTarget(taskForm || refs.btnSaveTask);
+      return;
+    }
+
+    showOnboardingActionHint("activity");
+    highlightGuideTarget(addActivityBtn);
+    addActivityBtn.click();
+    const activityForm = await waitForGuideCondition(() => {
+      const taskCard = addActivityBtn.closest(".task-card");
+      const form = taskCard?.querySelector?.("[id^='activityFormWrap-']");
+      return isElementGuideVisible(form) ? form : null;
+    }, { timeout: 3000 });
+    highlightGuideTarget(activityForm || addActivityBtn);
+  });
+}
+
+function guideCompleteProfileAction(){
+  openProfileModal();
+  setAlert(refs.profileAlert, "Complete seu nome e telefone para concluir este passo.", "info");
+  setTimeout(() => highlightGuideTarget(refs.profileModal || refs.profilePhone), 150);
+}
+
+async function markTechOnboardingViewed(field){
+  if (!isTechOnboarding() || !field) return;
+  try {
+    await saveProfileOnboardingPatch({ [field]: true });
+    scheduleAdminOnboardingRefresh(500);
+  } catch (err) {
+    console.warn("[tech-onboarding:viewed]", err);
+  }
+}
+
+function guideOpenTechActivitiesAction(){
+  navigateTo(ROUTES.myActivities);
+  markTechOnboardingViewed("techActivitiesViewed");
+  setTimeout(async () => {
+    const editButton = await waitForGuideCondition(() => {
+      const btn = document.querySelector("[data-edit-my-activity]");
+      return isElementGuideVisible(btn) ? btn : null;
+    }, { timeout: 3000 });
+    highlightGuideTarget(editButton || refs.btnOpenManualActivity || refs.myActivitiesList);
+  }, 500);
+}
+
+function guideSubmitTechActivityAction(){
+  navigateTo(ROUTES.myActivities);
+  markTechOnboardingViewed("techActivitiesViewed");
+  setTimeout(async () => {
+    const editButton = await waitForGuideCondition(() => {
+      const btn = document.querySelector("[data-edit-my-activity]");
+      return isElementGuideVisible(btn) ? btn : null;
+    }, { timeout: 3500 });
+    if (editButton) {
+      highlightGuideTarget(editButton);
+      editButton.click();
+      const modal = await waitForGuideCondition(() => isElementGuideVisible(refs.modalMyActivity) ? refs.modalMyActivity : null, { timeout: 3000 });
+      if (modal) {
+        setAlert(refs.myActivityModalAlert, "Preencha horario e observacao para enviar a OS.", "info");
+        highlightGuideTarget(modal);
+      }
+      return;
+    }
+
+    highlightGuideTarget(refs.btnOpenManualActivity || refs.myActivitiesList);
+    const message = ensureOnboardingMessageEl();
+    if (message) {
+      message.hidden = false;
+      message.classList.add("is-visible");
+      message.textContent = "Quando houver atividade vinculada, use o icone de editar para enviar sua primeira OS.";
+    }
+  }, 600);
+}
+
+function guideOpenTechFeedbacksAction(){
+  navigateTo(ROUTES.feedbacks);
+  markTechOnboardingViewed("techFeedbacksViewed");
+  setTimeout(async () => {
+    const target = await waitForGuideCondition(() => {
+      const list = refs.myFeedbacksList || document.getElementById("myFeedbacksList");
+      return isElementGuideVisible(list) ? list : null;
+    }, { timeout: 3000 });
+    highlightGuideTarget(target || refs.navFeedbacks);
+  }, 500);
+}
+
 function renderDashboardOnboardingControls(doneCount, totalSteps){
   if (!refs.dashboardAdminOnboarding) return;
   const onboarding = getProfileOnboarding();
@@ -1835,8 +2198,9 @@ function renderAdminOnboardingSkeleton(){
   if (!refs.dashboardAdminOnboarding || !refs.adminOnboardingList) return;
   refs.dashboardAdminOnboarding.hidden = false;
   refs.dashboardAdminOnboarding.classList.remove("is-complete");
-  updateDashboardOnboardingCopy(isIndividualManagerOnboarding() ? 5 : 7);
-  renderDashboardOnboardingControls(0, isIndividualManagerOnboarding() ? 5 : 7);
+  const skeletonSteps = isTechOnboarding() ? 4 : (isIndividualManagerOnboarding() ? 5 : 7);
+  updateDashboardOnboardingCopy(skeletonSteps);
+  renderDashboardOnboardingControls(0, skeletonSteps);
   if (refs.adminOnboardingProgressLabel) refs.adminOnboardingProgressLabel.textContent = "carregando";
   if (refs.adminOnboardingProgressBar) refs.adminOnboardingProgressBar.style.width = "0%";
   refs.adminOnboardingList.innerHTML = '<div class="admin-onboarding-empty">Carregando primeiros passos...</div>';
@@ -3248,6 +3612,7 @@ function getClientsDeps(){
     state,
     setView,
     openProjectTab,
+    onOnboardingProgressChanged: () => scheduleAdminOnboardingRefresh(900),
   };
 }
 
@@ -3309,6 +3674,7 @@ async function saveTechFeedback() {
 
 async function createTech() {
   await managerUsersDomain.createTech(getManagerUsersDeps());
+  scheduleAdminOnboardingRefresh(1200);
 }
 
 /** =========================
@@ -3335,15 +3701,18 @@ const getProjectsDeps = () => ({
   loadProjects, openProjectDetailModal, closeProjectDetailModal,
   openEditProjectModal, closeEditProjectModal, updateProject,
   openCreateProjectModal, closeCreateProjectModal, createProject,
-  openProjectWorkspace, openProjectTab
+  openProjectWorkspace, openProjectTab,
+  onOnboardingProgressChanged: () => scheduleAdminOnboardingRefresh(900)
 });
 
 const getMyActivitiesDeps = () => ({
-  refs, state, db, auth, storage, setView
+  refs, state, db, auth, storage, setView,
+  onOnboardingProgressChanged: () => scheduleAdminOnboardingRefresh(700)
 });
 
 const getMyFeedbacksDeps = () => ({
-  refs, state, db, auth, setView
+  refs, state, db, auth, setView,
+  onOnboardingProgressChanged: () => scheduleAdminOnboardingRefresh(700)
 });
 
 const getOsApprovalsDeps = () => ({
@@ -3390,6 +3759,9 @@ async function openMyActivitiesView() {
   }
 
   myActivitiesDomain.openMyActivitiesView(getMyActivitiesDeps());
+  if (isTechOnboarding()) {
+    markTechOnboardingViewed("techActivitiesViewed");
+  }
 }
 
 async function loadMyActivities() {
@@ -3406,6 +3778,9 @@ async function openMyFeedbacksView() {
   }
 
   myFeedbacksDomain.openMyFeedbacksView(getMyFeedbacksDeps());
+  if (isTechOnboarding()) {
+    markTechOnboardingViewed("techFeedbacksViewed");
+  }
 }
 
 async function loadMyFeedbacks() {
@@ -3474,6 +3849,7 @@ async function createProject() {
     }
 
     await projectsDomain.createProject(getProjectsDeps());
+    scheduleAdminOnboardingRefresh(1300);
 
   } finally {
     _isCreatingProject = false;

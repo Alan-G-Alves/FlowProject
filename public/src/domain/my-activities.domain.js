@@ -791,6 +791,9 @@ async function saveManualActivity(deps) {
 
     closeManualActivityModal(refs);
     await loadMyActivities(deps);
+    if (typeof deps.onOnboardingProgressChanged === "function") {
+      deps.onOnboardingProgressChanged();
+    }
   } catch (err) {
     console.error(err);
     setAlert(refs.manualActivityAlert, err?.message || "Nao foi possivel salvar a atividade manual.", "error");
@@ -994,6 +997,9 @@ async function saveMyActivityModal(deps) {
       await afterSave();
     } else {
       await loadMyActivities(deps);
+    }
+    if (typeof deps.onOnboardingProgressChanged === "function") {
+      deps.onOnboardingProgressChanged();
     }
   } catch (err) {
     console.error(err);

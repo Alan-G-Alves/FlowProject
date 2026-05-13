@@ -2123,6 +2123,9 @@ async function saveTask(deps){
   refs.projectTaskFormWrap.hidden = true;
   clearTaskForm(refs);
   await refreshWorkspace(deps);
+  if (typeof deps.onOnboardingProgressChanged === "function") {
+    deps.onOnboardingProgressChanged();
+  }
 }
 
 async function saveActivity(taskId, deps){
@@ -2314,6 +2317,9 @@ async function refreshWorkspace(deps){
   renderTabs(refs);
   renderCover(refs, _activeProject, state);
   renderTasks(deps);
+  if (typeof deps.onOnboardingProgressChanged === "function") {
+    deps.onOnboardingProgressChanged();
+  }
 }
 
 async function deleteActiveProject(deps){
