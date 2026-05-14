@@ -98,10 +98,14 @@ const COMPANY_PLANS = [
 ];
 
 const INDIVIDUAL_MANAGER_PLANS = [
-  { id: "manager-start", label: "Gestor Start", includedUsers: 3, participantLimit: 2, projectLimit: 10, price: 29.9, priceCents: 2990 },
-  { id: "manager-pro", label: "Gestor Pro", includedUsers: 6, participantLimit: 5, projectLimit: 20, price: 57.9, priceCents: 5790 },
-  { id: "manager-plus", label: "Gestor Plus", includedUsers: 11, participantLimit: 10, projectLimit: 40, price: 87.9, priceCents: 8790 },
+  { id: "manager-start", label: "Gestor Start", includedUsers: 3, participantLimit: 2, projectLimit: 15, price: 29.9, priceCents: 2990 },
+  { id: "manager-pro", label: "Gestor Pro", includedUsers: 6, participantLimit: 5, projectLimit: 30, price: 57.9, priceCents: 5790 },
+  { id: "manager-plus", label: "Gestor Plus", includedUsers: 11, participantLimit: 10, projectLimit: 50, price: 87.9, priceCents: 8790 },
 ];
+
+const MANAGER_START_TRIAL_DAYS = 30;
+const MANAGER_START_TRIAL_CONSENT_VERSION = "manager-start-trial-v1-2026-05-14";
+const MANAGER_START_TRIAL_CONSENT_TEXT = "Declaro que estou contratando o plano Gestor Start com 30 dias gratis. Entendo que, se eu nao cancelar antes do fim do periodo gratuito, sera realizada automaticamente a cobranca mensal de R$ 29,90 no cartao informado. Posso cancelar a qualquer momento antes do fim dos 30 dias para nao ser cobrado.";
 
 function getCompanyPlan(planId) {
   return COMPANY_PLANS.find((plan) => plan.id === planId) || COMPANY_PLANS[0];
@@ -109,6 +113,15 @@ function getCompanyPlan(planId) {
 
 function getIndividualManagerPlan(planId) {
   return INDIVIDUAL_MANAGER_PLANS.find((plan) => plan.id === planId) || INDIVIDUAL_MANAGER_PLANS[0];
+}
+
+function getIndividualPlanTrialConfig(planId) {
+  if (planId !== "manager-start") return null;
+  return {
+    days: MANAGER_START_TRIAL_DAYS,
+    consentVersion: MANAGER_START_TRIAL_CONSENT_VERSION,
+    consentText: MANAGER_START_TRIAL_CONSENT_TEXT,
+  };
 }
 
 function getConfigValue(path, fallback = "") {
@@ -121,6 +134,19 @@ function getConfigValue(path, fallback = "") {
     try { return STRIPE_WEBHOOK_SECRET.value(); } catch (err) { return fallback; }
   }
   return fallback;
+}
+
+function getRequestIp(req) {
+  const forwarded = String(req.headers["x-forwarded-for"] || "").split(",")[0].trim();
+  return forwarded || String(req.ip || req.connection?.remoteAddress || "");
+}
+
+function isStripeAccessActive(status) {
+  return ["active", "trialing"].includes(String(status || "").toLowerCase());
+}
+
+function isStripeAccessSuspended(status) {
+  return ["past_due", "unpaid", "incomplete_expired", "canceled", "paused"].includes(String(status || "").toLowerCase());
 }
 
 function getStripeClient() {
@@ -414,7 +440,7 @@ async function activateIndividualSignup(signupId, stripePayload = {}) {
     cpfHash: sha256(cpf),
     accountType: "individual",
     documentType: "cpf",
-    active: true,
+    active: isStripeAccessActive(stripePayload.subscriptionStatus || signup.stripeStatus || "active"),
     ownerUid: uid,
     ownerEmail: email,
     planId: plan.id,
@@ -425,6 +451,9 @@ async function activateIndividualSignup(signupId, stripePayload = {}) {
     planPrice: plan.price,
     planBillingCycle: "monthly",
     planBillingPrice: plan.price,
+    trialDays: Number(stripePayload.trialDays || signup.trialDays || 0),
+    trialEndsAt: stripePayload.trialEndsAt || signup.trialEndsAt || null,
+    trialConsentVersion: signup.trialConsentVersion || "",
     stripeCustomerId: stripePayload.customerId || signup.stripeCustomerId || "",
     stripeSubscriptionId: stripePayload.subscriptionId || signup.stripeSubscriptionId || "",
     stripeCheckoutSessionId: stripePayload.checkoutSessionId || signup.checkoutSessionId || "",
@@ -460,7 +489,7 @@ async function activateIndividualSignup(signupId, stripePayload = {}) {
     createdBy: uid,
   }, { merge: true });
   batch.set(signupRef, {
-    status: "active",
+    status: isStripeAccessActive(companyPayload.stripeStatus) ? "active" : `subscription_${companyPayload.stripeStatus}`,
     activatedAt: now,
     ownerUid: uid,
     companyId,
@@ -470,6 +499,8 @@ async function activateIndividualSignup(signupId, stripePayload = {}) {
     stripeSubscriptionId: companyPayload.stripeSubscriptionId,
     stripeCheckoutSessionId: companyPayload.stripeCheckoutSessionId,
     stripeStatus: companyPayload.stripeStatus,
+    trialDays: companyPayload.trialDays,
+    trialEndsAt: companyPayload.trialEndsAt,
     updatedAt: now,
   }, { merge: true });
 
@@ -1225,10 +1256,17 @@ exports.createIndividualCheckoutSession = onRequest({ secrets: [STRIPE_SECRET_KE
     const phone = normalizeString(body.phone);
     const cpf = normalizeCpf(body.cpf);
     const workspaceName = normalizeString(body.workspaceName) || (name ? `Espaco de ${name}` : "");
+    const trialConfig = getIndividualPlanTrialConfig(plan.id);
+    const trialConsentAccepted = body.trialConsentAccepted === true || body.trialConsentAccepted === "true";
+    const trialConsentVersion = normalizeString(body.trialConsentVersion);
+    const trialEndsAtDate = trialConfig ? new Date(Date.now() + (trialConfig.days * 24 * 60 * 60 * 1000)) : null;
 
     if (!name) return res.status(400).json({ error: { message: "Informe seu nome." } });
     if (!email) return res.status(400).json({ error: { message: "Informe um e-mail valido." } });
     if (!isCpfValidBasic(cpf)) return res.status(400).json({ error: { message: "Informe um CPF valido." } });
+    if (trialConfig && (!trialConsentAccepted || trialConsentVersion !== trialConfig.consentVersion)) {
+      return res.status(400).json({ error: { message: "Para contratar o Gestor Start com 30 dias gratis, aceite os termos do periodo gratuito e da cobranca apos o trial." } });
+    }
 
     const db = admin.firestore();
     const companyId = buildIndividualCompanyId(cpf);
@@ -1266,6 +1304,16 @@ exports.createIndividualCheckoutSession = onRequest({ secrets: [STRIPE_SECRET_KE
       cpfHash: sha256(cpf),
       companyId,
       workspaceName,
+      trialDays: trialConfig?.days || 0,
+      trialEndsAt: trialEndsAtDate ? admin.firestore.Timestamp.fromDate(trialEndsAtDate) : null,
+      trialConsentAccepted: Boolean(trialConfig),
+      trialConsentVersion: trialConfig?.consentVersion || "",
+      trialConsentText: trialConfig?.consentText || "",
+      trialConsentAcceptedAt: trialConfig ? admin.firestore.FieldValue.serverTimestamp() : null,
+      trialConsentIp: trialConfig ? getRequestIp(req) : "",
+      trialConsentUserAgent: trialConfig ? String(req.headers["user-agent"] || "") : "",
+      trialMonthlyPrice: trialConfig ? plan.price : null,
+      trialCurrency: trialConfig ? "BRL" : "",
       successTokenHash: sha256(successToken),
       createdAt: admin.firestore.FieldValue.serverTimestamp(),
       updatedAt: admin.firestore.FieldValue.serverTimestamp(),
@@ -1283,22 +1331,42 @@ exports.createIndividualCheckoutSession = onRequest({ secrets: [STRIPE_SECRET_KE
           recurring: { interval: "month" },
           product_data: {
             name: `FlowProject ${plan.label}`,
-            description: `${plan.includedUsers} usuarios: 1 Gestor, ${plan.participantLimit} Participantes e ${plan.projectLimit} projetos`,
+            description: trialConfig
+              ? `${trialConfig.days} dias gratis. Depois, R$ ${plan.price.toFixed(2).replace(".", ",")}/mes se nao cancelar antes do fim do periodo gratuito. ${plan.includedUsers} usuarios: 1 Gestor, ${plan.participantLimit} Participantes e ${plan.projectLimit} projetos`
+              : `${plan.includedUsers} usuarios: 1 Gestor, ${plan.participantLimit} Participantes e ${plan.projectLimit} projetos`,
           },
         },
       }],
+      payment_method_collection: "always",
       metadata: {
         signupId: signupRef.id,
         planId: plan.id,
         accountType: "individual",
+        trialDays: String(trialConfig?.days || 0),
+        trialConsentVersion: trialConfig?.consentVersion || "",
       },
       subscription_data: {
+        ...(trialConfig ? {
+          trial_period_days: trialConfig.days,
+          trial_settings: {
+            end_behavior: {
+              missing_payment_method: "cancel",
+            },
+          },
+        } : {}),
         metadata: {
           signupId: signupRef.id,
           planId: plan.id,
           accountType: "individual",
+          trialDays: String(trialConfig?.days || 0),
+          trialConsentVersion: trialConfig?.consentVersion || "",
         },
       },
+      custom_text: trialConfig ? {
+        submit: {
+          message: `${trialConfig.days} dias gratis. Se voce nao cancelar antes do fim do periodo gratuito, sera cobrado R$ ${plan.price.toFixed(2).replace(".", ",")}/mes no cartao informado.`,
+        },
+      } : undefined,
       success_url: `${baseUrl}/venda?checkout=success&session_id={CHECKOUT_SESSION_ID}&token=${successToken}`,
       cancel_url: `${baseUrl}/venda?checkout=cancelled`,
       allow_promotion_codes: true,
@@ -1354,6 +1422,51 @@ exports.getIndividualCheckoutResult = functions.https.onRequest(async (req, res)
   }
 });
 
+exports.createCustomerPortalSession = onRequest({ secrets: [STRIPE_SECRET_KEY] }, async (req, res) => {
+  setCors(res);
+  if (req.method === "OPTIONS") return res.status(204).send("");
+  if (req.method !== "POST") return res.status(405).json({ error: { message: "Metodo nao permitido." } });
+
+  try {
+    const authHeader = req.headers.authorization || "";
+    const match = authHeader.match(/^Bearer\s+(.+)$/i);
+    if (!match) return res.status(401).json({ error: { message: "Nao autenticado." } });
+
+    const decoded = await admin.auth().verifyIdToken(match[1]);
+    const db = admin.firestore();
+    const ucSnap = await db.doc(`userCompanies/${decoded.uid}`).get();
+    const companyId = normalizeString(ucSnap.data()?.companyId);
+    if (!companyId) return res.status(404).json({ error: { message: "Empresa nao encontrada." } });
+
+    const userSnap = await db.doc(`companies/${companyId}/users/${decoded.uid}`).get();
+    const role = String(userSnap.data()?.role || "").toLowerCase();
+    if (role !== "admin" && role !== "gestor") {
+      return res.status(403).json({ error: { message: "Somente o titular ou administrador pode gerenciar a assinatura." } });
+    }
+
+    const companySnap = await db.doc(`companies/${companyId}`).get();
+    const company = companySnap.exists ? companySnap.data() : {};
+    if (String(company?.accountType || "").toLowerCase() !== "individual") {
+      return res.status(400).json({ error: { message: "Portal disponivel apenas para planos de gestor individual." } });
+    }
+    if (!company?.stripeCustomerId) {
+      return res.status(400).json({ error: { message: "Assinatura Stripe nao encontrada para esta conta." } });
+    }
+
+    const baseUrl = getPublicBaseUrl(req);
+    const stripe = getStripeClient();
+    const session = await stripe.billingPortal.sessions.create({
+      customer: company.stripeCustomerId,
+      return_url: `${baseUrl}/`,
+    });
+
+    return res.status(200).json({ url: session.url });
+  } catch (err) {
+    console.error("createCustomerPortalSession:", err);
+    return res.status(500).json({ error: { message: err?.message || "Nao foi possivel abrir o portal de assinatura." } });
+  }
+});
+
 exports.stripeWebhook = onRequest({ secrets: [STRIPE_SECRET_KEY, STRIPE_WEBHOOK_SECRET] }, async (req, res) => {
   const stripe = getStripeClient();
   const endpointSecret = getConfigValue("stripe.webhook_secret").trim();
@@ -1377,15 +1490,21 @@ exports.stripeWebhook = onRequest({ secrets: [STRIPE_SECRET_KEY, STRIPE_WEBHOOK_
       const signupId = session.client_reference_id || session.metadata?.signupId;
       if (signupId) {
         let subscriptionStatus = "active";
+        let trialEndsAt = null;
+        let trialDays = 0;
         if (session.subscription) {
           const subscription = await stripe.subscriptions.retrieve(session.subscription);
           subscriptionStatus = subscription.status || "active";
+          trialDays = Number(subscription.metadata?.trialDays || 0);
+          trialEndsAt = subscription.trial_end ? admin.firestore.Timestamp.fromMillis(subscription.trial_end * 1000) : null;
         }
         await activateIndividualSignup(signupId, {
           customerId: session.customer || "",
           subscriptionId: session.subscription || "",
           checkoutSessionId: session.id,
           subscriptionStatus,
+          trialDays,
+          trialEndsAt,
         });
       }
     }
@@ -1399,11 +1518,22 @@ exports.stripeWebhook = onRequest({ secrets: [STRIPE_SECRET_KEY, STRIPE_WEBHOOK_
         const signupSnap = await signupRef.get();
         const signup = signupSnap.exists ? signupSnap.data() : {};
         const companyId = signup?.companyId || "";
-        await signupRef.set({ stripeStatus: status, status: status === "active" ? "active" : "subscription_" + status, updatedAt: now }, { merge: true });
+        await signupRef.set({
+          stripeStatus: status,
+          status: isStripeAccessActive(status) ? "active" : "subscription_" + status,
+          stripeCancelAtPeriodEnd: Boolean(subscription.cancel_at_period_end),
+          stripeCurrentPeriodEnd: subscription.current_period_end ? admin.firestore.Timestamp.fromMillis(subscription.current_period_end * 1000) : null,
+          trialEndsAt: subscription.trial_end ? admin.firestore.Timestamp.fromMillis(subscription.trial_end * 1000) : (signup?.trialEndsAt || null),
+          updatedAt: now,
+        }, { merge: true });
         if (companyId) {
           await db.doc(`companies/${companyId}`).set({
             stripeStatus: status,
-            active: !["canceled", "unpaid", "incomplete_expired"].includes(status),
+            active: isStripeAccessActive(status),
+            billingSuspended: isStripeAccessSuspended(status),
+            stripeCancelAtPeriodEnd: Boolean(subscription.cancel_at_period_end),
+            stripeCurrentPeriodEnd: subscription.current_period_end ? admin.firestore.Timestamp.fromMillis(subscription.current_period_end * 1000) : null,
+            trialEndsAt: subscription.trial_end ? admin.firestore.Timestamp.fromMillis(subscription.trial_end * 1000) : null,
             updatedAt: now,
           }, { merge: true });
         }
@@ -1414,9 +1544,26 @@ exports.stripeWebhook = onRequest({ secrets: [STRIPE_SECRET_KEY, STRIPE_WEBHOOK_
       const invoice = event.data.object;
       const subscriptionId = typeof invoice.subscription === "string" ? invoice.subscription : "";
       if (subscriptionId) {
-        const companies = await db.collection("companies").where("stripeSubscriptionId", "==", subscriptionId).limit(1).get();
+        const [companies, signups] = await Promise.all([
+          db.collection("companies").where("stripeSubscriptionId", "==", subscriptionId).limit(1).get(),
+          db.collection("individualSignups").where("stripeSubscriptionId", "==", subscriptionId).limit(1).get(),
+        ]);
         if (!companies.empty) {
-          await companies.docs[0].ref.set({ stripeStatus: "past_due", updatedAt: now }, { merge: true });
+          await companies.docs[0].ref.set({
+            stripeStatus: "past_due",
+            active: false,
+            billingSuspended: true,
+            lastPaymentFailureAt: now,
+            updatedAt: now,
+          }, { merge: true });
+        }
+        if (!signups.empty) {
+          await signups.docs[0].ref.set({
+            stripeStatus: "past_due",
+            status: "subscription_past_due",
+            lastPaymentFailureAt: now,
+            updatedAt: now,
+          }, { merge: true });
         }
       }
     }

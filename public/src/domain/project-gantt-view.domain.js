@@ -5,6 +5,10 @@ function asNumber(value){
   return Number.isFinite(amount) ? amount : 0;
 }
 
+function clamp(value, min, max){
+  return Math.max(min, Math.min(max, value));
+}
+
 function escapeHtml(value){
   return String(value ?? "")
     .replace(/&/g, "&amp;")
@@ -12,6 +16,16 @@ function escapeHtml(value){
     .replace(/>/g, "&gt;")
     .replace(/"/g, "&quot;")
     .replace(/'/g, "&#39;");
+}
+
+function normalizeFileName(value){
+  return String(value || "gantt-projeto")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^\w.-]+/g, "-")
+    .replace(/-+/g, "-")
+    .replace(/^-|-$/g, "")
+    .toLowerCase();
 }
 
 function parseDate(value){
@@ -163,7 +177,7 @@ function injectStyles(){
     .project-gantt-row{
       display:grid;
       grid-template-columns:300px 1fr;
-      min-height:64px;
+      min-height:74px;
       border-bottom:1px solid rgba(226,232,240,.95);
     }
     .project-gantt-row:last-child{ border-bottom:0; }
@@ -195,7 +209,7 @@ function injectStyles(){
     .project-gantt-header .project-gantt-label,
     .project-gantt-header .project-gantt-timeline{
       background:#f8fafc;
-      min-height:50px;
+      min-height:74px;
     }
     .project-gantt-scale{
       display:flex;
@@ -203,14 +217,16 @@ function injectStyles(){
       height:100%;
     }
     .project-gantt-months,
-    .project-gantt-weeks{
+    .project-gantt-weeks,
+    .project-gantt-days{
       display:grid;
     }
     .project-gantt-month,
-    .project-gantt-week{
+    .project-gantt-week,
+    .project-gantt-day{
       border-right:1px solid rgba(226,232,240,.9);
       text-align:center;
-      color:#64748b;
+      color:#334155;
       white-space:nowrap;
     }
     .project-gantt-month{
@@ -219,15 +235,33 @@ function injectStyles(){
       font-size:10px;
       font-weight:900;
       text-transform:uppercase;
-      background:#eef4ff;
+      color:#6d28d9;
+      background:#f3e8ff;
+      border-right:2px solid rgba(109,40,217,.38);
     }
     .project-gantt-week{
-      height:26px;
-      padding-top:7px;
-      font-size:9px;
-      background:#f8fafc;
+      height:28px;
+      padding-top:5px;
+      font-size:9.5px;
+      line-height:1.15;
+      background:#f1f5f9;
+      color:#1e293b;
+      font-weight:800;
     }
     .project-gantt-week.is-today{ background:rgba(99,102,241,.12); color:#4f46e5; font-weight:900; }
+    .project-gantt-day{
+      height:22px;
+      padding-top:6px;
+      font-size:9.5px;
+      font-weight:700;
+      background:#fff;
+    }
+    .project-gantt-day.is-weekend{ background:rgba(241,245,249,.72); }
+    .project-gantt-day.is-today{ background:rgba(99,102,241,.12); color:#4f46e5; font-weight:900; }
+    .project-gantt-timeline{
+      background-image:linear-gradient(to right, rgba(226,232,240,.55) 1px, transparent 1px);
+      background-size:var(--gantt-day-width, 10px) 100%;
+    }
     .project-gantt-bar{
       position:absolute;
       top:16px;
@@ -236,11 +270,11 @@ function injectStyles(){
       box-shadow:0 8px 16px rgba(15,23,42,.12);
       min-width:18px;
     }
-    .project-gantt-bar.is-planned{ background:linear-gradient(135deg,#3b82f6,#6366f1); }
-    .project-gantt-bar.is-progress{ background:linear-gradient(135deg,#14b8a6,#2563eb); }
-    .project-gantt-bar.is-done{ background:linear-gradient(135deg,#22c55e,#16a34a); }
-    .project-gantt-bar.is-late{ background:linear-gradient(135deg,#f97316,#ef4444); }
-    .project-gantt-bar.is-neutral{ background:linear-gradient(135deg,#94a3b8,#64748b); }
+    .project-gantt-bar.is-planned{ background:#6366f1; }
+    .project-gantt-bar.is-progress{ background:#14b8a6; }
+    .project-gantt-bar.is-done{ background:#22c55e; }
+    .project-gantt-bar.is-late{ background:#ef4444; }
+    .project-gantt-bar.is-neutral{ background:#94a3b8; }
     .project-gantt-progress{
       position:absolute;
       inset:0 auto 0 0;
@@ -257,36 +291,53 @@ function injectStyles(){
       opacity:.7;
       z-index:1;
     }
+    .project-gantt-month-divider{
+      position:absolute;
+      top:0;
+      bottom:0;
+      width:2px;
+      background:rgba(109,40,217,.28);
+      z-index:1;
+      pointer-events:none;
+    }
     .project-gantt-activity-chips{
       position:absolute;
-      left:10px;
-      right:10px;
-      bottom:6px;
-      display:flex;
-      gap:5px;
-      flex-wrap:wrap;
+      inset:0;
       z-index:2;
     }
     .project-gantt-activity-chip{
-      display:inline-flex;
+      position:absolute;
+      top:40px;
+      transform:translateX(-50%);
+      display:flex;
+      flex-direction:column;
       align-items:center;
-      gap:4px;
-      max-width:140px;
-      padding:2px 6px;
-      border-radius:999px;
-      background:#eef2ff;
+      justify-content:center;
+      gap:2px;
+      width:20px;
+      min-height:24px;
+      padding:0;
+      border-radius:0;
+      background:transparent;
       color:#334155;
-      font-size:9px;
+      font-size:9.5px;
+      line-height:1;
       font-weight:800;
       white-space:nowrap;
       overflow:hidden;
       text-overflow:ellipsis;
+      cursor:help;
+    }
+    .project-gantt-activity-chip:hover{
+      color:#111827;
+      transform:translateX(-50%) translateY(-2px);
     }
     .project-gantt-activity-chip i{
-      width:6px;
-      height:6px;
+      width:7px;
+      height:7px;
       border-radius:999px;
       flex:0 0 auto;
+      box-shadow:0 0 0 2px #fff, 0 2px 6px rgba(15,23,42,.18);
     }
     .project-gantt-activity-chip.is-planned i{ background:#6366f1; }
     .project-gantt-activity-chip.is-done i{ background:#22c55e; }
@@ -311,6 +362,21 @@ function injectStyles(){
       height:10px;
       border-radius:999px;
       display:inline-block;
+    }
+    .project-gantt-hint{
+      display:flex;
+      align-items:center;
+      gap:6px;
+      margin-top:8px;
+      color:#64748b;
+      font-size:11px;
+      font-weight:700;
+    }
+    .project-gantt-hint svg{
+      width:14px;
+      height:14px;
+      color:#4f46e5;
+      flex:0 0 auto;
     }
     .project-gantt-empty{
       padding:24px;
@@ -390,52 +456,86 @@ function getWeekSlots(range){
   return slots.length ? slots : [{ start: new Date(range.start), end: new Date(range.end) }];
 }
 
-function renderScale(slots){
+function weekDayLetter(date){
+  return ["D", "S", "T", "Q", "Q", "S", "S"][date.getDay()];
+}
+
+function renderScale(slots, dayWidth, range){
   const today = new Date();
   today.setHours(0, 0, 0, 0);
   const months = [];
-  slots.forEach((slot) => {
-    const label = formatMonth(slot.start);
+  const totalDays = Math.max(1, diffDays(range.start, range.end) + 1);
+  for (let index = 0; index < totalDays; index += 1){
+    const day = addDays(range.start, index);
+    const label = formatMonth(day);
     const last = months[months.length - 1];
     if (last && last.label === label) {
       last.count += 1;
     } else {
       months.push({ label, count: 1 });
     }
-  });
+  }
   const monthHtml = months.map(month => `<div class="project-gantt-month" style="grid-column:span ${month.count}">${escapeHtml(month.label)}</div>`).join("");
-  const weekHtml = slots.map((slot) => {
+  const weekHtml = slots.map((slot, index) => {
     const hasToday = today >= slot.start && today <= slot.end;
-    return `<div class="project-gantt-week ${hasToday ? "is-today" : ""}" title="${escapeHtml(`${formatDate(slot.start)} a ${formatDate(slot.end)}`)}">${escapeHtml(formatShortDate(slot.start))}</div>`;
+    const spanDays = Math.max(1, diffDays(slot.start, slot.end) + 1);
+    return `<div class="project-gantt-week ${hasToday ? "is-today" : ""}" style="grid-column:span ${spanDays}" title="${escapeHtml(`${formatDate(slot.start)} a ${formatDate(slot.end)}`)}">Semana ${index + 1}<br>(${escapeHtml(formatShortDate(slot.start))} - ${escapeHtml(formatShortDate(slot.end))})</div>`;
+  }).join("");
+  const dayHtml = Array.from({ length: totalDays }, (_, index) => {
+    const day = addDays(range.start, index);
+    const isWeekend = day.getDay() === 0 || day.getDay() === 6;
+    const isToday = day.toDateString() === today.toDateString();
+    return `<div class="project-gantt-day ${isWeekend ? "is-weekend" : ""} ${isToday ? "is-today" : ""}" style="width:${dayWidth}px" title="${escapeHtml(formatDate(day))}">${escapeHtml(weekDayLetter(day))}</div>`;
   }).join("");
   return `
-    <div class="project-gantt-months" style="grid-template-columns:repeat(${slots.length}, 1fr)">${monthHtml}</div>
-    <div class="project-gantt-weeks" style="grid-template-columns:repeat(${slots.length}, 1fr)">${weekHtml}</div>
+    <div class="project-gantt-months" style="grid-template-columns:repeat(${totalDays}, ${dayWidth}px)">${monthHtml}</div>
+    <div class="project-gantt-weeks" style="grid-template-columns:repeat(${totalDays}, ${dayWidth}px)">${weekHtml}</div>
+    <div class="project-gantt-days" style="grid-template-columns:repeat(${totalDays}, ${dayWidth}px)">${dayHtml}</div>
   `;
 }
 
-function renderRow(row, range, slots, columnWidth){
+function getMonthDividerOffsets(range, dayWidth){
   const totalDays = Math.max(1, diffDays(range.start, range.end) + 1);
-  const timelineWidth = Math.max(1, slots.length * columnWidth);
+  const offsets = [];
+  let previousMonth = range.start.getMonth();
+  for (let index = 1; index < totalDays; index += 1){
+    const day = addDays(range.start, index);
+    if (day.getMonth() !== previousMonth){
+      offsets.push(index * dayWidth);
+      previousMonth = day.getMonth();
+    }
+  }
+  return offsets;
+}
+
+function renderMonthDividers(range, dayWidth){
+  return getMonthDividerOffsets(range, dayWidth)
+    .map(offset => `<span class="project-gantt-month-divider" style="left:${offset}px"></span>`)
+    .join("");
+}
+
+function renderRow(row, range, slots, dayWidth){
+  const totalDays = Math.max(1, diffDays(range.start, range.end) + 1);
+  const timelineWidth = Math.max(1, totalDays * dayWidth);
   const startOffset = Math.max(0, diffDays(range.start, row.start));
   const duration = Math.max(1, diffDays(row.start, row.end) + 1);
   const left = (startOffset / totalDays) * timelineWidth;
   const width = Math.max(18, Math.min(timelineWidth - left, (duration / totalDays) * timelineWidth));
   const doneCount = row.activities.filter(isCompletedStatus).length;
   const completion = row.activities.length ? Math.round((doneCount / row.activities.length) * 100) : 0;
-  const chips = row.activities.slice(0, 4).map((activity) => {
+  const chips = row.activities.filter(activity => activity.date).map((activity) => {
     const title = `${activity.name}\nData: ${formatDate(activity.date)}\nStatus: ${activity.status}\nResponsavel: ${activity.techNames}\nHoras: ${activity.hours || 0}h`;
-    return `<span class="project-gantt-activity-chip is-${escapeHtml(activity.tone)}" title="${escapeHtml(title)}"><i></i>${escapeHtml(formatShortDate(activity.date))}</span>`;
+    const activityOffset = clamp(diffDays(range.start, activity.date), 0, totalDays);
+    const activityLeft = (activityOffset / totalDays) * timelineWidth;
+    return `<span class="project-gantt-activity-chip is-${escapeHtml(activity.tone)}" style="left:${activityLeft}px" title="${escapeHtml(title)}"><i></i>${escapeHtml(String(activity.date.getDate()).padStart(2, "0"))}</span>`;
   }).join("");
-  const extra = row.activities.length > 4
-    ? `<span class="project-gantt-activity-chip" title="${escapeHtml(`${row.activities.length - 4} atividade(s) adicional(is)`)}">+${escapeHtml(String(row.activities.length - 4))}</span>`
-    : "";
   const title = `#${row.number} ${row.name}\nPeriodo: ${formatDate(row.start)} a ${formatDate(row.end)}\nHoras orcadas: ${row.plannedHours || 0}h\nAtividades: ${row.activities.length}`;
   const today = new Date();
   today.setHours(0, 0, 0, 0);
   const todayOffset = today >= range.start && today <= range.end
     ? (diffDays(range.start, today) / totalDays) * timelineWidth
     : null;
+  const monthDividers = renderMonthDividers(range, dayWidth);
   return `
     <div class="project-gantt-row">
       <div class="project-gantt-label">
@@ -443,14 +543,246 @@ function renderRow(row, range, slots, columnWidth){
         <span>${escapeHtml(formatDate(row.start))} a ${escapeHtml(formatDate(row.end))}</span>
         <span>${escapeHtml(String(completion))}% concluido | ${escapeHtml(String(row.activities.length))} atividade(s)</span>
       </div>
-      <div class="project-gantt-timeline" style="width:${timelineWidth}px">
+      <div class="project-gantt-timeline" style="width:${timelineWidth}px;--gantt-day-width:${dayWidth}px">
+        ${monthDividers}
         ${todayOffset === null ? "" : `<span class="project-gantt-today" style="left:${todayOffset}px" title="Hoje"></span>`}
         <span class="project-gantt-bar is-${escapeHtml(row.tone)}" style="left:${left}px;width:${width}px" title="${escapeHtml(title)}"></span>
         <span class="project-gantt-progress" style="left:${left}px;width:${width * (completion / 100)}px"></span>
-        <div class="project-gantt-activity-chips">${chips}${extra}</div>
+        <div class="project-gantt-activity-chips">${chips}</div>
       </div>
     </div>
   `;
+}
+
+function toneColor(tone){
+  const colors = {
+    planned: [99, 102, 241],
+    progress: [20, 184, 166],
+    done: [34, 197, 94],
+    late: [239, 68, 68],
+    neutral: [148, 163, 184]
+  };
+  return colors[tone] || colors.neutral;
+}
+
+function drawPdfText(doc, text, x, y, maxWidth, options = {}){
+  const lines = doc.splitTextToSize(String(text || "-"), maxWidth).slice(0, options.maxLines || 1);
+  doc.text(lines, x, y);
+}
+
+function drawPdfScale(doc, range, slots, x, y, width){
+  const totalDays = Math.max(1, diffDays(range.start, range.end) + 1);
+  const dayWidth = width / totalDays;
+  const months = [];
+  for (let index = 0; index < totalDays; index += 1){
+    const day = addDays(range.start, index);
+    const label = formatMonth(day).toUpperCase();
+    const last = months[months.length - 1];
+    if (last && last.label === label){
+      last.count += 1;
+    } else {
+      months.push({ label, count: 1, start: index });
+    }
+  }
+
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(5.8);
+  months.forEach((month) => {
+    const left = x + (month.start * dayWidth);
+    const monthWidth = month.count * dayWidth;
+    doc.setFillColor(243, 232, 255);
+    doc.setDrawColor(196, 181, 253);
+    doc.rect(left, y, monthWidth, 6, "FD");
+    doc.setTextColor(109, 40, 217);
+    doc.text(month.label, left + (monthWidth / 2), y + 4, { align: "center" });
+  });
+
+  slots.forEach((slot, index) => {
+    const left = x + (diffDays(range.start, slot.start) * dayWidth);
+    const spanDays = Math.max(1, diffDays(slot.start, slot.end) + 1);
+    const weekWidth = spanDays * dayWidth;
+    doc.setFillColor(241, 245, 249);
+    doc.setDrawColor(226, 232, 240);
+    doc.rect(left, y + 6, weekWidth, 8, "FD");
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(4.6);
+    doc.setTextColor(30, 41, 59);
+    doc.text(`S${index + 1}`, left + (weekWidth / 2), y + 9.2, { align: "center" });
+    doc.setFont("helvetica", "normal");
+    doc.text(`${formatShortDate(slot.start)}-${formatShortDate(slot.end)}`, left + (weekWidth / 2), y + 12.2, { align: "center" });
+  });
+
+  for (let index = 0; index < totalDays; index += 1){
+    const day = addDays(range.start, index);
+    const left = x + (index * dayWidth);
+    doc.setFillColor(day.getDay() === 0 || day.getDay() === 6 ? 248 : 255, day.getDay() === 0 || day.getDay() === 6 ? 250 : 255, day.getDay() === 0 || day.getDay() === 6 ? 252 : 255);
+    doc.setDrawColor(226, 232, 240);
+    doc.rect(left, y + 14, dayWidth, 5, "FD");
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(4.6);
+    doc.setTextColor(51, 65, 85);
+    doc.text(weekDayLetter(day), left + (dayWidth / 2), y + 17.5, { align: "center" });
+  }
+}
+
+function drawPdfPageHeader(doc, project, range, page, totalPages){
+  const pageWidth = doc.internal.pageSize.getWidth();
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(15);
+  doc.setTextColor(17, 24, 39);
+  doc.text(`Gantt do Projeto: ${project?.name || "Projeto"}`, 10, 12);
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(8);
+  doc.setTextColor(100, 116, 139);
+  doc.text(`Periodo: ${formatDate(range.start)} a ${formatDate(range.end)}`, 10, 18);
+  doc.text(`Pagina ${page} de ${totalPages}`, pageWidth - 10, 12, { align: "right" });
+}
+
+function drawPdfLegend(doc, y){
+  const items = [
+    ["Planejado", "planned"],
+    ["Em andamento", "progress"],
+    ["Concluido", "done"],
+    ["Atrasado", "late"],
+    ["Sem atividades", "neutral"]
+  ];
+  let x = 10;
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(7);
+  items.forEach(([label, tone]) => {
+    const color = toneColor(tone);
+    doc.setFillColor(color[0], color[1], color[2]);
+    doc.circle(x + 2, y - 1.5, 1.6, "F");
+    doc.setTextColor(71, 85, 105);
+    doc.text(label, x + 6, y);
+    x += 36;
+  });
+}
+
+async function printProjectGanttPdf({ project, rows, range, slots }){
+  const { jsPDF } = await import("https://cdn.jsdelivr.net/npm/jspdf@2.5.1/+esm");
+  const doc = new jsPDF({ unit: "mm", format: "a4", orientation: "landscape", compress: true });
+  const totalDays = Math.max(1, diffDays(range.start, range.end) + 1);
+  const taskRowsPerPage = 14;
+  const taskPages = Math.max(1, Math.ceil(rows.length / taskRowsPerPage));
+  const activityRows = rows.flatMap((row) => row.activities.map(activity => ({ row, activity })));
+  const detailRowsPerPage = 28;
+  const detailPages = Math.max(1, Math.ceil(activityRows.length / detailRowsPerPage));
+  const totalPages = taskPages + detailPages;
+  let pageNumber = 1;
+
+  for (let pageIndex = 0; pageIndex < taskPages; pageIndex += 1){
+    if (pageIndex > 0) doc.addPage("a4", "landscape");
+    const pageWidth = doc.internal.pageSize.getWidth();
+    const timelineX = 76;
+    const timelineWidth = pageWidth - timelineX - 10;
+    const dayWidth = timelineWidth / totalDays;
+    drawPdfPageHeader(doc, project, range, pageNumber, totalPages);
+    pageNumber += 1;
+
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(10);
+    doc.setTextColor(17, 24, 39);
+    doc.text("Cronograma das tarefas", 10, 25);
+
+    const headerY = 30;
+    doc.setFillColor(0, 43, 92);
+    doc.rect(10, headerY, 66, 19, "F");
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(7);
+    doc.setTextColor(255, 255, 255);
+    doc.text("Tarefa", 13, headerY + 8);
+    doc.text("Periodo / progresso", 13, headerY + 14);
+    drawPdfScale(doc, range, slots, timelineX, headerY, timelineWidth);
+
+    const pageRows = rows.slice(pageIndex * taskRowsPerPage, (pageIndex + 1) * taskRowsPerPage);
+    let y = 54;
+    pageRows.forEach((row) => {
+      const color = toneColor(row.tone);
+      const doneCount = row.activities.filter(isCompletedStatus).length;
+      const completion = row.activities.length ? Math.round((doneCount / row.activities.length) * 100) : 0;
+      const rowH = 9;
+      doc.setDrawColor(226, 232, 240);
+      doc.setFillColor(255, 255, 255);
+      doc.rect(10, y - 6, pageWidth - 20, rowH, "FD");
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(6.2);
+      doc.setTextColor(17, 24, 39);
+      drawPdfText(doc, `#${row.number} ${row.name}`, 13, y - 2, 56, { maxLines: 1 });
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(5.5);
+      doc.setTextColor(71, 85, 105);
+      doc.text(`${formatDate(row.start)} a ${formatDate(row.end)} | ${completion}% | ${row.activities.length} ativ.`, 13, y + 2.3);
+
+      const startOffset = clamp(diffDays(range.start, row.start), 0, totalDays);
+      const duration = Math.max(1, diffDays(row.start, row.end) + 1);
+      const left = timelineX + (startOffset * dayWidth);
+      const width = Math.max(2, Math.min(timelineWidth - (left - timelineX), duration * dayWidth));
+      doc.setFillColor(color[0], color[1], color[2]);
+      doc.roundedRect(left, y - 3.7, width, 4.8, 1.8, 1.8, "F");
+      y += rowH;
+    });
+
+    drawPdfLegend(doc, doc.internal.pageSize.getHeight() - 7);
+  }
+
+  for (let pageIndex = 0; pageIndex < detailPages; pageIndex += 1){
+    doc.addPage("a4", "portrait");
+    const pageWidth = doc.internal.pageSize.getWidth();
+    drawPdfPageHeader(doc, project, range, pageNumber, totalPages);
+    pageNumber += 1;
+
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(10);
+    doc.setTextColor(17, 24, 39);
+    doc.text("Detalhamento das atividades", 10, 25);
+
+    const headerY = 31;
+    const columns = [
+      { label: "Tarefa", x: 10, w: 33 },
+      { label: "Atividade", x: 45, w: 52 },
+      { label: "Responsavel", x: 99, w: 39 },
+      { label: "Data", x: 140, w: 20 },
+      { label: "Status", x: 162, w: 28 },
+      { label: "Horas", x: 192, w: 8 }
+    ];
+    doc.setFillColor(0, 43, 92);
+    doc.rect(10, headerY, pageWidth - 20, 8, "F");
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(6.5);
+    doc.setTextColor(255, 255, 255);
+    columns.forEach(column => doc.text(column.label, column.x + 2, headerY + 5.2));
+
+    const pageRows = activityRows.slice(pageIndex * detailRowsPerPage, (pageIndex + 1) * detailRowsPerPage);
+    let y = headerY + 13;
+    if (!pageRows.length){
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(8);
+      doc.setTextColor(100, 116, 139);
+      doc.text("Nenhuma atividade vinculada ao projeto.", 12, y);
+    }
+    pageRows.forEach(({ row, activity }, index) => {
+      const color = toneColor(activity.tone);
+      doc.setDrawColor(226, 232, 240);
+      doc.setFillColor(index % 2 === 0 ? 255 : 248, index % 2 === 0 ? 255 : 250, index % 2 === 0 ? 255 : 252);
+      doc.rect(10, y - 5, pageWidth - 20, 8, "FD");
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(5.8);
+      doc.setTextColor(30, 41, 59);
+      drawPdfText(doc, `#${row.number} ${row.name}`, 12, y, 30, { maxLines: 1 });
+      drawPdfText(doc, activity.name, 47, y, 48, { maxLines: 1 });
+      drawPdfText(doc, activity.techNames, 101, y, 35, { maxLines: 1 });
+      doc.text(formatDate(activity.date), 142, y);
+      doc.setFillColor(color[0], color[1], color[2]);
+      doc.circle(165, y - 1.6, 1.5, "F");
+      doc.setTextColor(30, 41, 59);
+      drawPdfText(doc, activity.status, 169, y, 20, { maxLines: 1 });
+      doc.text(`${activity.hours || 0}h`, 194, y);
+      y += 8;
+    });
+  }
+
+  doc.save(`${normalizeFileName(`gantt-${project?.projectNumber || ""}-${project?.name || "projeto"}`)}.pdf`);
 }
 
 export function openProjectGanttView({ refs, project, tasks, activities, state }){
@@ -470,8 +802,9 @@ export function openProjectGanttView({ refs, project, tasks, activities, state }
   const rows = buildGanttRows(project, tasks, activities, state);
   const range = getRange(project, rows);
   const slots = getWeekSlots(range);
-  const columnWidth = 72;
-  const timelineWidth = slots.length * columnWidth;
+  const dayWidth = 16;
+  const totalDays = Math.max(1, diffDays(range.start, range.end) + 1);
+  const timelineWidth = totalDays * dayWidth;
   const completedTasks = rows.filter(row => row.tone === "done").length;
   const lateTasks = rows.filter(row => row.tone === "late").length;
   const activityCount = rows.reduce((acc, row) => acc + row.activities.length, 0);
@@ -500,11 +833,12 @@ export function openProjectGanttView({ refs, project, tasks, activities, state }
         <div class="project-gantt-grid" style="grid-template-columns:300px ${timelineWidth}px">
           <div class="project-gantt-row project-gantt-header">
             <div class="project-gantt-label"><strong>Tarefas</strong><span>Linha do tempo</span></div>
-            <div class="project-gantt-timeline" style="width:${timelineWidth}px">
-              <div class="project-gantt-scale">${renderScale(slots)}</div>
+            <div class="project-gantt-timeline" style="width:${timelineWidth}px;--gantt-day-width:${dayWidth}px">
+              <div class="project-gantt-scale">${renderScale(slots, dayWidth, range)}</div>
+              ${renderMonthDividers(range, dayWidth)}
             </div>
           </div>
-          ${rows.map(row => renderRow(row, range, slots, columnWidth)).join("")}
+          ${rows.map(row => renderRow(row, range, slots, dayWidth)).join("")}
         </div>
       </div>
       <div class="project-gantt-legend">
@@ -513,6 +847,13 @@ export function openProjectGanttView({ refs, project, tasks, activities, state }
         <span><i style="background:#22c55e"></i> Concluido</span>
         <span><i style="background:#ef4444"></i> Atrasado</span>
         <span><i style="background:#94a3b8"></i> Sem atividades</span>
+      </div>
+      <div class="project-gantt-hint">
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" stroke-width="2"></circle>
+          <path d="M12 11v5M12 8h.01" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"></path>
+        </svg>
+        <span>Passe o mouse sobre o dia da atividade para ver responsavel, status e horas.</span>
       </div>
     ` : `<div class="project-gantt-empty">Nenhuma tarefa cadastrada para exibir no Gantt.</div>`}
   `;

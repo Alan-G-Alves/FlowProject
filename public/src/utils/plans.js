@@ -17,7 +17,7 @@ export const INDIVIDUAL_MANAGER_PLANS = [
     includedUsers: 3,
     participantLimit: 2,
     techLimit: 2,
-    projectLimit: 10,
+    projectLimit: 15,
     price: 29.9,
     annualPrice: 287.04
   },
@@ -31,7 +31,7 @@ export const INDIVIDUAL_MANAGER_PLANS = [
     includedUsers: 6,
     participantLimit: 5,
     techLimit: 5,
-    projectLimit: 20,
+    projectLimit: 30,
     price: 57.9,
     annualPrice: 555.84
   },
@@ -45,7 +45,7 @@ export const INDIVIDUAL_MANAGER_PLANS = [
     includedUsers: 11,
     participantLimit: 10,
     techLimit: 10,
-    projectLimit: 40,
+    projectLimit: 50,
     price: 87.9,
     annualPrice: 843.84
   }

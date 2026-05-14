@@ -219,6 +219,32 @@ function gestaoGuide(profileRole){
         ]
       ),
       section(
+        "Gerar Status Reports do projeto",
+        "Use os botoes de status na capa do projeto para gerar acompanhamentos em formatos diferentes.",
+        ["Projetos", "Abrir projeto", "Capa do projeto"],
+        [
+          "Abra o projeto desejado.",
+          "Na capa do projeto, localize os botoes Status Report, Status Executivo e Status Cliente.",
+          "Use Status Report para baixar o acompanhamento operacional em PDF e Excel.",
+          "Use Status Executivo para gerar uma visao gerencial com indicadores, entregas, riscos e proximas acoes.",
+          "Use Status Cliente para gerar uma versao de acompanhamento sem informacoes de custos internos."
+        ],
+        "Os arquivos usam os dados ja capturados no projeto, tarefas, atividades, OS, despesas permitidas e participantes."
+      ),
+      section(
+        "Visualizar grafico de Gantt",
+        "Consulte o cronograma do projeto em linha do tempo por meses, semanas, dias, tarefas e atividades.",
+        ["Projetos", "Abrir projeto", "Visualizar Gantt"],
+        [
+          "Abra o projeto.",
+          "Clique em Visualizar Gantt na capa do projeto.",
+          "Use a barra horizontal para navegar pelo periodo do cronograma.",
+          "Passe o mouse sobre os dias marcados para ver atividade, responsavel, status e horas.",
+          "Clique em Voltar ao workspace para retornar a capa, tarefas e atividades do projeto."
+        ],
+        "As cores indicam planejado, em andamento, concluido, atrasado ou sem atividades."
+      ),
+      section(
         "Aprovar OS",
         "Revise apontamentos enviados por recursos e aprove ou estorne quando necessario.",
         ["Pagina inicial", "OS para Aprovar"],

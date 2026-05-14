@@ -8,7 +8,7 @@ import { setView } from "../ui/router.js";
 import { listCompaniesDocs } from "../services/companies.service.js";
 import { isEmailValidBasic, isCnpjValidBasic } from "../utils/validators.js";
 import { normalizePhone, normalizeCnpj } from "../utils/format.js";
-import { DEFAULT_COMPANY_BILLING_CYCLE, DEFAULT_COMPANY_PLAN_ID, getCompanyPlan, normalizeCompanyPlan, formatCompanyPlanPrice } from "../utils/plans.js?v=1778178016";
+import { DEFAULT_COMPANY_BILLING_CYCLE, DEFAULT_COMPANY_PLAN_ID, getCompanyPlan, normalizeCompanyPlan, formatCompanyPlanPrice } from "../utils/plans.js?v=1778794100";
 
 /** =========================
  *  COMPANIES DOMAIN

@@ -19,7 +19,7 @@ import { createNotifications } from "../services/notifications.service.js?v=1776
 import { downloadProjectStatusReportExcel, downloadProjectStatusReportPdf } from "./project-status-report.domain.js?v=1776052718";
 import { downloadProjectExecutiveStatusReportPdf } from "./project-executive-status-report.domain.js?v=1778783000";
 import { downloadProjectClientStatusReportPdf } from "./project-client-status-report.domain.js?v=1778784200";
-import { openProjectGanttView } from "./project-gantt-view.domain.js?v=1778790800";
+import { openProjectGanttView } from "./project-gantt-view.domain.js?v=1778794000";
 import { openMyActivityModalForItem } from "./my-activities.domain.js?v=1777951800";
 
 let _bound = false;

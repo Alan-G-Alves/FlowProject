@@ -20,7 +20,7 @@ import { setAlert, clearAlert } from "../ui/alerts.js";
 import { normalizeRole } from "../utils/roles.js";
 import { normalizePhone } from "../utils/format.js";
 import { isEmailValidBasic } from "../utils/validators.js";
-import { normalizeCompanyPlan } from "../utils/plans.js?v=1778178000";
+import { normalizeCompanyPlan } from "../utils/plans.js?v=1778794100";
 import {
   bindMaskedInput,
   bindAgePreview,
