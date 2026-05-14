@@ -9195,52 +9195,77 @@ body.reports-card-maximized{
 
 .project-cover-actions{
   display:flex;
+  flex-direction:column;
   align-items:center;
-  gap:8px;
+  justify-content:flex-end;
+  gap:6px;
   margin-left: auto;
+  max-width:100%;
 }
 
-.project-cover-actions .icon-btn.btn-report-pdf,
-.project-cover-actions .icon-btn.btn-report-excel{
+.project-cover-admin-actions,
+.project-cover-report-actions{
+  display:flex;
+  align-items:center;
+  justify-content:flex-end;
+  gap:6px;
+  max-width:100%;
+}
+
+.project-cover-report-actions{
+  flex-wrap:wrap;
+}
+
+.status-report-trigger{
   display:inline-flex;
   align-items:center;
   justify-content:center;
-  width:34px;
-  height:34px;
-  border:none !important;
+  gap:5px;
+  min-height:30px;
+  padding:0 9px;
+  border:1px solid rgba(109,40,217,.2);
   border-radius:10px;
-  color:#fff !important;
+  background: linear-gradient(135deg, rgb(124,58,237), rgb(37,99,235));
+  color:#fff;
+  font-size:11px;
+  font-weight:800;
+  letter-spacing:0;
+  white-space:nowrap;
+  box-shadow:0 10px 24px rgba(79,70,229,.24), inset 0 1px 0 rgba(255,255,255,.28);
   cursor:pointer;
   transition: transform .18s ease, box-shadow .18s ease, filter .18s ease;
 }
 
-.project-cover-actions .icon-btn.btn-report-pdf{
-  background: linear-gradient(135deg, rgb(239,68,68), rgb(220,38,38)) !important;
-  box-shadow: 0 6px 16px rgba(220,38,38,.25) !important;
+.status-report-trigger:hover{
+  transform:translateY(-2px);
+  filter:brightness(1.04);
+  box-shadow:0 14px 30px rgba(79,70,229,.3), inset 0 1px 0 rgba(255,255,255,.32);
 }
 
-.project-cover-actions .icon-btn.btn-report-excel{
-  background: linear-gradient(135deg, rgb(22,163,74), rgb(21,128,61)) !important;
-  box-shadow: 0 6px 16px rgba(21,128,61,.25) !important;
+.status-report-trigger.status-report-executive{
+  background:linear-gradient(135deg, rgb(0,43,92), rgb(14,116,144));
+  border-color:rgba(14,116,144,.24);
+  box-shadow:0 10px 24px rgba(0,43,92,.22), inset 0 1px 0 rgba(255,255,255,.24);
 }
 
-.project-cover-actions .icon-btn.btn-report-pdf:hover,
-.project-cover-actions .icon-btn.btn-report-excel:hover{
-  transform: translateY(-2px);
-  filter: brightness(1.03);
-  border:none !important;
+.status-report-trigger.status-report-executive:hover{
+  box-shadow:0 14px 30px rgba(0,43,92,.28), inset 0 1px 0 rgba(255,255,255,.3);
 }
 
-.project-cover-actions .icon-btn.btn-report-pdf svg,
-.project-cover-actions .icon-btn.btn-report-excel svg{
-  width: 16px;
-  height: 16px;
+.status-report-trigger.status-report-client{
+  background:linear-gradient(135deg, rgb(20,184,166), rgb(37,99,235));
+  border-color:rgba(20,184,166,.24);
+  box-shadow:0 10px 24px rgba(20,184,166,.22), inset 0 1px 0 rgba(255,255,255,.24);
 }
 
-.project-cover-actions .icon-btn.btn-report-pdf svg *,
-.project-cover-actions .icon-btn.btn-report-excel svg *{
-  stroke: #fff;
-  fill: none;
+.status-report-trigger.status-report-client:hover{
+  box-shadow:0 14px 30px rgba(20,184,166,.28), inset 0 1px 0 rgba(255,255,255,.3);
+}
+
+.status-report-trigger svg{
+  width:14px;
+  height:14px;
+  flex:0 0 auto;
 }
 
 .project-cover-profit-strip{

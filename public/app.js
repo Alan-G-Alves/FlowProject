@@ -258,7 +258,7 @@ const PROJECT_TECH_PERMISSION_ITEMS = [
   { key: "showClientHourlyRate", label: "Valor hora cliente", note: "Valor medio por hora cobrada do cliente." },
   { key: "showEstimatedMargin", label: "Margem estimada", note: "Margem calculada a partir de valor, custos e despesas." },
   { key: "showExpensesSummary", label: "Resumo de despesas", note: "Totais e pendencias de despesas do projeto." },
-  { key: "allowStatusReport", label: "Extrair status report", note: "Libera botoes de PDF e Excel na capa do projeto." },
+  { key: "allowStatusReport", label: "Extrair status report", note: "Libera o botao Status Report na capa do projeto." },
   { key: "allowProjectWorkspaceActivityPointing", label: "Apontar atividade pelo projeto", note: "Libera o icone de editar no workspace do projeto para abrir o modal Apontar atividade." }
 ];
 

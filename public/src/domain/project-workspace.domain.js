@@ -17,6 +17,9 @@ import { ensureClientsCache } from "./clients.domain.js";
 import { computeProjectExpenseSummary } from "./expenses.domain.js?v=1778698400";
 import { createNotifications } from "../services/notifications.service.js?v=1776052722";
 import { downloadProjectStatusReportExcel, downloadProjectStatusReportPdf } from "./project-status-report.domain.js?v=1776052718";
+import { downloadProjectExecutiveStatusReportPdf } from "./project-executive-status-report.domain.js?v=1778783000";
+import { downloadProjectClientStatusReportPdf } from "./project-client-status-report.domain.js?v=1778784200";
+import { openProjectGanttView } from "./project-gantt-view.domain.js?v=1778790800";
 import { openMyActivityModalForItem } from "./my-activities.domain.js?v=1777951800";
 
 let _bound = false;
@@ -1491,22 +1494,43 @@ function renderCover(refs, project, state){
           </div>
         </div>
         <div class="project-cover-actions" id="projectCoverActionsSlot">
-          ${allowStatusReport ? `<button class="icon-btn xs btn-report-pdf" id="btnDownloadStatusReportPdf" type="button" title="Baixar status report em PDF" aria-label="Baixar status report em PDF">
-            <svg viewBox="0 0 24 24" aria-hidden="true">
-              <path d="M7 3h7l5 5v11a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2Z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"></path>
-              <path d="M14 3v5h5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"></path>
-              <path d="M8 16h2.2a1.4 1.4 0 0 0 0-2.8H8V18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"></path>
-              <path d="M13 18v-4.8h1.4a1.8 1.8 0 1 1 0 3.6H13" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"></path>
-            </svg>
-          </button>
-          <button class="icon-btn xs btn-report-excel" id="btnDownloadStatusReportExcel" type="button" title="Baixar status report em Excel" aria-label="Baixar status report em Excel">
-            <svg viewBox="0 0 24 24" aria-hidden="true">
-              <path d="M7 3h7l5 5v11a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2Z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"></path>
-              <path d="M14 3v5h5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"></path>
-              <path d="m8.5 18 3-5-3-5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"></path>
-              <path d="m14.5 18-3-5 3-5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"></path>
-            </svg>
-          </button>` : ""}
+          <div class="project-cover-admin-actions" id="projectCoverAdminActions">
+            <button class="status-report-trigger status-report-gantt" id="btnOpenProjectGantt" type="button" title="Visualizar Gantt" aria-label="Visualizar Gantt">
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M4 6h16M4 12h16M4 18h16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"></path>
+                <path d="M7 6h4M10 12h7M6 18h10" fill="none" stroke="currentColor" stroke-width="4" stroke-linecap="round"></path>
+              </svg>
+              <span>Visualizar Gantt</span>
+            </button>
+          </div>
+          <div class="project-cover-report-actions">
+          ${allowStatusReport ? `
+            <button class="status-report-trigger" id="btnDownloadStatusReportAll" type="button" title="Baixar status report em PDF e Excel" aria-label="Baixar status report em PDF e Excel">
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M12 3.5l1.45 4.05 4.05 1.45-4.05 1.45L12 14.5l-1.45-4.05L6.5 9l4.05-1.45L12 3.5Z" fill="currentColor"></path>
+                <path d="M18 13l.75 2.25L21 16l-2.25.75L18 19l-.75-2.25L15 16l2.25-.75L18 13Z" fill="currentColor"></path>
+                <path d="M6 14l.55 1.45L8 16l-1.45.55L6 18l-.55-1.45L4 16l1.45-.55L6 14Z" fill="currentColor"></path>
+              </svg>
+              <span>Status Report</span>
+            </button>
+            <button class="status-report-trigger status-report-executive" id="btnDownloadExecutiveStatusReport" type="button" title="Baixar status report executivo" aria-label="Baixar status report executivo">
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M4 19V5a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"></path>
+                <path d="M8 15v-4M12 15V7M16 15v-6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"></path>
+                <path d="M3 19h18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"></path>
+              </svg>
+              <span>Status Executivo</span>
+            </button>
+            <button class="status-report-trigger status-report-client" id="btnDownloadClientStatusReport" type="button" title="Baixar status report para cliente" aria-label="Baixar status report para cliente">
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M16 21v-2a4 4 0 0 0-4-4H7a4 4 0 0 0-4 4v2" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"></path>
+                <circle cx="9.5" cy="7" r="4" fill="none" stroke="currentColor" stroke-width="2"></circle>
+                <path d="M17 11h4M19 9v4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"></path>
+              </svg>
+              <span>Status Cliente</span>
+            </button>
+          ` : ""}
+          </div>
         </div>
       </div>
     </div>
@@ -1553,38 +1577,65 @@ function renderCover(refs, project, state){
     </div>
   `;
 
-  const actionsSlot = document.getElementById("projectCoverActionsSlot");
+  const actionsSlot = document.getElementById("projectCoverAdminActions") || document.getElementById("projectCoverActionsSlot");
   if (actionsSlot){
     [refs.btnOpenWorkspaceView, refs.btnOpenWorkspaceEdit, refs.btnDeleteWorkspaceProject].forEach((btn) => {
       if (btn) actionsSlot.appendChild(btn);
     });
   }
 
-  document.getElementById("btnDownloadStatusReportPdf")?.addEventListener("click", async () => {
+  document.getElementById("btnDownloadStatusReportAll")?.addEventListener("click", async () => {
+    const payload = {
+      project,
+      tasks: _tasks,
+      activities: _activities,
+      state
+    };
     try{
-      await downloadProjectStatusReportPdf({
-        project,
-        tasks: _tasks,
-        activities: _activities,
-        state
-      });
+      await downloadProjectStatusReportPdf(payload);
+      await downloadProjectStatusReportExcel(payload);
     }catch(err){
-      console.error("[status-report:pdf]", err);
-      setAlert(refs.projectTaskAlert, err?.message || "Nao foi possivel gerar o status report em PDF.", "error");
+      console.error("[status-report]", err);
+      setAlert(refs.projectTaskAlert, err?.message || "Nao foi possivel gerar o status report.", "error");
     }
   });
 
-  document.getElementById("btnDownloadStatusReportExcel")?.addEventListener("click", async () => {
+  document.getElementById("btnOpenProjectGantt")?.addEventListener("click", () => {
+    openProjectGanttView({
+      refs,
+      project,
+      tasks: _tasks,
+      activities: _activities,
+      state
+    });
+  });
+
+  document.getElementById("btnDownloadExecutiveStatusReport")?.addEventListener("click", async () => {
     try{
-      await downloadProjectStatusReportExcel({
+      await downloadProjectExecutiveStatusReportPdf({
+        project,
+        tasks: _tasks,
+        activities: _activities,
+        state,
+        expenseSummary: _expenseSummary
+      });
+    }catch(err){
+      console.error("[status-report:executive]", err);
+      setAlert(refs.projectTaskAlert, err?.message || "Nao foi possivel gerar o status report executivo.", "error");
+    }
+  });
+
+  document.getElementById("btnDownloadClientStatusReport")?.addEventListener("click", async () => {
+    try{
+      await downloadProjectClientStatusReportPdf({
         project,
         tasks: _tasks,
         activities: _activities,
         state
       });
     }catch(err){
-      console.error("[status-report:excel]", err);
-      setAlert(refs.projectTaskAlert, err?.message || "Nao foi possivel gerar o status report em Excel.", "error");
+      console.error("[status-report:client]", err);
+      setAlert(refs.projectTaskAlert, err?.message || "Nao foi possivel gerar o status report para cliente.", "error");
     }
   });
 }
