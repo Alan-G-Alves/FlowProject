@@ -1576,21 +1576,21 @@
     </div>
     <div class="modal-body">
       <div class="alert" hidden id="expenseFormAlert"></div>
-      <div class="form-sections">
-        <div class="form-section">
+      <div class="form-sections expense-form-sections">
+        <div class="form-section expense-form-section">
           <div class="section-title">Contexto</div>
-          <div class="grid expense-form-grid" style="grid-template-columns: repeat(12, 1fr); gap:12px;">
-            <label class="field" style="grid-column: span 6;">
+          <div class="grid expense-form-grid expense-form-grid--context">
+            <label class="field expense-field expense-field--project">
               <span>Projeto</span>
               <select id="expenseProject"></select>
             </label>
-            <label class="field" style="grid-column: span 3;">
+            <label class="field expense-field">
               <span>Tarefa</span>
               <select id="expenseTask">
                 <option value="">Nao vincular</option>
               </select>
             </label>
-            <label class="field" style="grid-column: span 3;">
+            <label class="field expense-field">
               <span>Atividade</span>
               <select id="expenseActivity">
                 <option value="">Nao vincular</option>
@@ -1600,10 +1600,10 @@
           <div class="expense-context-banner" id="expenseContextBanner" hidden></div>
         </div>
 
-        <div class="form-section">
+        <div class="form-section expense-form-section">
           <div class="section-title">Despesa</div>
-          <div class="grid expense-form-grid" style="grid-template-columns: repeat(12, 1fr); gap:12px;">
-            <label class="field" style="grid-column: span 4;">
+          <div class="grid expense-form-grid expense-form-grid--expense">
+            <label class="field expense-field">
               <span>Tipo</span>
               <select id="expenseType">
                 <option value="alimentacao">Alimentacao</option>
@@ -1612,18 +1612,18 @@
                 <option value="outras">Outras</option>
               </select>
             </label>
-            <label class="field" style="grid-column: span 4;">
+            <label class="field expense-field">
               <span>Valor</span>
               <input id="expenseAmount" inputmode="decimal" placeholder="R$ 0,00" />
             </label>
-            <label class="field expense-checkbox-field" style="grid-column: span 4;">
+            <label class="field expense-checkbox-field expense-field">
               <span>Responsabilidade</span>
               <label class="expense-checkbox-card">
                 <input id="expenseChargedToClient" type="checkbox" />
                 <span>Despesa por conta do cliente</span>
               </label>
             </label>
-            <label class="field" style="grid-column: span 12;">
+            <label class="field expense-field expense-field--full">
               <span>Observacao</span>
               <textarea id="expenseObservation" rows="4" placeholder="Explique o contexto da despesa, o motivo e o que foi utilizado."></textarea>
               <div class="expense-observation-meta">
@@ -1634,7 +1634,7 @@
           </div>
         </div>
 
-        <div class="form-section">
+        <div class="form-section expense-form-section">
           <div class="section-title">Comprovante</div>
           <div class="person-attachments-card expense-receipt-card">
             <div class="person-attachments-head">
@@ -3294,7 +3294,7 @@
   </div>
 </div>
 
-<script src="./app.js?v=1778694300" type="module"></script>
+<script src="./app.js?v=1778698400" type="module"></script>
 <script>
   // Toggle senha (somente UI)
   document.addEventListener("click", function(e){

@@ -14,7 +14,7 @@ import {
 import { setAlert, clearAlert } from "../ui/alerts.js";
 import { escapeHtml } from "../utils/dom.js";
 import { ensureClientsCache } from "./clients.domain.js";
-import { computeProjectExpenseSummary } from "./expenses.domain.js?v=1777057015";
+import { computeProjectExpenseSummary } from "./expenses.domain.js?v=1778698400";
 import { createNotifications } from "../services/notifications.service.js?v=1776052722";
 import { downloadProjectStatusReportExcel, downloadProjectStatusReportPdf } from "./project-status-report.domain.js?v=1776052718";
 import { openMyActivityModalForItem } from "./my-activities.domain.js?v=1777951800";
@@ -2040,7 +2040,10 @@ async function loadProjectData(deps, projectId){
       countRejected: 0
     };
   } else {
-    _expenseSummary = await computeProjectExpenseSummary(db, companyId, projectId).catch(() => ({
+    _expenseSummary = await computeProjectExpenseSummary(db, companyId, projectId, {
+      role: roleOf(state),
+      currentUid: auth?.currentUser?.uid || ""
+    }).catch(() => ({
       totalApproved: 0,
       totalPending: 0,
       approvedInternal: 0,

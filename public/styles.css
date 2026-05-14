@@ -11238,35 +11238,133 @@ body.reports-card-maximized{
 }
 
 .expense-form-modal-card{
-  border-radius:24px;
+  border-radius:12px;
   overflow:hidden;
-  width: min(980px, calc(100vw - 40px));
-  max-height: calc(100vh - 36px);
+  width: min(920px, calc(100vw - 40px));
+  max-height: calc(100vh - 32px);
+  border:1px solid rgba(15,23,42,.10);
+  box-shadow:0 24px 80px rgba(15,23,42,.20);
 }
 
 .expense-form-modal-card .modal-body{
   flex: 0 1 auto;
   overflow: auto;
+  padding:18px 20px 8px;
 }
 
 .expense-form-modal-head{
-  background:
-    radial-gradient(circle at top left, rgba(16,185,129,.12), transparent 34%),
-    linear-gradient(135deg, rgba(248,250,252,.98), rgba(255,255,255,.94));
+  background:#fff;
+  border-bottom:1px solid rgba(15,23,42,.08);
+  padding:18px 20px 14px;
+}
+
+.expense-form-modal-head h2{
+  font-size:22px;
+  letter-spacing:0;
+}
+
+.expense-form-modal-head .muted{
+  margin-top:4px;
+  font-size:13px;
+}
+
+.expense-form-modal-card .modal-footer{
+  border-top:1px solid rgba(15,23,42,.08);
+  padding:14px 20px;
+}
+
+.expense-form-modal-card .alert{
+  margin:0 0 14px;
+  border-radius:8px;
+}
+
+.expense-form-sections{
+  display:grid;
+  gap:18px;
+}
+
+.expense-form-section{
+  padding:0;
+  border:0;
+  background:transparent;
+}
+
+.expense-form-section .section-title{
+  margin:0 0 10px;
+  color:#0f172a;
+  font-size:12px;
+  font-weight:800;
+  text-transform:uppercase;
+  letter-spacing:.04em;
 }
 
 .expense-form-grid{
   align-items:start;
+  display:grid;
+  grid-template-columns: repeat(12, minmax(0, 1fr));
+  gap:12px;
+}
+
+.expense-form-grid--context .expense-field--project{
+  grid-column:span 6;
+}
+
+.expense-form-grid--context .expense-field{
+  grid-column:span 3;
+}
+
+.expense-form-grid--expense .expense-field{
+  grid-column:span 4;
+}
+
+.expense-form-grid .expense-field--full{
+  grid-column:1 / -1;
+}
+
+.expense-field span,
+.expense-checkbox-field > span{
+  color:rgba(15,23,42,.68);
+  font-size:12px;
+  font-weight:700;
+}
+
+.expense-field input,
+.expense-field select,
+.expense-field textarea{
+  min-height:42px;
+  border-radius:8px;
+  border:1px solid rgba(15,23,42,.14);
+  background:#fff;
+  box-shadow:none;
+}
+
+.expense-field textarea{
+  min-height:92px;
+  resize:vertical;
+}
+
+.expense-field input:focus,
+.expense-field select:focus,
+.expense-field textarea:focus{
+  border-color:#2563eb;
+  box-shadow:0 0 0 3px rgba(37,99,235,.12);
+  outline:none;
+}
+
+.expense-field.is-invalid input,
+.expense-field.is-invalid select,
+.expense-field.is-invalid textarea,
+.expense-receipt-card.is-invalid{
+  border-color:#ef4444;
+  box-shadow:0 0 0 3px rgba(239,68,68,.10);
 }
 
 .expense-context-banner{
   margin-top:12px;
   padding:12px 14px;
-  border-radius:16px;
+  border-radius:8px;
   border:1px solid rgba(59,130,246,.16);
-  background:
-    radial-gradient(circle at top right, rgba(59,130,246,.10), transparent 32%),
-    linear-gradient(180deg, rgba(239,246,255,.95), rgba(255,255,255,.96));
+  background:#eff6ff;
   color: rgba(12,18,32,.82);
 }
 
@@ -11279,16 +11377,25 @@ body.reports-card-maximized{
   display:flex;
   align-items:center;
   gap:10px;
-  min-height: 48px;
-  padding:12px 14px;
-  border-radius:14px;
-  border:1px solid rgba(12,18,32,.08);
-  background: rgba(255,255,255,.9);
+  min-height: 42px;
+  padding:10px 12px;
+  border-radius:8px;
+  border:1px solid rgba(15,23,42,.14);
+  background:#fff;
   cursor:pointer;
 }
 
 .expense-checkbox-card input{
+  width:18px;
+  height:18px;
   margin:0;
+  accent-color:#2563eb;
+}
+
+.expense-checkbox-card span{
+  color:rgba(15,23,42,.72);
+  font-size:13px;
+  font-weight:700;
 }
 
 .expense-observation-meta{
@@ -11313,6 +11420,27 @@ body.reports-card-maximized{
   align-items:center;
 }
 
+.expense-receipt-card{
+  border-radius:8px;
+  border:1px solid rgba(15,23,42,.12);
+  background:#fff;
+  padding:16px;
+}
+
+.expense-receipt-card .person-attachments-head{
+  align-items:flex-start;
+}
+
+.expense-receipt-card .person-attachments-head strong{
+  font-size:14px;
+}
+
+.expense-receipt-card .person-attachments-summary{
+  border-radius:999px;
+  background:#f1f5f9;
+  color:#334155;
+}
+
 .expense-receipt-preview{
   display:grid;
   gap:10px;
@@ -11324,9 +11452,29 @@ body.reports-card-maximized{
   justify-content:space-between;
   gap:12px;
   padding:14px 16px;
-  border-radius:16px;
+  border-radius:8px;
   border:1px solid rgba(12,18,32,.08);
   background: rgba(255,255,255,.9);
+}
+
+@media (max-width: 760px){
+  .expense-form-modal-card{
+    width: min(100vw - 20px, 920px);
+    max-height: calc(100vh - 20px);
+  }
+
+  .expense-form-grid,
+  .expense-form-grid--context,
+  .expense-form-grid--expense{
+    grid-template-columns:1fr;
+  }
+
+  .expense-form-grid--context .expense-field,
+  .expense-form-grid--context .expense-field--project,
+  .expense-form-grid--expense .expense-field,
+  .expense-form-grid .expense-field--full{
+    grid-column:1 / -1;
+  }
 }
 
 .expense-receipt-item-main strong{

@@ -15,7 +15,7 @@ import {
   uploadBytes
 } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-storage.js";
 
-import { clearAlert, showDialogAlert } from "../ui/alerts.js";
+import { clearAlert, setAlert, showDialogAlert } from "../ui/alerts.js";
 import { escapeHtml, hide, show } from "../utils/dom.js";
 import { createNotifications } from "../services/notifications.service.js?v=1776052722";
 
@@ -305,6 +305,29 @@ function updateObservationCounter(refs) {
   refs.expenseObservationCounter.classList.toggle("is-ready", size >= minChars);
 }
 
+function clearExpenseFormValidation(refs) {
+  [
+    refs.expenseProjectEl,
+    refs.expenseTaskEl,
+    refs.expenseActivityEl,
+    refs.expenseTypeEl,
+    refs.expenseAmountEl,
+    refs.expenseObservationEl,
+    refs.expenseReceiptFileEl
+  ].forEach((el) => el?.closest?.(".expense-field, .expense-receipt-card")?.classList.remove("is-invalid"));
+}
+
+function showExpenseFormError(refs, message, target = null) {
+  clearExpenseFormValidation(refs);
+  setAlert(refs.expenseFormAlert, message, "error");
+  const wrap = target?.closest?.(".expense-field, .expense-receipt-card");
+  wrap?.classList.add("is-invalid");
+  try {
+    (target || refs.expenseFormAlert)?.focus?.({ preventScroll: true });
+    (wrap || refs.expenseFormAlert)?.scrollIntoView?.({ behavior: "smooth", block: "center", inline: "nearest" });
+  } catch (_) {}
+}
+
 async function retryUploadReceipt(storage, path, file) {
   const receiptRef = storageRef(storage, path);
   let waitMs = 500;
@@ -570,6 +593,11 @@ async function loadExpenseFormData(deps, context) {
 
 function resetExpenseForm(refs) {
   clearAlert(refs.expenseFormAlert);
+  clearExpenseFormValidation(refs);
+  if (refs.btnSaveExpenseForm) {
+    refs.btnSaveExpenseForm.disabled = false;
+    refs.btnSaveExpenseForm.textContent = "Salvar despesa";
+  }
   if (refs.expenseTypeEl) refs.expenseTypeEl.value = "alimentacao";
   if (refs.expenseAmountEl) refs.expenseAmountEl.value = "";
   if (refs.expenseChargedToClientEl) refs.expenseChargedToClientEl.checked = false;
@@ -680,14 +708,14 @@ async function saveExpenseForm(deps) {
     : refs.expenseChargedToClientEl?.checked === true;
   const currentUid = auth?.currentUser?.uid || "";
 
-  if (!projectId) return showExpenseDialog("Escolha o projeto ao qual essa despesa pertence.", { title: "Projeto obrigatório", type: "error" });
-  if (!type) return showExpenseDialog("Selecione o tipo da despesa para continuar.", { title: "Tipo obrigatório", type: "error" });
+  if (!projectId) return showExpenseFormError(refs, "Escolha o projeto ao qual essa despesa pertence.", refs.expenseProjectEl);
+  if (!type) return showExpenseFormError(refs, "Selecione o tipo da despesa para continuar.", refs.expenseTypeEl);
   const minChars = getExpenseObservationMinChars(state);
-  if (observation.length < minChars) return showExpenseDialog(`Descreva a despesa com pelo menos ${minChars} caracteres.`, { title: "Descrição incompleta", type: "error" });
-  if (!amount || amount <= 0) return showExpenseDialog("Informe um valor maior que zero para a despesa.", { title: "Valor inválido", type: "error" });
-  if (!_expenseReceiptFile) return showExpenseDialog("Anexe o comprovante da despesa para continuar.", { title: "Comprovante obrigatório", type: "error" });
+  if (observation.length < minChars) return showExpenseFormError(refs, `Descreva a despesa com pelo menos ${minChars} caracteres.`, refs.expenseObservationEl);
+  if (!amount || amount <= 0) return showExpenseFormError(refs, "Informe um valor maior que zero para a despesa.", refs.expenseAmountEl);
+  if (!_expenseReceiptFile) return showExpenseFormError(refs, "Anexe o comprovante da despesa para continuar.", refs.expenseReceiptFileEl);
   if ((_expenseReceiptFile.size || 0) > EXPENSE_RECEIPT_MAX_SIZE) {
-    return showExpenseDialog("O comprovante deve ter no máximo 8 MB.", { title: "Arquivo muito grande", type: "error" });
+    return showExpenseFormError(refs, "O comprovante deve ter no maximo 8 MB.", refs.expenseReceiptFileEl);
   }
 
   const project = (_expenseFormContext.optionsData?.projects || []).find((item) => item.id === projectId) || {};
@@ -695,6 +723,7 @@ async function saveExpenseForm(deps) {
   const activity = (((_expenseFormContext.optionsData?.activitiesByTask.get(taskId)) || [])).find((item) => item.id === activityId) || {};
   const saveButton = refs.btnSaveExpenseForm;
   const originalSaveLabel = saveButton?.textContent || "Salvar despesa";
+  let savedSuccessfully = false;
   if (saveButton) {
     saveButton.disabled = true;
     saveButton.textContent = "Salvando...";
@@ -767,7 +796,9 @@ async function saveExpenseForm(deps) {
     }
 
     if (role !== "tecnico") {
-      await recalcProjectExpenseTotals(db, state.companyId, projectId);
+      await recalcProjectExpenseTotals(db, state.companyId, projectId).catch((err) => {
+        console.warn("[expense-form:recalc-project-totals]", err);
+      });
     }
 
     await createNotifications(db, state.companyId, [
@@ -802,18 +833,33 @@ async function saveExpenseForm(deps) {
       updatedAt: new Date()
     };
 
-    const onSaved = _expenseFormContext?.onSaved;
-    closeExpenseForm(refs);
-    if (typeof onSaved === "function") {
-      await onSaved(savedExpense);
-    }
-    await showExpenseDialog("Despesa enviada para aprovação com sucesso.", {
-      title: "Despesa enviada",
-      type: "success",
-      confirmLabel: "Fechar"
-    });
-  } finally {
+    savedSuccessfully = true;
     if (saveButton) {
+      saveButton.disabled = true;
+      saveButton.textContent = "Despesa salva";
+    }
+    setAlert(refs.expenseFormAlert, "Despesa salva e enviada para aprovacao.", "success");
+
+    const onSaved = _expenseFormContext?.onSaved;
+    if (typeof onSaved === "function") {
+      await onSaved(savedExpense).catch((err) => {
+        console.warn("[expense-form:on-saved]", err);
+      });
+    }
+    const shouldRefreshApprovals = _expenseFormContext?.source !== "activity"
+      && refs.expenseApprovalsList
+      && refs.viewExpenseApprovals
+      && refs.viewExpenseApprovals.hidden !== true;
+
+    await new Promise((resolve) => setTimeout(resolve, 1200));
+    closeExpenseForm(refs);
+    if (shouldRefreshApprovals) {
+      await loadExpenseApprovals(deps).catch((err) => {
+        console.warn("[expense-form:refresh-approvals]", err);
+      });
+    }
+  } finally {
+    if (saveButton && !savedSuccessfully) {
       saveButton.disabled = false;
       saveButton.textContent = originalSaveLabel;
     }
@@ -1388,12 +1434,28 @@ function bindEvents(deps) {
   const { refs } = deps;
 
   refs.expenseObservationEl?.addEventListener("input", () => updateObservationCounter(refs));
+  [
+    refs.expenseProjectEl,
+    refs.expenseTaskEl,
+    refs.expenseActivityEl,
+    refs.expenseTypeEl,
+    refs.expenseAmountEl,
+    refs.expenseObservationEl,
+    refs.expenseChargedToClientEl
+  ].forEach((el) => {
+    el?.addEventListener("input", () => clearExpenseFormValidation(refs));
+    el?.addEventListener("change", () => clearExpenseFormValidation(refs));
+  });
   refs.expenseReceiptFileEl?.addEventListener("change", (event) => {
     const file = event.target.files?.[0] || null;
     setReceiptFile(file, refs);
+    clearExpenseFormValidation(refs);
     event.target.value = "";
   });
-  refs.btnRemoveExpenseReceipt?.addEventListener("click", () => setReceiptFile(null, refs));
+  refs.btnRemoveExpenseReceipt?.addEventListener("click", () => {
+    setReceiptFile(null, refs);
+    clearExpenseFormValidation(refs);
+  });
   refs.expenseProjectEl?.addEventListener("change", () => syncExpenseSelectors(refs));
   refs.expenseTaskEl?.addEventListener("change", () => syncExpenseSelectors(refs));
   refs.btnCloseExpenseForm?.addEventListener("click", () => closeExpenseForm(refs));
@@ -1516,20 +1578,43 @@ function bindEvents(deps) {
   });
 }
 
-export async function computeProjectExpenseSummary(db, companyId, projectId) {
+function emptyExpenseSummary() {
+  return {
+    totalApproved: 0,
+    totalPending: 0,
+    approvedInternal: 0,
+    approvedClient: 0,
+    countPending: 0,
+    countApproved: 0,
+    countRejected: 0
+  };
+}
+
+export async function computeProjectExpenseSummary(db, companyId, projectId, options = {}) {
   if (!db || !companyId || !projectId) {
-    return {
-      totalApproved: 0,
-      totalPending: 0,
-      approvedInternal: 0,
-      approvedClient: 0,
-      countPending: 0,
-      countApproved: 0,
-      countRejected: 0
-    };
+    return emptyExpenseSummary();
   }
-  const snap = await getDocs(query(collection(db, `companies/${companyId}/expenses`), where("projectId", "==", projectId)));
-  const items = snap.docs.map((docSnap) => ({ id: docSnap.id, ...docSnap.data() }));
+  const role = String(options.role || "").toLowerCase();
+  const currentUid = String(options.currentUid || "").trim();
+  const expensesRef = collection(db, `companies/${companyId}/expenses`);
+  let docs = [];
+
+  if (role === "gestor" || role === "coordenador") {
+    const snaps = await Promise.all([
+      currentUid ? getDocs(query(expensesRef, where("createdBy", "==", currentUid))) : Promise.resolve({ docs: [] }),
+      getDocs(query(expensesRef, where("createdByRole", "==", "tecnico")))
+    ]);
+    const docsById = new Map();
+    snaps.forEach((snap) => snap.docs.forEach((docSnap) => docsById.set(docSnap.id, docSnap)));
+    docs = Array.from(docsById.values());
+  } else {
+    const snap = await getDocs(query(expensesRef, where("projectId", "==", projectId)));
+    docs = snap.docs;
+  }
+
+  const items = docs
+    .map((docSnap) => ({ id: docSnap.id, ...docSnap.data() }))
+    .filter((item) => String(item.projectId || "") === String(projectId));
   const approved = items.filter((item) => String(item.status || "").toLowerCase() === "approved");
   const pending = items.filter((item) => String(item.status || "").toLowerCase() === "pending");
   const rejected = items.filter((item) => String(item.status || "").toLowerCase() === "rejected");
