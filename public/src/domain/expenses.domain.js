@@ -203,6 +203,11 @@ function canCreateManualExpense(role) {
   return ["admin", "gestor", "coordenador"].includes(String(role || "").toLowerCase());
 }
 
+function isOperationalExpenseRole(role) {
+  const normalized = String(role || "").trim().toLowerCase();
+  return !canApproveExpenses(normalized);
+}
+
 function normalizeExpenseBaseFields(item, state, currentUid) {
   const currentRole = String(state?.profile?.role || "").toLowerCase();
   const createdBy = String(item?.createdBy || item?.techUid || currentUid || "").trim();
@@ -354,7 +359,7 @@ async function createExpenseRecord(input, deps) {
   const currentUid = auth?.currentUser?.uid || "";
   const receiptFile = input?.receiptFile || null;
   const amount = Number(input?.amount || 0);
-  const chargedToClient = role === "tecnico" ? false : input?.chargedToClient === true;
+  const chargedToClient = isOperationalExpenseRole(role) ? false : input?.chargedToClient === true;
 
   if (!state.companyId) throw new Error("Empresa nao identificada para registrar a despesa.");
   if (!input?.projectId) throw new Error("Projeto obrigatorio para registrar a despesa.");
@@ -391,7 +396,7 @@ async function createExpenseRecord(input, deps) {
     coordinatorName: input.coordinatorName || "",
     createdBy: currentUid,
     createdByName: state.profile?.name || auth?.currentUser?.email || "Usuario",
-    createdByRole: role,
+    createdByRole: isOperationalExpenseRole(role) ? "tecnico" : role,
     approvedBy: "",
     approvedByName: "",
     approvedByEmail: "",
@@ -403,26 +408,42 @@ async function createExpenseRecord(input, deps) {
     updatedBy: currentUid
   };
 
-  const expenseRef = await addDoc(collection(db, `companies/${state.companyId}/expenses`), basePayload);
+  let expenseRef;
+  try {
+    expenseRef = await addDoc(collection(db, `companies/${state.companyId}/expenses`), basePayload);
+  } catch (err) {
+    err.message = `Falha ao criar a despesa: ${err?.message || "permissao insuficiente."}`;
+    throw err;
+  }
   let receiptPath = "";
   let receiptUrl = "";
 
   try {
     const safeName = String(receiptFile.name || "comprovante").replace(/[^\w.\-]+/g, "_");
     receiptPath = `expenseReceipts/${state.companyId}/${expenseRef.id}/${Date.now()}_${safeName}`;
-    receiptUrl = await retryUploadReceipt(storage, receiptPath, receiptFile);
-    await updateDoc(doc(db, `companies/${state.companyId}/expenses`, expenseRef.id), {
-      receipt: {
-        name: receiptFile.name || "comprovante",
-        path: receiptPath,
-        url: receiptUrl,
-        size: Number(receiptFile.size || 0),
-        contentType: String(receiptFile.type || "").trim(),
-        uploadedAt: new Date().toISOString()
-      },
-      updatedAt: serverTimestamp(),
-      updatedBy: currentUid
-    });
+    try {
+      receiptUrl = await retryUploadReceipt(storage, receiptPath, receiptFile);
+    } catch (err) {
+      err.message = `Falha ao enviar o comprovante: ${err?.message || "permissao insuficiente."}`;
+      throw err;
+    }
+    try {
+      await updateDoc(doc(db, `companies/${state.companyId}/expenses`, expenseRef.id), {
+        receipt: {
+          name: receiptFile.name || "comprovante",
+          path: receiptPath,
+          url: receiptUrl,
+          size: Number(receiptFile.size || 0),
+          contentType: String(receiptFile.type || "").trim(),
+          uploadedAt: new Date().toISOString()
+        },
+        updatedAt: serverTimestamp(),
+        updatedBy: currentUid
+      });
+    } catch (err) {
+      err.message = `Falha ao vincular o comprovante a despesa: ${err?.message || "permissao insuficiente."}`;
+      throw err;
+    }
   } catch (err) {
     if (receiptPath) {
       try { await deleteObject(storageRef(storage, receiptPath)); } catch (_) {}
@@ -430,7 +451,7 @@ async function createExpenseRecord(input, deps) {
     throw err;
   }
 
-  if (role !== "tecnico") {
+  if (!isOperationalExpenseRole(role)) {
     await recalcProjectExpenseTotals(db, state.companyId, basePayload.projectId);
   }
 
@@ -642,7 +663,7 @@ async function openExpenseForm(context, deps) {
 
   const lockContext = _expenseFormContext.source === "activity";
   const role = String(state.profile?.role || "").toLowerCase();
-  const isTech = role === "tecnico";
+  const isTech = isOperationalExpenseRole(role);
   if (refs.expenseProjectEl) refs.expenseProjectEl.disabled = lockContext;
   if (refs.expenseTaskEl) refs.expenseTaskEl.disabled = lockContext;
   if (refs.expenseActivityEl) refs.expenseActivityEl.disabled = lockContext;
@@ -703,7 +724,7 @@ async function saveExpenseForm(deps) {
   const observation = String(refs.expenseObservationEl?.value || "").trim();
   const amount = parseCurrencyInput(refs.expenseAmountEl?.value || "");
   const role = String(state.profile?.role || "").toLowerCase();
-  const chargedToClient = role === "tecnico"
+  const chargedToClient = isOperationalExpenseRole(role)
     ? false
     : refs.expenseChargedToClientEl?.checked === true;
   const currentUid = auth?.currentUser?.uid || "";
@@ -756,7 +777,7 @@ async function saveExpenseForm(deps) {
       coordinatorName: project.coordinatorName || _expenseFormContext.coordinatorName || "",
       createdBy: currentUid,
       createdByName: state.profile?.name || auth?.currentUser?.email || "Usuario",
-      createdByRole: role,
+      createdByRole: isOperationalExpenseRole(role) ? "tecnico" : role,
       approvedBy: "",
       approvedByName: "",
       approvedByEmail: "",
@@ -795,7 +816,7 @@ async function saveExpenseForm(deps) {
       throw err;
     }
 
-    if (role !== "tecnico") {
+    if (!isOperationalExpenseRole(role)) {
       await recalcProjectExpenseTotals(db, state.companyId, projectId).catch((err) => {
         console.warn("[expense-form:recalc-project-totals]", err);
       });
@@ -1283,7 +1304,7 @@ export async function loadActivityExpenses(activityContext, deps) {
   refs.myActivityExpensesList.innerHTML = '<div class="my-activity-expenses-empty">Carregando despesas desta atividade...</div>';
   const role = String(state.profile?.role || "").toLowerCase();
   const currentUid = auth?.currentUser?.uid || "";
-  const constraints = role === "tecnico"
+  const constraints = isOperationalExpenseRole(role)
     ? [where("createdBy", "==", currentUid)]
     : [where("activityId", "==", activityContext.activity.id)];
 

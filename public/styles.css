@@ -5713,7 +5713,7 @@ body.is-superadmin #navClients{
 
 .expense-report-table{
   width:100%;
-  min-width: 860px;
+  min-width: 980px;
   border-collapse:collapse;
 }
 
@@ -5752,6 +5752,16 @@ body.is-superadmin #navClients{
 .expense-report-table td .expense-status-pill{
   display:inline-flex;
   margin-top:0;
+}
+
+.expense-report-print-btn{
+  display:inline-flex;
+  align-items:center;
+  gap:6px;
+  min-height:30px;
+  padding:0 10px;
+  border-radius:10px;
+  white-space:nowrap;
 }
 
 .expense-report-empty-cell{
@@ -10518,7 +10528,7 @@ body.reports-card-maximized{
 
 .my-activities-summary{
   display:grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(5, minmax(0, 1fr));
   gap:10px;
   margin-bottom:12px;
 }
@@ -10563,6 +10573,12 @@ body.reports-card-maximized{
     linear-gradient(180deg, rgba(255,255,255,.98), rgba(255,251,235,.96));
 }
 
+.my-activities-stat--expenses{
+  background:
+    radial-gradient(circle at top right, rgba(14,165,233,.12), transparent 32%),
+    linear-gradient(180deg, rgba(255,255,255,.98), rgba(240,249,255,.96));
+}
+
 .my-activities-stat-label{
   display:block;
   font-size:11px;
@@ -10589,6 +10605,50 @@ body.reports-card-maximized{
 .my-activities-board{
   display:grid;
   gap:10px;
+}
+
+.my-activities-expenses-view{
+  display:grid;
+  gap:12px;
+}
+
+.my-activities-expenses-head{
+  display:flex;
+  align-items:flex-start;
+  justify-content:space-between;
+  gap:16px;
+  border:1px solid rgba(12,18,32,.08);
+  border-radius:16px;
+  padding:14px;
+  background:
+    radial-gradient(circle at top right, rgba(14,165,233,.10), transparent 28%),
+    linear-gradient(180deg, rgba(255,255,255,.98), rgba(248,250,252,.95));
+}
+
+.my-activities-expenses-head h3{
+  margin:4px 0 2px;
+  font-size:20px;
+}
+
+.my-activities-expenses-total{
+  font-size:24px;
+  font-weight:900;
+  color:rgba(12,18,32,.94);
+  white-space:nowrap;
+}
+
+.my-activities-expenses-chips{
+  display:flex;
+  flex-wrap:wrap;
+  gap:8px;
+}
+
+.my-activities-expenses-list{
+  gap:10px;
+}
+
+.my-activity-expense-card .expense-approval-actions{
+  min-width:max-content;
 }
 
 .my-activities-project-card{

@@ -53,25 +53,25 @@ import { normalizePhone, normalizeCnpj, slugify } from "./src/utils/format.js";
 import { setAlert, clearAlert, clearInlineAlert, showInlineAlert, showDialogAlert } from "./src/ui/alerts.js";
 import { getCompanyDoc, listCompaniesDocs } from "./src/services/companies.service.js";
 import { createNotification } from "./src/services/notifications.service.js?v=1776052722";
-import * as refs from "./src/ui/refs.js?v=1778634500";
+import * as refs from "./src/ui/refs.js?v=1778794200";
 import * as companiesDomain from "./src/domain/companies.domain.js?v=1778794100";
 import * as teamsDomain from "./src/domain/teams.domain.js?v=1772614200";
 import * as usersDomain from "./src/domain/users.domain.js?v=1778794100";
 import * as managerUsersDomain from "./src/domain/manager-users.domain.js?v=1778794100";
 import * as clientsDomain from "./src/domain/clients.domain.js?v=1778628200";
 import * as projectsDomain from "./src/domain/projects.domain.js?v=1778616200";
-import * as myActivitiesDomain from "./src/domain/my-activities.domain.js?v=1778629800";
+import * as myActivitiesDomain from "./src/domain/my-activities.domain.js?v=1778795200";
 import * as myFeedbacksDomain from "./src/domain/my-feedbacks.domain.js?v=1778629800";
 import * as osApprovalsDomain from "./src/domain/os-approvals.domain.js?v=1776052722";
-import * as expensesDomain from "./src/domain/expenses.domain.js?v=1778698400";
+import * as expensesDomain from "./src/domain/expenses.domain.js?v=1778720300";
 import * as projectWorkspaceDomain from "./src/domain/project-workspace.domain.js?v=1778794000";
-import * as reportsDomain from "./src/domain/reports.domain.js?v=1777057015";
+import * as reportsDomain from "./src/domain/reports.domain.js?v=1778795000";
 import * as lgpdDomain from "./src/domain/lgpd.domain.js?v=1777475100";
 import * as profileModal from "./src/ui/modals/profile.modal.js?v=1770332251";
 import * as topbar from "./src/ui/topbar.js?v=1770332251";
 import * as sidebar from "./src/ui/sidebar.js?v=1770332251";
 import * as dashboard from "./src/ui/dashboard.js?v=1770332251";
-import { initHelpManual } from "./src/ui/help-manual.js?v=1778794000";
+import { initHelpManual } from "./src/ui/help-manual.js?v=1778794500";
 import { intersects, getTeamNameById, initialFromName } from "./src/utils/helpers.js?v=1770332251";
 
 // Evita double-binding de eventos (há blocos de listeners repetidos no app.js)
@@ -988,6 +988,12 @@ function initUserMenu(){
     e.preventDefault();
     closeDropdown();
     openProfileModal();
+  });
+
+  refs.btnBillingPortal?.addEventListener("click", (e) => {
+    e.preventDefault();
+    closeDropdown();
+    openCustomerPortal();
   });
 
   refs.btnUserLogout?.addEventListener("click", async (e) => {
@@ -2295,6 +2301,7 @@ function sortDashboardReminders(items){
 function renderDashboardCards(profile){
   if (!refs.dashCards) return;
   refs.dashCards.innerHTML = "";
+  updateBillingMenuVisibility(profile);
 
   const cards = [];
   const role = (profile?.role || "").toString().toLowerCase();
@@ -2343,17 +2350,6 @@ function renderDashboardCards(profile){
       });
     }
 
-    if (role === "admin" || role === "gestor") {
-      const isTrialing = String(state.company?.stripeStatus || "").toLowerCase() === "trialing";
-      cards.push({
-        title: "Assinatura",
-        desc: isTrialing
-          ? "Gerencie ou cancele o plano antes do fim dos 30 dias gratis para nao ser cobrado."
-          : "Gerencie pagamento, assinatura e cancelamento do plano.",
-        badge: isTrialing ? "30 dias gratis" : "Financeiro",
-        action: () => openCustomerPortal()
-      });
-    }
 } else {
     if (canSeeOwnProjectsSplit) {
       cards.push({
@@ -2427,6 +2423,17 @@ function renderDashboardCards(profile){
   }
 
   refreshDashboardHomeWidgets();
+}
+
+function canManageBillingFromMenu(profile = state.profile){
+  const role = String(profile?.role || "").toLowerCase();
+  const isIndividualAccount = String(state.company?.accountType || "").toLowerCase() === "individual";
+  return isIndividualAccount && (role === "admin" || role === "gestor");
+}
+
+function updateBillingMenuVisibility(profile = state.profile){
+  if (!refs.btnBillingPortal) return;
+  refs.btnBillingPortal.hidden = !canManageBillingFromMenu(profile);
 }
 
 async function openCustomerPortal(){

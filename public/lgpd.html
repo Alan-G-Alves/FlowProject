@@ -26,9 +26,9 @@
     <section class="legal-hero">
       <span class="legal-kicker">Governanca B2B</span>
       <h1>LGPD do FlowProject para empresas usuarias</h1>
-      <p>Esta pagina resume como o FlowProject apoia empresas clientes na gestao de privacidade, registros de aceite, solicitacoes de titulares e evidencias relacionadas a Lei Geral de Protecao de Dados.</p>
+      <p>Esta pagina resume como o FlowProject apoia empresas clientes e gestores contratantes na gestao de privacidade, registros de aceite, solicitacoes de titulares e evidencias relacionadas a Lei Geral de Protecao de Dados.</p>
       <div class="legal-meta">
-        <span>Controladora: empresa cliente</span>
+        <span>Controladora: empresa cliente ou gestor contratante</span>
         <span>Operador: FlowProject</span>
         <span>Lei 13.709/2018</span>
       </div>
@@ -38,8 +38,9 @@
       <article class="legal-doc">
         <section class="legal-section" id="papeis">
           <h2>1. Papeis de tratamento</h2>
-          <p>A empresa cliente e, em regra, a controladora dos dados pessoais cadastrados e utilizados no ambiente contratado. Ela define usuarios, perfis, clientes, projetos, equipes, atividades, relatorios, prazos internos e finalidades de uso.</p>
-          <p>O FlowProject atua como operador, processando os dados em nome da empresa cliente para disponibilizar o sistema, manter seguranca, prestar suporte e executar funcionalidades contratadas.</p>
+          <p>A empresa cliente e, em regra, a controladora dos dados pessoais cadastrados e utilizados no ambiente contratado. Ela define usuarios, perfis, clientes, projetos, recursos, equipes, atividades, timesheet, ordens de servico, despesas, feedbacks, relatorios, prazos internos e finalidades de uso.</p>
+          <p>Nos planos de gestor individual, pessoa fisica ou MEI, o titular da conta pode ser o controlador dos dados que inserir sobre participantes, clientes, projetos, atividades, despesas, feedbacks e historico de servicos.</p>
+          <p>O FlowProject atua como operador, processando os dados em nome da empresa cliente ou gestor contratante para disponibilizar o sistema, manter seguranca, prestar suporte e executar funcionalidades contratadas.</p>
         </section>
 
         <section class="legal-section" id="recursos">
@@ -53,30 +54,32 @@
             <li>Solicitacoes de titulares para acesso, correcao, exportacao e exclusao ou anonimizacao.</li>
             <li>Visao do Admin Master sobre empresas, pendencias, aceites e solicitacoes abertas.</li>
             <li>Exportacao CSV de evidencias e resumos para auditoria.</li>
+            <li>Controles por perfil para limitar acesso a projetos, recursos, clientes, relatorios, despesas, OS e feedbacks.</li>
           </ul>
+          <p>Esses recursos ajudam na organizacao de evidencias, mas nao garantem conformidade automatica. A adequacao depende das configuracoes, bases legais, politicas internas e conduta da empresa cliente ou gestor contratante.</p>
         </section>
 
         <section class="legal-section" id="responsabilidades-cliente">
-          <h2>3. Responsabilidades da empresa cliente</h2>
-          <p>A empresa cliente deve cadastrar apenas dados necessarios, manter usuarios e permissoes atualizados, definir bases legais apropriadas, informar titulares quando necessario, responder solicitacoes LGPD e configurar corretamente seus textos, contato do encarregado e politicas internas.</p>
-          <p>A empresa cliente tambem deve orientar seus usuarios sobre o uso adequado da plataforma, evitando inserir dados excessivos, desnecessarios ou sensiveis sem base legal e finalidade compativel.</p>
+          <h2>3. Responsabilidades da empresa cliente ou gestor contratante</h2>
+          <p>A empresa cliente ou gestor contratante deve cadastrar apenas dados necessarios, manter usuarios e permissoes atualizados, definir bases legais apropriadas, informar titulares quando necessario, responder solicitacoes LGPD e configurar corretamente seus textos, contato do encarregado e politicas internas.</p>
+          <p>Tambem deve orientar seus usuarios sobre o uso adequado da plataforma, evitando inserir dados excessivos, desnecessarios ou sensiveis sem base legal, finalidade compativel e controles internos adequados.</p>
         </section>
 
         <section class="legal-section" id="responsabilidades-flowproject">
           <h2>4. Responsabilidades do FlowProject</h2>
-          <p>O FlowProject deve tratar dados conforme o contrato e instrucoes da empresa cliente, aplicar medidas de seguranca proporcionais, manter segregacao por empresa, disponibilizar recursos de privacidade, apoiar exportacoes quando aplicavel e comunicar eventos relevantes conforme contrato e legislacao.</p>
+          <p>O FlowProject deve tratar dados conforme o contrato e instrucoes da empresa cliente ou gestor contratante, aplicar medidas de seguranca proporcionais, manter segregacao por empresa, disponibilizar recursos de privacidade, apoiar exportacoes quando aplicavel e comunicar eventos relevantes conforme contrato e legislacao.</p>
         </section>
 
         <section class="legal-section" id="direitos">
           <h2>5. Atendimento de direitos dos titulares</h2>
-          <p>As solicitacoes de titulares devem ser avaliadas pela empresa cliente, que e a responsavel por decidir sobre acesso, correcao, exclusao, anonimização, portabilidade ou manutencao de dados por obrigacao legal ou exercicio regular de direitos.</p>
-          <p>O FlowProject fornece meios tecnicos para registrar, acompanhar e exportar informacoes necessarias ao atendimento dessas solicitacoes.</p>
+          <p>As solicitacoes de titulares devem ser avaliadas pela empresa cliente ou gestor contratante, que e responsavel por decidir sobre acesso, correcao, exclusao, anonimizacao, portabilidade ou manutencao de dados por obrigacao legal ou exercicio regular de direitos.</p>
+          <p>O FlowProject fornece meios tecnicos para registrar, acompanhar e exportar informacoes necessarias ao atendimento dessas solicitacoes, dentro dos limites tecnicos e contratuais da plataforma.</p>
         </section>
 
         <section class="legal-section" id="seguranca">
           <h2>6. Medidas de seguranca</h2>
-          <p>A plataforma utiliza controles de acesso por perfil, autenticação Firebase, banco de dados Firestore com regras de seguranca, armazenamento Firebase Storage, Cloud Functions, segregacao logica por empresa, historico de aceites e validacoes de permissao.</p>
-          <p>Essas medidas reduzem riscos, mas a seguranca tambem depende da empresa cliente, incluindo uso de contas individuais, senhas seguras, revisao de acessos e treinamento dos usuarios.</p>
+          <p>A plataforma utiliza controles de acesso por perfil, autenticacao Firebase, banco de dados Firestore com regras de seguranca, armazenamento Firebase Storage, Cloud Functions, segregacao logica por empresa, historico de aceites e validacoes de permissao.</p>
+          <p>Essas medidas reduzem riscos, mas a seguranca tambem depende da empresa cliente e dos usuarios, incluindo uso de contas individuais, senhas seguras, revisao de acessos, cancelamento de usuarios inativos e treinamento das equipes.</p>
         </section>
 
         <section class="legal-section" id="incidentes">
@@ -86,17 +89,17 @@
 
         <section class="legal-section" id="encerramento">
           <h2>8. Encerramento contratual</h2>
-          <p>Ao encerrar o contrato, a empresa cliente podera solicitar exportacao dos dados disponiveis e exclusao ou anonimização, observadas obrigacoes legais, prazos de seguranca, backups, auditoria, suporte e exercicio regular de direitos.</p>
+          <p>Ao encerrar o contrato, a empresa cliente ou gestor contratante podera solicitar exportacao dos dados disponiveis e exclusao ou anonimizacao, observadas obrigacoes legais, prazos de seguranca, backups, auditoria, suporte e exercicio regular de direitos.</p>
         </section>
 
-        <div class="legal-note">A adequacao LGPD e compartilhada: o FlowProject fornece controles e evidencias, enquanto a empresa cliente define finalidade, base legal, conteudos cadastrados e resposta aos titulares.</div>
+        <div class="legal-note">A adequacao LGPD e compartilhada: o FlowProject fornece controles e evidencias, enquanto a empresa cliente ou gestor contratante define finalidade, base legal, conteudos cadastrados e resposta aos titulares. Esta pagina nao substitui assessoria juridica.</div>
       </article>
 
       <aside class="legal-aside">
         <h2>Nesta pagina</h2>
         <a href="#papeis">Papeis</a>
         <a href="#recursos">Recursos</a>
-        <a href="#responsabilidades-cliente">Empresa cliente</a>
+        <a href="#responsabilidades-cliente">Cliente</a>
         <a href="#responsabilidades-flowproject">FlowProject</a>
         <a href="#direitos">Direitos</a>
         <a href="#seguranca">Seguranca</a>

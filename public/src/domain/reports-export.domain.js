@@ -412,6 +412,138 @@ export async function downloadReportExcel(payload){
   triggerDownload(blob, `${normalizeFileName(payload.fileName || payload.title)}.xls`);
 }
 
+export async function downloadExpenseReceiptPdf(payload){
+  const { jsPDF } = await import("https://cdn.jsdelivr.net/npm/jspdf@2.5.1/+esm");
+  const doc = new jsPDF({ unit: "mm", format: "a4", compress: true });
+  const pageWidth = doc.internal.pageSize.getWidth();
+  const margin = 14;
+  const contentWidth = pageWidth - margin * 2;
+  const statusKey = String(payload.statusKey || "pending").toLowerCase();
+  const statusColors = {
+    approved: [22, 163, 74],
+    rejected: [220, 38, 38],
+    pending: [217, 119, 6]
+  };
+  const statusColor = statusColors[statusKey] || statusColors.pending;
+
+  doc.setFillColor(248, 250, 252);
+  doc.rect(0, 0, pageWidth, 297, "F");
+
+  doc.setFillColor(15, 23, 42);
+  doc.roundedRect(margin, 12, contentWidth, 32, 5, 5, "F");
+  doc.setTextColor(255, 255, 255);
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(9);
+  doc.text("FLOWPROJECT", margin + 6, 22);
+  doc.setFontSize(18);
+  doc.text("Comprovante de despesa", margin + 6, 34);
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(8.5);
+  doc.text(`Gerado em ${String(payload.generatedAtLabel || new Date().toLocaleString("pt-BR"))}`, margin + 6, 40);
+
+  doc.setFillColor(statusColor[0], statusColor[1], statusColor[2]);
+  doc.roundedRect(pageWidth - margin - 45, 20, 39, 12, 4, 4, "F");
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(8);
+  doc.text(String(payload.status || "Pendente").toUpperCase(), pageWidth - margin - 25.5, 28, { align: "center" });
+
+  let y = 54;
+  doc.setFillColor(255, 255, 255);
+  doc.setDrawColor(226, 232, 240);
+  doc.roundedRect(margin, y, contentWidth, 30, 5, 5, "FD");
+  doc.setTextColor(100, 116, 139);
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(8);
+  doc.text("VALOR DA DESPESA", margin + 6, y + 9);
+  doc.setTextColor(15, 23, 42);
+  doc.setFontSize(20);
+  doc.text(String(payload.amount || "R$ 0,00"), margin + 6, y + 23);
+  doc.setFontSize(8);
+  doc.setTextColor(100, 116, 139);
+  doc.text("ID", pageWidth - margin - 44, y + 9);
+  doc.setTextColor(15, 23, 42);
+  doc.setFont("helvetica", "normal");
+  doc.text(String(payload.id || "-").slice(0, 32), pageWidth - margin - 44, y + 18);
+
+  const drawSection = (title, rows) => {
+    y = ensurePdfSpace(doc, y + 10, 18 + rows.length * 11);
+    doc.setFont("helvetica", "bold");
+    doc.setTextColor(15, 23, 42);
+    doc.setFontSize(11);
+    doc.text(title, margin, y);
+    y += 5;
+    doc.setFillColor(255, 255, 255);
+    doc.setDrawColor(226, 232, 240);
+    doc.roundedRect(margin, y, contentWidth, rows.length * 11 + 4, 4, 4, "FD");
+    rows.forEach((row, index) => {
+      const rowY = y + 8 + index * 11;
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(7.5);
+      doc.setTextColor(100, 116, 139);
+      doc.text(String(row.label || "").toUpperCase(), margin + 5, rowY);
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(9);
+      doc.setTextColor(15, 23, 42);
+      const value = doc.splitTextToSize(String(row.value || "-"), contentWidth - 56);
+      doc.text(value.slice(0, 2), margin + 50, rowY);
+    });
+    y += rows.length * 11 + 6;
+  };
+
+  drawSection("Dados da despesa", [
+    { label: "Responsavel", value: payload.responsible },
+    { label: "Tipo", value: payload.type },
+    { label: "Data", value: payload.expenseDate },
+    { label: "Origem", value: payload.source }
+  ]);
+
+  drawSection("Contexto", [
+    { label: "Projeto", value: payload.project },
+    { label: "Cliente", value: payload.client },
+    { label: "Tarefa", value: payload.task },
+    { label: "Atividade", value: payload.activity }
+  ]);
+
+  drawSection("Aprovacao", [
+    { label: "Status", value: payload.status },
+    { label: "Aprovador", value: payload.approver },
+    { label: "Data aprov.", value: payload.approvalDate },
+    { label: "Criada em", value: payload.createdAt }
+  ]);
+
+  y = ensurePdfSpace(doc, y + 8, 42);
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(11);
+  doc.setTextColor(15, 23, 42);
+  doc.text("Observacao", margin, y);
+  y += 5;
+  doc.setFillColor(255, 255, 255);
+  doc.setDrawColor(226, 232, 240);
+  doc.roundedRect(margin, y, contentWidth, 32, 4, 4, "FD");
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(9);
+  doc.setTextColor(51, 65, 85);
+  doc.text(doc.splitTextToSize(String(payload.observation || "-"), contentWidth - 10).slice(0, 6), margin + 5, y + 8);
+  y += 40;
+
+  if (payload.rejectionReason) {
+    drawSection("Motivo da reprovacao", [
+      { label: "Motivo", value: payload.rejectionReason }
+    ]);
+  }
+
+  drawSection("Comprovante anexado", [
+    { label: "Arquivo", value: payload.receiptName || "-" },
+    { label: "Referencia", value: payload.receiptPath || payload.receiptUrl || "-" }
+  ]);
+
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(8);
+  doc.setTextColor(100, 116, 139);
+  doc.text("Documento gerado automaticamente pelo FlowProject para conferencia interna de despesas.", margin, 286);
+  doc.save(`${normalizeFileName(`comprovante-despesa-${payload.id || Date.now()}`)}.pdf`);
+}
+
 export async function downloadReportPdf(payload){
   const { jsPDF } = await import("https://cdn.jsdelivr.net/npm/jspdf@2.5.1/+esm");
   const doc = new jsPDF({ unit: "mm", format: "a4", compress: true });

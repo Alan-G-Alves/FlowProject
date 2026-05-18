@@ -724,7 +724,8 @@ allow delete: if false;
           || isManager(companyId)
           || isCoordinator(companyId)
           || isCoordenador(companyId)
-          || isCompanyMember(companyId))
+          || isCompanyMember(companyId)
+          || (isSignedIn() && companyId == myCompanyId()))
           && expenseBaseValid()
           && request.resource.data.createdBy == myUid()
           && request.resource.data.status == "pending";
@@ -743,7 +744,14 @@ allow delete: if false;
         allow update: if canReviewExpense()
           && expenseReviewFieldsValid();
 
-        allow update: if isCompanyMember(companyId)
+        allow update: if (isCompanyMember(companyId) || (isSignedIn() && companyId == myCompanyId()))
+          && resource.data.createdBy == myUid()
+          && resource.data.status == "pending"
+          && request.resource.data.diff(resource.data).changedKeys().hasOnly(["receipt", "updatedAt", "updatedBy"])
+          && request.resource.data.updatedBy == myUid()
+          && expenseReceiptValid();
+
+        allow update: if (isCompanyMember(companyId) || (isSignedIn() && companyId == myCompanyId()))
           && resource.data.createdBy == myUid()
           && resource.data.status == "pending"
           && request.resource.data.status == "pending"

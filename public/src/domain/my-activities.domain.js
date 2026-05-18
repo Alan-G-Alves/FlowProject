@@ -13,13 +13,14 @@ import {
 import { clearAlert, setAlert } from "../ui/alerts.js";
 import { escapeHtml, hide, show } from "../utils/dom.js";
 import { createNotifications } from "../services/notifications.service.js?v=1776052722";
-import * as expensesDomain from "./expenses.domain.js?v=1777953600";
+import * as expensesDomain from "./expenses.domain.js?v=1778720300";
 
 let _bound = false;
 let _currentActivity = null;
 let _currentModalMode = "view";
 let _myActivitiesCache = [];
 let _myActivitiesAllCache = [];
+let _myExpensesCache = [];
 let _myActivitiesStatusFilter = "all";
 let _afterModalSave = null;
 let _currentState = null;
@@ -146,6 +147,38 @@ function getStatusMeta(activity) {
   return { label: "Sem OS", cls: "red", itemCls: "pending" };
 }
 
+function expenseTypeLabel(type) {
+  const map = {
+    alimentacao: "Alimentacao",
+    trajeto: "Trajeto",
+    estadia: "Estadia",
+    outras: "Outras"
+  };
+  return map[String(type || "").toLowerCase()] || "Despesa";
+}
+
+function expenseStatusLabel(status) {
+  const map = {
+    pending: "Pendente",
+    approved: "Aprovada",
+    rejected: "Reprovada"
+  };
+  return map[String(status || "").toLowerCase()] || "Pendente";
+}
+
+function formatCurrencyBRL(value) {
+  const num = Number(value || 0);
+  return num.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
+}
+
+function formatDateTimeLabel(value) {
+  if (!value) return "-";
+  try {
+    if (value?.toDate) return value.toDate().toLocaleString("pt-BR");
+  } catch (_) {}
+  return String(value || "-");
+}
+
 function buildSearchText(item) {
   const status = getStatusMeta(item.activity).label;
   return normalizeText([
@@ -160,8 +193,33 @@ function buildSearchText(item) {
   ].join(" "));
 }
 
+function buildExpenseSearchText(item) {
+  return normalizeText([
+    item.projectName,
+    item.clientName,
+    item.taskName,
+    item.activityName,
+    item.type,
+    expenseTypeLabel(item.type),
+    item.status,
+    expenseStatusLabel(item.status),
+    item.observation,
+    item.receipt?.name,
+    item.workDate,
+    fmtDate(item.workDate)
+  ].join(" "));
+}
+
 function isWithinActivityPeriod(item, startDate, endDate) {
   const workDate = String(item?.activity?.workDate || "").slice(0, 10);
+  if (!workDate) return !startDate && !endDate;
+  if (startDate && workDate < startDate) return false;
+  if (endDate && workDate > endDate) return false;
+  return true;
+}
+
+function isWithinExpensePeriod(item, startDate, endDate) {
+  const workDate = String(item?.workDate || "").slice(0, 10);
   if (!workDate) return !startDate && !endDate;
   if (startDate && workDate < startDate) return false;
   if (endDate && workDate > endDate) return false;
@@ -474,6 +532,81 @@ function updateSummary(refs, items) {
   if (refs.myActivitiesPendingCount) refs.myActivitiesPendingCount.textContent = String(pending);
   if (refs.myActivitiesGeneratedCount) refs.myActivitiesGeneratedCount.textContent = String(generated);
   if (refs.myActivitiesOverdueCount) refs.myActivitiesOverdueCount.textContent = String(overdue);
+  if (refs.myActivitiesExpenseCount) refs.myActivitiesExpenseCount.textContent = String(_myExpensesCache.length);
+}
+
+function renderMyExpensesList(refs, items) {
+  if (!refs.myActivitiesList) return;
+  refs.myActivitiesList.innerHTML = "";
+  hide(refs.myActivitiesEmpty);
+
+  if (!items.length) {
+    refs.myActivitiesList.innerHTML = `
+      <div class="panel subtle my-activities-expenses-empty">
+        <h3>Nenhuma despesa encontrada</h3>
+        <p class="muted">As despesas lancadas nas suas atividades aparecerao aqui com status e comprovante.</p>
+      </div>
+    `;
+    return;
+  }
+
+  const total = items.reduce((sum, item) => sum + Number(item.amount || 0), 0);
+  const pending = items.filter((item) => String(item.status || "").toLowerCase() === "pending").length;
+  const approved = items.filter((item) => String(item.status || "").toLowerCase() === "approved").length;
+  const rejected = items.filter((item) => String(item.status || "").toLowerCase() === "rejected").length;
+
+  refs.myActivitiesList.innerHTML = `
+    <section class="my-activities-expenses-view">
+      <div class="my-activities-expenses-head">
+        <div>
+          <div class="my-activities-project-kicker">Despesas</div>
+          <h3>Minhas despesas</h3>
+          <p class="muted">Somente despesas registradas pelo tecnico logado.</p>
+        </div>
+        <div class="my-activities-expenses-total">${escapeHtml(formatCurrencyBRL(total))}</div>
+      </div>
+      <div class="my-activities-expenses-chips">
+        <span class="expense-status-pill pending">Pendentes: ${escapeHtml(String(pending))}</span>
+        <span class="expense-status-pill approved">Aprovadas: ${escapeHtml(String(approved))}</span>
+        <span class="expense-status-pill rejected">Reprovadas: ${escapeHtml(String(rejected))}</span>
+      </div>
+      <div class="expense-approvals-list my-activities-expenses-list">
+        ${items.map((item) => `
+          <article class="expense-approval-card my-activity-expense-card is-${escapeHtml(String(item.status || "pending").toLowerCase())}">
+            <div class="expense-approval-head">
+              <div class="expense-approval-title">
+                <div class="expense-approval-kicker">${escapeHtml(item.projectName || "Projeto")}</div>
+                <h3><span class="expense-approval-type">${escapeHtml(expenseTypeLabel(item.type))}</span> <span>| ${escapeHtml(formatCurrencyBRL(item.amount || 0))}</span></h3>
+                ${item.clientName ? `<p class="expense-approval-client">Cliente: ${escapeHtml(item.clientName)}</p>` : ""}
+                <p class="muted">${escapeHtml(item.taskName || "Sem tarefa")} ${item.activityName ? `| ${escapeHtml(item.activityName)}` : "| Despesa avulsa"}</p>
+              </div>
+              <div class="expense-approval-actions">
+                <span class="expense-status-pill ${escapeHtml(String(item.status || "pending").toLowerCase())}">${escapeHtml(expenseStatusLabel(item.status))}</span>
+              </div>
+            </div>
+            <div class="expense-approval-compact-meta">
+              <strong>${escapeHtml(formatCurrencyBRL(item.amount || 0))}</strong>
+              <span>${escapeHtml(fmtDate(item.workDate))}</span>
+              <span>${escapeHtml(item.source === "activity" ? "Atividade" : "Manual")}</span>
+              <span>${escapeHtml(formatDateTimeLabel(item.createdAt))}</span>
+            </div>
+            <div class="expense-approval-note">${escapeHtml(truncateText(item.observation || "Sem observacao.", 160))}</div>
+            ${item.rejectionReason ? `<div class="expense-approval-reason"><strong>Motivo da reprovacao:</strong><br>${escapeHtml(item.rejectionReason)}</div>` : ""}
+            <div class="expense-approval-footer">
+              <div class="expense-approval-receipt">
+                ${item.receipt?.url ? `<a class="btn ghost sm" href="${escapeHtml(item.receipt.url)}" target="_blank" rel="noopener">Abrir comprovante</a>` : `<span class="muted">Sem comprovante</span>`}
+                ${item.receipt?.name ? `<span class="expense-approval-meta">${escapeHtml(item.receipt.name)}</span>` : ""}
+              </div>
+              <div class="expense-approval-meta">
+                ${String(item.status || "").toLowerCase() === "approved" ? `Aprovada em ${escapeHtml(formatDateTimeLabel(item.approvedAt))} por ${escapeHtml(item.approvedByName || "-")}` : ""}
+                ${String(item.status || "").toLowerCase() === "rejected" ? `Reprovada em ${escapeHtml(formatDateTimeLabel(item.rejectedAt))} por ${escapeHtml(item.rejectedByName || "-")}` : ""}
+              </div>
+            </div>
+          </article>
+        `).join("")}
+      </div>
+    </section>
+  `;
 }
 
 function renderMyActivitiesList(refs, items) {
@@ -1038,15 +1171,31 @@ export async function loadMyActivities(deps) {
     return;
   }
 
-  const activitiesSnap = await getDocs(query(
-    collection(db, `companies/${companyId}/activities`),
-    where("techUids", "array-contains", currentUid)
-  ));
+  const [activitiesSnap, expensesSnap, projectsSnap, tasksSnap] = await Promise.all([
+    getDocs(query(
+      collection(db, `companies/${companyId}/activities`),
+      where("techUids", "array-contains", currentUid)
+    )),
+    getDocs(query(
+      collection(db, `companies/${companyId}/expenses`),
+      where("createdBy", "==", currentUid)
+    )),
+    getDocs(collection(db, `companies/${companyId}/projects`)),
+    getDocs(collection(db, `companies/${companyId}/tasks`))
+  ]);
 
   const allActivities = activitiesSnap.docs.map((docSnap) => ({ id: docSnap.id, ...docSnap.data() }));
+  _myExpensesCache = expensesSnap.docs
+    .map((docSnap) => ({ id: docSnap.id, ...docSnap.data() }))
+    .sort((a, b) => {
+      const aDate = String(a.workDate || "");
+      const bDate = String(b.workDate || "");
+      if (aDate !== bDate) return bDate.localeCompare(aDate);
+      const aCreated = a.createdAt?.toMillis ? a.createdAt.toMillis() : 0;
+      const bCreated = b.createdAt?.toMillis ? b.createdAt.toMillis() : 0;
+      return bCreated - aCreated;
+    });
 
-  const projectsSnap = await getDocs(collection(db, `companies/${companyId}/projects`));
-  const tasksSnap = await getDocs(collection(db, `companies/${companyId}/tasks`));
   const projectsById = new Map(projectsSnap.docs.map((docSnap) => [docSnap.id, { id: docSnap.id, ...docSnap.data() }]));
   const tasksById = new Map(tasksSnap.docs.map((docSnap) => [docSnap.id, { id: docSnap.id, ...docSnap.data() }]));
 
@@ -1091,5 +1240,14 @@ export async function loadMyActivities(deps) {
   _myActivitiesCache = statusFiltered;
   updateSummary(refs, enriched);
   syncSummaryCards();
+  if (_myActivitiesStatusFilter === "expenses") {
+    const expenseFiltered = _myExpensesCache.filter((item) => {
+      if (queryText && !buildExpenseSearchText(item).includes(queryText)) return false;
+      if (!isWithinExpensePeriod(item, periodStart, periodEnd)) return false;
+      return true;
+    });
+    renderMyExpensesList(refs, expenseFiltered);
+    return;
+  }
   renderMyActivitiesList(refs, statusFiltered);
 }

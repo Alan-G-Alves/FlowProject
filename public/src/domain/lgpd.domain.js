@@ -15,7 +15,7 @@ import {
 
 import { escapeHtml } from "../utils/dom.js";
 
-const DEFAULT_LGPD_VERSION = "2026.04";
+const DEFAULT_LGPD_VERSION = "2026.05";
 let _bound = false;
 
 function currentRole(state){
@@ -40,8 +40,8 @@ function normalizeSettings(data = {}){
     version: String(data.version || DEFAULT_LGPD_VERSION),
     dpoName: String(data.dpoName || ""),
     dpoEmail: String(data.dpoEmail || ""),
-    privacySummary: String(data.privacySummary || "Tratamos dados pessoais para operacao de projetos, usuarios, atividades, despesas, relatorios e seguranca do sistema."),
-    termsSummary: String(data.termsSummary || "Ao usar o FlowProject, o usuario declara ciencia sobre o uso de seus dados conforme a politica de privacidade da empresa."),
+    privacySummary: String(data.privacySummary || "Tratamos dados pessoais para operacao de projetos, Kanban, Gantt, timesheet, usuarios, atividades, horas, OS, despesas, feedbacks, relatorios, suporte e seguranca do sistema."),
+    termsSummary: String(data.termsSummary || "Ao usar o FlowProject, o usuario declara ciencia sobre o uso de seus dados conforme a politica de privacidade e as orientacoes da empresa ou gestor contratante."),
     updatedAt: data.updatedAt || null,
     updatedBy: String(data.updatedBy || "")
   };
@@ -271,7 +271,7 @@ async function renderCompanyLgpdCenter(deps, refs){
 
   refs.lgpdCenterTitle.textContent = canManage ? "Privacidade e LGPD" : "Meus direitos LGPD";
   refs.lgpdCenterSubtitle.textContent = canManage
-    ? "Acompanhe aceites, solicitacoes e dados de contato da empresa."
+    ? "Acompanhe aceites, solicitacoes e dados de contato da empresa ou gestor contratante."
     : "Consulte seu aceite e registre solicitacoes sobre seus dados pessoais.";
 
   refs.lgpdCenterBody.innerHTML = `
@@ -320,7 +320,7 @@ async function renderCompanyLgpdCenter(deps, refs){
     <section class="lgpd-section">
       <div class="lgpd-section-head">
         <h3>${canManage ? "Solicitacoes LGPD da empresa" : "Nova solicitacao LGPD"}</h3>
-        <p>${canManage ? "Acompanhe pedidos de acesso, correcao, exportacao ou exclusao." : "Registre uma solicitacao para o Admin da empresa analisar."}</p>
+        <p>${canManage ? "Acompanhe pedidos de acesso, correcao, exportacao, exclusao ou anonimizacao." : "Registre uma solicitacao para a empresa ou gestor contratante analisar."}</p>
       </div>
       ${canManage ? renderRequestsTable(requests, true) : `
         <div class="lgpd-form-grid">

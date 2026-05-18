@@ -8,7 +8,7 @@
 </script>
 <meta content="width=device-width, initial-scale=1.0" name="viewport"/>
 <title>FlowProject</title>
-<link href="./styles.css?v=1778633800" rel="stylesheet"/>
+<link href="./styles.css?v=1778795200" rel="stylesheet"/>
 <link href="logof.png" rel="icon" type="image/png"/>
 <style>
   /* SaaS Search (My Projects Kanban) */
@@ -99,6 +99,18 @@
           </svg>
         </span>
         <span>Editar perfil</span>
+      </button>
+
+      <button class="dropdown-item" id="btnBillingPortal" role="menuitem" type="button" hidden>
+        <span class="dropdown-ico" aria-hidden="true">
+          <!-- Icone Assinatura -->
+          <svg viewBox="0 0 24 24" width="18" height="18" fill="none">
+            <rect x="3" y="6" width="18" height="13" rx="2.4" stroke="currentColor" stroke-width="1.8"/>
+            <path d="M3 10h18" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+            <path d="M7 15h4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+          </svg>
+        </span>
+        <span>Assinatura</span>
       </button>
 
       <div class="dropdown-sep"></div>
@@ -1124,6 +1136,11 @@
         <span class="my-activities-stat-label">Atrasadas</span>
         <strong id="myActivitiesOverdueCount">0</strong>
         <p class="muted">Com data vencida e sem envio concluido.</p>
+      </article>
+      <article class="my-activities-stat my-activities-stat--expenses" data-my-activities-filter="expenses" role="button" tabindex="0" aria-pressed="false">
+        <span class="my-activities-stat-label">Despesas</span>
+        <strong id="myActivitiesExpenseCount">0</strong>
+        <p class="muted">Acompanhe status e comprovantes.</p>
       </article>
     </section>
 
@@ -3294,7 +3311,7 @@
   </div>
 </div>
 
-<script src="./app.js?v=1778794300" type="module"></script>
+<script src="./app.js?v=1778795200" type="module"></script>
 <script>
   // Toggle senha (somente UI)
   document.addEventListener("click", function(e){

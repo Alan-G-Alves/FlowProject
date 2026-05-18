@@ -14,13 +14,13 @@ import {
 import { setAlert, clearAlert } from "../ui/alerts.js";
 import { escapeHtml } from "../utils/dom.js";
 import { ensureClientsCache } from "./clients.domain.js";
-import { computeProjectExpenseSummary } from "./expenses.domain.js?v=1778698400";
+import { computeProjectExpenseSummary } from "./expenses.domain.js?v=1778720300";
 import { createNotifications } from "../services/notifications.service.js?v=1776052722";
 import { downloadProjectStatusReportExcel, downloadProjectStatusReportPdf } from "./project-status-report.domain.js?v=1776052718";
 import { downloadProjectExecutiveStatusReportPdf } from "./project-executive-status-report.domain.js?v=1778783000";
 import { downloadProjectClientStatusReportPdf } from "./project-client-status-report.domain.js?v=1778784200";
 import { openProjectGanttView } from "./project-gantt-view.domain.js?v=1778794000";
-import { openMyActivityModalForItem } from "./my-activities.domain.js?v=1777951800";
+import { openMyActivityModalForItem } from "./my-activities.domain.js?v=1778795200";
 
 let _bound = false;
 let _activeProjectId = "";

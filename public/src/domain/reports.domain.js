@@ -8,9 +8,10 @@
 import {
   downloadExecutiveReportExcel,
   downloadExecutiveReportPdf,
+  downloadExpenseReceiptPdf,
   downloadReportExcel,
   downloadReportPdf
-} from "./reports-export.domain.js";
+} from "./reports-export.domain.js?v=1778795000";
 
 let _bound = false;
 const REPORT_NOTE_PREVIEW_LIMIT = 140;
@@ -36,7 +37,7 @@ const CARD_FILTER_CONFIG = {
   clients: ["period", "teamId", "status"],
   schedule: ["period", "clientId", "projectId"],
   activityTech: ["period", "clientId", "projectId", "techId", "activityStatus"],
-  expenseReport: ["period", "expenseUserId", "expenseApproverId"]
+  expenseReport: ["period", "expenseUserId", "expenseApproverId", "expenseStatus"]
 };
 
 function normalizeReportPermissions(value){
@@ -114,6 +115,7 @@ function expenseTypeLabel(type){
 
 function expenseStatusLabel(status){
   const map = {
+    all: "Todos",
     pending: "Pendente",
     approved: "Aprovada",
     rejected: "Reprovada"
@@ -603,6 +605,7 @@ function defaultWidgetFilters(baseData){
     techId: "all",
     expenseUserId: "all",
     expenseApproverId: "all",
+    expenseStatus: "all",
     activityStatus: "all",
     startDate: startDate.toISOString().slice(0, 10),
     endDate
@@ -626,7 +629,8 @@ function getDefaultWidgetFilters(cardKey, baseData){
       ...defaults,
       period: "all",
       expenseUserId: "all",
-      expenseApproverId: "all"
+      expenseApproverId: "all",
+      expenseStatus: "all"
     };
   }
   return defaults;
@@ -806,6 +810,7 @@ function getExpenseReportRows(baseData, filters){
     : getPeriodRange(period);
   const expenseUserId = filters?.expenseUserId || "all";
   const expenseApproverId = filters?.expenseApproverId || "all";
+  const expenseStatus = filters?.expenseStatus || "all";
 
   return (baseData.expenses || [])
     .filter((item) => {
@@ -813,6 +818,7 @@ function getExpenseReportRows(baseData, filters){
       if (period !== "all" && !inRange(workDate, start, end)) return false;
       if (expenseUserId !== "all" && ![item.createdBy, item.techUid].includes(expenseUserId)) return false;
       if (expenseApproverId !== "all" && ![item.approvedBy, item.rejectedBy].includes(expenseApproverId)) return false;
+      if (expenseStatus !== "all" && String(item.status || "pending").toLowerCase() !== expenseStatus) return false;
       return true;
     })
     .sort((a, b) => {
@@ -868,6 +874,12 @@ function buildCardFilterBar(baseData, state, cardKey){
     techId: getTechFilterOptions(baseData, state),
     expenseUserId: getExpenseUserOptions(baseData),
     expenseApproverId: getExpenseApproverOptions(baseData),
+    expenseStatus: [
+      { value: "all", label: "Todos os status" },
+      { value: "pending", label: "Pendentes" },
+      { value: "approved", label: "Aprovadas" },
+      { value: "rejected", label: "Reprovadas" }
+    ],
     activityStatus: [
       { value: "all", label: "Todos os status" },
       { value: "pending", label: "Planejada / sem OS" },
@@ -886,6 +898,7 @@ function buildCardFilterBar(baseData, state, cardKey){
     techId: "Tecnico",
     expenseUserId: "Usuario",
     expenseApproverId: "Aprovador",
+    expenseStatus: "Status",
     activityStatus: "Status da atividade"
   };
 
@@ -1361,6 +1374,7 @@ function buildReportsExportPayloads({
         { label: "Periodo", value: getPeriodExportLabel(expenseFilters || { period: "all" }, periodLabelMap) },
         { label: "Usuario", value: expenseUserLabel || "Todos os usuarios" },
         { label: "Aprovador", value: expenseApproverLabel || "Todos os aprovadores" },
+        { label: "Status", value: expenseStatusLabel(expenseFilters?.expenseStatus || "all") },
         { label: "Observacao", value: "Valores exportados como numero para permitir soma, filtro e tabela dinamica no Excel." }
       ],
       summary: [
@@ -1610,6 +1624,7 @@ function renderReports(cache, refs, state){
   const activityTechEndRow = Math.min(activityTechRows.length, activityTechCurrentPage * ACTIVITY_TECH_PAGE_SIZE);
   const expenseFilters = state._reportsWidgetFilters.expenseReport || getDefaultWidgetFilters("expenseReport", baseData);
   const expenseRows = getExpenseReportRows(baseData, expenseFilters);
+  state._expenseReportRows = expenseRows;
   const expenseTotals = expenseRows.reduce((acc, item) => {
     acc.total += asNumber(item.amount);
     if (String(item.status || "").toLowerCase() === "approved") acc.approved += asNumber(item.amount);
@@ -1985,6 +2000,7 @@ function renderReports(cache, refs, state){
               <th>Data da despesa</th>
               <th>Data da aprovacao</th>
               <th>Status</th>
+              <th>Comprovante</th>
             </tr>
           </thead>
           <tbody>
@@ -1997,10 +2013,18 @@ function renderReports(cache, refs, state){
                 <td>${escapeHtml(formatExpenseDate(item.workDate))}</td>
                 <td>${escapeHtml(getExpenseApprovalDateLabel(item))}</td>
                 <td><span class="expense-status-pill ${escapeHtml(String(item.status || "pending").toLowerCase())}">${escapeHtml(expenseStatusLabel(item.status))}</span></td>
+                <td>
+                  <button class="btn ghost sm expense-report-print-btn" type="button" data-print-expense="${escapeHtml(item.id || "")}" aria-label="Imprimir comprovante da despesa">
+                    <svg viewBox="0 0 24 24" width="15" height="15" fill="none" aria-hidden="true">
+                      <path d="M7 8V3h10v5M7 17H5a2 2 0 0 1-2-2v-4a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v4a2 2 0 0 1-2 2h-2M7 14h10v7H7z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                    </svg>
+                    <span>Imprimir</span>
+                  </button>
+                </td>
               </tr>
             `).join("") : `
               <tr>
-                <td colspan="7" class="expense-report-empty-cell">Nenhuma despesa encontrada com os filtros atuais.</td>
+                <td colspan="8" class="expense-report-empty-cell">Nenhuma despesa encontrada com os filtros atuais.</td>
               </tr>
             `}
           </tbody>
@@ -2118,6 +2142,43 @@ function bindOnce(deps){
       const current = Number(deps.state._expenseReportPage || 1);
       deps.state._expenseReportPage = direction === "prev" ? Math.max(1, current - 1) : current + 1;
       renderReports(deps.state._reportsCache, refs, deps.state);
+      return;
+    }
+    const expensePrintTrigger = target.closest("[data-print-expense]");
+    if (expensePrintTrigger){
+      event.preventDefault();
+      event.stopPropagation();
+      const expenseId = expensePrintTrigger.getAttribute("data-print-expense") || "";
+      const item = (deps.state._expenseReportRows || []).find((entry) => String(entry.id || "") === expenseId);
+      if (!item) return;
+      downloadExpenseReceiptPdf({
+        id: item.id || "",
+        generatedAtLabel: new Date().toLocaleString("pt-BR"),
+        responsible: getExpenseResponsibleName(item),
+        approver: getExpenseApproverName(item),
+        type: expenseTypeLabel(item.type),
+        amount: formatCurrency(item.amount),
+        expenseDate: formatExpenseDate(item.workDate),
+        approvalDate: getExpenseApprovalDateLabel(item),
+        status: expenseStatusLabel(item.status),
+        statusKey: String(item.status || "pending").toLowerCase(),
+        project: item.projectName || "-",
+        client: item.clientName || "-",
+        task: item.taskName || "-",
+        activity: item.activityName || "-",
+        source: expenseSourceLabel(item.source),
+        observation: item.observation || "-",
+        rejectionReason: item.rejectionReason || "",
+        receiptName: item.receipt?.name || "-",
+        receiptUrl: item.receipt?.url || "",
+        receiptPath: item.receipt?.path || "",
+        createdAt: formatDateTimeBr(item.createdAt),
+        approvedByName: item.approvedByName || "",
+        rejectedByName: item.rejectedByName || ""
+      }).catch((err) => {
+        console.error("[reports:expense:receipt-pdf]", err);
+        alert("Nao foi possivel gerar o comprovante da despesa.");
+      });
       return;
     }
     const cardExportTrigger = target.closest("[data-export-card]");

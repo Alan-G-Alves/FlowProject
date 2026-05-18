@@ -206,6 +206,20 @@ function gestaoGuide(profileRole){
               "Use Relatorio de Atividade x Recurso para conferir horas e apontamentos."
             ]
           ),
+      profileRole === "gestor"
+        ? section(
+            "Gerenciar assinatura",
+            "Acesse pagamento, plano e cancelamento pelo menu do avatar.",
+            ["Avatar", "Assinatura"],
+            [
+              "Clique no avatar no canto superior direito.",
+              "Clique em Assinatura.",
+              "Aguarde abrir o portal de assinatura.",
+              "No portal, gerencie pagamento, plano ou cancelamento conforme necessario."
+            ],
+            "A opcao Assinatura aparece no avatar para Gestor de conta individual com permissao de gerenciamento financeiro."
+          )
+        : "",
       section(
         "Criar tarefas e atividades",
         "Estruture o trabalho que sera executado pelos recursos.",

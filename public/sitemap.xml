@@ -1,32 +1,53 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"
+  xmlns:image="http://www.google.com/schemas/sitemap-image/1.1">
   <url>
     <loc>https://portalprojectflow.com/venda</loc>
-    <lastmod>2026-05-11</lastmod>
+    <lastmod>2026-05-15</lastmod>
     <changefreq>weekly</changefreq>
     <priority>1.0</priority>
+    <image:image>
+      <image:loc>https://portalprojectflow.com/dashboard.png</image:loc>
+      <image:title>Dashboard de projetos do FlowProject</image:title>
+      <image:caption>Painel de projetos com agenda, OS para aprovar e mural de lembretes.</image:caption>
+    </image:image>
+    <image:image>
+      <image:loc>https://portalprojectflow.com/kanban.png</image:loc>
+      <image:title>Kanban de projetos do FlowProject</image:title>
+      <image:caption>Visao Kanban para acompanhar status, prioridades, horas e custos dos projetos.</image:caption>
+    </image:image>
+    <image:image>
+      <image:loc>https://portalprojectflow.com/workspace.png</image:loc>
+      <image:title>Workspace de projetos do FlowProject</image:title>
+      <image:caption>Workspace com horas, despesas, margem, tarefas, Gantt e status reports automaticos.</image:caption>
+    </image:image>
+    <image:image>
+      <image:loc>https://portalprojectflow.com/recursos.png</image:loc>
+      <image:title>Gestao de recursos do FlowProject</image:title>
+      <image:caption>Tela de recursos com equipes, skills, valor hora, agenda, feedback e status.</image:caption>
+    </image:image>
   </url>
   <url>
     <loc>https://portalprojectflow.com/privacidade</loc>
-    <lastmod>2026-04-29</lastmod>
+    <lastmod>2026-05-15</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.6</priority>
   </url>
   <url>
     <loc>https://portalprojectflow.com/termos</loc>
-    <lastmod>2026-04-29</lastmod>
+    <lastmod>2026-05-15</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.6</priority>
   </url>
   <url>
     <loc>https://portalprojectflow.com/lgpd</loc>
-    <lastmod>2026-04-29</lastmod>
+    <lastmod>2026-05-15</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.7</priority>
   </url>
   <url>
     <loc>https://portalprojectflow.com/dpa</loc>
-    <lastmod>2026-04-29</lastmod>
+    <lastmod>2026-05-15</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.6</priority>
   </url>
