@@ -913,7 +913,14 @@ function filteredExpenseItems(refs) {
       normalizeText(item.approvedByName || ""),
       normalizeText(item.rejectedByName || "")
     ].filter(Boolean);
-    if (_expenseStatusFilter !== "all" && String(item.status || "").toLowerCase() !== _expenseStatusFilter) return false;
+    const normalizedStatus = String(item.status || "").toLowerCase();
+    if (_expenseStatusFilter === "approved-internal") {
+      if (normalizedStatus !== "approved" || item.chargedToClient === true) return false;
+    } else if (_expenseStatusFilter === "approved-client") {
+      if (normalizedStatus !== "approved" || item.chargedToClient !== true) return false;
+    } else if (_expenseStatusFilter !== "all" && normalizedStatus !== _expenseStatusFilter) {
+      return false;
+    }
     if (projectId && item.projectId !== projectId) return false;
     if (type && item.type !== type) return false;
     if (userKey && !itemUserKeys.includes(userKey)) return false;
@@ -971,6 +978,8 @@ function updateExpenseSummary(refs, items) {
   const approved = items.filter((item) => item.status === "approved");
   const rejected = items.filter((item) => item.status === "rejected");
   const pendingValue = pending.reduce((sum, item) => sum + Number(item.amount || 0), 0);
+  const approvedValue = approved.reduce((sum, item) => sum + Number(item.amount || 0), 0);
+  const rejectedValue = rejected.reduce((sum, item) => sum + Number(item.amount || 0), 0);
   const internalValue = approved
     .filter((item) => item.chargedToClient !== true)
     .reduce((sum, item) => sum + Number(item.amount || 0), 0);
@@ -982,6 +991,8 @@ function updateExpenseSummary(refs, items) {
   if (refs.expenseApprovalsApprovedCount) refs.expenseApprovalsApprovedCount.textContent = String(approved.length);
   if (refs.expenseApprovalsRejectedCount) refs.expenseApprovalsRejectedCount.textContent = String(rejected.length);
   if (refs.expenseApprovalsPendingValue) refs.expenseApprovalsPendingValue.textContent = formatCurrencyBRL(pendingValue);
+  if (refs.expenseApprovalsApprovedValue) refs.expenseApprovalsApprovedValue.textContent = formatCurrencyBRL(approvedValue);
+  if (refs.expenseApprovalsRejectedValue) refs.expenseApprovalsRejectedValue.textContent = formatCurrencyBRL(rejectedValue);
   if (refs.expenseApprovalsInternalValue) refs.expenseApprovalsInternalValue.textContent = formatCurrencyBRL(internalValue);
   if (refs.expenseApprovalsClientValue) refs.expenseApprovalsClientValue.textContent = formatCurrencyBRL(clientValue);
 }

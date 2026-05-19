@@ -60,10 +60,10 @@ import * as usersDomain from "./src/domain/users.domain.js?v=1778794100";
 import * as managerUsersDomain from "./src/domain/manager-users.domain.js?v=1778794100";
 import * as clientsDomain from "./src/domain/clients.domain.js?v=1778628200";
 import * as projectsDomain from "./src/domain/projects.domain.js?v=1778616200";
-import * as myActivitiesDomain from "./src/domain/my-activities.domain.js?v=1778795200";
+import * as myActivitiesDomain from "./src/domain/my-activities.domain.js?v=1778795202";
 import * as myFeedbacksDomain from "./src/domain/my-feedbacks.domain.js?v=1778629800";
 import * as osApprovalsDomain from "./src/domain/os-approvals.domain.js?v=1776052722";
-import * as expensesDomain from "./src/domain/expenses.domain.js?v=1778720300";
+import * as expensesDomain from "./src/domain/expenses.domain.js?v=1778720302";
 import * as projectWorkspaceDomain from "./src/domain/project-workspace.domain.js?v=1778794000";
 import * as reportsDomain from "./src/domain/reports.domain.js?v=1778795000";
 import * as lgpdDomain from "./src/domain/lgpd.domain.js?v=1777475100";
@@ -456,7 +456,7 @@ function syncSidebarForRole(){
   const hideTechMenu = isSuperAdmin || currentRole === "tecnico";
   const hideClientsMenu = isSuperAdmin || currentRole === "tecnico";
   const hideFeedbacksMenu = isSuperAdmin;
-  const hideExpensesMenu = isSuperAdmin || !["admin", "gestor", "coordenador"].includes(currentRole);
+  const hideExpensesMenu = isSuperAdmin || !["admin", "gestor", "coordenador", "tecnico"].includes(currentRole);
   const sidebarSep = document.querySelector(".sidebar-nav .sidebar-sep");
 
   document.body.classList.toggle("is-superadmin", isSuperAdmin);
@@ -477,7 +477,7 @@ function syncSidebarForRole(){
 
 function canOpenExpensesMenu(){
   const currentRole = String(state.profile?.role || "").toLowerCase();
-  return !state.isSuperAdmin && ["admin", "gestor", "coordenador"].includes(currentRole);
+  return !state.isSuperAdmin && ["admin", "gestor", "coordenador", "tecnico"].includes(currentRole);
 }
 
 function setBrowserRouteSilently(route){
@@ -506,7 +506,8 @@ function canAccessRoute(route){
   if (state.isSuperAdmin) return route === ROUTES.companies || route === ROUTES.dashboard || route === ROUTES.settings;
   if (route === ROUTES.admin) return currentRole === "admin";
   if (route === ROUTES.managerUsers || route === ROUTES.clients) return ["admin", "gestor"].includes(currentRole);
-  if (route === ROUTES.expenses || route === ROUTES.osApprovals) return ["admin", "gestor", "coordenador"].includes(currentRole);
+  if (route === ROUTES.expenses) return ["admin", "gestor", "coordenador", "tecnico"].includes(currentRole);
+  if (route === ROUTES.osApprovals) return ["admin", "gestor", "coordenador"].includes(currentRole);
   if (route === ROUTES.reports || route === ROUTES.feedbacks || route === ROUTES.projects || route === ROUTES.myProjects || route === ROUTES.myActivities) {
     return !!state.profile;
   }
@@ -545,6 +546,10 @@ async function openRouteView(route){
       return;
     case ROUTES.expenses:
       setActiveNav("navExpenses");
+      if (currentRoleKey() === "tecnico") {
+        await openMyExpensesView();
+        return;
+      }
       await openExpenseApprovalsView();
       return;
     case ROUTES.feedbacks:
@@ -3827,6 +3832,18 @@ async function openMyActivitiesView() {
   if (isTechOnboarding()) {
     markTechOnboardingViewed("techActivitiesViewed");
   }
+}
+
+async function openMyExpensesView() {
+  try{
+    await ensureCompanyContext();
+  }catch(err){
+    console.error("openMyExpensesView: ensureCompanyContext falhou:", err);
+    alert("Nao foi possivel identificar a empresa do usuario. Faca logout e login novamente.");
+    return;
+  }
+
+  myActivitiesDomain.openMyExpensesView(getMyActivitiesDeps());
 }
 
 async function loadMyActivities() {

@@ -21,6 +21,7 @@ let _currentModalMode = "view";
 let _myActivitiesCache = [];
 let _myActivitiesAllCache = [];
 let _myExpensesCache = [];
+let _myExpensesStatusFilter = "pending";
 let _myActivitiesStatusFilter = "all";
 let _afterModalSave = null;
 let _currentState = null;
@@ -435,6 +436,16 @@ function bindEvents(deps) {
   });
 
   refs.myActivitiesList?.addEventListener("click", (ev) => {
+    const expenseFilterCard = ev.target?.closest?.("[data-my-expenses-filter]");
+    if (expenseFilterCard) {
+      _myExpensesStatusFilter = expenseFilterCard.getAttribute("data-my-expenses-filter") || "pending";
+      loadMyActivities(deps).catch((err) => {
+        console.error(err);
+        alert("Nao foi possivel aplicar o filtro de despesas.");
+      });
+      return;
+    }
+
     const viewBtn = ev.target?.closest?.("[data-view-my-activity]");
     if (viewBtn) {
       openMyActivityModal(viewBtn.getAttribute("data-view-my-activity"), "view", deps);
@@ -445,6 +456,17 @@ function bindEvents(deps) {
     if (editBtn) {
       openMyActivityModal(editBtn.getAttribute("data-edit-my-activity"), "edit", deps);
     }
+  });
+
+  refs.myActivitiesList?.addEventListener("keydown", (ev) => {
+    const expenseFilterCard = ev.target?.closest?.("[data-my-expenses-filter]");
+    if (!expenseFilterCard || (ev.key !== "Enter" && ev.key !== " ")) return;
+    ev.preventDefault();
+    _myExpensesStatusFilter = expenseFilterCard.getAttribute("data-my-expenses-filter") || "pending";
+    loadMyActivities(deps).catch((err) => {
+      console.error(err);
+      alert("Nao foi possivel aplicar o filtro de despesas.");
+    });
   });
 
   refs.btnOpenManualActivity?.addEventListener("click", () => {
@@ -522,6 +544,31 @@ function syncSummaryCards() {
   });
 }
 
+function syncMyActivitiesShell(refs) {
+  const expensesMode = _myActivitiesStatusFilter === "expenses";
+  const view = refs.viewMyActivities || document.getElementById("viewMyActivities");
+  const title = view?.querySelector?.(".page-header h1");
+  const subtitle = view?.querySelector?.(".page-header .muted");
+  const searchLabel = refs.myActivitiesSearchInput?.closest?.(".field")?.querySelector?.("span");
+  const summary = view?.querySelector?.(".my-activities-summary");
+
+  view?.classList?.toggle?.("is-my-expenses-view", expensesMode);
+  if (title) title.textContent = expensesMode ? "Despesas" : "Minhas Atividades";
+  if (subtitle) {
+    subtitle.textContent = expensesMode
+      ? "Acompanhe suas despesas pendentes, aprovadas e reprovadas."
+      : "Organize seus apontamentos por tarefa e envie tudo com contexto para aprovacao do gestor.";
+  }
+  if (searchLabel) searchLabel.textContent = expensesMode ? "Buscar despesa" : "Buscar atividade";
+  if (refs.myActivitiesSearchInput) {
+    refs.myActivitiesSearchInput.placeholder = expensesMode
+      ? "Projeto, tarefa, observacao, valor ou comprovante"
+      : "Projeto, tarefa, atividade, data ou status";
+  }
+  if (summary) summary.hidden = expensesMode;
+  if (refs.btnOpenManualActivity) refs.btnOpenManualActivity.hidden = expensesMode;
+}
+
 function updateSummary(refs, items) {
   const total = items.length;
   const pending = items.filter((item) => !isCompleted(item.activity) && !isOverdue(item.activity)).length;
@@ -532,7 +579,6 @@ function updateSummary(refs, items) {
   if (refs.myActivitiesPendingCount) refs.myActivitiesPendingCount.textContent = String(pending);
   if (refs.myActivitiesGeneratedCount) refs.myActivitiesGeneratedCount.textContent = String(generated);
   if (refs.myActivitiesOverdueCount) refs.myActivitiesOverdueCount.textContent = String(overdue);
-  if (refs.myActivitiesExpenseCount) refs.myActivitiesExpenseCount.textContent = String(_myExpensesCache.length);
 }
 
 function renderMyExpensesList(refs, items) {
@@ -540,20 +586,26 @@ function renderMyExpensesList(refs, items) {
   refs.myActivitiesList.innerHTML = "";
   hide(refs.myActivitiesEmpty);
 
-  if (!items.length) {
-    refs.myActivitiesList.innerHTML = `
-      <div class="panel subtle my-activities-expenses-empty">
-        <h3>Nenhuma despesa encontrada</h3>
-        <p class="muted">As despesas lancadas nas suas atividades aparecerao aqui com status e comprovante.</p>
-      </div>
-    `;
-    return;
-  }
+  const normalizedStatus = (status) => String(status || "pending").toLowerCase();
+  const statusItems = {
+    pending: items.filter((item) => normalizedStatus(item.status) === "pending"),
+    approved: items.filter((item) => normalizedStatus(item.status) === "approved"),
+    rejected: items.filter((item) => normalizedStatus(item.status) === "rejected")
+  };
+  const statusMeta = [
+    { key: "pending", label: "Pendentes", desc: "Despesas aguardando aprovacao.", cls: "pending" },
+    { key: "approved", label: "Aprovadas", desc: "Despesas ja validadas.", cls: "approved" },
+    { key: "rejected", label: "Reprovadas", desc: "Despesas devolvidas ou recusadas.", cls: "rejected" }
+  ];
+  if (!statusMeta.some((meta) => meta.key === _myExpensesStatusFilter)) _myExpensesStatusFilter = "pending";
+  const visibleItems = statusItems[_myExpensesStatusFilter] || [];
 
   const total = items.reduce((sum, item) => sum + Number(item.amount || 0), 0);
-  const pending = items.filter((item) => String(item.status || "").toLowerCase() === "pending").length;
-  const approved = items.filter((item) => String(item.status || "").toLowerCase() === "approved").length;
-  const rejected = items.filter((item) => String(item.status || "").toLowerCase() === "rejected").length;
+  const emptyLabel = {
+    pending: "pendente",
+    approved: "aprovada",
+    rejected: "reprovada"
+  };
 
   refs.myActivitiesList.innerHTML = `
     <section class="my-activities-expenses-view">
@@ -565,13 +617,22 @@ function renderMyExpensesList(refs, items) {
         </div>
         <div class="my-activities-expenses-total">${escapeHtml(formatCurrencyBRL(total))}</div>
       </div>
-      <div class="my-activities-expenses-chips">
-        <span class="expense-status-pill pending">Pendentes: ${escapeHtml(String(pending))}</span>
-        <span class="expense-status-pill approved">Aprovadas: ${escapeHtml(String(approved))}</span>
-        <span class="expense-status-pill rejected">Reprovadas: ${escapeHtml(String(rejected))}</span>
+      <div class="my-activities-expenses-summary">
+        ${statusMeta.map((meta) => {
+          const statusTotal = statusItems[meta.key].reduce((sum, item) => sum + Number(item.amount || 0), 0);
+          const isActive = meta.key === _myExpensesStatusFilter;
+          return `
+            <article class="my-activities-expense-stat is-${escapeHtml(meta.cls)} ${isActive ? "is-active" : ""}" data-my-expenses-filter="${escapeHtml(meta.key)}" role="button" tabindex="0" aria-pressed="${isActive ? "true" : "false"}">
+              <span class="my-activities-stat-label">${escapeHtml(meta.label)}</span>
+              <strong>${escapeHtml(String(statusItems[meta.key].length))}</strong>
+              <div class="my-activities-expense-value">${escapeHtml(formatCurrencyBRL(statusTotal))}</div>
+              <p class="muted">${escapeHtml(meta.desc)}</p>
+            </article>
+          `;
+        }).join("")}
       </div>
       <div class="expense-approvals-list my-activities-expenses-list">
-        ${items.map((item) => `
+        ${visibleItems.length ? visibleItems.map((item) => `
           <article class="expense-approval-card my-activity-expense-card is-${escapeHtml(String(item.status || "pending").toLowerCase())}">
             <div class="expense-approval-head">
               <div class="expense-approval-title">
@@ -603,7 +664,12 @@ function renderMyExpensesList(refs, items) {
               </div>
             </div>
           </article>
-        `).join("")}
+        `).join("") : `
+          <div class="panel subtle my-activities-expenses-empty">
+            <h3>Nenhuma despesa ${escapeHtml(emptyLabel[_myExpensesStatusFilter] || "encontrada")}</h3>
+            <p class="muted">Nao ha despesas neste status para os filtros atuais.</p>
+          </div>
+        `}
       </div>
     </section>
   `;
@@ -1146,12 +1212,27 @@ async function saveMyActivityModal(deps) {
 }
 
 export function openMyActivitiesView(deps) {
-  const { setView } = deps;
+  _myActivitiesStatusFilter = "all";
+  const { refs, setView } = deps;
   bindEvents(deps);
   setView("myActivities");
+  syncMyActivitiesShell(refs);
   loadMyActivities(deps).catch((err) => {
     console.error(err);
     alert("Nao foi possivel carregar suas atividades.");
+  });
+}
+
+export function openMyExpensesView(deps) {
+  _myActivitiesStatusFilter = "expenses";
+  _myExpensesStatusFilter = "pending";
+  const { refs, setView } = deps;
+  bindEvents(deps);
+  setView("myActivities");
+  syncMyActivitiesShell(refs);
+  loadMyActivities(deps).catch((err) => {
+    console.error(err);
+    alert("Nao foi possivel carregar suas despesas.");
   });
 }
 
@@ -1160,7 +1241,8 @@ export async function loadMyActivities(deps) {
   if (!refs.myActivitiesList) return;
 
   bindEvents(deps);
-  refs.myActivitiesList.innerHTML = '<div class="panel subtle"><p class="muted">Carregando atividades...</p></div>';
+  syncMyActivitiesShell(refs);
+  refs.myActivitiesList.innerHTML = `<div class="panel subtle"><p class="muted">${_myActivitiesStatusFilter === "expenses" ? "Carregando despesas..." : "Carregando atividades..."}</p></div>`;
   hide(refs.myActivitiesEmpty);
 
   const companyId = state.companyId;
@@ -1238,6 +1320,7 @@ export async function loadMyActivities(deps) {
 
   _myActivitiesAllCache = enriched;
   _myActivitiesCache = statusFiltered;
+  syncMyActivitiesShell(refs);
   updateSummary(refs, enriched);
   syncSummaryCards();
   if (_myActivitiesStatusFilter === "expenses") {

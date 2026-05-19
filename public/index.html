@@ -1146,11 +1146,6 @@
         <strong id="myActivitiesOverdueCount">0</strong>
         <p class="muted">Com data vencida e sem envio concluido.</p>
       </article>
-      <article class="my-activities-stat my-activities-stat--expenses" data-my-activities-filter="expenses" role="button" tabindex="0" aria-pressed="false">
-        <span class="my-activities-stat-label">Despesas</span>
-        <strong id="myActivitiesExpenseCount">0</strong>
-        <p class="muted">Acompanhe status e comprovantes.</p>
-      </article>
     </section>
 
     <div id="myActivitiesList" class="my-activities-board"></div>
@@ -1358,30 +1353,28 @@
       <article class="expense-approvals-stat is-active" data-expense-status="pending" role="button" tabindex="0" aria-pressed="true">
         <span class="expense-approvals-stat-label">Pendentes</span>
         <strong id="expenseApprovalsPendingCount">0</strong>
+        <div class="expense-approvals-stat-value" id="expenseApprovalsPendingValue">R$ 0,00</div>
         <p class="muted">Despesas aguardando sua decisao.</p>
       </article>
       <article class="expense-approvals-stat" data-expense-status="approved" role="button" tabindex="0" aria-pressed="false">
         <span class="expense-approvals-stat-label">Aprovadas</span>
         <strong id="expenseApprovalsApprovedCount">0</strong>
+        <div class="expense-approvals-stat-value" id="expenseApprovalsApprovedValue">R$ 0,00</div>
         <p class="muted">Valores ja validados pela gestao.</p>
       </article>
       <article class="expense-approvals-stat" data-expense-status="rejected" role="button" tabindex="0" aria-pressed="false">
         <span class="expense-approvals-stat-label">Reprovadas</span>
         <strong id="expenseApprovalsRejectedCount">0</strong>
+        <div class="expense-approvals-stat-value" id="expenseApprovalsRejectedValue">R$ 0,00</div>
         <p class="muted">Lancamentos devolvidos para ajuste.</p>
       </article>
-      <article class="expense-approvals-stat expense-approvals-stat--money">
-        <span class="expense-approvals-stat-label">Valor pendente</span>
-        <strong id="expenseApprovalsPendingValue">R$ 0,00</strong>
-        <p class="muted">Total em analise no momento.</p>
-      </article>
-      <article class="expense-approvals-stat expense-approvals-stat--money">
+      <article class="expense-approvals-stat expense-approvals-stat--money" data-expense-status="approved-internal" role="button" tabindex="0" aria-pressed="false">
         <span class="expense-approvals-stat-label">Custo interno aprovado</span>
         <strong id="expenseApprovalsInternalValue">R$ 0,00</strong>
         <p class="muted">Impacta a margem estimada do projeto.</p>
       </article>
-      <article class="expense-approvals-stat expense-approvals-stat--money">
-        <span class="expense-approvals-stat-label">Conta do cliente</span>
+      <article class="expense-approvals-stat expense-approvals-stat--money" data-expense-status="approved-client" role="button" tabindex="0" aria-pressed="false">
+        <span class="expense-approvals-stat-label">Conta do cliente aprovado</span>
         <strong id="expenseApprovalsClientValue">R$ 0,00</strong>
         <p class="muted">Despesas reembolsaveis pelo cliente.</p>
       </article>

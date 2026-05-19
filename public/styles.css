@@ -5615,7 +5615,7 @@ body.is-superadmin #navClients{
 
 .expense-approvals-summary{
   display:grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(5, minmax(0, 1fr));
   gap:8px;
 }
 
@@ -5653,31 +5653,17 @@ body.is-superadmin #navClients{
 }
 
 .expense-approvals-stat:nth-child(4){
-  border-color: rgba(251,146,60,.30);
-  background:
-    radial-gradient(circle at top right, rgba(251,146,60,.20), transparent 36%),
-    linear-gradient(180deg, rgba(255,255,255,.98), rgba(255,247,237,.95));
-}
-
-.expense-approvals-stat:nth-child(5){
   border-color: rgba(119,59,246,.24);
   background:
     radial-gradient(circle at top right, rgba(119,59,246,.18), transparent 36%),
     linear-gradient(180deg, rgba(255,255,255,.98), rgba(245,243,255,.95));
 }
 
-.expense-approvals-stat:nth-child(6){
+.expense-approvals-stat:nth-child(5){
   border-color: rgba(59,130,246,.26);
   background:
     radial-gradient(circle at top right, rgba(59,130,246,.18), transparent 36%),
     linear-gradient(180deg, rgba(255,255,255,.98), rgba(239,246,255,.95));
-}
-
-.expense-approvals-stat:nth-child(7){
-  border-color: rgba(20,184,166,.26);
-  background:
-    radial-gradient(circle at top right, rgba(20,184,166,.18), transparent 36%),
-    linear-gradient(180deg, rgba(255,255,255,.98), rgba(240,253,250,.95));
 }
 
 .expense-approvals-stat:hover{
@@ -5691,7 +5677,7 @@ body.is-superadmin #navClients{
 }
 
 .expense-approvals-stat--money{
-  cursor:default;
+  cursor:pointer;
 }
 
 .expense-approvals-stat-label{
@@ -5709,6 +5695,12 @@ body.is-superadmin #navClients{
   font-size:24px;
   line-height:1;
   color: rgba(12,18,32,.94);
+}
+
+.expense-approvals-stat-value{
+  margin-top:6px;
+  font-weight:900;
+  color: rgba(12,18,32,.88);
 }
 
 .expense-approvals-list{
@@ -10573,6 +10565,11 @@ body.reports-card-maximized{
   margin-bottom:12px;
 }
 
+#viewMyActivities.is-my-expenses-view .my-activities-summary,
+#viewMyActivities.is-my-expenses-view .my-activities-manual-btn{
+  display:none !important;
+}
+
 .my-activities-stat{
   border:1px solid rgba(12,18,32,.08);
   border-radius:14px;
@@ -10611,12 +10608,6 @@ body.reports-card-maximized{
   background:
     radial-gradient(circle at top right, rgba(245,158,11,.12), transparent 32%),
     linear-gradient(180deg, rgba(255,255,255,.98), rgba(255,251,235,.96));
-}
-
-.my-activities-stat--expenses{
-  background:
-    radial-gradient(circle at top right, rgba(14,165,233,.12), transparent 32%),
-    linear-gradient(180deg, rgba(255,255,255,.98), rgba(240,249,255,.96));
 }
 
 .my-activities-stat-label{
@@ -10677,14 +10668,69 @@ body.reports-card-maximized{
   white-space:nowrap;
 }
 
-.my-activities-expenses-chips{
-  display:flex;
-  flex-wrap:wrap;
-  gap:8px;
-}
-
 .my-activities-expenses-list{
   gap:10px;
+}
+
+.my-activities-expenses-summary{
+  display:grid;
+  grid-template-columns:repeat(3, minmax(0, 1fr));
+  gap:10px;
+}
+
+.my-activities-expense-stat{
+  border:1px solid rgba(12,18,32,.09);
+  border-radius:14px;
+  padding:14px;
+  background:linear-gradient(180deg, rgba(255,255,255,.98), rgba(248,250,252,.94));
+  box-shadow:0 10px 22px rgba(12,18,32,.045);
+  cursor:pointer;
+  transition:transform .16s ease, border-color .16s ease, box-shadow .16s ease;
+}
+
+.my-activities-expense-stat:hover,
+.my-activities-expense-stat:focus-visible{
+  transform:translateY(-1px);
+  border-color:rgba(37,99,235,.34);
+  box-shadow:0 14px 28px rgba(12,18,32,.075);
+  outline:none;
+}
+
+.my-activities-expense-stat.is-active{
+  border-color:rgba(37,99,235,.46);
+  box-shadow:0 16px 30px rgba(37,99,235,.12);
+}
+
+.my-activities-expense-stat strong{
+  display:block;
+  margin-top:6px;
+  font-size:26px;
+  line-height:1;
+  color:rgba(12,18,32,.95);
+}
+
+.my-activities-expense-value{
+  margin-top:8px;
+  font-weight:900;
+  color:rgba(12,18,32,.88);
+}
+
+.my-activities-expense-stat.is-pending{
+  background:linear-gradient(180deg, rgba(255,255,255,.98), rgba(255,251,235,.78));
+}
+
+.my-activities-expense-stat.is-approved{
+  background:linear-gradient(180deg, rgba(255,255,255,.98), rgba(236,253,245,.78));
+}
+
+.my-activities-expense-stat.is-rejected{
+  background:linear-gradient(180deg, rgba(255,255,255,.98), rgba(254,242,242,.78));
+}
+
+@media (max-width: 760px){
+  .my-activities-expenses-summary{
+    grid-template-columns:1fr;
+  }
 }
 
 .my-activity-expense-card .expense-approval-actions{
