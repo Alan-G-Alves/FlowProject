@@ -882,6 +882,11 @@ function initSidebar(){
     setActiveNav("navConfig");
     openSettingsView();
   });
+  refs.navSupport?.addEventListener("click", (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    window.location.href = "mailto:suporte@portalprojectflow.com?subject=%5BSUPORTE%5D";
+  });
 
   refs.sidebarBrand?.addEventListener("click", () => {
     openCompanyBrandModal();
@@ -2298,6 +2303,32 @@ function sortDashboardReminders(items){
   });
 }
 
+function getDashboardCardIcon(title){
+  const icons = {
+    "Projetos": `
+      <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+        <rect x="4" y="6.5" width="16" height="13" rx="2.5" stroke="currentColor" stroke-width="2"/>
+        <path d="M8 6.5V5.8A1.8 1.8 0 0 1 9.8 4h4.4A1.8 1.8 0 0 1 16 5.8v.7" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+        <path d="M4 11.5h16" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+        <path d="M10 11.5v2h4v-2" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/>
+      </svg>
+    `,
+    "Meus Projetos": `
+      <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+        <circle cx="12" cy="8" r="3.2" stroke="currentColor" stroke-width="2"/>
+        <path d="M5.5 19.2c.7-3.2 3-5.2 6.5-5.2s5.8 2 6.5 5.2" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+      </svg>
+    `,
+    "OS para Aprovar": `
+      <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+        <circle cx="12" cy="12" r="8.2" stroke="currentColor" stroke-width="2"/>
+        <path d="m8.4 12.2 2.3 2.3 5-5.2" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>
+      </svg>
+    `
+  };
+  return icons[title] || "";
+}
+
 function renderDashboardCards(profile){
   if (!refs.dashCards) return;
   refs.dashCards.innerHTML = "";
@@ -2412,11 +2443,15 @@ function renderDashboardCards(profile){
 
   for (const c of cards){
     const el = document.createElement("div");
-    el.className = "card";
+    const icon = getDashboardCardIcon(c.title);
+    el.className = `card${icon ? " dashboard-action-card has-icon" : ""}`;
     el.innerHTML = `
-      <h3 class="title">${c.title}</h3>
-      <p class="desc">${c.desc}</p>
-      <div class="meta"><span class="badge">${c.badge}</span></div>
+      ${icon ? `<div class="dashboard-card-icon">${icon}</div>` : ""}
+      <div class="dashboard-card-content">
+        <h3 class="title">${c.title}</h3>
+        <p class="desc">${c.desc}</p>
+        <div class="meta"><span class="badge">${c.badge}</span></div>
+      </div>
     `;
     el.addEventListener("click", c.action);
     refs.dashCards.appendChild(el);

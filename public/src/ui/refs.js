@@ -28,6 +28,7 @@ export const navReports = byId("navReports");
 export const navFeedbacks = byId("navFeedbacks");
 export const navExpenses = byId("navExpenses");
 export const navConfig = byId("navConfig");
+export const navSupport = byId("navSupport");
 export const navHelpManual = byId("navHelpManual");
 export const navLogout = byId("navLogout");
 
