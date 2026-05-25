@@ -39,9 +39,33 @@ async function fetchImageAsDataUrl(url){
       reader.onerror = reject;
       reader.readAsDataURL(blob);
     });
-  }catch(_){
+  }catch(err){
+    console.warn("[reports:image-fetch]", err);
     return "";
   }
+}
+
+async function normalizePdfImageDataUrl(value){
+  const dataUrl = String(value || "");
+  if (!dataUrl || !/^data:image\/webp/i.test(dataUrl)) return dataUrl;
+  return await new Promise((resolve) => {
+    const image = new Image();
+    image.onload = () => {
+      try{
+        const canvas = document.createElement("canvas");
+        canvas.width = image.naturalWidth || image.width;
+        canvas.height = image.naturalHeight || image.height;
+        const ctx = canvas.getContext("2d");
+        if (!ctx) return resolve(dataUrl);
+        ctx.drawImage(image, 0, 0);
+        resolve(canvas.toDataURL("image/jpeg", 0.9));
+      }catch(_){
+        resolve(dataUrl);
+      }
+    };
+    image.onerror = () => resolve(dataUrl);
+    image.src = dataUrl;
+  });
 }
 
 function normalizeFileName(value){
@@ -285,6 +309,115 @@ function drawSimpleTable(doc, { startY, columns, rows, rowHeight = 8, headerHeig
   drawRow(columns.map((column) => column.label || ""), true);
   rows.forEach((row) => {
     drawRow(columns.map((column) => row[column.key] ?? ""), false);
+  });
+
+  return cursorY;
+}
+
+const CLIENT_CLOSURE_BRAND = {
+  navy: [17, 24, 39],
+  ink: [15, 23, 42],
+  muted: [100, 116, 139],
+  line: [226, 232, 240],
+  surface: [248, 250, 252],
+  blue: [37, 99, 235],
+  teal: [13, 148, 136],
+  green: [22, 163, 74]
+};
+
+function drawClientClosurePageChrome(doc, { pageWidth, pageHeight, margin, companyName, generatedAtLabel }){
+  doc.setFillColor(248, 250, 252);
+  doc.rect(0, 0, pageWidth, pageHeight, "F");
+  doc.setFillColor(17, 24, 39);
+  doc.rect(0, 0, pageWidth, 4, "F");
+  doc.setDrawColor(226, 232, 240);
+  doc.line(margin, pageHeight - 12, pageWidth - margin, pageHeight - 12);
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(7.4);
+  doc.setTextColor(100, 116, 139);
+  doc.text(String(companyName || "FlowProject").slice(0, 70), margin, pageHeight - 6);
+  doc.text(`Gerado em ${String(generatedAtLabel || new Date().toLocaleString("pt-BR"))}`, pageWidth - margin, pageHeight - 6, { align: "right" });
+}
+
+function drawClientClosurePagination(doc, { pageWidth, pageHeight, margin }){
+  const pageCount = doc.internal.getNumberOfPages();
+  for (let index = 1; index <= pageCount; index += 1){
+    doc.setPage(index);
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(7.2);
+    doc.setTextColor(100, 116, 139);
+    doc.text(`Pagina ${index} de ${pageCount}`, pageWidth / 2, pageHeight - 6, { align: "center" });
+  }
+}
+
+function ensureClientClosureSpace(doc, cursorY, neededHeight, pageOptions){
+  if ((cursorY + neededHeight) < (pageOptions.pageHeight - 18)) return cursorY;
+  doc.addPage();
+  drawClientClosurePageChrome(doc, pageOptions);
+  return 16;
+}
+
+function drawClientClosureTable(doc, { startY, columns, rows, pageOptions }){
+  const pageWidth = doc.internal.pageSize.getWidth();
+  const pageHeight = doc.internal.pageSize.getHeight();
+  const marginX = 12;
+  const usableWidth = pageWidth - marginX * 2;
+  const totalWeight = columns.reduce((acc, column) => acc + (column.width || 1), 0);
+  const colWidths = columns.map((column) => usableWidth * ((column.width || 1) / totalWeight));
+  const headerHeight = 8.5;
+  const rowHeight = 12.5;
+  let cursorY = startY;
+
+  const drawHeader = () => {
+    let x = marginX;
+    doc.setFillColor(17, 24, 39);
+    doc.roundedRect(marginX, cursorY, usableWidth, headerHeight, 2.4, 2.4, "F");
+    columns.forEach((column, index) => {
+      const width = colWidths[index];
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(6.2);
+      doc.setTextColor(255, 255, 255);
+      const label = doc.splitTextToSize(String(column.label || ""), Math.max(8, width - 4)).slice(0, 1);
+      doc.text(label, x + 2, cursorY + 5.8);
+      x += width;
+    });
+    cursorY += headerHeight;
+  };
+
+  const ensurePage = () => {
+    if ((cursorY + rowHeight) < (pageHeight - 20)) return;
+    doc.addPage();
+    if (pageOptions) drawClientClosurePageChrome(doc, pageOptions);
+    cursorY = 16;
+    drawHeader();
+  };
+
+  drawHeader();
+  (rows || []).forEach((row, rowIndex) => {
+    ensurePage();
+    const fill = rowIndex % 2 === 0 ? [255, 255, 255] : [248, 250, 252];
+    doc.setFillColor(fill[0], fill[1], fill[2]);
+    doc.setDrawColor(226, 232, 240);
+    doc.rect(marginX, cursorY, usableWidth, rowHeight, "FD");
+    let x = marginX;
+    columns.forEach((column, index) => {
+      const width = colWidths[index];
+      const raw = String(row[column.key] ?? "");
+      const isMoney = column.key === "amount";
+      const isNumber = column.key === "pointedHours" || column.type === "number";
+      const isMeta = ["date", "startTime", "endTime", "breakTime"].includes(column.key);
+      doc.setFont("helvetica", isMoney || column.key === "projectName" ? "bold" : "normal");
+      doc.setFontSize(isMeta ? 6.2 : 6.5);
+      doc.setTextColor(isMoney ? 21 : (isMeta ? 71 : 15), isMoney ? 128 : (isMeta ? 85 : 23), isMoney ? 61 : (isMeta ? 105 : 42));
+      const lines = doc.splitTextToSize(raw, Math.max(8, width - 4)).slice(0, column.key === "description" ? 2 : 1);
+      if (isMoney || isNumber) {
+        doc.text(lines, x + width - 2, cursorY + 5.2, { align: "right" });
+      } else {
+        doc.text(lines, x + 2, cursorY + 5.2);
+      }
+      x += width;
+    });
+    cursorY += rowHeight;
   });
 
   return cursorY;
@@ -570,104 +703,147 @@ export async function downloadExpenseReceiptPdf(payload){
 
 async function downloadClientClosurePdf(payload){
   const { jsPDF } = await import("https://cdn.jsdelivr.net/npm/jspdf@2.5.1/+esm");
-  const doc = new jsPDF({ unit: "mm", format: "a4", compress: true });
+  const doc = new jsPDF({ unit: "mm", format: "a4", orientation: "landscape", compress: true });
   const pageWidth = doc.internal.pageSize.getWidth();
   const pageHeight = doc.internal.pageSize.getHeight();
   const margin = 12;
   const contentWidth = pageWidth - margin * 2;
   const companyName = String(payload.companyName || "FlowProject");
-  const logoDataUrl = String(payload.logoDataUrl || "") || await fetchImageAsDataUrl(payload.logoURL);
+  const logoDataUrl = await normalizePdfImageDataUrl(String(payload.logoDataUrl || "") || await fetchImageAsDataUrl(payload.logoURL));
+  const periodMeta = (payload.meta || []).find((item) => String(item.label || "").toLowerCase() === "periodo")?.value || "";
+  const generatedAtLabel = String(payload.generatedAtLabel || new Date().toLocaleString("pt-BR"));
+  const pageOptions = { pageWidth, pageHeight, margin, companyName, generatedAtLabel };
 
-  doc.setFillColor(248, 250, 252);
-  doc.rect(0, 0, pageWidth, pageHeight, "F");
-  doc.setFillColor(15, 23, 42);
-  doc.roundedRect(margin, 10, contentWidth, 38, 6, 6, "F");
+  drawClientClosurePageChrome(doc, pageOptions);
+  doc.setFillColor(17, 24, 39);
+  doc.roundedRect(margin, 10, contentWidth, 46, 7, 7, "F");
+  doc.setFillColor(37, 99, 235);
+  doc.roundedRect(margin, 10, 48, 46, 7, 7, "F");
+  doc.setFillColor(13, 148, 136);
+  doc.rect(margin + 33, 10, 15, 46, "F");
 
+  let logoAdded = false;
   if (logoDataUrl){
     try{
-      doc.addImage(logoDataUrl, imageFormatForPdf(logoDataUrl), margin + 6, 16, 22, 22);
-    }catch(_){}
+      doc.setFillColor(255, 255, 255);
+      doc.roundedRect(margin + 9, 17, 32, 32, 5, 5, "F");
+      doc.addImage(logoDataUrl, imageFormatForPdf(logoDataUrl), margin + 12, 20, 26, 26);
+      logoAdded = true;
+    }catch(err){
+      console.warn("[reports:client-closure-logo]", err);
+    }
   }
-  if (!logoDataUrl){
-    doc.setFillColor(255, 255, 255);
-    doc.roundedRect(margin + 6, 16, 22, 22, 5, 5, "F");
+  if (!logoAdded){
+    doc.setFillColor(241, 245, 249);
+    doc.roundedRect(margin + 9, 17, 32, 32, 5, 5, "F");
     doc.setTextColor(15, 23, 42);
     doc.setFont("helvetica", "bold");
-    doc.setFontSize(15);
-    doc.text(companyName.trim().slice(0, 1).toUpperCase(), margin + 17, 30, { align: "center" });
+    doc.setFontSize(17);
+    doc.text(companyName.trim().slice(0, 1).toUpperCase(), margin + 25, 36, { align: "center" });
   }
 
-  doc.setTextColor(226, 232, 240);
+  doc.setTextColor(191, 219, 254);
   doc.setFont("helvetica", "bold");
   doc.setFontSize(8.5);
-  doc.text(companyName.toUpperCase().slice(0, 38), margin + 34, 19);
+  doc.text(companyName.toUpperCase().slice(0, 42), margin + 56, 22);
   doc.setTextColor(255, 255, 255);
-  doc.setFontSize(17);
-  doc.text(String(payload.title || "Relatorio de Cliente x Fechamento"), margin + 34, 29);
+  doc.setFontSize(19);
+  doc.text(String(payload.title || "Relatorio de Cliente x Fechamento"), margin + 56, 33);
   doc.setFont("helvetica", "normal");
-  doc.setFontSize(8.8);
+  doc.setFontSize(9);
   doc.setTextColor(203, 213, 225);
-  doc.text(String(payload.subtitle || ""), margin + 34, 36);
-  doc.text(`Gerado em ${String(payload.generatedAtLabel || new Date().toLocaleString("pt-BR"))}`, margin + 34, 42);
+  doc.text(String(payload.subtitle || ""), margin + 56, 41);
+  doc.text(`Documento para conferencia e aceite do cliente`, margin + 56, 48);
+  if (periodMeta){
+    doc.setFillColor(255, 255, 255);
+    doc.roundedRect(pageWidth - margin - 70, 23, 58, 14, 5, 5, "F");
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(6.8);
+    doc.setTextColor(100, 116, 139);
+    doc.text("PERIODO", pageWidth - margin - 41, 28, { align: "center" });
+    doc.setFontSize(8.2);
+    doc.setTextColor(15, 23, 42);
+    doc.text(String(periodMeta).slice(0, 30), pageWidth - margin - 41, 34, { align: "center" });
+  }
 
-  let y = 56;
+  let y = 66;
   const summary = payload.summary || [];
-  const cardWidth = Math.max(42, (contentWidth - 8) / Math.max(1, Math.min(3, summary.length || 1)));
+  const cardCount = Math.max(1, Math.min(4, summary.length || 1));
+  const cardWidth = Math.max(42, (contentWidth - ((cardCount - 1) * 5)) / cardCount);
   let x = margin;
-  summary.slice(0, 3).forEach((item) => {
+  const cardAccents = [
+    CLIENT_CLOSURE_BRAND.blue,
+    CLIENT_CLOSURE_BRAND.teal,
+    [99, 102, 241],
+    CLIENT_CLOSURE_BRAND.green
+  ];
+  summary.slice(0, 4).forEach((item, index) => {
+    const accent = cardAccents[index] || cardAccents[0];
     doc.setFillColor(255, 255, 255);
     doc.setDrawColor(226, 232, 240);
-    doc.roundedRect(x, y, cardWidth, 22, 5, 5, "FD");
+    doc.roundedRect(x, y, cardWidth, 25, 4.5, 4.5, "FD");
+    doc.setFillColor(accent[0], accent[1], accent[2]);
+    doc.roundedRect(x + 4, y + 5, 3, 15, 1.5, 1.5, "F");
     doc.setFont("helvetica", "bold");
     doc.setFontSize(7.5);
     doc.setTextColor(100, 116, 139);
-    doc.text(String(item.label || "").toUpperCase(), x + 4, y + 7);
+    doc.text(String(item.label || "").toUpperCase(), x + 11, y + 8.5);
     doc.setTextColor(15, 23, 42);
-    doc.setFontSize(13);
-    doc.text(String(item.value || "-").slice(0, 24), x + 4, y + 16);
-    x += cardWidth + 4;
+    doc.setFontSize(index === 0 ? 10.8 : 13);
+    doc.text(doc.splitTextToSize(String(item.value || "-"), cardWidth - 15).slice(0, 1), x + 11, y + 18);
+    x += cardWidth + 5;
   });
 
-  y += 31;
-  if (payload.meta?.length){
-    doc.setFillColor(255, 255, 255);
-    doc.setDrawColor(226, 232, 240);
-    doc.roundedRect(margin, y, contentWidth, 18, 5, 5, "FD");
-    doc.setFont("helvetica", "normal");
-    doc.setFontSize(8);
-    doc.setTextColor(71, 85, 105);
-    const metaText = payload.meta.map((item) => `${item.label}: ${item.value}`).join("  |  ");
-    doc.text(doc.splitTextToSize(metaText, contentWidth - 10).slice(0, 2), margin + 5, y + 7);
-    y += 26;
-  }
+  y += 36;
 
   const table = (payload.tables || [])[0] || {};
+  doc.setFillColor(255, 255, 255);
+  doc.setDrawColor(226, 232, 240);
+  doc.roundedRect(margin, y - 7, contentWidth, 12, 4, 4, "FD");
   doc.setFont("helvetica", "bold");
-  doc.setFontSize(12);
+  doc.setFontSize(10.5);
   doc.setTextColor(15, 23, 42);
-  doc.text(String(table.title || "Fechamento de atividades"), margin, y);
-  y = drawSimpleTable(doc, {
-    startY: y + 4,
-    fontSize: 6.4,
-    rowHeight: table.rowHeight || 12,
-    headerHeight: 8,
+  doc.text(String(table.title || "Fechamento de atividades"), margin + 5, y);
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(7.8);
+  doc.setTextColor(100, 116, 139);
+  doc.text(`${String((table.rows || []).length)} registros`, pageWidth - margin - 5, y, { align: "right" });
+  y = drawClientClosureTable(doc, {
+    startY: y + 8,
     columns: table.pdfColumns || table.columns || [],
-    rows: table.rows || []
+    rows: table.rows || [],
+    pageOptions
   }) + 12;
 
-  y = ensurePdfSpace(doc, y, 32);
-  const signatureY = Math.min(pageHeight - 24, y + 18);
+  y = ensureClientClosureSpace(doc, y, 44, pageOptions);
+  const blockY = Math.min(pageHeight - 48, y + 6);
+  const blockX = margin;
+  const blockW = contentWidth;
+  doc.setFillColor(255, 255, 255);
+  doc.setDrawColor(226, 232, 240);
+  doc.roundedRect(blockX, blockY, blockW, 36, 5, 5, "FD");
+  doc.setFillColor(17, 24, 39);
+  doc.roundedRect(blockX, blockY, 5, 36, 2, 2, "F");
   doc.setDrawColor(148, 163, 184);
-  doc.line(pageWidth - margin - 74, signatureY, pageWidth - margin, signatureY);
+  doc.line(blockX + 12, blockY + 10, blockX + 94, blockY + 10);
   doc.setFont("helvetica", "bold");
-  doc.setFontSize(9);
-  doc.setTextColor(15, 23, 42);
-  doc.text(String(payload.signatureName || "Gestor"), pageWidth - margin - 37, signatureY + 6, { align: "center" });
-  doc.setFont("helvetica", "normal");
-  doc.setFontSize(8);
+  doc.setFontSize(7.6);
   doc.setTextColor(100, 116, 139);
-  doc.text("Assinatura do Gestor", pageWidth - margin - 37, signatureY + 11, { align: "center" });
+  doc.text("RESPONSAVEL PELO FECHAMENTO", blockX + 12, blockY + 18);
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(11);
+  doc.setTextColor(15, 23, 42);
+  doc.text(String(payload.signatureName || "Gestor"), blockX + 12, blockY + 25);
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(8.8);
+  doc.setTextColor(51, 65, 85);
+  doc.text(String(payload.signatureRole || "Gestor de projetos"), blockX + 12, blockY + 31);
+  doc.setFontSize(8.5);
+  doc.setTextColor(71, 85, 105);
+  doc.text(`Telefone: ${String(payload.signaturePhone || "-")}`, blockX + 118, blockY + 22);
+  doc.text(`Email: ${String(payload.signatureEmail || "-")}`, blockX + 118, blockY + 29);
 
+  drawClientClosurePagination(doc, { pageWidth, pageHeight, margin });
   doc.save(`${normalizeFileName(payload.fileName || payload.title)}.pdf`);
 }
 

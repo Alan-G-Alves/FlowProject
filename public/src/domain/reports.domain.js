@@ -11,7 +11,7 @@ import {
   downloadExpenseReceiptPdf,
   downloadReportExcel,
   downloadReportPdf
-} from "./reports-export.domain.js?v=1779824200";
+} from "./reports-export.domain.js?v=1779834400";
 
 let _bound = false;
 const REPORT_NOTE_PREVIEW_LIMIT = 140;
@@ -22,10 +22,10 @@ const CLIENT_CLOSURE_PAGE_SIZE = 8;
 const CLIENT_CLOSURE_COLUMNS = [
   { key: "projectName", label: "Projeto", width: 1.25 },
   { key: "techName", label: "Tecnico", width: 1.05 },
-  { key: "date", label: "Data", width: .62 },
+  { key: "date", label: "Data", width: .92 },
   { key: "startTime", label: "inicio", width: .48 },
   { key: "endTime", label: "fim", width: .48 },
-  { key: "breakTime", label: "Almoco", width: .55 },
+  { key: "breakTime", label: "Descanso", width: .82 },
   { key: "pointedHours", label: "Qtde Hora", width: .62, align: "right", type: "number" },
   { key: "taskName", label: "Tarefa", width: 1.05 },
   { key: "activityName", label: "Atividade", width: 1.15 },
@@ -102,6 +102,15 @@ function formatCurrency(value){
     style: "currency",
     currency: "BRL"
   });
+}
+
+function getLocalCompanyLogoReportDataUrl(companyId){
+  if (!companyId || typeof localStorage === "undefined") return "";
+  try{
+    return localStorage.getItem(`fp_company_logo_report_${companyId}`) || "";
+  }catch(_){
+    return "";
+  }
 }
 
 function normalizeLowMarginThresholdPercent(value){
@@ -539,6 +548,7 @@ async function ensureReportsCache(deps, { force = false } = {}){
   const role = String(state?.profile?.role || "").toLowerCase();
   state._reportsCurrentUid = currentUid;
   state._reportsRole = role;
+  state._reportsCurrentEmail = auth?.currentUser?.email || state?.profile?.email || "";
 
   const usersPromise = role === "tecnico"
     ? Promise.resolve({
@@ -845,6 +855,16 @@ function getOptionLabel(options, value, fallback = "Todos"){
   const raw = String(value || "all");
   if (raw === "all") return fallback;
   return options.find((item) => String(item.value) === raw)?.label || raw;
+}
+
+function reportRoleLabel(role){
+  const map = {
+    admin: "Administrador",
+    gestor: "Gestor de projetos",
+    coordenador: "Coordenador de projetos",
+    tecnico: "Tecnico"
+  };
+  return map[String(role || "").toLowerCase()] || "Gestor de projetos";
 }
 
 function getScopedData(baseData, filters){
@@ -1730,18 +1750,21 @@ function buildReportsExportPayloads({
     clientClosure: {
       template: "clientClosure",
       title: "Relatorio de Cliente x Fechamento",
-      subtitle: `Periodo analisado: ${getPeriodExportLabel(clientClosureFilters || { period: "all" }, periodLabelMap)}`,
+      subtitle: "Fechamento de atividades para conferencia do cliente",
       generatedAtLabel,
       fileName: `cliente-x-fechamento-${suffix}`,
       companyName: state?.company?.displayName || state?.company?.name || "FlowProject",
-      logoDataUrl: clientClosureRows.find((row) => row.clientPhotoDataUrl)?.clientPhotoDataUrl || state?.company?.logoReportDataUrl || "",
-      logoURL: clientClosureRows.find((row) => row.clientPhotoURL)?.clientPhotoURL || state?.company?.logoURL || "",
-      signatureName: clientClosureRows.find((row) => row.managerName)?.managerName || state?.profile?.name || state?.profile?.email || "Gestor",
+      logoDataUrl: (clientsById?.[clientClosureFilters?.clientId]?.reportPhotoDataUrl || "") || clientClosureRows.find((row) => row.clientPhotoDataUrl)?.clientPhotoDataUrl || state?.company?.logoReportDataUrl || getLocalCompanyLogoReportDataUrl(state?.companyId),
+      logoURL: (clientsById?.[clientClosureFilters?.clientId]?.photoURL || "") || clientClosureRows.find((row) => row.clientPhotoURL)?.clientPhotoURL || state?.company?.logoURL || "",
+      signatureName: state?.profile?.name || state?.profile?.email || state?._reportsCurrentEmail || "Gestor",
+      signatureRole: reportRoleLabel(state?.profile?.role || state?._reportsRole || "gestor"),
+      signaturePhone: state?.profile?.phone || "-",
+      signatureEmail: state?.profile?.email || state?._reportsCurrentEmail || "-",
       meta: [
-        { label: "Periodo", value: getPeriodExportLabel(clientClosureFilters || { period: "all" }, periodLabelMap) },
-        { label: "Cliente", value: clientClosureRows.length ? [...new Set(clientClosureRows.map((row) => row.clientName))].slice(0, 3).join(", ") : "Todos os clientes" }
+        { label: "Periodo", value: getPeriodExportLabel(clientClosureFilters || { period: "all" }, periodLabelMap) }
       ],
       summary: [
+        { label: "Cliente", value: clientClosureRows.length ? [...new Set(clientClosureRows.map((row) => row.clientName))].slice(0, 2).join(", ") : "Todos os clientes" },
         { label: "Registros", value: String(clientClosureRows.length) },
         { label: "Horas apontadas", value: formatHours(clientClosureTotals.pointedHours) },
         { label: "Valor total", value: formatCurrency(clientClosureTotals.amount) }
