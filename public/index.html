@@ -8,7 +8,7 @@
 </script>
 <meta content="width=device-width, initial-scale=1.0" name="viewport"/>
 <title>FlowProject</title>
-<link href="./styles.css?v=1778795200" rel="stylesheet"/>
+<link href="./styles.css?v=1779683300" rel="stylesheet"/>
 <link href="logof.png" rel="icon" type="image/png"/>
 <style>
   /* SaaS Search (My Projects Kanban) */
@@ -1667,7 +1667,7 @@
               <input id="expenseReceiptFile" class="hidden-file" type="file" accept=".pdf,image/png,image/jpeg,image/jpg,image/webp" />
               <label class="btn sm" for="expenseReceiptFile">Selecionar comprovante</label>
               <button class="btn ghost sm" id="btnRemoveExpenseReceipt" type="button">Remover</button>
-              <span class="muted">Arquivo obrigatorio de ate 8MB.</span>
+              <span class="muted" id="expenseReceiptRequirementHint">Arquivo obrigatorio de ate 8MB.</span>
             </div>
             <div class="expense-receipt-preview" id="expenseReceiptPreview"></div>
           </div>
@@ -1912,16 +1912,16 @@
 </div>
 </div>
 </div>
-<div class="grid" style="grid-template-columns: repeat(12, 1fr); gap:12px;">
-<label class="field" style="grid-column: span 12;">
+<div class="grid user-basic-grid" style="grid-template-columns: repeat(12, 1fr); gap:12px;">
+<label class="field user-basic-field user-basic-field--uid" style="grid-column: span 12;">
 <span>UID (do Authentication)</span>
 <input id="newUserUid" placeholder="Cole o UID do usuario"/>
 </label>
-<label class="field" style="grid-column: span 6;">
+<label class="field user-basic-field user-basic-field--name" style="grid-column: span 6;">
 <span>Nome</span>
 <input id="newUserName" placeholder="Nome do usuario"/>
 </label>
-<label class="field" style="grid-column: span 6;">
+<label class="field user-basic-field user-basic-field--role" style="grid-column: span 6;">
 <span>Funcao</span>
 <select id="newUserRole">
 <option selected="" value="tecnico">Recurso</option>
@@ -1930,15 +1930,15 @@
 <option value="admin">Admin</option>
 </select>
 </label>
-<label class="field" style="grid-column: span 6;">
+<label class="field user-basic-field user-basic-field--email" style="grid-column: span 6;">
 <span>E-mail</span>
 <input id="newUserEmail" placeholder="usuario@empresa.com" type="email"/>
 </label>
-<label class="field" style="grid-column: span 6;">
+<label class="field user-basic-field user-basic-field--phone" style="grid-column: span 6;">
 <span>Telefone</span>
 <input id="newUserPhone" placeholder="11999999999"/>
 </label>
-<label class="field" style="grid-column: span 6;">
+<label class="field user-basic-field user-basic-field--status" style="grid-column: span 6;">
 <span>Status</span>
 <select id="newUserActive">
 <option selected="" value="true">Ativo</option>
@@ -3230,6 +3230,36 @@
 </div>
 
 
+<!-- MODAL: Configuracao de Margem Baixa -->
+<div class="modal" hidden id="modalLowMarginSettings">
+  <div class="modal-backdrop" data-close-low-margin-settings="true"></div>
+  <div class="modal-card">
+    <div class="modal-header">
+      <div>
+        <h2>Alerta de margem baixa</h2>
+        <p class="muted">Defina o percentual minimo de receita liquida para destacar projetos em risco financeiro.</p>
+      </div>
+      <button class="btn ghost" id="btnCloseLowMarginSettings" type="button">X</button>
+    </div>
+
+    <div class="modal-body">
+      <div class="alert" hidden id="lowMarginSettingsAlert"></div>
+      <label class="field">
+        <span>Margem liquida minima (%)</span>
+        <input id="lowMarginThresholdPercentInput" type="number" min="0" max="100" step="1" inputmode="numeric" />
+        <small class="help">Use um valor de 0 a 100. O padrao do sistema e 20.</small>
+      </label>
+    </div>
+
+    <div class="modal-footer">
+      <button class="btn ghost" id="btnResetLowMarginSettings" type="button">Restaurar padrao</button>
+      <button class="btn ghost" id="btnCancelLowMarginSettings" type="button">Cancelar</button>
+      <button class="btn primary" id="btnSaveLowMarginSettings" type="button">Salvar</button>
+    </div>
+  </div>
+</div>
+
+
 <!-- MODAL: Configuracao de Despesas -->
 <div class="modal" hidden id="modalExpenseObservationSettings">
   <div class="modal-backdrop" data-close-expense-observation-settings="true"></div>
@@ -3248,6 +3278,14 @@
         <span>Caracteres obrigatorios na observacao</span>
         <input id="expenseObservationMinCharsInput" type="number" min="0" max="1000" step="1" inputmode="numeric" />
         <small class="help">Use um valor de 0 a 1000. O padrao do sistema e 10.</small>
+      </label>
+      <label class="field">
+        <span>Comprovante da despesa</span>
+        <label class="expense-checkbox-card">
+          <input id="expenseReceiptRequiredInput" type="checkbox" />
+          <span>Exigir comprovante ao lancar despesas</span>
+        </label>
+        <small class="help">Quando desmarcado, despesas podem ser salvas sem anexo. O padrao do sistema e exigir comprovante.</small>
       </label>
     </div>
 
@@ -3313,7 +3351,7 @@
   </div>
 </div>
 
-<script src="./app.js?v=1778795200" type="module"></script>
+<script src="./app.js?v=1779824200" type="module"></script>
 <script>
   // Toggle senha (somente UI)
   document.addEventListener("click", function(e){

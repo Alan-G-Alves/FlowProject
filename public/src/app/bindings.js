@@ -47,7 +47,7 @@ export function bindUIEvents(deps){
 
     try {
       await sendPasswordResetEmail(auth, email, {
-        url: "https://portalprojectflow.com/login",
+        url: "https://portalprojectflow.com/reset-password",
         handleCodeInApp: false
       });
       setAlert(refs.loginAlert, "Link de redefinição enviado para seu e-mail.", "info");

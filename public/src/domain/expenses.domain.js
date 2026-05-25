@@ -38,6 +38,10 @@ function getExpenseObservationMinChars(state) {
   return Math.max(0, Math.min(1000, Math.round(num)));
 }
 
+function isExpenseReceiptRequired(state) {
+  return state?.company?.expenseReceiptRequired !== false;
+}
+
 function normalizeText(value) {
   return String(value || "")
     .normalize("NFD")
@@ -70,6 +74,7 @@ function isFileInputFilled(input) {
 
 function collectActivityExpenseDrafts(refs, { validate = false } = {}) {
   const minChars = getExpenseObservationMinChars(_currentState);
+  const receiptRequired = isExpenseReceiptRequired(_currentState);
   const rows = Array.from(refs?.myActivityExpenseDrafts?.querySelectorAll?.("[data-activity-expense-draft]") || []);
   const drafts = [];
 
@@ -91,8 +96,8 @@ function collectActivityExpenseDrafts(refs, { validate = false } = {}) {
       if (!type) throw new Error(`Selecione o tipo da despesa na linha ${lineNumber}.`);
       if (!amount || amount <= 0) throw new Error(`Informe um valor maior que zero na despesa ${lineNumber}.`);
       if (observation.length < minChars) throw new Error(`Descreva a despesa ${lineNumber} com pelo menos ${minChars} caracteres.`);
-      if (!receiptFile) throw new Error(`Anexe o comprovante da despesa ${lineNumber}.`);
-      if ((receiptFile.size || 0) > EXPENSE_RECEIPT_MAX_SIZE) throw new Error(`O comprovante da despesa ${lineNumber} deve ter no maximo 8 MB.`);
+      if (receiptRequired && !receiptFile) throw new Error(`Anexe o comprovante da despesa ${lineNumber}.`);
+      if (receiptFile && (receiptFile.size || 0) > EXPENSE_RECEIPT_MAX_SIZE) throw new Error(`O comprovante da despesa ${lineNumber} deve ter no maximo 8 MB.`);
     }
 
     drafts.push({
@@ -365,10 +370,11 @@ async function createExpenseRecord(input, deps) {
   if (!input?.projectId) throw new Error("Projeto obrigatorio para registrar a despesa.");
   if (!input?.type) throw new Error("Tipo obrigatorio para registrar a despesa.");
   const minChars = getExpenseObservationMinChars(state);
+  const receiptRequired = isExpenseReceiptRequired(state);
   if (String(input?.observation || "").trim().length < minChars) throw new Error(`Descreva a despesa com pelo menos ${minChars} caracteres.`);
   if (!amount || amount <= 0) throw new Error("Informe um valor maior que zero para a despesa.");
-  if (!receiptFile) throw new Error("Anexe o comprovante da despesa para continuar.");
-  if ((receiptFile.size || 0) > EXPENSE_RECEIPT_MAX_SIZE) throw new Error("O comprovante deve ter no maximo 8 MB.");
+  if (receiptRequired && !receiptFile) throw new Error("Anexe o comprovante da despesa para continuar.");
+  if (receiptFile && (receiptFile.size || 0) > EXPENSE_RECEIPT_MAX_SIZE) throw new Error("O comprovante deve ter no maximo 8 MB.");
 
   const basePayload = {
     companyId: state.companyId,
@@ -418,37 +424,39 @@ async function createExpenseRecord(input, deps) {
   let receiptPath = "";
   let receiptUrl = "";
 
-  try {
-    const safeName = String(receiptFile.name || "comprovante").replace(/[^\w.\-]+/g, "_");
-    receiptPath = `expenseReceipts/${state.companyId}/${expenseRef.id}/${Date.now()}_${safeName}`;
+  if (receiptFile) {
     try {
-      receiptUrl = await retryUploadReceipt(storage, receiptPath, receiptFile);
+      const safeName = String(receiptFile.name || "comprovante").replace(/[^\w.\-]+/g, "_");
+      receiptPath = `expenseReceipts/${state.companyId}/${expenseRef.id}/${Date.now()}_${safeName}`;
+      try {
+        receiptUrl = await retryUploadReceipt(storage, receiptPath, receiptFile);
+      } catch (err) {
+        err.message = `Falha ao enviar o comprovante: ${err?.message || "permissao insuficiente."}`;
+        throw err;
+      }
+      try {
+        await updateDoc(doc(db, `companies/${state.companyId}/expenses`, expenseRef.id), {
+          receipt: {
+            name: receiptFile.name || "comprovante",
+            path: receiptPath,
+            url: receiptUrl,
+            size: Number(receiptFile.size || 0),
+            contentType: String(receiptFile.type || "").trim(),
+            uploadedAt: new Date().toISOString()
+          },
+          updatedAt: serverTimestamp(),
+          updatedBy: currentUid
+        });
+      } catch (err) {
+        err.message = `Falha ao vincular o comprovante a despesa: ${err?.message || "permissao insuficiente."}`;
+        throw err;
+      }
     } catch (err) {
-      err.message = `Falha ao enviar o comprovante: ${err?.message || "permissao insuficiente."}`;
+      if (receiptPath) {
+        try { await deleteObject(storageRef(storage, receiptPath)); } catch (_) {}
+      }
       throw err;
     }
-    try {
-      await updateDoc(doc(db, `companies/${state.companyId}/expenses`, expenseRef.id), {
-        receipt: {
-          name: receiptFile.name || "comprovante",
-          path: receiptPath,
-          url: receiptUrl,
-          size: Number(receiptFile.size || 0),
-          contentType: String(receiptFile.type || "").trim(),
-          uploadedAt: new Date().toISOString()
-        },
-        updatedAt: serverTimestamp(),
-        updatedBy: currentUid
-      });
-    } catch (err) {
-      err.message = `Falha ao vincular o comprovante a despesa: ${err?.message || "permissao insuficiente."}`;
-      throw err;
-    }
-  } catch (err) {
-    if (receiptPath) {
-      try { await deleteObject(storageRef(storage, receiptPath)); } catch (_) {}
-    }
-    throw err;
   }
 
   if (!isOperationalExpenseRole(role)) {
@@ -475,14 +483,14 @@ async function createExpenseRecord(input, deps) {
   return {
     id: expenseRef.id,
     ...basePayload,
-    receipt: {
+    receipt: receiptFile ? {
       name: receiptFile.name || "comprovante",
       path: receiptPath,
       url: receiptUrl || await getDownloadURL(storageRef(storage, receiptPath)).catch(() => ""),
       size: Number(receiptFile.size || 0),
       contentType: String(receiptFile.type || "").trim(),
       uploadedAt: new Date().toISOString()
-    },
+    } : {},
     createdAt: new Date(),
     updatedAt: new Date()
   };
@@ -646,7 +654,7 @@ async function openExpenseForm(context, deps) {
   }
   if (refs.expenseFormSubtitle) {
     refs.expenseFormSubtitle.textContent = _expenseFormContext.source === "activity"
-      ? "Vincule o comprovante diretamente a esta atividade para facilitar a aprovacao."
+      ? "Vincule a despesa diretamente a esta atividade para facilitar a aprovacao."
       : "Registre uma despesa manual do projeto com o contexto completo.";
   }
 
@@ -691,6 +699,12 @@ async function openExpenseForm(context, deps) {
       : "Explique o contexto da despesa, o motivo e o que foi utilizado.";
   }
   updateObservationCounter(refs);
+  const receiptRequired = isExpenseReceiptRequired(state);
+  if (refs.expenseReceiptRequirementHint) {
+    refs.expenseReceiptRequirementHint.textContent = receiptRequired
+      ? "Arquivo obrigatorio de ate 8MB."
+      : "Arquivo opcional de ate 8MB.";
+  }
 
   refs.modalExpenseForm.hidden = false;
 }
@@ -732,10 +746,11 @@ async function saveExpenseForm(deps) {
   if (!projectId) return showExpenseFormError(refs, "Escolha o projeto ao qual essa despesa pertence.", refs.expenseProjectEl);
   if (!type) return showExpenseFormError(refs, "Selecione o tipo da despesa para continuar.", refs.expenseTypeEl);
   const minChars = getExpenseObservationMinChars(state);
+  const receiptRequired = isExpenseReceiptRequired(state);
   if (observation.length < minChars) return showExpenseFormError(refs, `Descreva a despesa com pelo menos ${minChars} caracteres.`, refs.expenseObservationEl);
   if (!amount || amount <= 0) return showExpenseFormError(refs, "Informe um valor maior que zero para a despesa.", refs.expenseAmountEl);
-  if (!_expenseReceiptFile) return showExpenseFormError(refs, "Anexe o comprovante da despesa para continuar.", refs.expenseReceiptFileEl);
-  if ((_expenseReceiptFile.size || 0) > EXPENSE_RECEIPT_MAX_SIZE) {
+  if (receiptRequired && !_expenseReceiptFile) return showExpenseFormError(refs, "Anexe o comprovante da despesa para continuar.", refs.expenseReceiptFileEl);
+  if (_expenseReceiptFile && (_expenseReceiptFile.size || 0) > EXPENSE_RECEIPT_MAX_SIZE) {
     return showExpenseFormError(refs, "O comprovante deve ter no maximo 8 MB.", refs.expenseReceiptFileEl);
   }
 
@@ -793,27 +808,29 @@ async function saveExpenseForm(deps) {
     let receiptPath = "";
     let receiptUrl = "";
 
-    try {
-      const safeName = String(_expenseReceiptFile.name || "comprovante").replace(/[^\w.\-]+/g, "_");
-      receiptPath = `expenseReceipts/${state.companyId}/${expenseRef.id}/${Date.now()}_${safeName}`;
-      receiptUrl = await retryUploadReceipt(storage, receiptPath, _expenseReceiptFile);
-      await updateDoc(doc(db, `companies/${state.companyId}/expenses`, expenseRef.id), {
-        receipt: {
-          name: _expenseReceiptFile.name || "comprovante",
-          path: receiptPath,
-          url: receiptUrl,
-          size: Number(_expenseReceiptFile.size || 0),
-          contentType: String(_expenseReceiptFile.type || "").trim(),
-          uploadedAt: new Date().toISOString()
-        },
-        updatedAt: serverTimestamp(),
-        updatedBy: currentUid
-      });
-    } catch (err) {
-      if (receiptPath) {
-        try { await deleteObject(storageRef(storage, receiptPath)); } catch (_) {}
+    if (_expenseReceiptFile) {
+      try {
+        const safeName = String(_expenseReceiptFile.name || "comprovante").replace(/[^\w.\-]+/g, "_");
+        receiptPath = `expenseReceipts/${state.companyId}/${expenseRef.id}/${Date.now()}_${safeName}`;
+        receiptUrl = await retryUploadReceipt(storage, receiptPath, _expenseReceiptFile);
+        await updateDoc(doc(db, `companies/${state.companyId}/expenses`, expenseRef.id), {
+          receipt: {
+            name: _expenseReceiptFile.name || "comprovante",
+            path: receiptPath,
+            url: receiptUrl,
+            size: Number(_expenseReceiptFile.size || 0),
+            contentType: String(_expenseReceiptFile.type || "").trim(),
+            uploadedAt: new Date().toISOString()
+          },
+          updatedAt: serverTimestamp(),
+          updatedBy: currentUid
+        });
+      } catch (err) {
+        if (receiptPath) {
+          try { await deleteObject(storageRef(storage, receiptPath)); } catch (_) {}
+        }
+        throw err;
       }
-      throw err;
     }
 
     if (!isOperationalExpenseRole(role)) {
@@ -842,14 +859,14 @@ async function saveExpenseForm(deps) {
     const savedExpense = {
       id: expenseRef.id,
       ...basePayload,
-      receipt: {
+      receipt: _expenseReceiptFile ? {
         name: _expenseReceiptFile.name || "comprovante",
         path: receiptPath,
         url: receiptUrl || await getDownloadURL(storageRef(storage, receiptPath)).catch(() => ""),
         size: Number(_expenseReceiptFile.size || 0),
         contentType: String(_expenseReceiptFile.type || "").trim(),
         uploadedAt: new Date().toISOString()
-      },
+      } : {},
       createdAt: new Date(),
       updatedAt: new Date()
     };
@@ -1156,6 +1173,7 @@ export function addActivityExpenseDraft(refs) {
   const row = document.createElement("div");
   row.className = "my-activity-expense-draft-row";
   row.setAttribute("data-activity-expense-draft", draftId);
+  const receiptRequired = isExpenseReceiptRequired(_currentState);
   row.innerHTML = `
     <label class="field">
       <span>Tipo de despesa</span>
@@ -1175,7 +1193,7 @@ export function addActivityExpenseDraft(refs) {
       <input data-expense-draft-observation placeholder="Contexto da despesa" />
     </label>
     <label class="field my-activity-expense-file-field">
-      <span>Comprovante</span>
+      <span>Comprovante${receiptRequired ? "" : " (opcional)"}</span>
       <input data-expense-draft-file type="file" accept=".pdf,image/png,image/jpeg,image/jpg,image/webp" />
     </label>
     <button class="icon-btn xs my-activity-expense-draft-remove" data-remove-activity-expense-draft="${escapeHtml(draftId)}" type="button" title="Remover despesa" aria-label="Remover despesa">

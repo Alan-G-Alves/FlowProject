@@ -15,6 +15,7 @@ import { db } from "../config/firebase.js";
 export async function createCompanyDoc(companyData){
   const ref = await addDoc(collection(db, "companies"), {
     ...companyData,
+    expenseReceiptRequired: companyData?.expenseReceiptRequired !== false,
     createdAt: serverTimestamp(),
     updatedAt: serverTimestamp(),
   });

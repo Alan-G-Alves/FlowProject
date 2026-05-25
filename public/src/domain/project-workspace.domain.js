@@ -14,7 +14,7 @@ import {
 import { setAlert, clearAlert } from "../ui/alerts.js";
 import { escapeHtml } from "../utils/dom.js";
 import { ensureClientsCache } from "./clients.domain.js";
-import { computeProjectExpenseSummary } from "./expenses.domain.js?v=1778720300";
+import { computeProjectExpenseSummary } from "./expenses.domain.js?v=1779741200";
 import { createNotifications } from "../services/notifications.service.js?v=1776052722";
 import { downloadProjectStatusReportExcel, downloadProjectStatusReportPdf } from "./project-status-report.domain.js?v=1776052718";
 import { downloadProjectExecutiveStatusReportPdf } from "./project-executive-status-report.domain.js?v=1778783000";
@@ -187,6 +187,12 @@ function formatCurrencyBRL(value){
   const amount = Number(value);
   if (!Number.isFinite(amount)) return "-";
   return amount.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
+}
+
+function normalizeLowMarginThresholdPercent(value){
+  const num = Number(value);
+  if (!Number.isFinite(num)) return 20;
+  return Math.max(0, Math.min(100, Math.round(num)));
 }
 
 function formatHoursLabel(value){
@@ -1422,8 +1428,13 @@ function renderCover(refs, project, state){
   const projectCost = estimatedTechCost + approvedInternalExpenses;
   const profitValue = billingValueNumber > 0 ? (billingValueNumber - estimatedTechCost - approvedInternalExpenses) : null;
   const profitPercent = (billingValueNumber > 0 && profitValue !== null) ? ((profitValue / billingValueNumber) * 100) : null;
+  const lowMarginThresholdPercent = normalizeLowMarginThresholdPercent(state?.company?.lowMarginThresholdPercent);
+  const lowMarginAlert = profitPercent !== null && profitPercent < lowMarginThresholdPercent;
   const profitTone = profitValue === null ? "neutral" : (profitValue >= 0 ? "positive" : "negative");
   const projectCompletion = billingHours > 0 ? Math.min(100, Math.round((executedActivityHours / billingHours) * 100)) : 0;
+  const forecastHours = Math.max(plannedActivityHours, executedActivityHours);
+  const projectedOverrunHours = billingHours > 0 ? Math.max(0, forecastHours - billingHours) : 0;
+  const hourOverrunAlert = billingHours > 0 && (projectedOverrunHours > 0 || (executedActivityHours / billingHours) >= .9);
   const showCoverHoursInfo = canTechSeeProjectField(state, "showCoverHoursInfo");
   const showInternalExpenses = canTechSeeProjectField(state, "showInternalExpenses");
   const showEstimatedTechCost = canTechSeeProjectField(state, "showEstimatedTechCost");
@@ -1482,6 +1493,7 @@ function renderCover(refs, project, state){
             <span class="project-cover-highlight-label">Margem estimada</span>
             <strong>${escapeHtml(profitValue !== null ? formatCurrencyBRL(profitValue) : "-")}</strong>
             <span class="project-cover-highlight-meta">${escapeHtml(profitPercent !== null ? `${profitPercent.toFixed(1).replace(".", ",")}% apos despesas internas aprovadas` : "Sem base suficiente")}</span>
+            ${lowMarginAlert ? `<span class="project-cover-alert">Margem abaixo de ${escapeHtml(String(lowMarginThresholdPercent))}%</span>` : ""}
           </div>` : ""}
           ${showExpensesSummary ? `<div class="project-cover-highlight project-cover-highlight--deadline">
             <span class="project-cover-highlight-label">Despesas</span>
@@ -1551,6 +1563,7 @@ function renderCover(refs, project, state){
       ${showCoverHoursInfo ? `<div class="project-cover-profit-item">
         <span class="project-cover-label">Consumo das horas</span>
         <strong>${escapeHtml(`${projectCompletion}%`)}</strong>
+        ${hourOverrunAlert ? `<span class="project-cover-meta project-cover-meta--danger">${escapeHtml(projectedOverrunHours > 0 ? `Previsao de estouro: ${formatHoursLabel(projectedOverrunHours)}` : "Consumo acima de 90%")}</span>` : ""}
       </div>` : ""}
     </div>` : ""}
     <div class="project-cover-grid">

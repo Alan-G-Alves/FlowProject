@@ -80,10 +80,20 @@ export const btnResetActivityNoteSettings = byId("btnResetActivityNoteSettings")
 export const modalExpenseObservationSettings = byId("modalExpenseObservationSettings");
 export const expenseObservationSettingsAlert = byId("expenseObservationSettingsAlert");
 export const expenseObservationMinCharsInput = byId("expenseObservationMinCharsInput");
+export const expenseReceiptRequiredInput = byId("expenseReceiptRequiredInput");
 export const btnCloseExpenseObservationSettings = byId("btnCloseExpenseObservationSettings");
 export const btnCancelExpenseObservationSettings = byId("btnCancelExpenseObservationSettings");
 export const btnSaveExpenseObservationSettings = byId("btnSaveExpenseObservationSettings");
 export const btnResetExpenseObservationSettings = byId("btnResetExpenseObservationSettings");
+
+// Low margin settings
+export const modalLowMarginSettings = byId("modalLowMarginSettings");
+export const lowMarginSettingsAlert = byId("lowMarginSettingsAlert");
+export const lowMarginThresholdPercentInput = byId("lowMarginThresholdPercentInput");
+export const btnCloseLowMarginSettings = byId("btnCloseLowMarginSettings");
+export const btnCancelLowMarginSettings = byId("btnCancelLowMarginSettings");
+export const btnSaveLowMarginSettings = byId("btnSaveLowMarginSettings");
+export const btnResetLowMarginSettings = byId("btnResetLowMarginSettings");
 
 // Login
 export const loginForm = byId("loginForm");
@@ -654,6 +664,7 @@ export const expenseObservationHint = byId("expenseObservationHint");
 export const expenseObservationCounter = byId("expenseObservationCounter");
 export const expenseReceiptFileEl = byId("expenseReceiptFile");
 export const expenseReceiptSummary = byId("expenseReceiptSummary");
+export const expenseReceiptRequirementHint = byId("expenseReceiptRequirementHint");
 export const expenseReceiptPreview = byId("expenseReceiptPreview");
 export const btnRemoveExpenseReceipt = byId("btnRemoveExpenseReceipt");
 export const expenseContextBanner = byId("expenseContextBanner");

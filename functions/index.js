@@ -213,7 +213,7 @@ async function generatePublicPasswordResetLink(email) {
   const link = await admin.auth().generatePasswordResetLink(email, buildPasswordResetActionSettings());
   try {
     const parsed = new URL(link);
-    return `${getPublicAppBaseUrl()}${parsed.pathname}${parsed.search}${parsed.hash || ""}`;
+    return `${getPublicAppBaseUrl()}/reset-password${parsed.search}${parsed.hash || ""}`;
   } catch (err) {
     return link;
   }
@@ -451,6 +451,7 @@ async function activateIndividualSignup(signupId, stripePayload = {}) {
     planPrice: plan.price,
     planBillingCycle: "monthly",
     planBillingPrice: plan.price,
+    expenseReceiptRequired: true,
     trialDays: Number(stripePayload.trialDays || signup.trialDays || 0),
     trialEndsAt: stripePayload.trialEndsAt || signup.trialEndsAt || null,
     trialConsentVersion: signup.trialConsentVersion || "",
@@ -939,6 +940,135 @@ exports.setUserAvatarFromTempHttp = functions.https.onRequest(async (req, res) =
 });
 
 /**
+ * adminUpdateCompanyUserHttp (HTTP)
+ * Header: Authorization: Bearer <idToken>
+ * Body: { companyId, targetUid, patch }
+ * Atualiza campos administrativos permitidos de companies/{companyId}/users/{targetUid}.
+ */
+exports.adminUpdateCompanyUserHttp = functions.https.onRequest(async (req, res) => {
+  res.set("Access-Control-Allow-Origin", "*");
+  res.set("Access-Control-Allow-Methods", "POST, OPTIONS");
+  res.set("Access-Control-Allow-Headers", "Content-Type, Authorization");
+
+  if (req.method === "OPTIONS") return res.status(204).send("");
+  if (req.method !== "POST") return res.status(405).json({ error: "method-not-allowed" });
+
+  try {
+    const authHeader = req.get("Authorization") || "";
+    const match = authHeader.match(/^Bearer (.+)$/);
+    if (!match) return res.status(401).json({ error: { message: "Nao autenticado." } });
+
+    const decoded = await admin.auth().verifyIdToken(match[1]);
+    const callerUid = decoded.uid;
+    const body = req.body || {};
+    const companyId = normalizeString(body.companyId);
+    const targetUid = normalizeString(body.targetUid);
+    const rawPatch = body.patch || {};
+
+    if (!companyId) return res.status(400).json({ error: { message: "companyId invalido." } });
+    if (!targetUid) return res.status(400).json({ error: { message: "targetUid invalido." } });
+    if (!rawPatch || typeof rawPatch !== "object" || Array.isArray(rawPatch)) {
+      return res.status(400).json({ error: { message: "patch invalido." } });
+    }
+
+    const db = admin.firestore();
+    const callerCompanySnap = await db.doc(`userCompanies/${callerUid}`).get();
+    if (!callerCompanySnap.exists || callerCompanySnap.data().companyId !== companyId) {
+      return res.status(403).json({ error: { message: "Voce nao pertence a esta empresa." } });
+    }
+
+    const callerSnap = await db.doc(`companies/${companyId}/users/${callerUid}`).get();
+    if (!callerSnap.exists || callerSnap.data().active === false) {
+      return res.status(403).json({ error: { message: "Usuario chamador invalido." } });
+    }
+
+    const callerRole = String(callerSnap.data().role || "");
+    const targetRef = db.doc(`companies/${companyId}/users/${targetUid}`);
+    const targetSnap = await targetRef.get();
+    if (!targetSnap.exists) return res.status(404).json({ error: { message: "Usuario alvo nao encontrado." } });
+
+    const targetRole = String(targetSnap.data().role || "");
+    const canUpdate = callerRole === "admin"
+      || ((callerRole === "gestor" || callerRole === "coordenador") && targetRole === "tecnico");
+    if (!canUpdate) return res.status(403).json({ error: { message: "Sem permissao para editar este usuario." } });
+
+    const patch = {};
+    const allowed = new Set([
+      "name", "phone", "active",
+      "teamId", "teamIds",
+      "softSkills", "hardSkills",
+      "photoURL", "hourlyRate",
+      "address", "cpf", "cnpj", "birthDate", "age",
+      "attachments"
+    ]);
+
+    for (const key of Object.keys(rawPatch)) {
+      if (!allowed.has(key)) continue;
+      const value = rawPatch[key];
+
+      if (key === "name") {
+        const name = normalizeString(value).slice(0, 120);
+        if (!name) return res.status(400).json({ error: { message: "Nome invalido." } });
+        patch.name = name;
+      } else if (key === "phone") {
+        patch.phone = normalizeString(value).slice(0, 40);
+      } else if (key === "active") {
+        if (typeof value !== "boolean") return res.status(400).json({ error: { message: "Status invalido." } });
+        patch.active = value;
+      } else if (key === "teamIds") {
+        const teamIds = uniqueStrings(Array.isArray(value) ? value : []).slice(0, 50);
+        if (targetRole !== "admin" && teamIds.length === 0) {
+          return res.status(400).json({ error: { message: "Selecione pelo menos 1 equipe." } });
+        }
+        patch.teamIds = teamIds;
+      } else if (key === "teamId") {
+        patch.teamId = normalizeString(value).slice(0, 120);
+      } else if (key === "softSkills") {
+        patch.softSkills = sanitizeSkillArray(value);
+      } else if (key === "hardSkills") {
+        patch.hardSkills = sanitizeSkillArray(value);
+      } else if (key === "photoURL") {
+        patch.photoURL = normalizeString(value).slice(0, 2000);
+      } else if (key === "hourlyRate") {
+        const hourlyRate = sanitizeHourlyRate(value);
+        if (hourlyRate === null) return res.status(400).json({ error: { message: "Valor/hora invalido." } });
+        patch.hourlyRate = hourlyRate;
+      } else if (key === "address") {
+        patch.address = normalizeString(value).slice(0, 300);
+      } else if (key === "cpf") {
+        patch.cpf = normalizeString(value).slice(0, 20);
+      } else if (key === "cnpj") {
+        patch.cnpj = normalizeString(value).slice(0, 24);
+      } else if (key === "birthDate") {
+        const birthDate = normalizeString(value).slice(0, 10);
+        if (birthDate && !/^\d{4}-\d{2}-\d{2}$/.test(birthDate)) {
+          return res.status(400).json({ error: { message: "Data de nascimento invalida." } });
+        }
+        patch.birthDate = birthDate;
+      } else if (key === "age") {
+        const age = Number(value);
+        if (!Number.isInteger(age) || age < 0 || age > 130) {
+          return res.status(400).json({ error: { message: "Idade invalida." } });
+        }
+        patch.age = age;
+      } else if (key === "attachments") {
+        patch.attachments = Array.isArray(value) ? value.slice(0, 6) : [];
+      }
+    }
+
+    if (!Object.keys(patch).length) return res.status(200).json({ ok: true, skipped: true });
+
+    await targetRef.set(patch, { merge: true });
+    if ("photoURL" in patch) await admin.auth().updateUser(targetUid, { photoURL: patch.photoURL }).catch(() => {});
+
+    return res.status(200).json({ ok: true });
+  } catch (e) {
+    console.error("adminUpdateCompanyUserHttp:", e);
+    return res.status(500).json({ error: { message: "Erro interno." } });
+  }
+});
+
+/**
  * createCompanyWithAdmin (callable) - SUPERADMIN
  * Payload:
  * {
@@ -1055,6 +1185,7 @@ exports.createCompanyWithAdmin = functions.https.onCall(async (data, context) =>
     financialContactEmail,
     financialContactPhone,
     billingDueDate: billing.dueDate,
+    expenseReceiptRequired: true,
     createdAt: admin.firestore.FieldValue.serverTimestamp(),
     createdBy: callerUid,
   });
@@ -1205,6 +1336,7 @@ exports.createCompanyWithAdminHttp = functions
         financialContactEmail,
         financialContactPhone,
         billingDueDate: billing.dueDate,
+        expenseReceiptRequired: true,
         createdAt: admin.firestore.FieldValue.serverTimestamp(),
         createdBy: callerUid
       });

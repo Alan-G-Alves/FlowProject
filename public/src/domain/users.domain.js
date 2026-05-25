@@ -101,6 +101,27 @@ function readChipsText(chipsEl) {
     .filter(Boolean);
 }
 
+function sameStringArray(a, b) {
+  const left = (Array.isArray(a) ? a : []).map((item) => String(item || "")).filter(Boolean).sort();
+  const right = (Array.isArray(b) ? b : []).map((item) => String(item || "")).filter(Boolean).sort();
+  return left.length === right.length && left.every((value, index) => value === right[index]);
+}
+
+function isPermissionDeniedError(err) {
+  const code = String(err?.code || "").toLowerCase();
+  const msg = String(err?.message || err || "").toLowerCase();
+  return code.includes("permission-denied")
+    || code.includes("permission_denied")
+    || msg.includes("missing or insufficient permissions")
+    || msg.includes("permission");
+}
+
+function hasUserAttachmentChanges(state) {
+  const draftItems = Array.isArray(state?._newUserAttachmentsDraft) ? state._newUserAttachmentsDraft : [];
+  const removedItems = Array.isArray(state?._newUserRemovedAttachments) ? state._newUserRemovedAttachments : [];
+  return removedItems.length > 0 || draftItems.some((item) => item?.isNew && item?.file);
+}
+
 function renderSkillChips(chipsEl, state, key) {
   if (!chipsEl) return;
   chipsEl.innerHTML = "";
@@ -276,7 +297,7 @@ function collectUserExtraFields(refs) {
 }
 
 async function syncUserAttachments(deps, uid) {
-  const { state, storage, db } = deps;
+  const { state, storage, db, callHttpFunctionWithAuth } = deps;
   const draftItems = Array.isArray(state._newUserAttachmentsDraft) ? state._newUserAttachmentsDraft : [];
   const removedItems = Array.isArray(state._newUserRemovedAttachments) ? state._newUserRemovedAttachments : [];
 
@@ -287,7 +308,16 @@ async function syncUserAttachments(deps, uid) {
     draftItems
   });
 
-  await updateDoc(doc(db, "companies", state.companyId, "users", uid), { attachments });
+  try {
+    await updateDoc(doc(db, "companies", state.companyId, "users", uid), { attachments });
+  } catch (err) {
+    if (!isPermissionDeniedError(err) || typeof callHttpFunctionWithAuth !== "function") throw err;
+    await callHttpFunctionWithAuth("adminUpdateCompanyUserHttp", {
+      companyId: state.companyId,
+      targetUid: uid,
+      patch: { attachments }
+    });
+  }
   await deleteStoredAttachments({ storage, items: removedItems });
 
   state._newUserAttachmentsDraft = toAttachmentDrafts(attachments);
@@ -999,6 +1029,7 @@ function setCreateUserModalMode(deps, mode, user = null) {
   const isEdit = mode === "edit";
   state._adminUserModalMode = mode;
   state._adminEditingUserUid = isEdit ? (user?.uid || "") : null;
+  state._adminEditingUserOriginal = isEdit && user ? { ...user } : null;
 
   const titleEl = refs.modalCreateUser?.querySelector(".modal-header h2");
   const subEl = refs.modalCreateUser?.querySelector(".modal-header p");
@@ -1160,6 +1191,7 @@ export function closeCreateUserModal(depsOrRefs) {
     state._newUserAttachmentsDraft = [];
     state._newUserRemovedAttachments = [];
     state._adminEditingUserUid = null;
+    state._adminEditingUserOriginal = null;
     state._adminUserModalMode = "create";
     state._newUserPhotoRemoved = false;
     deleteTempAvatarIfAny(depsOrRefs);
@@ -1420,7 +1452,7 @@ export async function createUser(deps) {
 }
 
 async function updateCompanyUser(deps) {
-  const { refs, state, db, loadUsers } = deps;
+  const { refs, state, db, loadUsers, callHttpFunctionWithAuth } = deps;
   const uid = state._adminEditingUserUid;
   const name = (refs.newUserNameEl?.value || "").trim();
   const role = (refs.newUserRoleEl?.value || "").trim();
@@ -1450,24 +1482,48 @@ async function updateCompanyUser(deps) {
 
   setAlert(refs.createUserAlert, "Salvando alteracoes...", "info");
 
+  let lastChangedPayload = null;
+
   try {
-    const payload = {
-      name,
-      role,
-      phone,
-      active,
-      teamIds,
-      teamId: teamIds[0] || "",
-      softSkills,
-      hardSkills,
-      ...(hourlyRate === null ? {} : { hourlyRate }),
-      ...extraFields,
-      ...(extraFields.birthDate ? {} : { age: deleteField() })
-    };
+    const original = state._adminEditingUserOriginal || {};
+    const originalTeamIds = Array.isArray(original.teamIds) ? original.teamIds : (original.teamId ? [original.teamId] : []);
+    const changedPayload = {};
 
-    if (state._newUserPhotoRemoved) payload.photoURL = "";
+    if (name !== String(original.name || "").trim()) changedPayload.name = name;
+    if (phone !== String(original.phone || "").trim()) changedPayload.phone = phone;
+    if (active !== (original.active === false ? false : true)) changedPayload.active = active;
+    if (!sameStringArray(teamIds, originalTeamIds)) {
+      changedPayload.teamIds = teamIds;
+      changedPayload.teamId = teamIds[0] || "";
+    }
+    if (!sameStringArray(softSkills, original.softSkills || [])) changedPayload.softSkills = softSkills;
+    if (!sameStringArray(hardSkills, original.hardSkills || [])) changedPayload.hardSkills = hardSkills;
+    if (hourlyRate !== null && Number(original.hourlyRate) !== hourlyRate) changedPayload.hourlyRate = hourlyRate;
+    if (extraFields.address !== String(original.address || "")) changedPayload.address = extraFields.address;
+    if (extraFields.cpf !== String(original.cpf || "")) changedPayload.cpf = extraFields.cpf;
+    if (extraFields.cnpj !== String(original.cnpj || "")) changedPayload.cnpj = extraFields.cnpj;
+    if (extraFields.birthDate !== String(original.birthDate || "")) changedPayload.birthDate = extraFields.birthDate;
+    if (extraFields.birthDate) {
+      if ("age" in extraFields && Number(original.age) !== extraFields.age) changedPayload.age = extraFields.age;
+    } else if (extraFields.birthDate !== String(original.birthDate || "") && "age" in original) {
+      changedPayload.age = deleteField();
+    }
+    if (state._newUserPhotoRemoved) changedPayload.photoURL = "";
+    lastChangedPayload = changedPayload;
 
-    await updateDoc(doc(db, "companies", state.companyId, "users", uid), payload);
+    if (Object.keys(changedPayload).length) {
+      try {
+        await updateDoc(doc(db, "companies", state.companyId, "users", uid), changedPayload);
+      } catch (directErr) {
+        if (!isPermissionDeniedError(directErr) || typeof callHttpFunctionWithAuth !== "function") throw directErr;
+        setAlert(refs.createUserAlert, "Salvando com permissao administrativa...", "info");
+        await callHttpFunctionWithAuth("adminUpdateCompanyUserHttp", {
+          companyId: state.companyId,
+          targetUid: uid,
+          patch: changedPayload
+        });
+      }
+    }
 
     if (state._newUserAvatarFile) {
       try {
@@ -1482,7 +1538,7 @@ async function updateCompanyUser(deps) {
       }
     }
 
-    try {
+    if (hasUserAttachmentChanges(state)) try {
       setAlert(refs.createUserAlert, "Sincronizando anexos...", "info");
       await syncUserAttachments(deps, uid);
     } catch (attErr) {
@@ -1494,6 +1550,35 @@ async function updateCompanyUser(deps) {
     await loadUsers(deps);
   } catch (err) {
     console.error(err);
+    const original = state._adminEditingUserOriginal || {};
+    const originalTeamIds = Array.isArray(original.teamIds) ? original.teamIds : (original.teamId ? [original.teamId] : []);
+    const onlyTeamsChanged = sameStringArray(originalTeamIds, teamIds) === false
+      && name === String(original.name || "").trim()
+      && role === String(original.role || "").trim()
+      && email === String(original.email || "").trim()
+      && phone === String(original.phone || "").trim()
+      && active === (original.active === false ? false : true)
+      && !state._newUserAvatarFile
+      && !state._newUserPhotoRemoved
+      && sameStringArray(softSkills, original.softSkills || [])
+      && sameStringArray(hardSkills, original.hardSkills || []);
+
+    if (isPermissionDeniedError(err) && onlyTeamsChanged) {
+      try {
+        setAlert(refs.createUserAlert, "Salvando apenas a alteracao de equipe...", "info");
+        await updateDoc(doc(db, "companies", state.companyId, "users", uid), {
+          teamIds,
+          teamId: teamIds[0] || ""
+        });
+        closeCreateUserModal(deps);
+        await loadUsers(deps);
+        return;
+      } catch (teamErr) {
+        console.error(teamErr);
+        return setAlert(refs.createUserAlert, "Erro ao salvar equipes: " + (teamErr?.message || teamErr));
+      }
+    }
+
     setAlert(refs.createUserAlert, "Erro ao salvar: " + (err?.message || err));
   }
 }

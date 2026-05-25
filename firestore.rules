@@ -104,7 +104,7 @@ service cloud.firestore {
     }
 
     function userFieldsAllowedOnUpdate() {
-      return request.resource.data.diff(resource.data).changedKeys().hasOnly([
+      return request.resource.data.diff(resource.data).affectedKeys().hasOnly([
         "name","role","teamId","teamIds","managedTeamIds",
         "email","emailLower","phone","active",
         "softSkills","hardSkills",
@@ -114,6 +114,10 @@ service cloud.firestore {
         "address","cpf","cnpj","birthDate","age",
         "attachments","onboarding"
       ]);
+    }
+
+    function userUpdateTouches(keys) {
+      return request.resource.data.diff(resource.data).affectedKeys().hasAny(keys);
     }
 
     function roleValid() {
@@ -256,7 +260,7 @@ service cloud.firestore {
 
       // Master pode criar e também (importante) bloquear/desbloquear qualquer empresa
       allow create: if isSuperAdmin()
-        && request.resource.data.keys().hasOnly(["name", "displayName", "cnpj", "cpf", "cpfHash", "accountType", "documentType", "active", "ownerUid", "ownerEmail", "planId", "planName", "planUserLimit", "planParticipantLimit", "planProjectLimit", "planPrice", "planAnnualPrice", "planBillingCycle", "planBillingPrice", "planInstallments", "planInstallmentValue", "planInstallmentPayments", "planUpdatedAt", "billing", "billingStartDate", "billingEndDate", "financialContactName", "financialContactEmail", "financialContactPhone", "billingDueDate", "financialUpdatedAt", "stripeCustomerId", "stripeSubscriptionId", "stripeCheckoutSessionId", "stripeStatus", "createdAt", "createdBy"])
+        && request.resource.data.keys().hasOnly(["name", "displayName", "cnpj", "cpf", "cpfHash", "accountType", "documentType", "active", "ownerUid", "ownerEmail", "planId", "planName", "planUserLimit", "planParticipantLimit", "planProjectLimit", "planPrice", "planAnnualPrice", "planBillingCycle", "planBillingPrice", "planInstallments", "planInstallmentValue", "planInstallmentPayments", "planUpdatedAt", "billing", "billingStartDate", "billingEndDate", "financialContactName", "financialContactEmail", "financialContactPhone", "billingDueDate", "financialUpdatedAt", "stripeCustomerId", "stripeSubscriptionId", "stripeCheckoutSessionId", "stripeStatus", "expenseReceiptRequired", "createdAt", "createdBy"])
         && request.resource.data.name is string
         && request.resource.data.name.size() > 0
         && request.resource.data.cnpj is string
@@ -301,6 +305,7 @@ service cloud.firestore {
         && (!("stripeSubscriptionId" in request.resource.data) || request.resource.data.stripeSubscriptionId is string)
         && (!("stripeCheckoutSessionId" in request.resource.data) || request.resource.data.stripeCheckoutSessionId is string)
         && (!("stripeStatus" in request.resource.data) || request.resource.data.stripeStatus is string)
+        && (!("expenseReceiptRequired" in request.resource.data) || request.resource.data.expenseReceiptRequired is bool)
         && request.resource.data.createdBy == myUid();
 
       allow update: if isSuperAdmin()
@@ -308,7 +313,7 @@ service cloud.firestore {
         && request.resource.data.active is bool;
 
       allow update: if isSuperAdmin()
-        && request.resource.data.keys().hasOnly(["name", "displayName", "cnpj", "cpf", "cpfHash", "accountType", "documentType", "active", "ownerUid", "ownerEmail", "planId", "planName", "planUserLimit", "planParticipantLimit", "planProjectLimit", "planPrice", "planAnnualPrice", "planBillingCycle", "planBillingPrice", "planInstallments", "planInstallmentValue", "planInstallmentPayments", "planUpdatedAt", "billing", "billingStartDate", "billingEndDate", "financialContactName", "financialContactEmail", "financialContactPhone", "billingDueDate", "financialUpdatedAt", "stripeCustomerId", "stripeSubscriptionId", "stripeCheckoutSessionId", "stripeStatus", "createdAt", "createdBy", "number", "logoURL", "logoPath", "logoReportDataUrl", "reportPermissions", "projectTechPermissions", "activityNoteMinChars", "expenseObservationMinChars", "updatedAt"])
+        && request.resource.data.keys().hasOnly(["name", "displayName", "cnpj", "cpf", "cpfHash", "accountType", "documentType", "active", "ownerUid", "ownerEmail", "planId", "planName", "planUserLimit", "planParticipantLimit", "planProjectLimit", "planPrice", "planAnnualPrice", "planBillingCycle", "planBillingPrice", "planInstallments", "planInstallmentValue", "planInstallmentPayments", "planUpdatedAt", "billing", "billingStartDate", "billingEndDate", "financialContactName", "financialContactEmail", "financialContactPhone", "billingDueDate", "financialUpdatedAt", "stripeCustomerId", "stripeSubscriptionId", "stripeCheckoutSessionId", "stripeStatus", "createdAt", "createdBy", "number", "logoURL", "logoPath", "logoReportDataUrl", "reportPermissions", "projectTechPermissions", "activityNoteMinChars", "expenseObservationMinChars", "expenseReceiptRequired", "updatedAt"])
         && request.resource.data.name is string
         && request.resource.data.name.size() > 0
         && request.resource.data.cnpj is string
@@ -355,10 +360,11 @@ service cloud.firestore {
         && (!("stripeStatus" in request.resource.data) || request.resource.data.stripeStatus is string)
         && (!("number" in request.resource.data) || request.resource.data.number is int)
         && (!("activityNoteMinChars" in request.resource.data) || (request.resource.data.activityNoteMinChars is int && request.resource.data.activityNoteMinChars >= 0 && request.resource.data.activityNoteMinChars <= 1000))
-        && (!("expenseObservationMinChars" in request.resource.data) || (request.resource.data.expenseObservationMinChars is int && request.resource.data.expenseObservationMinChars >= 0 && request.resource.data.expenseObservationMinChars <= 1000));
+        && (!("expenseObservationMinChars" in request.resource.data) || (request.resource.data.expenseObservationMinChars is int && request.resource.data.expenseObservationMinChars >= 0 && request.resource.data.expenseObservationMinChars <= 1000))
+        && (!("expenseReceiptRequired" in request.resource.data) || request.resource.data.expenseReceiptRequired is bool);
 
       allow update: if isCompanyAdmin(companyId)
-        && request.resource.data.diff(resource.data).changedKeys().hasOnly(["displayName", "logoURL", "logoPath", "logoReportDataUrl", "reportPermissions", "projectTechPermissions", "activityNoteMinChars", "expenseObservationMinChars", "updatedAt"])
+        && request.resource.data.diff(resource.data).changedKeys().hasOnly(["displayName", "logoURL", "logoPath", "logoReportDataUrl", "reportPermissions", "projectTechPermissions", "activityNoteMinChars", "expenseObservationMinChars", "expenseReceiptRequired", "updatedAt"])
         && (!("displayName" in request.resource.data) || request.resource.data.displayName is string)
         && (!("logoURL" in request.resource.data) || request.resource.data.logoURL is string)
         && (!("logoPath" in request.resource.data) || request.resource.data.logoPath is string)
@@ -367,6 +373,13 @@ service cloud.firestore {
         && (!("projectTechPermissions" in request.resource.data) || request.resource.data.projectTechPermissions is map)
         && (!("activityNoteMinChars" in request.resource.data) || (request.resource.data.activityNoteMinChars is int && request.resource.data.activityNoteMinChars >= 0 && request.resource.data.activityNoteMinChars <= 1000))
         && (!("expenseObservationMinChars" in request.resource.data) || (request.resource.data.expenseObservationMinChars is int && request.resource.data.expenseObservationMinChars >= 0 && request.resource.data.expenseObservationMinChars <= 1000))
+        && (!("expenseReceiptRequired" in request.resource.data) || request.resource.data.expenseReceiptRequired is bool)
+        && (!("updatedAt" in request.resource.data) || request.resource.data.updatedAt is timestamp);
+
+      allow update: if isManager(companyId)
+        && request.resource.data.diff(resource.data).changedKeys().hasOnly(["expenseObservationMinChars", "expenseReceiptRequired", "updatedAt"])
+        && (!("expenseObservationMinChars" in request.resource.data) || (request.resource.data.expenseObservationMinChars is int && request.resource.data.expenseObservationMinChars >= 0 && request.resource.data.expenseObservationMinChars <= 1000))
+        && (!("expenseReceiptRequired" in request.resource.data) || request.resource.data.expenseReceiptRequired is bool)
         && (!("updatedAt" in request.resource.data) || request.resource.data.updatedAt is timestamp);
 
       allow update: if (isManager(companyId) || isCoordinator(companyId) || isCoordenador(companyId))
@@ -434,13 +447,13 @@ match /counters/{counterId} {
           || isCoordinator(companyId)
           || (isSignedIn() && uid == myUid() && companyId == myCompanyId());
 
-        function userWriteValid() {
-          return ((resource == null && userFieldsAllowedOnCreate()) || (resource != null && userFieldsAllowedOnUpdate()))
-             && nameValid()
-             && roleValid()
-             && emailValid()
-             && phoneValid()
-             && addressOptionalValid()
+        function userCreateValid() {
+          return userFieldsAllowedOnCreate()
+            && nameValid()
+            && roleValid()
+            && emailValid()
+            && phoneValid()
+            && addressOptionalValid()
             && cpfOptionalValid()
             && cnpjOptionalValid()
             && birthDateOptionalValid()
@@ -456,10 +469,73 @@ match /counters/{counterId} {
             && userTeamsRuleValid();
         }
 
+        function userUpdateValid() {
+          return userFieldsAllowedOnUpdate()
+            && (!userUpdateTouches(["name"]) || nameValid())
+            && (!userUpdateTouches(["role"]) || roleValid())
+            && (!userUpdateTouches(["email"]) || emailValid())
+            && (!userUpdateTouches(["phone"]) || phoneValid())
+            && (!userUpdateTouches(["address"]) || addressOptionalValid())
+            && (!userUpdateTouches(["cpf"]) || cpfOptionalValid())
+            && (!userUpdateTouches(["cnpj"]) || cnpjOptionalValid())
+            && (!userUpdateTouches(["birthDate"]) || birthDateOptionalValid())
+            && (!userUpdateTouches(["age"]) || ageOptionalValid())
+            && (!userUpdateTouches(["hourlyRate"]) || hourlyRateOptionalValid())
+            && (!userUpdateTouches(["active"]) || activeValid())
+            && (!userUpdateTouches(["createdAt"]) || createdAtOptionalValid())
+            && (!userUpdateTouches(["createdBy"]) || createdByOptionalValid())
+            && (!userUpdateTouches(["teamId"]) || teamIdOptionalValid())
+            && (!userUpdateTouches(["teamIds"]) || teamIdsOptionalValid())
+            && (!userUpdateTouches(["managedTeamIds"]) || managedTeamIdsOptionalValid())
+            && (!userUpdateTouches(["attachments"]) || attachmentsOptionalValid())
+            && (!userUpdateTouches(["role","teamId","teamIds"]) || userTeamsRuleValid());
+        }
+
+        function userWriteValid() {
+          return (resource == null && userCreateValid())
+            || (resource != null && userUpdateValid());
+        }
+
         // master / admin da empresa
         allow create, update: if (isSuperAdmin() || isCompanyAdmin(companyId))
           && userRoleAllowedForCompany(companyId, uid)
           && userWriteValid();
+
+        // admin/master: edicao de dados sem trocar o cargo do usuario
+        allow update: if (isSuperAdmin() || isCompanyAdmin(companyId))
+          && request.resource.data.role == resource.data.role
+          && userWriteValid();
+
+        // admin/master: campos editaveis do cadastro sem alterar cargo/e-mail
+        allow update: if (isSuperAdmin() || isCompanyAdmin(companyId))
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+            "name","phone","active",
+            "teamId","teamIds",
+            "softSkills","hardSkills",
+            "photoURL","hourlyRate",
+            "address","cpf","cnpj","birthDate","age",
+            "attachments"
+          ])
+          && (!userUpdateTouches(["name"]) || nameValid())
+          && (!userUpdateTouches(["phone"]) || phoneValid())
+          && (!userUpdateTouches(["active"]) || activeValid())
+          && (!userUpdateTouches(["teamId"]) || teamIdOptionalValid())
+          && (!userUpdateTouches(["teamIds"]) || teamIdsOptionalValid())
+          && (!userUpdateTouches(["hourlyRate"]) || hourlyRateOptionalValid())
+          && (!userUpdateTouches(["address"]) || addressOptionalValid())
+          && (!userUpdateTouches(["cpf"]) || cpfOptionalValid())
+          && (!userUpdateTouches(["cnpj"]) || cnpjOptionalValid())
+          && (!userUpdateTouches(["birthDate"]) || birthDateOptionalValid())
+          && (!userUpdateTouches(["age"]) || ageOptionalValid())
+          && (!userUpdateTouches(["attachments"]) || attachmentsOptionalValid())
+          && (!userUpdateTouches(["teamId","teamIds"]) || userTeamsRuleValid());
+
+        // admin/master: ajuste direto de equipes em usuario existente
+        allow update: if (isSuperAdmin() || isCompanyAdmin(companyId))
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(["teamId","teamIds"])
+          && teamIdOptionalValid()
+          && teamIdsOptionalValid()
+          && userTeamsRuleValid();
 
         allow update: if isSuperAdmin()
           && request.resource.data.diff(resource.data).changedKeys().hasOnly(["active"])

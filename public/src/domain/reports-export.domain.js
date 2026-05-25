@@ -20,6 +20,30 @@ function formatPercent(value){
   return `${asNumber(value).toFixed(1).replace(".", ",")}%`;
 }
 
+function imageFormatForPdf(value){
+  const raw = String(value || "").toLowerCase();
+  if (raw.includes("image/jpeg") || raw.includes("image/jpg") || raw.includes(".jpg") || raw.includes(".jpeg")) return "JPEG";
+  if (raw.includes("image/webp") || raw.includes(".webp")) return "WEBP";
+  return "PNG";
+}
+
+async function fetchImageAsDataUrl(url){
+  if (!url || String(url).startsWith("data:")) return String(url || "");
+  try{
+    const res = await fetch(url);
+    if (!res.ok) return "";
+    const blob = await res.blob();
+    return await new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(String(reader.result || ""));
+      reader.onerror = reject;
+      reader.readAsDataURL(blob);
+    });
+  }catch(_){
+    return "";
+  }
+}
+
 function normalizeFileName(value){
   return String(value || "relatorio-executivo")
     .normalize("NFD")
@@ -544,7 +568,113 @@ export async function downloadExpenseReceiptPdf(payload){
   doc.save(`${normalizeFileName(`comprovante-despesa-${payload.id || Date.now()}`)}.pdf`);
 }
 
+async function downloadClientClosurePdf(payload){
+  const { jsPDF } = await import("https://cdn.jsdelivr.net/npm/jspdf@2.5.1/+esm");
+  const doc = new jsPDF({ unit: "mm", format: "a4", compress: true });
+  const pageWidth = doc.internal.pageSize.getWidth();
+  const pageHeight = doc.internal.pageSize.getHeight();
+  const margin = 12;
+  const contentWidth = pageWidth - margin * 2;
+  const companyName = String(payload.companyName || "FlowProject");
+  const logoDataUrl = String(payload.logoDataUrl || "") || await fetchImageAsDataUrl(payload.logoURL);
+
+  doc.setFillColor(248, 250, 252);
+  doc.rect(0, 0, pageWidth, pageHeight, "F");
+  doc.setFillColor(15, 23, 42);
+  doc.roundedRect(margin, 10, contentWidth, 38, 6, 6, "F");
+
+  if (logoDataUrl){
+    try{
+      doc.addImage(logoDataUrl, imageFormatForPdf(logoDataUrl), margin + 6, 16, 22, 22);
+    }catch(_){}
+  }
+  if (!logoDataUrl){
+    doc.setFillColor(255, 255, 255);
+    doc.roundedRect(margin + 6, 16, 22, 22, 5, 5, "F");
+    doc.setTextColor(15, 23, 42);
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(15);
+    doc.text(companyName.trim().slice(0, 1).toUpperCase(), margin + 17, 30, { align: "center" });
+  }
+
+  doc.setTextColor(226, 232, 240);
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(8.5);
+  doc.text(companyName.toUpperCase().slice(0, 38), margin + 34, 19);
+  doc.setTextColor(255, 255, 255);
+  doc.setFontSize(17);
+  doc.text(String(payload.title || "Relatorio de Cliente x Fechamento"), margin + 34, 29);
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(8.8);
+  doc.setTextColor(203, 213, 225);
+  doc.text(String(payload.subtitle || ""), margin + 34, 36);
+  doc.text(`Gerado em ${String(payload.generatedAtLabel || new Date().toLocaleString("pt-BR"))}`, margin + 34, 42);
+
+  let y = 56;
+  const summary = payload.summary || [];
+  const cardWidth = Math.max(42, (contentWidth - 8) / Math.max(1, Math.min(3, summary.length || 1)));
+  let x = margin;
+  summary.slice(0, 3).forEach((item) => {
+    doc.setFillColor(255, 255, 255);
+    doc.setDrawColor(226, 232, 240);
+    doc.roundedRect(x, y, cardWidth, 22, 5, 5, "FD");
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(7.5);
+    doc.setTextColor(100, 116, 139);
+    doc.text(String(item.label || "").toUpperCase(), x + 4, y + 7);
+    doc.setTextColor(15, 23, 42);
+    doc.setFontSize(13);
+    doc.text(String(item.value || "-").slice(0, 24), x + 4, y + 16);
+    x += cardWidth + 4;
+  });
+
+  y += 31;
+  if (payload.meta?.length){
+    doc.setFillColor(255, 255, 255);
+    doc.setDrawColor(226, 232, 240);
+    doc.roundedRect(margin, y, contentWidth, 18, 5, 5, "FD");
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(8);
+    doc.setTextColor(71, 85, 105);
+    const metaText = payload.meta.map((item) => `${item.label}: ${item.value}`).join("  |  ");
+    doc.text(doc.splitTextToSize(metaText, contentWidth - 10).slice(0, 2), margin + 5, y + 7);
+    y += 26;
+  }
+
+  const table = (payload.tables || [])[0] || {};
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(12);
+  doc.setTextColor(15, 23, 42);
+  doc.text(String(table.title || "Fechamento de atividades"), margin, y);
+  y = drawSimpleTable(doc, {
+    startY: y + 4,
+    fontSize: 6.4,
+    rowHeight: table.rowHeight || 12,
+    headerHeight: 8,
+    columns: table.pdfColumns || table.columns || [],
+    rows: table.rows || []
+  }) + 12;
+
+  y = ensurePdfSpace(doc, y, 32);
+  const signatureY = Math.min(pageHeight - 24, y + 18);
+  doc.setDrawColor(148, 163, 184);
+  doc.line(pageWidth - margin - 74, signatureY, pageWidth - margin, signatureY);
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(9);
+  doc.setTextColor(15, 23, 42);
+  doc.text(String(payload.signatureName || "Gestor"), pageWidth - margin - 37, signatureY + 6, { align: "center" });
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(8);
+  doc.setTextColor(100, 116, 139);
+  doc.text("Assinatura do Gestor", pageWidth - margin - 37, signatureY + 11, { align: "center" });
+
+  doc.save(`${normalizeFileName(payload.fileName || payload.title)}.pdf`);
+}
+
 export async function downloadReportPdf(payload){
+  if (payload?.template === "clientClosure") {
+    return downloadClientClosurePdf(payload);
+  }
   const { jsPDF } = await import("https://cdn.jsdelivr.net/npm/jspdf@2.5.1/+esm");
   const doc = new jsPDF({ unit: "mm", format: "a4", compress: true });
   const pageWidth = doc.internal.pageSize.getWidth();

@@ -11,32 +11,51 @@ import {
   downloadExpenseReceiptPdf,
   downloadReportExcel,
   downloadReportPdf
-} from "./reports-export.domain.js?v=1778795000";
+} from "./reports-export.domain.js?v=1779824200";
 
 let _bound = false;
 const REPORT_NOTE_PREVIEW_LIMIT = 140;
 const ACTIVITY_TECH_PAGE_SIZE = 8;
 const EXPENSE_REPORT_PAGE_SIZE = 8;
+const CLIENT_CLOSURE_PAGE_SIZE = 8;
+
+const CLIENT_CLOSURE_COLUMNS = [
+  { key: "projectName", label: "Projeto", width: 1.25 },
+  { key: "techName", label: "Tecnico", width: 1.05 },
+  { key: "date", label: "Data", width: .62 },
+  { key: "startTime", label: "inicio", width: .48 },
+  { key: "endTime", label: "fim", width: .48 },
+  { key: "breakTime", label: "Almoco", width: .55 },
+  { key: "pointedHours", label: "Qtde Hora", width: .62, align: "right", type: "number" },
+  { key: "taskName", label: "Tarefa", width: 1.05 },
+  { key: "activityName", label: "Atividade", width: 1.15 },
+  { key: "description", label: "Descricao da Atividade", width: 1.6 },
+  { key: "amount", label: "Valor", width: .72, align: "right", type: "currency" }
+];
 
 const REPORT_CARD_KEYS = [
   "overview",
+  "revenue",
   "metrics",
   "statuses",
   "execution",
   "clients",
   "schedule",
   "activityTech",
+  "clientClosure",
   "expenseReport"
 ];
 
 const CARD_FILTER_CONFIG = {
   overview: ["period", "clientId", "teamId", "status", "projectId"],
+  revenue: ["period", "clientId", "teamId", "status", "projectId"],
   metrics: ["period", "clientId", "projectId"],
   statuses: ["period", "clientId", "teamId"],
   execution: ["period", "clientId", "teamId", "projectId"],
   clients: ["period", "teamId", "status"],
   schedule: ["period", "clientId", "projectId"],
   activityTech: ["period", "clientId", "projectId", "techId", "activityStatus"],
+  clientClosure: ["period", "clientId", "projectId", "techId", "activityStatus"],
   expenseReport: ["period", "expenseUserId", "expenseApproverId", "expenseStatus"]
 };
 
@@ -69,6 +88,11 @@ function formatHours(value){
   return `${asNumber(value).toLocaleString("pt-BR")}h`;
 }
 
+function formatHoursDecimal(value){
+  const rounded = Math.round(asNumber(value) * 100) / 100;
+  return Number.isInteger(rounded) ? String(rounded) : String(rounded).replace(".", ",");
+}
+
 function formatPercent(value){
   return `${asNumber(value).toFixed(1).replace(".", ",")}%`;
 }
@@ -78,6 +102,12 @@ function formatCurrency(value){
     style: "currency",
     currency: "BRL"
   });
+}
+
+function normalizeLowMarginThresholdPercent(value){
+  const num = Number(value);
+  if (!Number.isFinite(num)) return 20;
+  return Math.max(0, Math.min(100, Math.round(num)));
 }
 
 function formatDateBr(value){
@@ -192,6 +222,12 @@ function diffHours(startTime, endTime, breakTime = "00:00"){
   return workedMinutes > 0 ? workedMinutes / 60 : 0;
 }
 
+function formatBreakHours(value){
+  const minutes = parseTimeToMinutes(value || "00:00");
+  if (minutes == null) return value || "-";
+  return `${formatHoursDecimal(minutes / 60)}h`;
+}
+
 function isCompletedActivity(activity){
   return ["os_gerada", "os_aprovada"].includes(String(activity?.status || "").toLowerCase());
 }
@@ -245,6 +281,38 @@ function getProjectPlannedHours(project){
     project?.totalHours ??
     project?.estimatedHours
   );
+}
+
+function getProjectBillingValue(project){
+  return asNumber(
+    project?.billingValue ??
+    project?.value ??
+    project?.projectValue ??
+    project?.billing?.value ??
+    project?.cobrancaValor ??
+    project?.totalValue ??
+    project?.estimatedValue
+  );
+}
+
+function getProjectClientHourlyRate(project){
+  const billingHours = getProjectPlannedHours(project);
+  const billingValue = getProjectBillingValue(project);
+  return billingHours > 0 && billingValue > 0 ? billingValue / billingHours : 0;
+}
+
+function getActivitiesPlannedHours(activities){
+  return (activities || []).reduce((acc, activity) => acc + asNumber(activity?.hoursWorked), 0);
+}
+
+function getActivityResourceCost(activity, usersByUid, { executedOnly = false } = {}){
+  if (executedOnly && !isCompletedActivity(activity)) return 0;
+  const hours = executedOnly ? getPointedHours(activity) : asNumber(activity?.hoursWorked);
+  if (!hours) return 0;
+  const techIds = Array.isArray(activity?.techUids) && activity.techUids.length
+    ? activity.techUids.filter(Boolean)
+    : [activity?.techUid].filter(Boolean);
+  return techIds.reduce((sum, uid) => sum + (asNumber(usersByUid.get(uid)?.hourlyRate) * hours), 0);
 }
 
 function getKpiMetaCard(label, value, sublabel, focusTarget, tone = "neutral"){
@@ -614,7 +682,7 @@ function defaultWidgetFilters(baseData){
 
 function getDefaultWidgetFilters(cardKey, baseData){
   const defaults = defaultWidgetFilters(baseData);
-  if (cardKey === "activityTech") {
+  if (cardKey === "activityTech" || cardKey === "clientClosure") {
     return {
       ...defaults,
       period: "all",
@@ -634,6 +702,43 @@ function getDefaultWidgetFilters(cardKey, baseData){
     };
   }
   return defaults;
+}
+
+function getClientClosureVisibleColumnKeys(state){
+  const defaults = CLIENT_CLOSURE_COLUMNS.map((column) => column.key);
+  const source = state?._clientClosureVisibleColumns;
+  if (!source || typeof source !== "object") {
+    state._clientClosureVisibleColumns = Object.fromEntries(defaults.map((key) => [key, true]));
+    return defaults;
+  }
+  const selected = defaults.filter((key) => source[key] !== false);
+  if (!selected.length) {
+    state._clientClosureVisibleColumns = { ...source, projectName: true };
+    return ["projectName"];
+  }
+  return selected;
+}
+
+function getClientClosureVisibleColumns(state){
+  const keys = new Set(getClientClosureVisibleColumnKeys(state));
+  return CLIENT_CLOSURE_COLUMNS.filter((column) => keys.has(column.key));
+}
+
+function buildClientClosureColumnControls(state){
+  const selected = new Set(getClientClosureVisibleColumnKeys(state));
+  return `
+    <div class="client-closure-column-controls" aria-label="Colunas do relatorio">
+      <strong>Colunas na impressao</strong>
+      <div>
+        ${CLIENT_CLOSURE_COLUMNS.map((column) => `
+          <label>
+            <input type="checkbox" data-client-closure-column="${escapeHtml(column.key)}" ${selected.has(column.key) ? "checked" : ""} />
+            <span>${escapeHtml(column.label)}</span>
+          </label>
+        `).join("")}
+      </div>
+    </div>
+  `;
 }
 
 function ensureWidgetFilters(state, baseData){
@@ -785,11 +890,18 @@ function getScopedData(baseData, filters){
     return Array.isArray(activity.techUids) && activity.techUids.includes(techId);
   });
 
+  const expenses = (baseData.expenses || []).filter((item) => {
+    if (!projectIds.has(item.projectId)) return false;
+    if (period === "all") return true;
+    return inRange(parseDateOnly(item.workDate), start, end);
+  });
+
   return {
     period,
     projects,
     tasks,
     activities,
+    expenses,
     techId,
     activityStatus,
     startDate: period === "custom" ? (filters?.startDate || "") : "",
@@ -1107,6 +1219,180 @@ function buildActivityTechRows(activityTechData, cache, state){
   }).sort((a, b) => String(a.techName || "").localeCompare(String(b.techName || "")) || String(a.date || "").localeCompare(String(b.date || "")));
 }
 
+function buildClientClosureRows(clientClosureData, cache, state){
+  const isTech = String(state?.profile?.role || state?._reportsRole || "").toLowerCase() === "tecnico";
+  const currentUid = state?._reportsCurrentUid || "";
+  const usersByUid = new Map(((cache?.users || state?._usersCache || [])).map((user) => [user.uid || user.id, user]));
+  const tasksById = Object.fromEntries((cache?.tasks || []).map((task) => [task.id, task]));
+  const projectsById = Object.fromEntries((cache?.projects || []).map((project) => [project.id, project]));
+  const clientsById = Object.fromEntries((cache?.clients || []).map((client) => [client.id, client]));
+
+  return clientClosureData.activities.flatMap((activity) => {
+    const allTechIds = Array.isArray(activity.techUids) && activity.techUids.length ? activity.techUids : [activity.techUid || ""];
+    const techIds = isTech && currentUid ? allTechIds.filter((uid) => uid === currentUid) : allTechIds;
+    if (!techIds.length) return [];
+    const techNames = Array.isArray(activity.techNames) ? activity.techNames : [];
+    return techIds.map((techUid, index) => {
+      const user = usersByUid.get(techUid) || {};
+      const project = projectsById[activity.projectId] || {};
+      const task = tasksById[activity.taskId] || {};
+      const client = clientsById[project.clientId] || {};
+      const clientHourlyRate = getProjectClientHourlyRate(project);
+      const pointedHours = getPointedHours(activity);
+      const amount = pointedHours * clientHourlyRate;
+      return {
+        id: `${activity.id}-${techUid || index}`,
+        projectName: project.name || activity.projectName || "Projeto",
+        clientId: project.clientId || activity.clientId || "",
+        clientName: client.name || project.clientName || activity.clientName || "Sem cliente",
+        clientPhotoDataUrl: client.reportPhotoDataUrl || "",
+        clientPhotoURL: client.photoURL || "",
+        managerName: usersByUid.get(project.managerUid)?.name || usersByUid.get(project.managerUid)?.email || project.managerName || project.manager?.name || "",
+        techUid,
+        techName: user.name || user.email || techNames[index] || techNames[0] || "Sem tecnico",
+        dateRaw: activity.workDate || "",
+        date: formatDateBr(activity.workDate),
+        startTime: activity.startTime || "-",
+        endTime: activity.endTime || "-",
+        breakTime: formatBreakHours(activity.breakTime || "01:00"),
+        pointedHoursValue: pointedHours,
+        pointedHours: formatHours(pointedHours),
+        taskName: task.name || activity.taskName || "Tarefa",
+        activityName: activity.name || "Atividade",
+        description: activity.note || activity.observation || activity.obs || "-",
+        clientHourlyRate,
+        amountValue: amount,
+        amount: formatCurrency(amount),
+        status: activityStatusLabel(activity)
+      };
+    });
+  }).sort((a, b) => String(a.dateRaw || "").localeCompare(String(b.dateRaw || "")) || String(a.projectName || "").localeCompare(String(b.projectName || "")) || String(a.techName || "").localeCompare(String(b.techName || "")));
+}
+
+function buildRevenueProjectRows(revenueData, cache, state){
+  const lowMarginThresholdPercent = normalizeLowMarginThresholdPercent(state?.company?.lowMarginThresholdPercent);
+  const usersByUid = new Map(((cache?.users || [])).map((user) => [user.uid || user.id, user]));
+  const clientsById = Object.fromEntries((cache?.clients || []).map((client) => [client.id, client]));
+  const activitiesByProject = new Map();
+  (revenueData.activities || []).forEach((activity) => {
+    const list = activitiesByProject.get(activity.projectId) || [];
+    list.push(activity);
+    activitiesByProject.set(activity.projectId, list);
+  });
+  const expensesByProject = new Map();
+  (revenueData.expenses || []).forEach((expense) => {
+    const list = expensesByProject.get(expense.projectId) || [];
+    list.push(expense);
+    expensesByProject.set(expense.projectId, list);
+  });
+
+  return (revenueData.projects || []).map((project) => {
+    const projectActivities = activitiesByProject.get(project.id) || [];
+    const projectExpenses = expensesByProject.get(project.id) || [];
+    const completedActivities = projectActivities.filter((activity) => isCompletedActivity(activity));
+    const billingHours = getProjectPlannedHours(project);
+    const contractedRevenue = getProjectBillingValue(project);
+    const clientHourlyRate = getProjectClientHourlyRate(project);
+    const plannedHours = getActivitiesPlannedHours(projectActivities);
+    const executedHours = completedActivities.reduce((acc, activity) => acc + getPointedHours(activity), 0);
+    const plannedRevenue = clientHourlyRate * plannedHours;
+    const executedRevenue = clientHourlyRate * executedHours;
+    const resourceCost = completedActivities.reduce((acc, activity) => acc + getActivityResourceCost(activity, usersByUid, { executedOnly: true }), 0);
+    const approvedExpenses = projectExpenses.filter((item) => String(item.status || "").toLowerCase() === "approved");
+    const internalExpenses = approvedExpenses
+      .filter((item) => item.chargedToClient !== true)
+      .reduce((acc, item) => acc + asNumber(item.amount), 0);
+    const clientExpenses = approvedExpenses
+      .filter((item) => item.chargedToClient === true)
+      .reduce((acc, item) => acc + asNumber(item.amount), 0);
+    const expenses = internalExpenses + clientExpenses;
+    const netRevenue = executedRevenue - resourceCost - internalExpenses;
+    const netRevenuePercent = executedRevenue > 0 ? (netRevenue / executedRevenue) * 100 : 0;
+    const isLowMargin = executedRevenue > 0 && netRevenuePercent < lowMarginThresholdPercent;
+
+    return {
+      id: project.id,
+      number: project.projectNumber ? `#${project.projectNumber}` : "-",
+      projectName: project.name || "Projeto",
+      clientName: clientsById[project.clientId]?.name || project.clientName || "Sem cliente",
+      status: statusInfo(project.status).label,
+      billingHours,
+      clientHourlyRate,
+      contractedRevenue,
+      plannedHours,
+      plannedRevenue,
+      executedHours,
+      executedRevenue,
+      resourceCost,
+      internalExpenses,
+      clientExpenses,
+      expenses,
+      netRevenue,
+      netRevenuePercent,
+      isLowMargin
+    };
+  }).sort((a, b) => b.executedRevenue - a.executedRevenue || b.contractedRevenue - a.contractedRevenue || String(a.projectName || "").localeCompare(String(b.projectName || "")));
+}
+
+function sumRevenueRows(rows){
+  return rows.reduce((acc, row) => {
+    acc.contractedRevenue += row.contractedRevenue;
+    acc.plannedRevenue += row.plannedRevenue;
+    acc.executedRevenue += row.executedRevenue;
+    acc.resourceCost += row.resourceCost;
+    acc.internalExpenses += row.internalExpenses;
+    acc.clientExpenses += row.clientExpenses;
+    acc.expenses += row.expenses;
+    acc.netRevenue += row.netRevenue;
+    acc.plannedHours += row.plannedHours;
+    acc.executedHours += row.executedHours;
+    return acc;
+  }, {
+    contractedRevenue: 0,
+    plannedRevenue: 0,
+    executedRevenue: 0,
+    resourceCost: 0,
+    internalExpenses: 0,
+    clientExpenses: 0,
+    expenses: 0,
+    netRevenue: 0,
+    plannedHours: 0,
+    executedHours: 0
+  });
+}
+
+function buildHourOverrunProjectRows(scopeData, allActivities){
+  const projectIds = new Set((scopeData.projects || []).map((project) => project.id));
+  const sourceActivities = (allActivities || scopeData.activities || []).filter((activity) => projectIds.has(activity.projectId));
+  return (scopeData.projects || []).map((project) => {
+    const projectActivities = sourceActivities.filter((activity) => activity.projectId === project.id);
+    const billingHours = getProjectPlannedHours(project);
+    const plannedHours = getActivitiesPlannedHours(projectActivities);
+    const executedHours = projectActivities
+      .filter((activity) => isCompletedActivity(activity))
+      .reduce((acc, activity) => acc + getPointedHours(activity), 0);
+    const forecastHours = Math.max(plannedHours, executedHours);
+    const projectedOverrunHours = billingHours > 0 ? Math.max(0, forecastHours - billingHours) : 0;
+    const executedOverrunHours = billingHours > 0 ? Math.max(0, executedHours - billingHours) : 0;
+    const remainingHours = billingHours > 0 ? Math.max(0, billingHours - executedHours) : 0;
+    const consumptionPercent = billingHours > 0 ? (executedHours / billingHours) * 100 : 0;
+    return {
+      id: project.id,
+      projectName: project.name || "Projeto",
+      billingHours,
+      plannedHours,
+      executedHours,
+      forecastHours,
+      remainingHours,
+      projectedOverrunHours,
+      executedOverrunHours,
+      consumptionPercent,
+      hasRisk: billingHours > 0 && (projectedOverrunHours > 0 || consumptionPercent >= 90)
+    };
+  }).filter((row) => row.hasRisk)
+    .sort((a, b) => b.projectedOverrunHours - a.projectedOverrunHours || b.consumptionPercent - a.consumptionPercent);
+}
+
 function getPeriodExportLabel(data, periodLabelMap){
   if (data.period === "custom") return `${formatDateBr(data.startDate)} a ${formatDateBr(data.endDate)}`;
   return periodLabelMap[data.period] || data.period || "Periodo";
@@ -1143,6 +1429,11 @@ function buildReportsExportPayloads({
   overviewPlannedHours,
   overviewWorkedHours,
   overviewPending,
+  revenueData,
+  revenueRows,
+  revenueTotals,
+  lowMarginRows,
+  lowMarginThresholdPercent,
   metricsData,
   metricsCompleted,
   metricsPending,
@@ -1167,6 +1458,10 @@ function buildReportsExportPayloads({
   activityTechTotals,
   activityTechHeaderName,
   activityTechHeaderRate,
+  clientClosureRows,
+  clientClosureTotals,
+  clientClosureFilters,
+  clientClosureColumns,
   expenseRows,
   expenseFilters,
   expenseUserLabel,
@@ -1209,6 +1504,73 @@ function buildReportsExportPayloads({
           status: statusInfo(project.status).label,
           hours: formatHours(getProjectPlannedHours(project))
         }))
+      }]
+    },
+    revenue: {
+      title: "Receita efetiva por projeto",
+      subtitle: `Periodo analisado: ${getPeriodExportLabel(revenueData, periodLabelMap)}`,
+      generatedAtLabel,
+      fileName: `receita-projetos-${suffix}`,
+      summary: [
+        { label: "Receita efetiva", value: formatCurrency(revenueTotals.executedRevenue) },
+        { label: "Valor planejado", value: formatCurrency(revenueTotals.plannedRevenue) },
+        { label: "Custo recurso", value: formatCurrency(revenueTotals.resourceCost) },
+        { label: "Despesas", value: formatCurrency(revenueTotals.expenses) },
+        { label: "Receita liquida", value: formatCurrency(revenueTotals.netRevenue) },
+        { label: "Margem baixa", value: String(lowMarginRows.length) }
+      ],
+      tables: [{
+        title: "Resumo por projeto",
+        columns: [
+          { key: "client", label: "Cliente", width: 1.1 },
+          { key: "project", label: "Projeto", width: 1.5 },
+          { key: "executedRevenue", label: "Receita efetiva", width: .9 },
+          { key: "plannedRevenue", label: "Valor planejado", width: .9 },
+          { key: "resourceCost", label: "Custo recurso", width: .85 },
+          { key: "ownExpenses", label: "Despesas proprias", width: .8 },
+          { key: "netRevenue", label: "Receita liquida", width: .9 },
+          { key: "marginAlert", label: "Alerta", width: .7 }
+        ],
+        excelColumns: [
+          { key: "client", label: "Cliente", width: 1.1 },
+          { key: "project", label: "Projeto", width: 1.5 },
+          { key: "executedRevenueValue", label: "Receita efetiva", width: .9, type: "currency", align: "right" },
+          { key: "plannedRevenueValue", label: "Valor planejado", width: .9, type: "currency", align: "right" },
+          { key: "resourceCostValue", label: "Custo recursos", width: .85, type: "currency", align: "right" },
+          { key: "ownExpensesValue", label: "Despesas proprias", width: .8, type: "currency", align: "right" },
+          { key: "netRevenueValue", label: "Receita liquida", width: .9, type: "currency", align: "right" },
+          { key: "marginAlert", label: "Alerta", width: .7 }
+        ],
+        rows: revenueRows.map((row) => ({
+          client: row.clientName,
+          project: row.projectName,
+          executedRevenue: formatCurrency(row.executedRevenue),
+          plannedRevenue: formatCurrency(row.plannedRevenue),
+          resourceCost: formatCurrency(row.resourceCost),
+          ownExpenses: formatCurrency(row.internalExpenses),
+          netRevenue: formatCurrency(row.netRevenue),
+          marginAlert: row.isLowMargin ? `Abaixo de ${lowMarginThresholdPercent}%` : "",
+          executedRevenueValue: row.executedRevenue,
+          plannedRevenueValue: row.plannedRevenue,
+          resourceCostValue: row.resourceCost,
+          ownExpensesValue: row.internalExpenses,
+          netRevenueValue: row.netRevenue
+        })),
+        footerRows: [{
+          client: "Totais",
+          project: "",
+          executedRevenue: formatCurrency(revenueTotals.executedRevenue),
+          plannedRevenue: formatCurrency(revenueTotals.plannedRevenue),
+          resourceCost: formatCurrency(revenueTotals.resourceCost),
+          ownExpenses: formatCurrency(revenueTotals.internalExpenses),
+          netRevenue: formatCurrency(revenueTotals.netRevenue),
+          marginAlert: "",
+          executedRevenueValue: revenueTotals.executedRevenue,
+          plannedRevenueValue: revenueTotals.plannedRevenue,
+          resourceCostValue: revenueTotals.resourceCost,
+          ownExpensesValue: revenueTotals.internalExpenses,
+          netRevenueValue: revenueTotals.netRevenue
+        }]
       }]
     },
     metrics: {
@@ -1261,7 +1623,7 @@ function buildReportsExportPayloads({
           { key: "value", label: "Valor", width: 1 }
         ],
         rows: [
-          { metric: "Horas previstas dos projetos", value: formatHours(executionPlannedHours) },
+          { metric: "Horas previstas no periodo", value: formatHours(executionPlannedHours) },
           { metric: "Horas executadas com OS", value: formatHours(executionWorkedHours) },
           { metric: "Atividades atrasadas sem OS", value: String(executionOverdue) },
           { metric: "Percentual de consumo", value: formatPercent(executionProgress) }
@@ -1363,6 +1725,40 @@ function buildReportsExportPayloads({
           amount: formatCurrency(row.amount),
           note: row.note || "-"
         }))
+      }]
+    },
+    clientClosure: {
+      template: "clientClosure",
+      title: "Relatorio de Cliente x Fechamento",
+      subtitle: `Periodo analisado: ${getPeriodExportLabel(clientClosureFilters || { period: "all" }, periodLabelMap)}`,
+      generatedAtLabel,
+      fileName: `cliente-x-fechamento-${suffix}`,
+      companyName: state?.company?.displayName || state?.company?.name || "FlowProject",
+      logoDataUrl: clientClosureRows.find((row) => row.clientPhotoDataUrl)?.clientPhotoDataUrl || state?.company?.logoReportDataUrl || "",
+      logoURL: clientClosureRows.find((row) => row.clientPhotoURL)?.clientPhotoURL || state?.company?.logoURL || "",
+      signatureName: clientClosureRows.find((row) => row.managerName)?.managerName || state?.profile?.name || state?.profile?.email || "Gestor",
+      meta: [
+        { label: "Periodo", value: getPeriodExportLabel(clientClosureFilters || { period: "all" }, periodLabelMap) },
+        { label: "Cliente", value: clientClosureRows.length ? [...new Set(clientClosureRows.map((row) => row.clientName))].slice(0, 3).join(", ") : "Todos os clientes" }
+      ],
+      summary: [
+        { label: "Registros", value: String(clientClosureRows.length) },
+        { label: "Horas apontadas", value: formatHours(clientClosureTotals.pointedHours) },
+        { label: "Valor total", value: formatCurrency(clientClosureTotals.amount) }
+      ],
+      tables: [{
+        title: "Fechamento de atividades",
+        rowHeight: 12,
+        columns: clientClosureColumns.map((column) => ({
+          ...column,
+          key: column.key === "pointedHours" ? "pointedHoursValue" : (column.key === "amount" ? "amountValue" : column.key)
+        })),
+        pdfColumns: clientClosureColumns,
+        excelColumns: clientClosureColumns.map((column) => ({
+          ...column,
+          key: column.key === "pointedHours" ? "pointedHoursValue" : (column.key === "amount" ? "amountValue" : column.key)
+        })),
+        rows: clientClosureRows
       }]
     },
     expenseReport: {
@@ -1471,7 +1867,7 @@ function buildExecutiveExportPayload({
       client: clientName,
       manager: managerName,
       status: statusInfo(project.status).label,
-      plannedHours: getProjectPlannedHours(project),
+      plannedHours: getActivitiesPlannedHours(projectActivities),
       executedHours,
       pendingActivities,
       overdueActivities,
@@ -1522,6 +1918,7 @@ function renderReports(cache, refs, state){
   ensureWidgetFilters(state, baseData);
   if (String(state?.profile?.role || state?._reportsRole || "").toLowerCase() === "tecnico" && state?._reportsCurrentUid) {
     state._reportsWidgetFilters.activityTech.techId = state._reportsCurrentUid;
+    state._reportsWidgetFilters.clientClosure.techId = state._reportsCurrentUid;
     state._reportsWidgetFilters.expenseReport.expenseUserId = state._reportsCurrentUid;
   }
   const clientsById = Object.fromEntries(cache.clients.map((client) => [client.id, client]));
@@ -1537,15 +1934,17 @@ function renderReports(cache, refs, state){
   today.setHours(0, 0, 0, 0);
 
   const overviewData = getScopedData(baseData, state._reportsWidgetFilters.overview);
+  const revenueData = getScopedData(baseData, state._reportsWidgetFilters.revenue);
   const metricsData = getScopedData(baseData, state._reportsWidgetFilters.metrics);
   const statusesData = getScopedData(baseData, state._reportsWidgetFilters.statuses);
   const executionData = getScopedData(baseData, state._reportsWidgetFilters.execution);
   const clientsData = getScopedData(baseData, state._reportsWidgetFilters.clients);
   const scheduleData = getScopedData(baseData, state._reportsWidgetFilters.schedule);
   const activityTechData = getScopedData(baseData, state._reportsWidgetFilters.activityTech);
+  const clientClosureData = getScopedData(baseData, state._reportsWidgetFilters.clientClosure);
   const operationalDrilldown = getOperationalDrilldownMeta(state);
 
-  const overviewPlannedHours = overviewData.projects.reduce((acc, project) => acc + getProjectPlannedHours(project), 0);
+  const overviewPlannedHours = getActivitiesPlannedHours(overviewData.activities);
   const overviewWorkedHours = overviewData.activities
     .filter((activity) => isCompletedActivity(activity))
     .reduce((acc, activity) => acc + asNumber(activity.hoursWorked), 0);
@@ -1558,6 +1957,12 @@ function renderReports(cache, refs, state){
   const overviewOverdue = overviewOverdueActivities.length;
   const overviewPlannedPendingHours = overviewOverdueActivities.reduce((acc, activity) => acc + asNumber(activity.hoursWorked), 0);
   const overviewAvgHoursPerTask = overviewData.tasks.length ? (overviewWorkedHours / overviewData.tasks.length) : 0;
+
+  const revenueRows = buildRevenueProjectRows(revenueData, cache, state);
+  const revenueTotals = sumRevenueRows(revenueRows);
+  const lowMarginThresholdPercent = normalizeLowMarginThresholdPercent(state?.company?.lowMarginThresholdPercent);
+  const lowMarginRows = revenueRows.filter((row) => row.isLowMargin);
+  const hourOverrunRows = buildHourOverrunProjectRows(overviewData, baseData.activities);
 
   const metricsCompleted = metricsData.activities.filter((activity) => isCompletedActivity(activity)).length;
   const metricsPending = metricsData.activities.length - metricsCompleted;
@@ -1582,7 +1987,7 @@ function renderReports(cache, refs, state){
     const date = parseDateOnly(activity.workDate);
     return date && date >= today && isPendingOsActivity(activity);
   });
-  const schedulePlannedHours = schedulePlannedActivities.reduce((acc, activity) => acc + asNumber(activity.hoursWorked), 0);
+  const schedulePlannedHours = getActivitiesPlannedHours(schedulePlannedActivities);
   const scheduleExecutedHours = scheduleExecutedActivities.reduce((acc, activity) => acc + asNumber(activity.hoursWorked), 0);
   const scheduleProgress = Math.min(100, schedulePlannedHours > 0 ? (scheduleExecutedHours / schedulePlannedHours) * 100 : 0);
   const scheduleMaxCount = Math.max(
@@ -1622,6 +2027,25 @@ function renderReports(cache, refs, state){
   );
   const activityTechStartRow = activityTechRows.length ? ((activityTechCurrentPage - 1) * ACTIVITY_TECH_PAGE_SIZE) + 1 : 0;
   const activityTechEndRow = Math.min(activityTechRows.length, activityTechCurrentPage * ACTIVITY_TECH_PAGE_SIZE);
+  const clientClosureRows = buildClientClosureRows(clientClosureData, cache, state);
+  const clientClosureColumns = getClientClosureVisibleColumns(state);
+  const clientClosureTotals = clientClosureRows.reduce((acc, row) => {
+    acc.pointedHours += row.pointedHoursValue;
+    acc.amount += row.amountValue;
+    return acc;
+  }, { pointedHours: 0, amount: 0 });
+  const clientClosureTotalPages = Math.max(1, Math.ceil(clientClosureRows.length / CLIENT_CLOSURE_PAGE_SIZE));
+  const clientClosureCurrentPage = Math.min(
+    Math.max(1, Number(state._clientClosurePage || 1)),
+    clientClosureTotalPages
+  );
+  state._clientClosurePage = clientClosureCurrentPage;
+  const clientClosurePageRows = clientClosureRows.slice(
+    (clientClosureCurrentPage - 1) * CLIENT_CLOSURE_PAGE_SIZE,
+    clientClosureCurrentPage * CLIENT_CLOSURE_PAGE_SIZE
+  );
+  const clientClosureStartRow = clientClosureRows.length ? ((clientClosureCurrentPage - 1) * CLIENT_CLOSURE_PAGE_SIZE) + 1 : 0;
+  const clientClosureEndRow = Math.min(clientClosureRows.length, clientClosureCurrentPage * CLIENT_CLOSURE_PAGE_SIZE);
   const expenseFilters = state._reportsWidgetFilters.expenseReport || getDefaultWidgetFilters("expenseReport", baseData);
   const expenseRows = getExpenseReportRows(baseData, expenseFilters);
   state._expenseReportRows = expenseRows;
@@ -1698,7 +2122,7 @@ function renderReports(cache, refs, state){
   }));
   const maxStatusCount = Math.max(1, ...statusCounts.map((item) => item.count));
 
-  const executionPlannedHours = executionData.projects.reduce((acc, project) => acc + getProjectPlannedHours(project), 0);
+  const executionPlannedHours = getActivitiesPlannedHours(executionData.activities);
   const executionWorkedHours = executionData.activities
     .filter((activity) => isCompletedActivity(activity))
     .reduce((acc, activity) => acc + asNumber(activity.hoursWorked), 0);
@@ -1739,6 +2163,11 @@ function renderReports(cache, refs, state){
     overviewPlannedHours,
     overviewWorkedHours,
     overviewPending,
+    revenueData,
+    revenueRows,
+    revenueTotals,
+    lowMarginRows,
+    lowMarginThresholdPercent,
     metricsData,
     metricsCompleted,
     metricsPending,
@@ -1763,6 +2192,10 @@ function renderReports(cache, refs, state){
     activityTechTotals,
     activityTechHeaderName,
     activityTechHeaderRate,
+    clientClosureRows,
+    clientClosureTotals,
+    clientClosureFilters: state._reportsWidgetFilters.clientClosure,
+    clientClosureColumns,
     expenseRows,
     expenseFilters,
     expenseUserLabel: getOptionLabel(getExpenseUserOptions(baseData), expenseFilters.expenseUserId, "Todos os usuarios"),
@@ -1786,9 +2219,110 @@ function renderReports(cache, refs, state){
       </div>
       <div class="reports-kpis">
         ${getKpiMetaCard("Projetos monitorados", String(overviewData.projects.length), "Com filtros ativos", "statuses", "neutral")}
-        ${getKpiMetaCard("Horas previstas", formatHours(overviewPlannedHours), "Total de horas dos projetos", "execution", "planned")}
+        ${getKpiMetaCard("Horas previstas", formatHours(overviewPlannedHours), "Atividades planejadas no periodo", "execution", "planned")}
         ${getKpiMetaCard("Horas executadas", formatHours(overviewWorkedHours), `Somente atividades com OS gerada/aprovada • Media por tarefa: ${formatHours(overviewAvgHoursPerTask)}`, "execution", "worked")}
         ${getKpiMetaCard("Atividades pendentes", String(overviewPending), `${String(overviewOverdue)} atrasadas`, "metrics", "danger")}
+      </div>
+      ${hourOverrunRows.length ? `<div class="reports-warning-panel">
+        <div>
+          <strong>Previsao de estouro de horas</strong>
+          <span>${escapeHtml(String(hourOverrunRows.length))} projeto(s) com risco no periodo filtrado.</span>
+        </div>
+        <div class="reports-warning-list">
+          ${hourOverrunRows.slice(0, 4).map((row) => `<span>${escapeHtml(row.projectName)}: ${escapeHtml(row.projectedOverrunHours > 0 ? `${formatHours(row.projectedOverrunHours)} acima do previsto` : `${formatPercent(row.consumptionPercent)} consumido`)}</span>`).join("")}
+        </div>
+      </div>` : ""}
+    </section>
+
+    <section class="reports-card reports-card--revenue" data-report-section="revenue">
+      <div class="reports-card-head">
+        <div>
+          <div class="reports-card-kicker">Receita</div>
+          <h3>Receita efetiva por projeto</h3>
+          <p class="muted">Visao enxuta por cliente, projeto, valor planejado, receita efetiva, custo de recurso e despesas.</p>
+        </div>
+        ${buildReportExportTools("revenue")}
+        ${buildCardFilterBar(baseData, state, "revenue")}
+      </div>
+      <div class="reports-revenue-summary">
+        <article>
+          <span>Receita efetiva</span>
+          <strong>${escapeHtml(formatCurrency(revenueTotals.executedRevenue))}</strong>
+          <small>${escapeHtml(formatHours(revenueTotals.executedHours))} executadas com OS</small>
+        </article>
+        <article>
+          <span>Valor planejado</span>
+          <strong>${escapeHtml(formatCurrency(revenueTotals.plannedRevenue))}</strong>
+          <small>${escapeHtml(formatHours(revenueTotals.plannedHours))} planejadas</small>
+        </article>
+        <article>
+          <span>Custo recurso</span>
+          <strong>${escapeHtml(formatCurrency(revenueTotals.resourceCost))}</strong>
+          <small>Horas executadas x valor/hora</small>
+        </article>
+        <article>
+          <span>Despesas</span>
+          <strong>${escapeHtml(formatCurrency(revenueTotals.expenses))}</strong>
+          <small>Aprovadas no periodo</small>
+        </article>
+        <article class="${revenueTotals.netRevenue < 0 ? "is-negative" : "is-positive"}">
+          <span>Receita liquida</span>
+          <strong>${escapeHtml(formatCurrency(revenueTotals.netRevenue))}</strong>
+          <small>Receita efetiva - recurso - despesas proprias</small>
+        </article>
+        <article class="${lowMarginRows.length ? "is-negative" : "is-positive"}">
+          <span>Margem baixa</span>
+          <strong>${escapeHtml(String(lowMarginRows.length))}</strong>
+          <small>${escapeHtml(`Limite abaixo de ${lowMarginThresholdPercent}%`)}</small>
+        </article>
+      </div>
+      ${lowMarginRows.length ? `<div class="reports-warning-strip">
+        ${lowMarginRows.slice(0, 4).map((row) => `<span>${escapeHtml(row.projectName)}: ${escapeHtml(formatPercent(row.netRevenuePercent))}</span>`).join("")}
+      </div>` : ""}
+      <div class="reports-revenue-table-wrap">
+        <table class="reports-revenue-table">
+          <thead>
+            <tr>
+              <th>Cliente</th>
+              <th>Projeto</th>
+              <th>Receita efetiva</th>
+              <th>Valor planejado</th>
+              <th>Custo recursos</th>
+              <th>Despesas proprias</th>
+              <th>Receita liquida</th>
+              <th>Alerta</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${revenueRows.length ? revenueRows.map((row) => `
+              <tr class="${row.isLowMargin ? "is-alert" : ""}">
+                <td>${escapeHtml(row.clientName)}</td>
+                <td><strong>${escapeHtml(row.projectName)}</strong><span>${escapeHtml(`${row.number} • ${row.status}`)}</span></td>
+                <td><strong>${escapeHtml(formatCurrency(row.executedRevenue))}</strong><span>${escapeHtml(formatHours(row.executedHours))}</span></td>
+                <td><strong>${escapeHtml(formatCurrency(row.plannedRevenue))}</strong><span>${escapeHtml(formatHours(row.plannedHours))}</span></td>
+                <td>${escapeHtml(formatCurrency(row.resourceCost))}</td>
+                <td>${escapeHtml(formatCurrency(row.internalExpenses))}</td>
+                <td class="${row.netRevenue < 0 ? "is-negative" : "is-positive"}"><strong>${escapeHtml(formatCurrency(row.netRevenue))}</strong><span>${escapeHtml(formatPercent(row.netRevenuePercent))}</span></td>
+                <td>${row.isLowMargin ? `<span class="reports-alert-pill">Margem baixa</span>` : ""}</td>
+              </tr>
+            `).join("") : `
+              <tr>
+                <td colspan="8" class="expense-report-empty-cell">Nenhum projeto encontrado com os filtros atuais.</td>
+              </tr>
+            `}
+          </tbody>
+          <tfoot>
+            <tr>
+              <th colspan="2">Totais</th>
+              <th>${escapeHtml(formatCurrency(revenueTotals.executedRevenue))}</th>
+              <th>${escapeHtml(formatCurrency(revenueTotals.plannedRevenue))}</th>
+              <th>${escapeHtml(formatCurrency(revenueTotals.resourceCost))}</th>
+              <th>${escapeHtml(formatCurrency(revenueTotals.internalExpenses))}</th>
+              <th class="${revenueTotals.netRevenue < 0 ? "is-negative" : "is-positive"}">${escapeHtml(formatCurrency(revenueTotals.netRevenue))}</th>
+              <th></th>
+            </tr>
+          </tfoot>
+        </table>
       </div>
     </section>
 
@@ -1821,7 +2355,7 @@ function renderReports(cache, refs, state){
       <div class="reports-donut-wrap">
         <div class="reports-donut" style="--progress:${executionProgress}"><div class="reports-donut-center"><strong>${escapeHtml(formatPercent(executionProgress))}</strong><span>consumo</span></div></div>
         <div class="reports-legend">
-          <div><span class="reports-legend-dot reports-legend-dot--planned"></span>Horas previstas dos projetos: <b>${escapeHtml(formatHours(executionPlannedHours))}</b></div>
+          <div><span class="reports-legend-dot reports-legend-dot--planned"></span>Horas previstas no periodo: <b>${escapeHtml(formatHours(executionPlannedHours))}</b></div>
           <div><span class="reports-legend-dot reports-legend-dot--worked"></span>Horas executadas com OS: <b>${escapeHtml(formatHours(executionWorkedHours))}</b></div>
           <div><span class="reports-legend-dot reports-legend-dot--late"></span>Atividades atrasadas sem OS: <b>${escapeHtml(String(executionOverdue))}</b></div>
         </div>
@@ -1961,6 +2495,75 @@ function renderReports(cache, refs, state){
       </div>
     </section>
 
+    <section class="reports-card reports-card--client-closure" data-report-section="clientClosure">
+      <div class="reports-card-head">
+        <div>
+          <div class="reports-card-kicker">Cliente x fechamento</div>
+          <h3>Relatorio de Cliente x Fechamento</h3>
+          <p class="muted">Fechamento executivo para envio ao cliente com horas apontadas, detalhes da atividade e valor calculado pelo valor hora do cliente.</p>
+        </div>
+        ${buildReportExportTools("clientClosure")}
+        ${buildCardFilterBar(baseData, state, "clientClosure")}
+      </div>
+      ${buildClientClosureColumnControls(state)}
+      <div class="reports-activity-tech-summary reports-client-closure-summary">
+        <article>
+          <span>Registros</span>
+          <strong>${escapeHtml(String(clientClosureRows.length))}</strong>
+        </article>
+        <article>
+          <span>Horas apontadas</span>
+          <strong>${escapeHtml(formatHours(clientClosureTotals.pointedHours))}</strong>
+        </article>
+        <article>
+          <span>Valor total</span>
+          <strong>${escapeHtml(formatCurrency(clientClosureTotals.amount))}</strong>
+        </article>
+      </div>
+      <div class="reports-activity-tech-table-wrap reports-client-closure-table-wrap">
+        <table class="reports-activity-tech-table reports-client-closure-table">
+          <thead>
+            <tr>
+              ${clientClosureColumns.map((column) => `<th>${escapeHtml(column.label)}</th>`).join("")}
+            </tr>
+          </thead>
+          <tbody>
+            ${clientClosurePageRows.length ? clientClosurePageRows.map((row) => `
+              <tr>
+                ${clientClosureColumns.map((column) => {
+                  const value = row[column.key] ?? "-";
+                  const isPrimary = ["projectName", "techName", "activityName", "amount"].includes(column.key);
+                  return `<td>${isPrimary ? `<strong>${escapeHtml(value)}</strong>` : escapeHtml(value)}</td>`;
+                }).join("")}
+              </tr>
+            `).join("") : `
+              <tr>
+                <td colspan="${escapeHtml(String(clientClosureColumns.length))}" class="reports-activity-tech-empty">Nenhuma atividade encontrada com os filtros atuais.</td>
+              </tr>
+            `}
+          </tbody>
+          <tfoot>
+            <tr>
+              ${clientClosureColumns.map((column, index) => {
+                if (index === 0) return `<th>Totais</th>`;
+                if (column.key === "pointedHours") return `<th>${escapeHtml(formatHours(clientClosureTotals.pointedHours))}</th>`;
+                if (column.key === "amount") return `<th>${escapeHtml(formatCurrency(clientClosureTotals.amount))}</th>`;
+                return `<th></th>`;
+              }).join("")}
+            </tr>
+          </tfoot>
+        </table>
+      </div>
+      <div class="reports-activity-tech-pagination">
+        <span>${escapeHtml(String(clientClosureStartRow))}-${escapeHtml(String(clientClosureEndRow))} de ${escapeHtml(String(clientClosureRows.length))} atividades</span>
+        <div>
+          <button type="button" data-client-closure-page="prev" ${clientClosureCurrentPage <= 1 ? "disabled" : ""}>Anterior</button>
+          <strong>Pagina ${escapeHtml(String(clientClosureCurrentPage))} de ${escapeHtml(String(clientClosureTotalPages))}</strong>
+          <button type="button" data-client-closure-page="next" ${clientClosureCurrentPage >= clientClosureTotalPages ? "disabled" : ""}>Proxima</button>
+        </div>
+      </div>
+    </section>
+
     <section class="reports-card reports-card--expense-report" data-report-section="expenseReport">
       <div class="reports-card-head">
         <div>
@@ -2080,6 +2683,18 @@ function bindOnce(deps){
   refs.reportsGrid?.addEventListener("change", (event) => {
     const target = event.target;
     if (!(target instanceof HTMLSelectElement) && !(target instanceof HTMLInputElement)) return;
+    const clientClosureColumn = target.dataset.clientClosureColumn;
+    if (clientClosureColumn){
+      if (!deps.state._clientClosureVisibleColumns) {
+        deps.state._clientClosureVisibleColumns = Object.fromEntries(CLIENT_CLOSURE_COLUMNS.map((column) => [column.key, true]));
+      }
+      deps.state._clientClosureVisibleColumns[clientClosureColumn] = target.checked;
+      if (!Object.values(deps.state._clientClosureVisibleColumns).some(Boolean)) {
+        deps.state._clientClosureVisibleColumns[clientClosureColumn] = true;
+      }
+      renderReports(deps.state._reportsCache, refs, deps.state);
+      return;
+    }
     const cardKey = target.dataset.reportCard;
     const filterKey = target.dataset.reportFilter;
     if (!cardKey || !filterKey) return;
@@ -2098,6 +2713,7 @@ function bindOnce(deps){
       deps.state._reportsWidgetFilters[cardKey][filterKey] = target.value || "all";
     }
     if (cardKey === "activityTech") deps.state._activityTechPage = 1;
+    if (cardKey === "clientClosure") deps.state._clientClosurePage = 1;
     if (cardKey === "expenseReport") deps.state._expenseReportPage = 1;
     if (["clientId", "teamId", "status"].includes(filterKey)) deps.state._reportsWidgetFilters[cardKey].projectId = "all";
     if (filterKey === "period" && target.value !== "custom"){
@@ -2131,6 +2747,16 @@ function bindOnce(deps){
       const direction = pageTrigger.getAttribute("data-activity-tech-page");
       const current = Number(deps.state._activityTechPage || 1);
       deps.state._activityTechPage = direction === "prev" ? Math.max(1, current - 1) : current + 1;
+      renderReports(deps.state._reportsCache, refs, deps.state);
+      return;
+    }
+    const clientClosurePageTrigger = target.closest("[data-client-closure-page]");
+    if (clientClosurePageTrigger){
+      event.preventDefault();
+      event.stopPropagation();
+      const direction = clientClosurePageTrigger.getAttribute("data-client-closure-page");
+      const current = Number(deps.state._clientClosurePage || 1);
+      deps.state._clientClosurePage = direction === "prev" ? Math.max(1, current - 1) : current + 1;
       renderReports(deps.state._reportsCache, refs, deps.state);
       return;
     }

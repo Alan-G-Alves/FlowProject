@@ -56,16 +56,16 @@ import { createNotification } from "./src/services/notifications.service.js?v=17
 import * as refs from "./src/ui/refs.js?v=1778794200";
 import * as companiesDomain from "./src/domain/companies.domain.js?v=1778794100";
 import * as teamsDomain from "./src/domain/teams.domain.js?v=1772614200";
-import * as usersDomain from "./src/domain/users.domain.js?v=1778794100";
+import * as usersDomain from "./src/domain/users.domain.js?v=1779682900";
 import * as managerUsersDomain from "./src/domain/manager-users.domain.js?v=1778794100";
 import * as clientsDomain from "./src/domain/clients.domain.js?v=1778628200";
 import * as projectsDomain from "./src/domain/projects.domain.js?v=1778616200";
 import * as myActivitiesDomain from "./src/domain/my-activities.domain.js?v=1778795202";
 import * as myFeedbacksDomain from "./src/domain/my-feedbacks.domain.js?v=1778629800";
 import * as osApprovalsDomain from "./src/domain/os-approvals.domain.js?v=1776052722";
-import * as expensesDomain from "./src/domain/expenses.domain.js?v=1778720302";
-import * as projectWorkspaceDomain from "./src/domain/project-workspace.domain.js?v=1778794000";
-import * as reportsDomain from "./src/domain/reports.domain.js?v=1778795000";
+import * as expensesDomain from "./src/domain/expenses.domain.js?v=1779741200";
+import * as projectWorkspaceDomain from "./src/domain/project-workspace.domain.js?v=1779485200";
+import * as reportsDomain from "./src/domain/reports.domain.js?v=1779824200";
 import * as lgpdDomain from "./src/domain/lgpd.domain.js?v=1777475100";
 import * as profileModal from "./src/ui/modals/profile.modal.js?v=1770332251";
 import * as topbar from "./src/ui/topbar.js?v=1770332251";
@@ -216,12 +216,14 @@ const REPORT_PERMISSION_ROLES = [
 
 const REPORT_PERMISSION_ITEMS = [
   { key: "overview", label: "Painel consolidado de projetos" },
+  { key: "revenue", label: "Receita efetiva por projeto" },
   { key: "metrics", label: "Saude operacional do periodo" },
   { key: "statuses", label: "Projetos por status" },
   { key: "execution", label: "Horas previstas x executadas" },
   { key: "clients", label: "Clientes com maior volume executado" },
   { key: "schedule", label: "Cronograma de projeto por periodo" },
   { key: "activityTech", label: "Relatorio de Atividade x Tecnico", note: "Tecnico ve apenas os proprios dados." },
+  { key: "clientClosure", label: "Relatorio de Cliente x Fechamento", note: "Fechamento para envio ao cliente." },
   { key: "expenseReport", label: "Relatorio de Despesas", note: "Tecnico ve apenas as proprias despesas." }
 ];
 
@@ -285,6 +287,16 @@ function normalizeExpenseObservationMinChars(value){
   const num = Number(value);
   if (!Number.isFinite(num)) return 10;
   return Math.max(0, Math.min(1000, Math.round(num)));
+}
+
+function normalizeExpenseReceiptRequired(value){
+  return value !== false;
+}
+
+function normalizeLowMarginThresholdPercent(value){
+  const num = Number(value);
+  if (!Number.isFinite(num)) return 20;
+  return Math.max(0, Math.min(100, Math.round(num)));
 }
 
 function getCompanyBrand(company = state.company){
@@ -718,9 +730,27 @@ function renderSettingsView(){
       actionLabel: "Configurar"
     }));
     cards.push(settingsCard({
+      scope: "Financeiro",
+      title: "Alerta de margem baixa",
+      desc: "Defina o percentual minimo de receita liquida para destacar projetos em risco.",
+      action: "lowMarginSettings",
+      actionLabel: "Configurar"
+    }));
+  }
+
+  if (isAdmin || isManager){
+    if (!isAdmin){
+      cards.push(`
+        <div class="settings-section">
+          <h2>Empresa</h2>
+          <p>Preferencias gerais da empresa.</p>
+        </div>
+      `);
+    }
+    cards.push(settingsCard({
       scope: "Despesas",
       title: "Regras de despesas",
-      desc: "Defina quantos caracteres a observacao da despesa precisa ter para ser salva.",
+      desc: "Defina a observacao minima e se o comprovante sera obrigatorio.",
       action: "expenseObservationSettings",
       actionLabel: "Configurar"
     }));
@@ -1343,6 +1373,7 @@ async function createDailyTechnicalNotifications(){
 async function createMonthlyBirthdayNotification(){
   const uid = auth.currentUser?.uid || "";
   if (!state.companyId || !uid || state.isSuperAdmin) return;
+  if (!["admin", "gestor", "coordenador"].includes(currentRoleKey())) return;
 
   const now = new Date();
   const monthKey = monthKeyLocal(now);
@@ -2329,6 +2360,13 @@ function getDashboardCardIcon(title){
         <circle cx="12" cy="12" r="8.2" stroke="currentColor" stroke-width="2"/>
         <path d="m8.4 12.2 2.3 2.3 5-5.2" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>
       </svg>
+    `,
+    "Minhas Atividades": `
+      <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+        <rect x="5" y="4" width="14" height="16" rx="2.4" stroke="currentColor" stroke-width="2"/>
+        <path d="M9 8h6M9 12h3.5" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+        <path d="m9 16 1.8 1.8L15.5 13" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>
+      </svg>
     `
   };
   return icons[title] || "";
@@ -2367,6 +2405,15 @@ function renderDashboardCards(profile){
       badge: "Kanban",
       action: () => navigateTo(ROUTES.myProjects)
     });
+
+    if (role === "tecnico") {
+      cards.push({
+        title: "Minhas Atividades",
+        desc: "Veja suas atividades por tarefa, faca apontamentos e envie para aprovacao.",
+        badge: "Tecnico",
+        action: () => navigateTo(ROUTES.myActivities)
+      });
+    }
 
     if (canApproveOs) {
       cards.push({
@@ -3225,6 +3272,11 @@ function canConfigureProjectTechPermissions(){
   return !state.isSuperAdmin && ["admin", "gestor", "coordenador"].includes(role);
 }
 
+function canConfigureExpenseRules(){
+  const role = String(state.profile?.role || "").toLowerCase();
+  return !state.isSuperAdmin && ["admin", "gestor"].includes(role);
+}
+
 function closeReportPermissionsModal(){
   hide(refs.modalReportPermissions);
   clearAlert(refs.reportPermissionsAlert);
@@ -3434,32 +3486,37 @@ function closeExpenseObservationSettingsModal(){
 
 async function openExpenseObservationSettingsModal(){
   clearAlert(refs.expenseObservationSettingsAlert);
-  if (!isCompanyAdmin()){
-    alert("Acesso restrito: somente admin da empresa pode configurar regras de despesas.");
+  if (!canConfigureExpenseRules()){
+    alert("Acesso restrito: somente admin ou gestor da empresa pode configurar regras de despesas.");
     return;
   }
   if (!state.company && state.companyId) await loadCurrentCompanyBrand();
   if (refs.expenseObservationMinCharsInput) {
     refs.expenseObservationMinCharsInput.value = String(normalizeExpenseObservationMinChars(state.company?.expenseObservationMinChars));
   }
+  if (refs.expenseReceiptRequiredInput) {
+    refs.expenseReceiptRequiredInput.checked = normalizeExpenseReceiptRequired(state.company?.expenseReceiptRequired);
+  }
   show(refs.modalExpenseObservationSettings);
 }
 
 async function saveExpenseObservationSettings(){
   clearAlert(refs.expenseObservationSettingsAlert);
-  if (!isCompanyAdmin()) return setAlert(refs.expenseObservationSettingsAlert, "Acesso restrito.");
+  if (!canConfigureExpenseRules()) return setAlert(refs.expenseObservationSettingsAlert, "Acesso restrito.");
   if (!state.companyId) return setAlert(refs.expenseObservationSettingsAlert, "Empresa nao identificada.");
   const raw = refs.expenseObservationMinCharsInput?.value ?? "";
   const value = normalizeExpenseObservationMinChars(raw);
+  const receiptRequired = refs.expenseReceiptRequiredInput?.checked !== false;
   if (String(raw).trim() === "" || Number(raw) !== value){
     return setAlert(refs.expenseObservationSettingsAlert, "Informe um numero inteiro entre 0 e 1000.");
   }
   try{
     await updateDoc(doc(db, "companies", state.companyId), {
       expenseObservationMinChars: value,
+      expenseReceiptRequired: receiptRequired,
       updatedAt: serverTimestamp()
     });
-    state.company = { ...(state.company || {}), expenseObservationMinChars: value };
+    state.company = { ...(state.company || {}), expenseObservationMinChars: value, expenseReceiptRequired: receiptRequired };
     setAlert(refs.expenseObservationSettingsAlert, "Regra de despesa salva com sucesso.", "success");
   }catch(err){
     console.error("[expense-observation-settings:save]", err);
@@ -3469,6 +3526,51 @@ async function saveExpenseObservationSettings(){
 
 function resetExpenseObservationSettingsForm(){
   if (refs.expenseObservationMinCharsInput) refs.expenseObservationMinCharsInput.value = "10";
+  if (refs.expenseReceiptRequiredInput) refs.expenseReceiptRequiredInput.checked = true;
+}
+
+function closeLowMarginSettingsModal(){
+  hide(refs.modalLowMarginSettings);
+  clearAlert(refs.lowMarginSettingsAlert);
+}
+
+async function openLowMarginSettingsModal(){
+  clearAlert(refs.lowMarginSettingsAlert);
+  if (!isCompanyAdmin()){
+    alert("Acesso restrito: somente admin da empresa pode configurar alertas financeiros.");
+    return;
+  }
+  if (!state.company && state.companyId) await loadCurrentCompanyBrand();
+  if (refs.lowMarginThresholdPercentInput) {
+    refs.lowMarginThresholdPercentInput.value = String(normalizeLowMarginThresholdPercent(state.company?.lowMarginThresholdPercent));
+  }
+  show(refs.modalLowMarginSettings);
+}
+
+async function saveLowMarginSettings(){
+  clearAlert(refs.lowMarginSettingsAlert);
+  if (!isCompanyAdmin()) return setAlert(refs.lowMarginSettingsAlert, "Acesso restrito.");
+  if (!state.companyId) return setAlert(refs.lowMarginSettingsAlert, "Empresa nao identificada.");
+  const raw = refs.lowMarginThresholdPercentInput?.value ?? "";
+  const value = normalizeLowMarginThresholdPercent(raw);
+  if (String(raw).trim() === "" || Number(raw) !== value){
+    return setAlert(refs.lowMarginSettingsAlert, "Informe um numero inteiro entre 0 e 100.");
+  }
+  try{
+    await updateDoc(doc(db, "companies", state.companyId), {
+      lowMarginThresholdPercent: value,
+      updatedAt: serverTimestamp()
+    });
+    state.company = { ...(state.company || {}), lowMarginThresholdPercent: value };
+    setAlert(refs.lowMarginSettingsAlert, "Alerta de margem baixa salvo com sucesso.", "success");
+  }catch(err){
+    console.error("[low-margin-settings:save]", err);
+    setAlert(refs.lowMarginSettingsAlert, err?.message || "Nao foi possivel salvar o alerta de margem baixa.");
+  }
+}
+
+function resetLowMarginSettingsForm(){
+  if (refs.lowMarginThresholdPercentInput) refs.lowMarginThresholdPercentInput.value = "20";
 }
 
 function closeCompanyBrandModal(){
@@ -3612,6 +3714,7 @@ function updateAdminSummary(){
  *  ========================= */
 const getUsersDeps = () => ({
   refs, state, db, auth, storage, functions, httpsCallable,
+  callHttpFunctionWithAuth,
   createUserWithAuthAndResetLink, loadUsers, loadTeams,
   openManagedTeamsModal, ensureTeamsForChips, renderTeamChips, openUserFeedbackModal
 });
@@ -4169,6 +4272,11 @@ refs.btnCancelExpenseObservationSettings?.addEventListener("click", closeExpense
 refs.modalExpenseObservationSettings?.addEventListener("click", (event) => {
   if (event.target?.matches?.("[data-close-expense-observation-settings='true']")) closeExpenseObservationSettingsModal();
 });
+refs.btnCloseLowMarginSettings?.addEventListener("click", closeLowMarginSettingsModal);
+refs.btnCancelLowMarginSettings?.addEventListener("click", closeLowMarginSettingsModal);
+refs.modalLowMarginSettings?.addEventListener("click", (event) => {
+  if (event.target?.matches?.("[data-close-low-margin-settings='true']")) closeLowMarginSettingsModal();
+});
 refs.companyBrandName?.addEventListener("input", previewCompanyBrand);
 refs.companyBrandLogoFile?.addEventListener("change", previewCompanyBrand);
 refs.btnSaveCompanyBrand?.addEventListener("click", saveCompanyBrand);
@@ -4181,6 +4289,8 @@ refs.btnSaveActivityNoteSettings?.addEventListener("click", saveActivityNoteSett
 refs.btnResetActivityNoteSettings?.addEventListener("click", resetActivityNoteSettingsForm);
 refs.btnSaveExpenseObservationSettings?.addEventListener("click", saveExpenseObservationSettings);
 refs.btnResetExpenseObservationSettings?.addEventListener("click", resetExpenseObservationSettingsForm);
+refs.btnSaveLowMarginSettings?.addEventListener("click", saveLowMarginSettings);
+refs.btnResetLowMarginSettings?.addEventListener("click", resetLowMarginSettingsForm);
 
 refs.settingsGrid?.addEventListener("click", async (event) => {
   const btn = event.target?.closest?.("[data-settings-action]");
@@ -4192,6 +4302,7 @@ refs.settingsGrid?.addEventListener("click", async (event) => {
   if (action === "projectTechPermissions") return openProjectTechPermissionsModal();
   if (action === "activityNoteSettings") return openActivityNoteSettingsModal();
   if (action === "expenseObservationSettings") return openExpenseObservationSettingsModal();
+  if (action === "lowMarginSettings") return openLowMarginSettingsModal();
   if (action === "lgpd") return openLgpdCenter();
   if (action === "users") {
     return navigateTo(ROUTES.managerUsers);
@@ -4236,7 +4347,7 @@ refs.btnForgot?.addEventListener("click", async () => {
 
   try {
     await sendPasswordResetEmail(auth, email, {
-      url: "https://portalprojectflow.com/login",
+      url: "https://portalprojectflow.com/reset-password",
       handleCodeInApp: false
     });
     setAlert(refs.loginAlert, "Link de redefinição enviado para seu e-mail.", "info");
