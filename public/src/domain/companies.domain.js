@@ -8,7 +8,7 @@ import { setView } from "../ui/router.js";
 import { listCompaniesDocs } from "../services/companies.service.js";
 import { isEmailValidBasic, isCnpjValidBasic } from "../utils/validators.js";
 import { normalizePhone, normalizeCnpj } from "../utils/format.js";
-import { DEFAULT_COMPANY_BILLING_CYCLE, DEFAULT_COMPANY_PLAN_ID, getCompanyPlan, normalizeCompanyPlan, formatCompanyPlanPrice } from "../utils/plans.js?v=1778794100";
+import { DEFAULT_COMPANY_BILLING_CYCLE, DEFAULT_COMPANY_PLAN_ID, getCompanyPlan, normalizeCompanyPlan, formatCompanyPlanPrice } from "../utils/plans.js?v=1779922600";
 
 /** =========================
  *  COMPANIES DOMAIN
@@ -275,6 +275,10 @@ function updateCompanyRenewalControls(refs) {
 
   if (refs.companyRenewalSummary) {
     const total = cycle === "annual" ? plan.annualPrice : plan.price;
+    if (plan.consultOnly) {
+      refs.companyRenewalSummary.textContent = `${plan.label} - fale com um consultor para definir a proposta.`;
+      return;
+    }
     const parcelText = cycle === "annual" ? ` em ${installments}x de ${formatCompanyPlanPrice(total / installments)}` : "";
     refs.companyRenewalSummary.textContent = `${plan.label} - ${getBillingCycleLabel(cycle)} ${formatCompanyPlanPrice(total)}${parcelText}.`;
   }
@@ -306,6 +310,10 @@ function updateCompanyPlanSelectedPrice(refs) {
   if (!refs.companyPlanSelectedPriceEl) return;
   const plan = getCompanyPlan(refs.companyPlanEl?.value || DEFAULT_COMPANY_PLAN_ID);
   const billingCycle = normalizeBillingCycle(refs.companyPlanBillingCycleEl?.value);
+  if (plan.consultOnly) {
+    refs.companyPlanSelectedPriceEl.textContent = "Fale com um consultor para definir a proposta deste plano.";
+    return;
+  }
   const price = billingCycle === "annual" ? plan.annualPrice : plan.price;
   const installments = normalizePlanInstallments(refs.companyPlanInstallmentsEl?.value, billingCycle);
   const installmentsWrap = refs.companyPlanInstallmentsEl?.closest?.(".field");
@@ -528,12 +536,16 @@ export async function loadCompanyDetail(companyId, deps) {
     if (refs.companyPlanBillingCycleDetail) refs.companyPlanBillingCycleDetail.value = plan.billingCycle;
     if (refs.companyPlanInstallmentsDetail) refs.companyPlanInstallmentsDetail.value = String(plan.installments || 1);
     updateCompanyPlanDetailControls(refs);
-    if (refs.companyPlanSummary) {
-      const suffix = plan.billingCycle === "annual" ? "/ano" : "/mes";
-      const installmentText = plan.billingCycle === "annual"
-        ? ` em ${plan.installments || 1}x de ${formatCompanyPlanPrice(plan.installmentValue || plan.billingPrice)}`
-        : "";
-      refs.companyPlanSummary.textContent = `${plan.label} - plano ${getBillingCycleLabel(plan.billingCycle)} ${formatCompanyPlanPrice(plan.billingPrice)}${suffix}${installmentText}. Limite de ${plan.userLimit} usuarios ativos.`;
+  if (refs.companyPlanSummary) {
+      if (plan.consultOnly) {
+        refs.companyPlanSummary.textContent = `${plan.label} - proposta consultiva. Limite de ${plan.userLimit} usuarios ativos.`;
+      } else {
+        const suffix = plan.billingCycle === "annual" ? "/ano" : "/mes";
+        const installmentText = plan.billingCycle === "annual"
+          ? ` em ${plan.installments || 1}x de ${formatCompanyPlanPrice(plan.installmentValue || plan.billingPrice)}`
+          : "";
+        refs.companyPlanSummary.textContent = `${plan.label} - plano ${getBillingCycleLabel(plan.billingCycle)} ${formatCompanyPlanPrice(plan.billingPrice)}${suffix}${installmentText}. Limite de ${plan.userLimit} usuarios ativos.`;
+      }
     }
     if (refs.companyDetailCompanySummary) refs.companyDetailCompanySummary.textContent = `${plan.label} - limite de ${plan.userLimit} usuarios ativos.`;
     if (refs.companyDetailCompanyCardInfo) refs.companyDetailCompanyCardInfo.textContent = `${plan.label} (${getBillingCycleLabel(plan.billingCycle)})`;

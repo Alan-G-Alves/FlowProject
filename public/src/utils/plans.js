@@ -1,9 +1,9 @@
 export const COMPANY_PLANS = [
-  { id: "plan-1-20", label: "1 a 20 usuarios", userLimit: 20, price: 257, annualPrice: 2467.2 },
-  { id: "plan-21-40", label: "21 a 40 usuarios", userLimit: 40, price: 387, annualPrice: 3715.2 },
-  { id: "plan-41-60", label: "41 a 60 usuarios", userLimit: 60, price: 497, annualPrice: 4771.2 },
-  { id: "plan-61-80", label: "61 a 80 usuarios", userLimit: 80, price: 697, annualPrice: 6691.2 },
-  { id: "plan-81-100", label: "81 a 100 usuarios", userLimit: 100, price: 847, annualPrice: 8131.2 }
+  { id: "plan-1-20", label: "1 a 20 usuarios", userLimit: 20, price: 147.9, annualPrice: 1419.84 },
+  { id: "plan-21-40", label: "21 a 40 usuarios", userLimit: 40, price: 247.9, annualPrice: 2379.84 },
+  { id: "plan-41-60", label: "41 a 60 usuarios", userLimit: 60, price: 347.9, annualPrice: 3339.84 },
+  { id: "plan-61-80", label: "61 a 80 usuarios", userLimit: 80, price: 0, annualPrice: 0, consultOnly: true },
+  { id: "plan-81-100", label: "81 a 100 usuarios", userLimit: 100, price: 0, annualPrice: 0, consultOnly: true }
 ];
 
 export const INDIVIDUAL_MANAGER_PLANS = [
@@ -18,8 +18,8 @@ export const INDIVIDUAL_MANAGER_PLANS = [
     participantLimit: 2,
     techLimit: 2,
     projectLimit: 15,
-    price: 29.9,
-    annualPrice: 287.04
+    price: 19.9,
+    annualPrice: 191.04
   },
   {
     id: "manager-pro",
@@ -32,8 +32,8 @@ export const INDIVIDUAL_MANAGER_PLANS = [
     participantLimit: 5,
     techLimit: 5,
     projectLimit: 30,
-    price: 57.9,
-    annualPrice: 555.84
+    price: 27.9,
+    annualPrice: 267.84
   },
   {
     id: "manager-plus",
@@ -46,8 +46,8 @@ export const INDIVIDUAL_MANAGER_PLANS = [
     participantLimit: 10,
     techLimit: 10,
     projectLimit: 50,
-    price: 87.9,
-    annualPrice: 843.84
+    price: 57.9,
+    annualPrice: 555.84
   }
 ];
 
@@ -100,6 +100,7 @@ export function normalizeCompanyPlan(company = {}) {
     id: byId.id,
     label: company.planName || byId.label,
     userLimit: Number.isFinite(userLimit) && userLimit > 0 ? userLimit : byId.userLimit,
+    consultOnly: Boolean(byId.consultOnly),
     price,
     annualPrice,
     billingCycle,

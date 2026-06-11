@@ -27,6 +27,38 @@
       "**/.*",
       "**/node_modules/**"
     ],
+    "redirects": [
+      {
+        "source": "https://www.portalprojectflow.com/**",
+        "destination": "https://portalprojectflow.com/:splat",
+        "type": 301
+      },
+      {
+        "source": "/gestao-consultorias",
+        "destination": "/gestao-consultoria",
+        "type": 301
+      },
+      {
+        "source": "/gestao-implantacao-erp",
+        "destination": "/implantacao-erp",
+        "type": 301
+      },
+      {
+        "source": "/controle-projetos-erp",
+        "destination": "/implantacao-erp",
+        "type": 301
+      },
+      {
+        "source": "/software-pmo",
+        "destination": "/pmo",
+        "type": 301
+      },
+      {
+        "source": "/status-report-projetos",
+        "destination": "/o-que-e-status-report",
+        "type": 301
+      }
+    ],
     "rewrites": [
       {
         "source": "**",

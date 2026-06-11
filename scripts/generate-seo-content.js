@@ -567,7 +567,7 @@ function softwareSchema(page) {
     offers: {
       "@type": "Offer",
       priceCurrency: "BRL",
-      price: "257.00",
+      price: "147.90",
       category: "monthly",
       availability: "https://schema.org/InStock"
     },
@@ -793,7 +793,7 @@ function articleCard(article) {
             <span>${esc(article.categoryName)}</span>
             <h2><a href="/blog/${article.slug}">${esc(article.title)}</a></h2>
             <p>${esc(article.description)}</p>
-            <a class="seo-text-link" href="/blog/${article.slug}">Ler estrutura do artigo</a>
+            <a class="seo-text-link" href="/blog/${article.slug}">Ler artigo</a>
           </article>`;
 }
 
@@ -855,7 +855,7 @@ function blogIndexHtml() {
         <div class="sales-shell">
           <div class="section-head">
             <h2>50 pautas estrategicas para gerar leads organicos</h2>
-            <p>Cada artigo ja nasce com slug, palavra-chave, intencao de busca, outline, CTA e linkagem interna.</p>
+            <p>Cada artigo ja nasce com slug, palavra-chave, intencao de busca, CTA e linkagem interna.</p>
           </div>
           <div class="seo-article-grid">
             ${articles.map(articleCard).join("\n            ")}
@@ -975,7 +975,7 @@ function articleHtml(article) {
             <div class="seo-article-body">
               <h2>Resumo estrategico</h2>
               <p>Este artigo foi planejado para atrair compradores B2B que pesquisam por ${esc(article.keyword)} e precisam transformar controle operacional em rotina pratica. O foco editorial e mostrar problemas reais, criterios de avaliacao e caminhos para integrar projetos, equipe, horas, OS, despesas e relatorios.</p>
-              <h2>Outline recomendado</h2>
+              <h2>Pontos principais</h2>
               ${article.outline.map((item, index) => `<section class="seo-outline-block">
                 <h3>${index + 1}. ${esc(item)}</h3>
                 <p>Explique o conceito com exemplos de empresas de servicos, consultorias, equipes tecnicas e PMOs. Inclua sinais de maturidade, erros comuns, indicadores e como uma plataforma operacional reduz controles paralelos.</p>

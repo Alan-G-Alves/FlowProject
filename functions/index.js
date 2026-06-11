@@ -90,22 +90,22 @@ function sanitizeHourlyRate(v) {
 }
 
 const COMPANY_PLANS = [
-  { id: "plan-1-20", label: "1 a 20 usuarios", userLimit: 20, price: 257, annualPrice: 2467.2 },
-  { id: "plan-21-40", label: "21 a 40 usuarios", userLimit: 40, price: 387, annualPrice: 3715.2 },
-  { id: "plan-41-60", label: "41 a 60 usuarios", userLimit: 60, price: 497, annualPrice: 4771.2 },
-  { id: "plan-61-80", label: "61 a 80 usuarios", userLimit: 80, price: 697, annualPrice: 6691.2 },
-  { id: "plan-81-100", label: "81 a 100 usuarios", userLimit: 100, price: 847, annualPrice: 8131.2 },
+  { id: "plan-1-20", label: "1 a 20 usuarios", userLimit: 20, price: 147.9, annualPrice: 1419.84 },
+  { id: "plan-21-40", label: "21 a 40 usuarios", userLimit: 40, price: 247.9, annualPrice: 2379.84 },
+  { id: "plan-41-60", label: "41 a 60 usuarios", userLimit: 60, price: 347.9, annualPrice: 3339.84 },
+  { id: "plan-61-80", label: "61 a 80 usuarios", userLimit: 80, price: 0, annualPrice: 0, consultOnly: true },
+  { id: "plan-81-100", label: "81 a 100 usuarios", userLimit: 100, price: 0, annualPrice: 0, consultOnly: true },
 ];
 
 const INDIVIDUAL_MANAGER_PLANS = [
-  { id: "manager-start", label: "Gestor Start", includedUsers: 3, participantLimit: 2, projectLimit: 15, price: 29.9, priceCents: 2990 },
-  { id: "manager-pro", label: "Gestor Pro", includedUsers: 6, participantLimit: 5, projectLimit: 30, price: 57.9, priceCents: 5790 },
-  { id: "manager-plus", label: "Gestor Plus", includedUsers: 11, participantLimit: 10, projectLimit: 50, price: 87.9, priceCents: 8790 },
+  { id: "manager-start", label: "Gestor Start", includedUsers: 3, participantLimit: 2, projectLimit: 15, price: 19.9, priceCents: 1990 },
+  { id: "manager-pro", label: "Gestor Pro", includedUsers: 6, participantLimit: 5, projectLimit: 30, price: 27.9, priceCents: 2790 },
+  { id: "manager-plus", label: "Gestor Plus", includedUsers: 11, participantLimit: 10, projectLimit: 50, price: 57.9, priceCents: 5790 },
 ];
 
 const MANAGER_START_TRIAL_DAYS = 30;
 const MANAGER_START_TRIAL_CONSENT_VERSION = "manager-start-trial-v1-2026-05-14";
-const MANAGER_START_TRIAL_CONSENT_TEXT = "Declaro que estou contratando o plano Gestor Start com 30 dias gratis. Entendo que, se eu nao cancelar antes do fim do periodo gratuito, sera realizada automaticamente a cobranca mensal de R$ 29,90 no cartao informado. Posso cancelar a qualquer momento antes do fim dos 30 dias para nao ser cobrado.";
+const MANAGER_START_TRIAL_CONSENT_TEXT = "Declaro que estou contratando o plano Gestor Start com 30 dias gratis. Entendo que, se eu nao cancelar antes do fim do periodo gratuito, sera realizada automaticamente a cobranca mensal de R$ 19,90 no cartao informado. Posso cancelar a qualquer momento antes do fim dos 30 dias para nao ser cobrado.";
 
 function getCompanyPlan(planId) {
   return COMPANY_PLANS.find((plan) => plan.id === planId) || COMPANY_PLANS[0];
@@ -240,6 +240,7 @@ function normalizeCompanyPlan(companyData = {}) {
     ...plan,
     label: companyData.planName || plan.label,
     userLimit: Number.isFinite(userLimit) && userLimit > 0 ? userLimit : plan.userLimit,
+    consultOnly: Boolean(plan.consultOnly),
     price: Number(companyData.planPrice || plan.price),
     annualPrice: Number(companyData.planAnnualPrice || plan.annualPrice),
     billingCycle,

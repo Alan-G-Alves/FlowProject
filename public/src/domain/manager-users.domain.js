@@ -1246,7 +1246,7 @@ import { humanizeRole } from "../utils/roles.js";
 import { show, hide, escapeHtml } from "../utils/dom.js";
 import { isEmailValidBasic } from "../utils/validators.js";
 import { normalizePhone } from "../utils/format.js";
-import { normalizeCompanyPlan } from "../utils/plans.js?v=1778794100";
+import { normalizeCompanyPlan } from "../utils/plans.js?v=1779922600";
 import { createNotifications } from "../services/notifications.service.js?v=1776052722";
 import {
   bindMaskedInput,

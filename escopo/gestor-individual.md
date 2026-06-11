@@ -17,9 +17,9 @@ Criar uma linha de produto para pessoa fisica/MEI que usa CPF no cadastro e prec
 
 | Plano | Usuarios incluidos | Composicao | Projetos ativos | Valor mensal sugerido |
 | --- | --- | ---: | ---: | ---: |
-| Gestor Start | 3 usuarios | 1 Gestor + 2 Participantes | 10 | R$ 29,90 |
-| Gestor Pro | 6 usuarios | 1 Gestor + 5 Participantes | 20 | R$ 57,90 |
-| Gestor Plus | 11 usuarios | 1 Gestor + 10 Participantes | 40 | R$ 87,90 |
+| Gestor Start | 3 usuarios | 1 Gestor + 2 Participantes | 10 | R$ 19,90 |
+| Gestor Pro | 6 usuarios | 1 Gestor + 5 Participantes | 20 | R$ 27,90 |
+| Gestor Plus | 11 usuarios | 1 Gestor + 10 Participantes | 40 | R$ 57,90 |
 
 ## Como preservar o sistema atual
 

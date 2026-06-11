@@ -824,8 +824,26 @@ a{color:inherit}
   line-height:1;
 }
 .price span{
+  display:block;
+  margin-top:2px;
   color:var(--fp-muted);
   font-weight:800;
+}
+.consult-card .price{
+  min-height:57px;
+}
+.consult-price strong{
+  display:block;
+  font-size:29px;
+  line-height:1.04;
+  letter-spacing:0;
+}
+.consult-price span{
+  max-width:100%;
+  color:#64748b;
+  font-size:12px;
+  line-height:1.25;
+  overflow-wrap:anywhere;
 }
 .annual-price{
   display:flex;
