@@ -82,6 +82,33 @@ function _normText(v){
     .replace(/[\u0300-\u036f]/g, "");
 }
 
+function _isProjectConcludedStatus(status){
+  return _normText(status || "").replace(/\s+/g, "-") === "concluido";
+}
+
+async function assertIndividualProjectLimitAvailable({ db, companyId, state, companyData = null, projects = null, excludeProjectId = "", targetStatus = "a-fazer" }) {
+  const company = companyData || await getDoc(doc(db, "companies", companyId)).then((snap) => snap.exists() ? snap.data() : (state.company || {}));
+  if (!isIndividualAccount(company)) return;
+
+  const projectLimit = Number(company?.planProjectLimit || 0);
+  if (!Number.isFinite(projectLimit) || projectLimit <= 0) return;
+
+  const projectList = Array.isArray(projects)
+    ? projects
+    : await getDocs(collection(db, `companies/${companyId}/projects`)).then((snap) => snap.docs.map((docSnap) => ({ id: docSnap.id, ...(docSnap.data() || {}) })));
+
+  let activeProjectsCount = projectList.filter((project) => {
+    if (excludeProjectId && project?.id === excludeProjectId) return false;
+    return !_isProjectConcludedStatus(project?.status);
+  }).length;
+
+  if (!_isProjectConcludedStatus(targetStatus)) activeProjectsCount += 1;
+
+  if (activeProjectsCount > projectLimit) {
+    throw new Error(`Limite do plano atingido: ${activeProjectsCount}/${projectLimit} projetos ativos.`);
+  }
+}
+
 function _formatBRLAlias(num){
   if (num === null || num === undefined || num === "") return "";
   const n = Number(num);
@@ -942,17 +969,14 @@ export async function createProject(deps) {
 
     const companySnap = await getDoc(doc(db, "companies", companyId));
     const companyData = companySnap.exists() ? companySnap.data() : (state.company || {});
-    const isIndividualAccount = String(companyData?.accountType || "").toLowerCase() === "individual";
-    const projectLimit = Number(companyData?.planProjectLimit || 0);
-    if (isIndividualAccount && Number.isFinite(projectLimit) && projectLimit > 0) {
-      const activeProjectsCount = existingProjects.filter((project) => {
-        const projectStatus = String(project?.status || "a-fazer").toLowerCase();
-        return projectStatus !== "concluido";
-      }).length;
-      if (activeProjectsCount >= projectLimit) {
-        throw new Error(`Limite do plano atingido: ${activeProjectsCount}/${projectLimit} projetos ativos.`);
-      }
-    }
+    await assertIndividualProjectLimitAvailable({
+      db,
+      companyId,
+      state,
+      companyData,
+      projects: existingProjects,
+      targetStatus: status
+    });
 
     const payload = {
       projectNumber: nextProjectNumber,
@@ -1414,6 +1438,14 @@ export async function updateProject(deps) {
     const currentSnap = await getDoc(doc(db, `companies/${companyId}/projects`, projectId));
     if (!currentSnap.exists()) throw new Error("Projeto não encontrado.");
     const current = currentSnap.data() || {};
+
+    await assertIndividualProjectLimitAvailable({
+      db,
+      companyId,
+      state,
+      excludeProjectId: projectId,
+      targetStatus: status
+    });
 
     const payload = {
       name,
@@ -1889,6 +1921,14 @@ function setupDropZone(container, state, db, auth, deps) {
         alert("Erro: nÃ£o autenticado");
         return;
       }
+
+      await assertIndividualProjectLimitAvailable({
+        db,
+        companyId,
+        state,
+        excludeProjectId: projectId,
+        targetStatus
+      });
 
       await updateDoc(
         doc(db, `companies/${companyId}/projects`, projectId),
