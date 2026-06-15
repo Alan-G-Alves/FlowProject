@@ -407,7 +407,8 @@ function main() {
   }
   write(path.join(publicDir, "seo.css"), seoCss());
   write(path.join(publicDir, "index.html"), homeHtml());
-  write(path.join(publicDir, "venda.html"), vendaHtml());
+  // venda.html has a hand-built pricing/checkout page. Keep it out of the SEO generator
+  // so the individual and company plans are not replaced by the generic lead page.
   allLandingPages.forEach((item) => write(path.join(publicDir, `${item.slug}.html`), landingHtml(item)));
   write(path.join(blogDir, "index.html"), blogIndexHtml());
   articles.forEach((article) => write(path.join(blogDir, `${article.slug}.html`), articleHtml(article)));
