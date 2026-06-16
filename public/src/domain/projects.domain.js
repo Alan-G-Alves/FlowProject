@@ -597,7 +597,13 @@ async function _ensureEditProjectContext(state, db, companyId){
     state.teams = teamsSnap.docs.map(d => ({ id: d.id, ...d.data() }));
   }
 
-  if (!Array.isArray(state._usersCache) || !state._usersCache.length){
+  const usersCache = Array.isArray(state._usersCache) ? state._usersCache : [];
+  const hasActiveAdmin = usersCache.some((user) => {
+    const role = String(user?.role || "").toLowerCase();
+    return user?.active !== false && role === "admin";
+  });
+
+  if (!usersCache.length || !hasActiveAdmin){
     const usersSnap = await getDocs(collection(db, `companies/${companyId}/users`));
     state._usersCache = usersSnap.docs.map(d => {
       const data = d.data() || {};
@@ -803,11 +809,15 @@ function getPriorityBadge(priority) {
  * Abre modal de criar projeto
  */
 export async function openCreateProjectModal(deps) {
-  const { refs, state } = deps;
+  const { refs, state, db } = deps;
 
   if (!refs.modalCreateProject) return;
 
   clearAlert(refs.createProjectAlert);
+
+  if (state.companyId && db) {
+    await _ensureEditProjectContext(state, db, state.companyId);
+  }
 
   // Limpa campos
   if (refs.projectNameEl) refs.projectNameEl.value = "";
@@ -930,7 +940,7 @@ export async function createProject(deps) {
   }
 
   if (!managerUid) {
-    setAlert(refs.createProjectAlert, "Selecione um gestor.");
+    setAlert(refs.createProjectAlert, "Selecione um responsavel.");
     return;
   }
 
@@ -1049,14 +1059,12 @@ function populateTeamSelect(selectEl, teams) {
 }
 
 /**
- * Popula select de gestores (apenas role='gestor')
+ * Popula select de responsaveis pelo projeto (gestor ou admin)
  */
 function populateManagerSelect(selectEl, users, company = {}) {
   if (!selectEl) return;
   const individual = isIndividualAccount(company);
-  selectEl.innerHTML = individual
-    ? '<option value="">Selecione o responsavel</option>'
-    : '<option value="">Selecione um gestor</option>';
+  selectEl.innerHTML = '<option value="">Selecione o responsavel</option>';
 
   if (!users || !Array.isArray(users)) return;
 
@@ -1064,16 +1072,15 @@ function populateManagerSelect(selectEl, users, company = {}) {
   const managers = users.filter(u => {
     if (!u || u.active === false) return false;
     if (individual) return u.uid === ownerUid || u.role === "admin";
-    return u.role === "gestor";
+    return u.role === "gestor" || u.role === "admin";
   });
   managers.sort((a, b) => (a.name || "").localeCompare(b.name || ""));
 
   for (const user of managers) {
     const opt = document.createElement("option");
     opt.value = user.uid;
-    opt.textContent = individual
-      ? `${user.name || user.email} (responsavel)`
-      : (user.name || user.email);
+    const roleLabel = user.role === "admin" ? "Admin" : "Gestor";
+    opt.textContent = `${user.name || user.email} (${roleLabel})`;
     selectEl.appendChild(opt);
   }
 }
@@ -1415,7 +1422,7 @@ export async function updateProject(deps) {
     return;
   }
   if (!managerUid) {
-    setAlert(refs.editProjectAlert, "Selecione um gestor.");
+    setAlert(refs.editProjectAlert, "Selecione um responsavel.");
     return;
   }
   if (!teamId) {

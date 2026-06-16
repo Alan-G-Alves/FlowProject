@@ -61,6 +61,58 @@
     ],
     "rewrites": [
       {
+        "source": "/dashboard",
+        "destination": "/login.html"
+      },
+      {
+        "source": "/administracao",
+        "destination": "/login.html"
+      },
+      {
+        "source": "/empresas",
+        "destination": "/login.html"
+      },
+      {
+        "source": "/tecnicos",
+        "destination": "/login.html"
+      },
+      {
+        "source": "/clientes",
+        "destination": "/login.html"
+      },
+      {
+        "source": "/relatorios",
+        "destination": "/login.html"
+      },
+      {
+        "source": "/despesas",
+        "destination": "/login.html"
+      },
+      {
+        "source": "/feedbacks",
+        "destination": "/login.html"
+      },
+      {
+        "source": "/projetos",
+        "destination": "/login.html"
+      },
+      {
+        "source": "/meus-projetos",
+        "destination": "/login.html"
+      },
+      {
+        "source": "/minhas-atividades",
+        "destination": "/login.html"
+      },
+      {
+        "source": "/aprovacoes-os",
+        "destination": "/login.html"
+      },
+      {
+        "source": "/configuracoes",
+        "destination": "/login.html"
+      },
+      {
         "source": "**",
         "destination": "/index.html"
       }
