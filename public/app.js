@@ -1,4 +1,4 @@
-console.log("APP.JS CARREGADO: vHTTP-TESTE-02");
+console.log("APP.JS CARREGADO: vONBOARDING-USER-START-01");
 
 import {
   initializeApp } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-app.js";
@@ -1606,6 +1606,44 @@ function hasAdminCheckedCompanySettings(){
   return Boolean(onboarding.companySettingsChecked);
 }
 
+function timestampToMillis(value){
+  if (!value) return 0;
+  if (typeof value.toMillis === "function") return value.toMillis();
+  if (typeof value.toDate === "function") return value.toDate().getTime();
+  if (value instanceof Date) return value.getTime();
+  if (typeof value === "number") return Number.isFinite(value) ? value : 0;
+  if (typeof value === "string") {
+    const parsed = Date.parse(value);
+    return Number.isFinite(parsed) ? parsed : 0;
+  }
+  return 0;
+}
+
+async function ensureProfileOnboardingStartedAt(){
+  if (!state.companyId || !auth.currentUser?.uid) return 0;
+  const existing = timestampToMillis(state.profile?.onboarding?.startedAt);
+  if (existing) return existing;
+
+  const startedAt = new Date().toISOString();
+  const onboarding = {
+    ...(state.profile?.onboarding && typeof state.profile.onboarding === "object" ? state.profile.onboarding : {}),
+    startedAt
+  };
+  state.profile = { ...(state.profile || {}), onboarding };
+  try {
+    await updateDoc(doc(db, "companies", state.companyId, "users", auth.currentUser.uid), { onboarding });
+  } catch (err) {
+    console.warn("[admin-onboarding:startedAt]", err);
+  }
+  return timestampToMillis(startedAt);
+}
+
+function wasCreatedAfterOnboardingStart(item, startedAtMs){
+  if (!startedAtMs) return true;
+  const createdAt = timestampToMillis(item?.createdAt);
+  return createdAt > 0 && createdAt >= startedAtMs;
+}
+
 async function getAdminOnboardingStats(){
   if (!state.companyId) return null;
   const base = ["companies", state.companyId];
@@ -1647,6 +1685,8 @@ async function getAdminOnboardingStats(){
     };
   }
 
+  const onboardingStartedAtMs = await ensureProfileOnboardingStartedAt();
+
   const [
     teamsSnap,
     usersSnap,
@@ -1663,8 +1703,18 @@ async function getAdminOnboardingStats(){
     getDocs(collection(db, ...base, "activities"))
   ]);
 
-  const users = usersSnap.docs.map((docSnap) => docSnap.data() || {});
+  const teams = teamsSnap.docs.map((docSnap) => ({ id: docSnap.id, ...(docSnap.data() || {}) }));
+  const users = usersSnap.docs.map((docSnap) => ({ id: docSnap.id, ...(docSnap.data() || {}) }));
+  const clients = clientsSnap.docs.map((docSnap) => ({ id: docSnap.id, ...(docSnap.data() || {}) }));
+  const projects = projectsSnap.docs.map((docSnap) => ({ id: docSnap.id, ...(docSnap.data() || {}) }));
+  const tasks = tasksSnap.docs.map((docSnap) => ({ id: docSnap.id, ...(docSnap.data() || {}) }));
   const activities = activitiesSnap.docs.map((docSnap) => ({ id: docSnap.id, ...(docSnap.data() || {}) }));
+  const onboardingTeams = teams.filter((item) => wasCreatedAfterOnboardingStart(item, onboardingStartedAtMs));
+  const onboardingUsers = users.filter((item) => wasCreatedAfterOnboardingStart(item, onboardingStartedAtMs));
+  const onboardingClients = clients.filter((item) => wasCreatedAfterOnboardingStart(item, onboardingStartedAtMs));
+  const onboardingProjects = projects.filter((item) => wasCreatedAfterOnboardingStart(item, onboardingStartedAtMs));
+  const onboardingTasks = tasks.filter((item) => wasCreatedAfterOnboardingStart(item, onboardingStartedAtMs));
+  const onboardingActivities = activities.filter((item) => wasCreatedAfterOnboardingStart(item, onboardingStartedAtMs));
   const ownActivities = activities.filter((activity) => {
     const techUids = Array.isArray(activity.techUids) ? activity.techUids.filter(Boolean) : [];
     return currentUid && techUids.includes(currentUid);
@@ -1684,12 +1734,12 @@ async function getAdminOnboardingStats(){
   }
 
   return {
-    teams: teamsSnap.docs.filter((docSnap) => (docSnap.data() || {}).active !== false).length,
-    resources: users.filter((user) => String(user.role || "").toLowerCase() === "tecnico" && user.active !== false).length,
-    clients: clientsSnap.docs.filter((docSnap) => (docSnap.data() || {}).active !== false).length,
-    projects: projectsSnap.docs.filter((docSnap) => (docSnap.data() || {}).active !== false).length,
-    tasks: tasksSnap.size,
-    activities: activitiesSnap.size,
+    teams: onboardingTeams.filter((item) => item.active !== false).length,
+    resources: onboardingUsers.filter((user) => String(user.role || "").toLowerCase() === "tecnico" && user.active !== false).length,
+    clients: onboardingClients.filter((item) => item.active !== false).length,
+    projects: onboardingProjects.filter((item) => item.active !== false).length,
+    tasks: onboardingTasks.length,
+    activities: onboardingActivities.length,
     ownActivities: ownActivities.length,
     ownSubmittedActivities: ownSubmittedActivities.length,
     receivedFeedbacks,

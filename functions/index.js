@@ -742,6 +742,8 @@ exports.createUserInTenant = functions.https.onCall(async (data, context) => {
     active: true,
     teamIds,
     teamId: teamIds[0] || "",
+    createdAt: admin.firestore.FieldValue.serverTimestamp(),
+    createdBy: callerUid,
     ...(safeRole === "tecnico"
       ? {
           number: techNumber,
@@ -894,6 +896,8 @@ exports.createUserInTenantHttp = functions.https.onRequest(async (req, res) => {
       active: true,
       teamIds,
       teamId: teamIds[0] || "",
+      createdAt: admin.firestore.FieldValue.serverTimestamp(),
+      createdBy: callerUid,
       ...(safeRole === "tecnico"
         ? {
             number: techNumber,
