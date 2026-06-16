@@ -1161,6 +1161,7 @@ const active = (refs.techActiveEl.value || "true") === "true";
   await loadManagerUsers(deps);
 
   // volta para modo criação (para não “vazar” estado)
+  state._createTechSuccessReadyToClose = false;
   setCreateTechModalMode(deps, "create");
   
   // limpa dados originais após salvamento bem-sucedido
@@ -2075,6 +2076,7 @@ export function openCreateTechModal(deps) {
   clearAlert(refs.createTechAlert);
   // modo criação
   setCreateTechModalMode(deps, "create");
+  state._createTechSuccessReadyToClose = false;
   if (refs.btnCreateTech) { refs.btnCreateTech.disabled = false; refs.btnCreateTech.textContent = "Salvar"; }
   // skills (chips)
   deps.state._techSoftSkillsDraft = [];
@@ -2231,6 +2233,7 @@ export function closeCreateTechModal(refs, state) {
 
   // limpa modo edição (se recebeu state)
   if (state){
+    state._createTechSuccessReadyToClose = false;
     state._mgrEditingTechUid = null;
     state._techAttachmentsDraft = [];
     state._techRemovedAttachments = [];
@@ -2292,6 +2295,10 @@ export function renderMgrTeamChips(deps, onChange) {
 export 
 async function createTech(deps) {
   const { refs, state, db, auth, createUserWithAuthAndResetLink, setAlertWithResetLink, loadManagerUsers } = deps;
+  if (state._createTechSuccessReadyToClose) {
+    closeCreateTechModal(refs, state);
+    return;
+  }
 
   // Se estiver em modo edição, salva alterações aqui mesmo
   if (state._mgrEditingTechUid){
@@ -2335,22 +2342,34 @@ async function createTech(deps) {
   }
 
   // ❗Regra: não permitir e-mail repetido na MESMA empresa
+  if (state._isCreatingTech) return;
+  state._isCreatingTech = true;
+  if (refs.btnCreateTech) {
+    refs.btnCreateTech.disabled = true;
+    refs.btnCreateTech.textContent = "Salvando...";
+  }
+  setAlert(refs.createTechAlert, "Salvando...", "info");
+
   const existingUid = await findUserUidByEmailInCompany(db, state.companyId, email);
   if (existingUid && existingUid !== uid) {
+    state._isCreatingTech = false;
+    if (refs.btnCreateTech) {
+      refs.btnCreateTech.disabled = false;
+      refs.btnCreateTech.textContent = "Salvar";
+    }
     return setAlert(refs.createTechAlert, "Este e-mail já está cadastrado nesta empresa. Use outro e-mail ou edite o usuário existente.");
   }
 
   try {
     await assertCompanyUserLimitAvailable(db, state.companyId, active);
   } catch (limitErr) {
+    state._isCreatingTech = false;
+    if (refs.btnCreateTech) {
+      refs.btnCreateTech.disabled = false;
+      refs.btnCreateTech.textContent = "Salvar";
+    }
     return setAlert(refs.createTechAlert, limitErr?.message || "Limite de usuarios do plano atingido.");
   }
-
-  // Guard: evita duplo submit (double click / double binding)
-  if (state._isCreatingTech) return;
-  state._isCreatingTech = true;
-
-  setAlert(refs.createTechAlert, "Salvando...", "info");
 
   const baseUserData = {
     name,
@@ -2421,9 +2440,10 @@ async function createTech(deps) {
       setAlertWithResetLink(refs.createTechAlert, `Recurso ${numLabel}criado com sucesso!`, email, data.resetLink);
 
       // ✅ Após sucesso: desabilita o botão salvar para evitar duplicidade
+      state._createTechSuccessReadyToClose = true;
       if (refs.btnCreateTech) {
-        refs.btnCreateTech.disabled = true;
-        refs.btnCreateTech.textContent = "Salvo";
+        refs.btnCreateTech.disabled = false;
+        refs.btnCreateTech.textContent = "Fechar";
       }
 
       return;
@@ -2467,6 +2487,10 @@ async function createTech(deps) {
     return setAlert(refs.createTechAlert, "Erro ao salvar: " + (err?.message || err));
   } finally {
     state._isCreatingTech = false;
+    if (refs.btnCreateTech && !state._createTechSuccessReadyToClose) {
+      refs.btnCreateTech.disabled = false;
+      refs.btnCreateTech.textContent = state._mgrEditingTechUid ? "Salvar alterações" : "Salvar";
+    }
   }
 }
 

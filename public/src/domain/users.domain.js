@@ -734,12 +734,33 @@ export async function loadUsers(deps) {
   const { refs, state, db, loadTeams, openManagedTeamsModal, openUserFeedbackModal } = deps;
   if (!refs.usersTbody) return;
 
-  refs.usersTbody.innerHTML = "";
+  state._usersLoadSeq = (state._usersLoadSeq || 0) + 1;
+  const mySeq = state._usersLoadSeq;
+
   hide(refs.usersEmpty);
   if (refs.usersPagination) refs.usersPagination.innerHTML = "";
 
   const snap = await getDocs(collection(db, "companies", state.companyId, "users"));
-  const all = snap.docs.map(d => ({ uid: d.id, ...d.data() }));
+  if (mySeq !== state._usersLoadSeq) return;
+
+  refs.usersTbody.innerHTML = "";
+  const allRaw = snap.docs.map(d => ({ uid: d.id, ...d.data() }));
+  const allMap = new Map();
+  for (const u of allRaw) {
+    const key = (u.emailLower || u.email || u.uid || "").toString().toLowerCase();
+    if (!key) {
+      allMap.set(u.uid, u);
+      continue;
+    }
+    const prev = allMap.get(key);
+    if (!prev) {
+      allMap.set(key, u);
+      continue;
+    }
+    const score = (x) => (x?.updatedAt ? 4 : 0) + (x?.createdAt ? 2 : 0) + (x?.number ? 1 : 0);
+    allMap.set(key, score(u) >= score(prev) ? u : prev);
+  }
+  const all = Array.from(allMap.values());
 
   const q = (refs.userSearch?.value || "").toLowerCase().trim();
 
@@ -847,6 +868,7 @@ export async function loadUsers(deps) {
     }
   }
 
+  const rowsFragment = document.createDocumentFragment();
   for (const u of pageItems) {
     const tr = document.createElement("tr");
 
@@ -1019,8 +1041,10 @@ export async function loadUsers(deps) {
     renderMiniChips(softWrap, softArr, "soft");
     renderMiniChips(hardWrap, hardArr, "hard");
     renderMiniChips(teamsWrap, teamsArr, "teams");
-    refs.usersTbody.appendChild(tr);
+    rowsFragment.appendChild(tr);
   }
+  if (mySeq !== state._usersLoadSeq) return;
+  refs.usersTbody.replaceChildren(rowsFragment);
 }
 
 function setCreateUserModalMode(deps, mode, user = null) {
@@ -1133,6 +1157,7 @@ export function openCreateUserModal(deps) {
   if (!refs.modalCreateUser) return;
   clearAlert(refs.createUserAlert);
   refs.modalCreateUser.hidden = false;
+  state._createUserSuccessReadyToClose = false;
   setCreateUserModalMode(deps, "create");
 
   try {
@@ -1185,6 +1210,7 @@ export function closeCreateUserModal(depsOrRefs) {
   const state = depsOrRefs?.state;
   if (refs?.modalCreateUser) refs.modalCreateUser.hidden = true;
   if (state) {
+    state._createUserSuccessReadyToClose = false;
     state._newUserAvatarFile = null;
     state._newUserSoftSkillsDraft = [];
     state._newUserHardSkillsDraft = [];
@@ -1235,6 +1261,10 @@ export function renderTeamChips(deps) {
 
 export async function createUser(deps) {
   const { refs, state, db, auth, loadUsers } = deps;
+  if (state._createUserSuccessReadyToClose) {
+    closeCreateUserModal(deps);
+    return;
+  }
   if (state._isCreatingUser) return;
   clearAlert(refs.createUserAlert);
 
@@ -1272,19 +1302,33 @@ export async function createUser(deps) {
     return setAlert(refs.createUserAlert, "Selecione pelo menos 1 equipe para este usuário.");
   }
 
+  state._isCreatingUser = true;
+  if (refs.btnCreateUser) {
+    refs.btnCreateUser.disabled = true;
+    refs.btnCreateUser.textContent = "Salvando...";
+  }
+  setAlert(refs.createUserAlert, "Salvando...", "info");
+
   const existingUid = await findUserUidByEmailInCompany(db, state.companyId, email);
   if (existingUid && existingUid !== uid) {
+    state._isCreatingUser = false;
+    if (refs.btnCreateUser) {
+      refs.btnCreateUser.disabled = false;
+      refs.btnCreateUser.textContent = "Salvar";
+    }
     return setAlert(refs.createUserAlert, "Este e-mail já está cadastrado nesta empresa. Use outro e-mail ou edite o usuário existente.");
   }
 
   try {
     await assertCompanyUserLimitAvailable(db, state.companyId, active);
   } catch (limitErr) {
+    state._isCreatingUser = false;
+    if (refs.btnCreateUser) {
+      refs.btnCreateUser.disabled = false;
+      refs.btnCreateUser.textContent = "Salvar";
+    }
     return setAlert(refs.createUserAlert, limitErr?.message || "Limite de usuarios do plano atingido.");
   }
-
-  state._isCreatingUser = true;
-  setAlert(refs.createUserAlert, "Salvando...", "info");
 
   try {
     if (wantsAutoAuth) {
@@ -1378,6 +1422,11 @@ export async function createUser(deps) {
           email,
           resetLink
         );
+        state._createUserSuccessReadyToClose = true;
+        if (refs.btnCreateUser) {
+          refs.btnCreateUser.disabled = false;
+          refs.btnCreateUser.textContent = "Fechar";
+        }
         
         return;
       } catch (funcErr) {
@@ -1448,6 +1497,10 @@ export async function createUser(deps) {
   } finally {
     state._isCreatingUser = false;
     state._newUserAvatarFile = null;
+    if (refs.btnCreateUser && !state._createUserSuccessReadyToClose) {
+      refs.btnCreateUser.disabled = false;
+      refs.btnCreateUser.textContent = state._adminEditingUserUid ? "Salvar alteracoes" : "Salvar";
+    }
   }
 }
 

@@ -48,6 +48,37 @@ async function moveTempAvatarToFinal({ companyId, callerUid, targetUid, tempPath
   return buildDownloadURL(bucketName, destPath, token);
 }
 
+async function reserveCompanyUserEmail(db, companyId, emailLower, callerUid) {
+  const ref = db.doc(`companies/${companyId}/userEmailIndex/${sha256(emailLower)}`);
+  await db.runTransaction(async (tx) => {
+    const snap = await tx.get(ref);
+    if (snap.exists) {
+      throw new functions.https.HttpsError("already-exists", "Este e-mail ja esta cadastrado nesta empresa.");
+    }
+    tx.set(ref, {
+      emailLower,
+      status: "pending",
+      createdBy: callerUid || "",
+      createdAt: admin.firestore.FieldValue.serverTimestamp(),
+    });
+  });
+  return ref;
+}
+
+async function releaseCompanyUserEmailReservation(ref) {
+  if (!ref) return;
+  await ref.delete().catch(() => {});
+}
+
+async function completeCompanyUserEmailReservation(ref, uid) {
+  if (!ref) return;
+  await ref.set({
+    uid,
+    status: "active",
+    updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+  }, { merge: true });
+}
+
 /**
  * Helpers
  */
@@ -568,6 +599,10 @@ async function getAllCompanyTeamIds(db, companyId) {
 async function assertEmailNotUsedInCompany(db, companyId, emailLower) {
   const usersRef = db.collection(`companies/${companyId}/users`);
   const q = await usersRef.where("emailLower", "==", emailLower).limit(1).get();
+  const qLegacy = await usersRef.where("email", "==", emailLower).limit(1).get();
+  if (!qLegacy.empty) {
+    throw new functions.https.HttpsError("already-exists", "Este e-mail ja esta cadastrado nesta empresa.");
+  }
   if (!q.empty) {
     throw new functions.https.HttpsError("already-exists", "Este e-mail já está cadastrado nesta empresa.");
   }
@@ -658,6 +693,7 @@ exports.createUserInTenant = functions.https.onCall(async (data, context) => {
   // 3) Bloqueia se e-mail já existir no Auth (e também se estiver em outra empresa)
   await assertEmailNotUsedInAuthOrTenant(db, safeCompanyId, safeEmailLower);
   await assertCompanyUserLimitAvailable(db, safeCompanyId);
+  const emailReservationRef = await reserveCompanyUserEmail(db, safeCompanyId, safeEmailLower, callerUid);
 
   // 4) TeamIds do técnico = todas as equipes da empresa
   let teamIds = [];
@@ -687,6 +723,7 @@ exports.createUserInTenant = functions.https.onCall(async (data, context) => {
       displayName: safeName,
     });
   } catch (e) {
+    await releaseCompanyUserEmailReservation(emailReservationRef);
     // Se por algum motivo já existir (corrida), devolve mensagem amigável
     throw new functions.https.HttpsError("already-exists", "Este e-mail já está em uso.");
   }
@@ -717,6 +754,7 @@ exports.createUserInTenant = functions.https.onCall(async (data, context) => {
   };
 
   await db.doc(`companies/${safeCompanyId}/users/${uid}`).set(userDoc);
+  await completeCompanyUserEmailReservation(emailReservationRef, uid);
 
   // 7b) Se veio avatar temporário, move para /avatars/{uid} (Admin SDK) e grava photoURL
   if (tempAvatarPath) {
@@ -810,6 +848,12 @@ exports.createUserInTenantHttp = functions.https.onRequest(async (req, res) => {
     } catch (e) {
       return res.status(429).json({ error: { message: e.message || "Limite de usuarios do plano atingido." } });
     }
+    let emailReservationRef;
+    try {
+      emailReservationRef = await reserveCompanyUserEmail(db, safeCompanyId, safeEmailLower, callerUid);
+    } catch (e) {
+      return res.status(409).json({ error: { message: e.message || "Este e-mail ja esta cadastrado nesta empresa." } });
+    }
     let teamIds = [];
     if (safeRole === "tecnico") {
       teamIds = await getAllCompanyTeamIds(db, safeCompanyId);
@@ -832,6 +876,7 @@ exports.createUserInTenantHttp = functions.https.onRequest(async (req, res) => {
         displayName: safeName,
       });
     } catch (e) {
+      await releaseCompanyUserEmailReservation(emailReservationRef);
       return res.status(409).json({ error: { message: "Este e-mail já está em uso." } });
     }
 
@@ -861,6 +906,7 @@ exports.createUserInTenantHttp = functions.https.onRequest(async (req, res) => {
     };
 
     await db.doc(`companies/${safeCompanyId}/users/${uid}`).set(userDoc);
+    await completeCompanyUserEmailReservation(emailReservationRef, uid);
 
     // avatar temporário -> final
     if (tempAvatarPath) {

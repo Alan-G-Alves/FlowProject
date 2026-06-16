@@ -61,6 +61,10 @@
     ],
     "rewrites": [
       {
+        "source": "/login",
+        "destination": "/login.html"
+      },
+      {
         "source": "/dashboard",
         "destination": "/login.html"
       },
