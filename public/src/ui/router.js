@@ -20,6 +20,7 @@ const ids = {
   viewOsApprovals: "viewOsApprovals",
   viewExpenseApprovals: "viewExpenseApprovals",
   viewProjects: "viewProjects",
+  viewAgendaTimeSheet: "viewAgendaTimeSheet",
 };
 
 function el(id){ return document.getElementById(id); }
@@ -40,6 +41,7 @@ export function setView(name){
   const viewOsApprovals = el(ids.viewOsApprovals);
   const viewExpenseApprovals = el(ids.viewExpenseApprovals);
   const viewProjects = el(ids.viewProjects);
+  const viewAgendaTimeSheet = el(ids.viewAgendaTimeSheet);
 
   const wasInMyProjects = !!viewMyProjects && !viewMyProjects.hidden;
   if (wasInMyProjects && name !== "myProjects") {
@@ -64,6 +66,7 @@ export function setView(name){
   hide(viewOsApprovals);
   hide(viewExpenseApprovals);
   hide(viewProjects);
+  hide(viewAgendaTimeSheet);
 
   if (name === "login"){
     document.body.classList.add("is-login");
@@ -87,6 +90,7 @@ export function setView(name){
   if (name === "osApprovals") show(viewOsApprovals);
   if (name === "expenseApprovals") show(viewExpenseApprovals);
   if (name === "projects") show(viewProjects);
+  if (name === "agendaTimeSheet") show(viewAgendaTimeSheet);
 }
 
 export const ROUTES = Object.freeze({
@@ -103,6 +107,7 @@ export const ROUTES = Object.freeze({
   myProjects: "/meus-projetos",
   myActivities: "/minhas-atividades",
   osApprovals: "/aprovacoes-os",
+  agendaTimeSheet: "/agendas-timesheet",
   settings: "/configuracoes",
 });
 
@@ -120,6 +125,7 @@ export const ROUTE_TO_VIEW = Object.freeze({
   [ROUTES.myProjects]: "myProjects",
   [ROUTES.myActivities]: "myActivities",
   [ROUTES.osApprovals]: "osApprovals",
+  [ROUTES.agendaTimeSheet]: "agendaTimeSheet",
   [ROUTES.settings]: "settings",
 });
 

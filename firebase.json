@@ -113,6 +113,10 @@
         "destination": "/login.html"
       },
       {
+        "source": "/agendas-timesheet",
+        "destination": "/login.html"
+      },
+      {
         "source": "/configuracoes",
         "destination": "/login.html"
       },

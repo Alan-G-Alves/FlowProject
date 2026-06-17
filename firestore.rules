@@ -692,6 +692,17 @@ allow delete: if false;
           || isCoordenador(companyId);
       }
 
+      // resourceAbsences (bloqueios de agenda por ausencia)
+      match /resourceAbsences/{absenceId} {
+        allow read: if isSuperAdmin() || isCompanyMember(companyId);
+
+        allow create, update, delete: if isSuperAdmin()
+          || isCompanyAdmin(companyId)
+          || isManager(companyId)
+          || isCoordinator(companyId)
+          || isCoordenador(companyId);
+      }
+
       // expenses (despesas do projeto)
       match /expenses/{expenseId} {
         function expenseFieldsAllowed() {

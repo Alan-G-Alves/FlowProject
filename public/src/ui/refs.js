@@ -12,6 +12,7 @@ export const viewCompanies = byId("viewCompanies");
 export const viewManagerUsers = byId("viewManagerUsers");
 export const viewClients = byId("viewClients");
 export const viewSettings = byId("viewSettings");
+export const viewAgendaTimeSheet = byId("viewAgendaTimeSheet");
 
 // Sidebar
 export const sidebar = byId("sidebar");

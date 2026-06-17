@@ -45,7 +45,7 @@ import {
   navigateTo,
   initCleanRouter,
   normalizeRoute
-} from "./src/ui/router.js?v=1777551400";
+} from "./src/ui/router.js?v=1781582000";
 import { isEmailValidBasic, isCnpjValidBasic } from "./src/utils/validators.js";
 import { fetchPlatformUser, fetchCompanyIdForUser, fetchCompanyUserProfile } from "./src/services/firestore.service.js";
 import { auth, secondaryAuth, db, storage, functions, httpsCallable } from "./src/config/firebase.js";
@@ -53,7 +53,7 @@ import { normalizePhone, normalizeCnpj, slugify } from "./src/utils/format.js";
 import { setAlert, clearAlert, clearInlineAlert, showInlineAlert, showDialogAlert } from "./src/ui/alerts.js";
 import { getCompanyDoc, listCompaniesDocs } from "./src/services/companies.service.js";
 import { createNotification } from "./src/services/notifications.service.js?v=1776052722";
-import * as refs from "./src/ui/refs.js?v=1778794200";
+import * as refs from "./src/ui/refs.js?v=1781582000";
 import * as companiesDomain from "./src/domain/companies.domain.js?v=1778794100";
 import * as teamsDomain from "./src/domain/teams.domain.js?v=1772614200";
 import * as usersDomain from "./src/domain/users.domain.js?v=1781580700";
@@ -66,13 +66,15 @@ import * as osApprovalsDomain from "./src/domain/os-approvals.domain.js?v=177605
 import * as expensesDomain from "./src/domain/expenses.domain.js?v=1779741200";
 import * as projectWorkspaceDomain from "./src/domain/project-workspace.domain.js?v=1779485200";
 import * as reportsDomain from "./src/domain/reports.domain.js?v=1779834300";
+import * as agendaTimeSheetDomain from "./src/domain/agenda-timesheet.domain.js?v=1781582000";
 import * as lgpdDomain from "./src/domain/lgpd.domain.js?v=1777475100";
 import * as profileModal from "./src/ui/modals/profile.modal.js?v=1770332251";
 import * as topbar from "./src/ui/topbar.js?v=1770332251";
 import * as sidebar from "./src/ui/sidebar.js?v=1770332251";
 import * as dashboard from "./src/ui/dashboard.js?v=1770332251";
-import { initHelpManual } from "./src/ui/help-manual.js?v=1778794500";
+import { initHelpManual } from "./src/ui/help-manual.js?v=1781582000";
 import { intersects, getTeamNameById, initialFromName } from "./src/utils/helpers.js?v=1770332251";
+import { normalizeCompanyPlan, formatCompanyPlanPrice } from "./src/utils/plans.js?v=1779922600";
 
 // Evita double-binding de eventos (há blocos de listeners repetidos no app.js)
 function onOnce(el, type, handler, key = type){
@@ -519,7 +521,7 @@ function canAccessRoute(route){
   if (route === ROUTES.admin) return currentRole === "admin";
   if (route === ROUTES.managerUsers || route === ROUTES.clients) return ["admin", "gestor"].includes(currentRole);
   if (route === ROUTES.expenses) return ["admin", "gestor", "coordenador", "tecnico"].includes(currentRole);
-  if (route === ROUTES.osApprovals) return ["admin", "gestor", "coordenador"].includes(currentRole);
+  if (route === ROUTES.osApprovals || route === ROUTES.agendaTimeSheet) return ["admin", "gestor", "coordenador"].includes(currentRole);
   if (route === ROUTES.reports || route === ROUTES.feedbacks || route === ROUTES.projects || route === ROUTES.myProjects || route === ROUTES.myActivities) {
     return !!state.profile;
   }
@@ -583,6 +585,10 @@ async function openRouteView(route){
     case ROUTES.osApprovals:
       setActiveNav("");
       await openOsApprovalsView();
+      return;
+    case ROUTES.agendaTimeSheet:
+      setActiveNav("");
+      await openAgendaTimeSheetView();
       return;
     case ROUTES.settings:
       setActiveNav("navConfig");
@@ -1033,7 +1039,7 @@ function initUserMenu(){
   refs.btnBillingPortal?.addEventListener("click", (e) => {
     e.preventDefault();
     closeDropdown();
-    openCustomerPortal();
+    openBillingMenuAction();
   });
 
   refs.btnUserLogout?.addEventListener("click", async (e) => {
@@ -1585,7 +1591,7 @@ function refreshDashboardHomeWidgets(){
 function canShowAdminOnboarding(){
   if (!state.companyId || state.isSuperAdmin) return false;
   const role = currentRoleKey();
-  return role === "admin" || role === "tecnico" || isIndividualManagerOnboarding();
+  return role === "admin" || role === "gestor" || role === "coordenador" || role === "tecnico";
 }
 
 function isIndividualManagerOnboarding(){
@@ -1599,11 +1605,23 @@ function isTechOnboarding(){
   return role === "tecnico";
 }
 
+function isManagerOrCoordinatorOnboarding(){
+  const role = currentRoleKey();
+  return role === "gestor" || role === "coordenador";
+}
+
 function hasAdminCheckedCompanySettings(){
   const onboarding = state.profile?.onboarding && typeof state.profile.onboarding === "object"
     ? state.profile.onboarding
     : {};
   return Boolean(onboarding.companySettingsChecked);
+}
+
+function hasAgendaTimeSheetViewed(){
+  const onboarding = state.profile?.onboarding && typeof state.profile.onboarding === "object"
+    ? state.profile.onboarding
+    : {};
+  return Boolean(onboarding.agendaTimeSheetViewed);
 }
 
 function timestampToMillis(value){
@@ -1633,7 +1651,7 @@ async function ensureProfileOnboardingStartedAt(){
   try {
     await updateDoc(doc(db, "companies", state.companyId, "users", auth.currentUser.uid), { onboarding });
   } catch (err) {
-    console.warn("[admin-onboarding:startedAt]", err);
+    console.info("[admin-onboarding:startedAt] Sem permissao para atualizar marcador de onboarding; seguindo sem bloquear.", err);
   }
   return timestampToMillis(startedAt);
 }
@@ -1687,28 +1705,32 @@ async function getAdminOnboardingStats(){
 
   const onboardingStartedAtMs = await ensureProfileOnboardingStartedAt();
 
+  const safeGetOnboardingDocs = async (collectionName) => {
+    try {
+      const snap = await getDocs(collection(db, ...base, collectionName));
+      return snap.docs.map((docSnap) => ({ id: docSnap.id, ...(docSnap.data() || {}) }));
+    } catch (err) {
+      console.warn(`[admin-onboarding:${collectionName}]`, err);
+      return [];
+    }
+  };
+
   const [
-    teamsSnap,
-    usersSnap,
-    clientsSnap,
-    projectsSnap,
-    tasksSnap,
-    activitiesSnap
+    teams,
+    users,
+    clients,
+    projects,
+    tasks,
+    activities
   ] = await Promise.all([
-    getDocs(collection(db, ...base, "teams")),
-    getDocs(collection(db, ...base, "users")),
-    getDocs(collection(db, ...base, "clients")),
-    getDocs(collection(db, ...base, "projects")),
-    getDocs(collection(db, ...base, "tasks")),
-    getDocs(collection(db, ...base, "activities"))
+    safeGetOnboardingDocs("teams"),
+    safeGetOnboardingDocs("users"),
+    safeGetOnboardingDocs("clients"),
+    safeGetOnboardingDocs("projects"),
+    safeGetOnboardingDocs("tasks"),
+    safeGetOnboardingDocs("activities")
   ]);
 
-  const teams = teamsSnap.docs.map((docSnap) => ({ id: docSnap.id, ...(docSnap.data() || {}) }));
-  const users = usersSnap.docs.map((docSnap) => ({ id: docSnap.id, ...(docSnap.data() || {}) }));
-  const clients = clientsSnap.docs.map((docSnap) => ({ id: docSnap.id, ...(docSnap.data() || {}) }));
-  const projects = projectsSnap.docs.map((docSnap) => ({ id: docSnap.id, ...(docSnap.data() || {}) }));
-  const tasks = tasksSnap.docs.map((docSnap) => ({ id: docSnap.id, ...(docSnap.data() || {}) }));
-  const activities = activitiesSnap.docs.map((docSnap) => ({ id: docSnap.id, ...(docSnap.data() || {}) }));
   const onboardingTeams = teams.filter((item) => wasCreatedAfterOnboardingStart(item, onboardingStartedAtMs));
   const onboardingUsers = users.filter((item) => wasCreatedAfterOnboardingStart(item, onboardingStartedAtMs));
   const onboardingClients = clients.filter((item) => wasCreatedAfterOnboardingStart(item, onboardingStartedAtMs));
@@ -1859,6 +1881,62 @@ function getAdminOnboardingSteps(stats){
         done: stats.activities > 0,
         actionLabel: "Abrir projetos",
         action: () => guideCreateActivityAction()
+      },
+      {
+        key: "agenda-timesheet",
+        title: "Abrir Agendas TimeSheet",
+        desc: "Consulte a agenda mensal, conflitos e ausencias dos recursos.",
+        done: hasAgendaTimeSheetViewed(),
+        actionLabel: "Abrir agenda",
+        action: () => guideOpenAgendaTimeSheetAction()
+      }
+    ];
+  }
+
+  if (isManagerOrCoordinatorOnboarding()) {
+    return [
+      {
+        key: "project",
+        title: "Acompanhar projetos",
+        desc: "Abra a carteira de projetos permitida ao seu perfil.",
+        done: stats.projects > 0,
+        actionLabel: "Abrir projetos",
+        action: () => {
+          navigateTo(ROUTES.projects);
+          setTimeout(() => highlightGuideTarget(refs.dashCards || document.querySelector(".kanban-board")), 350);
+        }
+      },
+      {
+        key: "task",
+        title: "Adicionar primeira tarefa",
+        desc: "Entre no workspace de um projeto e adicione a primeira tarefa.",
+        done: stats.tasks > 0,
+        actionLabel: "Abrir projetos",
+        action: () => guideCreateTaskAction()
+      },
+      {
+        key: "activity",
+        title: "Programar primeira atividade",
+        desc: "Dentro da tarefa, programe a atividade que sera executada pelo recurso.",
+        done: stats.activities > 0,
+        actionLabel: "Abrir projetos",
+        action: () => guideCreateActivityAction()
+      },
+      {
+        key: "os-approvals",
+        title: "Conferir OS para aprovar",
+        desc: "Acompanhe apontamentos enviados pelos recursos e aprove ou estorne quando necessario.",
+        done: Boolean(getProfileOnboarding().osApprovalsViewed),
+        actionLabel: "Abrir OS",
+        action: () => guideOpenOsApprovalsAction()
+      },
+      {
+        key: "agenda-timesheet",
+        title: "Abrir Agendas TimeSheet",
+        desc: "Consulte a agenda mensal, conflitos e ausencias dos recursos.",
+        done: hasAgendaTimeSheetViewed(),
+        actionLabel: "Abrir agenda",
+        action: () => guideOpenAgendaTimeSheetAction()
       }
     ];
   }
@@ -1931,6 +2009,14 @@ function getAdminOnboardingSteps(stats){
       done: stats.settingsChecked,
       actionLabel: "Conferir",
       action: () => markAdminSettingsChecked()
+    },
+    {
+      key: "agenda-timesheet",
+      title: "Abrir Agendas TimeSheet",
+      desc: "Consulte a agenda mensal, conflitos e ausencias dos recursos.",
+      done: hasAgendaTimeSheetViewed(),
+      actionLabel: "Abrir agenda",
+      action: () => guideOpenAgendaTimeSheetAction()
     }
   ];
 }
@@ -2252,6 +2338,46 @@ function guideOpenTechFeedbacksAction(){
   }, 500);
 }
 
+async function markAdminOnboardingViewed(patch){
+  if (!patch || typeof patch !== "object") return;
+  try {
+    await saveProfileOnboardingPatch(patch);
+    scheduleAdminOnboardingRefresh(500);
+  } catch (err) {
+    console.warn("[admin-onboarding:viewed]", err);
+  }
+}
+
+function guideOpenOsApprovalsAction(){
+  navigateTo(ROUTES.osApprovals);
+  markAdminOnboardingViewed({
+    osApprovalsViewed: true,
+    osApprovalsViewedAt: new Date().toISOString()
+  });
+  setTimeout(async () => {
+    const target = await waitForGuideCondition(() => {
+      const list = refs.osApprovalsList || document.getElementById("osApprovalsList");
+      return isElementGuideVisible(list) ? list : null;
+    }, { timeout: 3000 });
+    highlightGuideTarget(target || refs.navOsApprovals || refs.dashCards);
+  }, 500);
+}
+
+function guideOpenAgendaTimeSheetAction(){
+  navigateTo(ROUTES.agendaTimeSheet);
+  markAdminOnboardingViewed({
+    agendaTimeSheetViewed: true,
+    agendaTimeSheetViewedAt: new Date().toISOString()
+  });
+  setTimeout(async () => {
+    const target = await waitForGuideCondition(() => {
+      const scheduleBtn = document.getElementById("btnAgendaTsSchedule");
+      return isElementGuideVisible(scheduleBtn) ? scheduleBtn : null;
+    }, { timeout: 3500 });
+    highlightGuideTarget(target || document.getElementById("agendaTimeSheetRoot"));
+  }, 500);
+}
+
 function renderDashboardOnboardingControls(doneCount, totalSteps){
   if (!refs.dashboardAdminOnboarding) return;
   const onboarding = getProfileOnboarding();
@@ -2295,7 +2421,7 @@ function renderAdminOnboardingSkeleton(){
   if (!refs.dashboardAdminOnboarding || !refs.adminOnboardingList) return;
   refs.dashboardAdminOnboarding.hidden = false;
   refs.dashboardAdminOnboarding.classList.remove("is-complete");
-  const skeletonSteps = isTechOnboarding() ? 4 : (isIndividualManagerOnboarding() ? 5 : 7);
+  const skeletonSteps = isTechOnboarding() ? 4 : (isIndividualManagerOnboarding() ? 6 : (isManagerOrCoordinatorOnboarding() ? 5 : 8));
   updateDashboardOnboardingCopy(skeletonSteps);
   renderDashboardOnboardingControls(0, skeletonSteps);
   if (refs.adminOnboardingProgressLabel) refs.adminOnboardingProgressLabel.textContent = "carregando";
@@ -2418,6 +2544,35 @@ function getDashboardCardIcon(title){
         <path d="m9 16 1.8 1.8L15.5 13" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>
       </svg>
     `
+    ,
+    "Agendas TimeSheet": `
+      <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+        <rect x="4" y="5" width="16" height="15" rx="2.5" stroke="currentColor" stroke-width="2"/>
+        <path d="M8 3v4M16 3v4M4 10h16" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+        <path d="M8 14h2M13.5 14H16M8 17h2M13.5 17H16" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+      </svg>
+    `,
+    "Administracao": `
+      <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+        <rect x="4" y="9" width="16" height="10" rx="2.4" stroke="currentColor" stroke-width="2"/>
+        <path d="M7 9V7.5A3.5 3.5 0 0 1 10.5 4h3A3.5 3.5 0 0 1 17 7.5V9" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+        <path d="M8 13h8M8 16h5" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+      </svg>
+    `,
+    "AdministraÃ§Ã£o": `
+      <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+        <rect x="4" y="9" width="16" height="10" rx="2.4" stroke="currentColor" stroke-width="2"/>
+        <path d="M7 9V7.5A3.5 3.5 0 0 1 10.5 4h3A3.5 3.5 0 0 1 17 7.5V9" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+        <path d="M8 13h8M8 16h5" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+      </svg>
+    `,
+    "Administração": `
+      <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+        <rect x="4" y="9" width="16" height="10" rx="2.4" stroke="currentColor" stroke-width="2"/>
+        <path d="M7 9V7.5A3.5 3.5 0 0 1 10.5 4h3A3.5 3.5 0 0 1 17 7.5V9" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+        <path d="M8 13h8M8 16h5" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+      </svg>
+    `
   };
   return icons[title] || "";
 }
@@ -2472,6 +2627,12 @@ function renderDashboardCards(profile){
         badge: "Operacao",
         action: () => navigateTo(ROUTES.osApprovals)
       });
+      cards.push({
+        title: "Agendas TimeSheet",
+        desc: "Planeje agendas por recurso e projeto com visao mensal.",
+        badge: "Agenda",
+        action: () => navigateTo(ROUTES.agendaTimeSheet)
+      });
     }
 
     if (role === "admin"){
@@ -2522,6 +2683,12 @@ function renderDashboardCards(profile){
         badge: "Operacao",
         action: () => navigateTo(ROUTES.osApprovals)
       });
+      cards.push({
+        title: "Agendas TimeSheet",
+        desc: "Planeje agendas por recurso e projeto com visao mensal.",
+        badge: "Agenda",
+        action: () => navigateTo(ROUTES.agendaTimeSheet)
+      });
     }
 
     if (false && role === "gestor") {
@@ -2565,12 +2732,59 @@ function renderDashboardCards(profile){
 function canManageBillingFromMenu(profile = state.profile){
   const role = String(profile?.role || "").toLowerCase();
   const isIndividualAccount = String(state.company?.accountType || "").toLowerCase() === "individual";
-  return isIndividualAccount && (role === "admin" || role === "gestor");
+  if (isIndividualAccount) return role === "admin" || role === "gestor";
+  return role === "admin";
 }
 
 function updateBillingMenuVisibility(profile = state.profile){
   if (!refs.btnBillingPortal) return;
   refs.btnBillingPortal.hidden = !canManageBillingFromMenu(profile);
+}
+
+function formatDatePtBr(value){
+  const raw = String(value || "").trim();
+  const match = raw.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (match) return `${match[3]}/${match[2]}/${match[1]}`;
+  if (!raw) return "-";
+  const date = new Date(raw);
+  if (Number.isNaN(date.getTime())) return raw;
+  return date.toLocaleDateString("pt-BR");
+}
+
+function getCompanyBillingValueLabel(company = state.company || {}){
+  const plan = normalizeCompanyPlan(company);
+  const cycleLabel = plan.billingCycle === "annual" ? "ano" : "mes";
+  const totalLabel = `${formatCompanyPlanPrice(plan.billingPrice)}/${cycleLabel}`;
+  if (plan.billingCycle === "annual" && plan.installments > 1) {
+    return `${totalLabel} em ${plan.installments}x de ${formatCompanyPlanPrice(plan.installmentValue)}`;
+  }
+  return totalLabel;
+}
+
+function getCompanyNextPaymentDate(company = state.company || {}){
+  return company?.billing?.dueDate
+    || company?.billingDueDate
+    || company?.nextPaymentDate
+    || company?.paymentDueDate
+    || "";
+}
+
+async function openBillingMenuAction(){
+  const isIndividualAccount = String(state.company?.accountType || "").toLowerCase() === "individual";
+  if (isIndividualAccount) {
+    await openCustomerPortal();
+    return;
+  }
+  const plan = normalizeCompanyPlan(state.company || {});
+  const dueDate = formatDatePtBr(getCompanyNextPaymentDate(state.company || {}));
+  await showDialogAlert(
+    `Plano atual: ${plan.label}\nValor: ${getCompanyBillingValueLabel(state.company || {})}\nProxima data de pagamento: ${dueDate}`,
+    {
+      title: "Assinatura empresarial",
+      confirmLabel: "Fechar",
+      type: "info"
+    }
+  );
 }
 
 async function openCustomerPortal(){
@@ -3942,6 +4156,10 @@ const getOsApprovalsDeps = () => ({
   refs, state, db, auth, setView
 });
 
+const getAgendaTimeSheetDeps = () => ({
+  refs, state, db, auth, setView, navigateTo, ROUTES
+});
+
 const getExpensesDeps = () => ({
   refs, state, db, storage, auth, setView
 });
@@ -4036,6 +4254,18 @@ async function openOsApprovalsView() {
 
 async function loadOsApprovals() {
   await osApprovalsDomain.loadOsApprovals(getOsApprovalsDeps());
+}
+
+async function openAgendaTimeSheetView() {
+  try{
+    await ensureCompanyContext();
+  }catch(err){
+    console.error("openAgendaTimeSheetView: ensureCompanyContext falhou:", err);
+    alert("Nao foi possivel identificar a empresa do usuario. Faca logout e login novamente.");
+    return;
+  }
+
+  agendaTimeSheetDomain.openAgendaTimeSheetView(getAgendaTimeSheetDeps());
 }
 
 async function openExpenseApprovalsView() {

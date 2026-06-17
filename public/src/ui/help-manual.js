@@ -71,6 +71,23 @@ function reportList(extraText){
   `;
 }
 
+function agendaTimeSheetSection(){
+  return section(
+    "Agendas TimeSheet",
+    "Planeje atividades por recurso, visualize a agenda mensal e acompanhe conflitos e ausencias.",
+    ["Pagina inicial", "Agendas TimeSheet"],
+    [
+      "Abra Agendas TimeSheet pela Pagina inicial.",
+      "Use Recursos ou Projetos para filtrar a visao mensal.",
+      "Clique em Agendar para selecionar projeto, tarefa, recurso, key users, horas por dia e dias do calendario.",
+      "Revise os avisos de conflito quando o recurso ja tiver mais de uma agenda no mesmo dia.",
+      "Use Registrar Ausencia para bloquear periodos de saude, ferias, terceiro ou outro motivo.",
+      "Acompanhe o bloco Conflitos para ver consultores com mais de uma agenda no mesmo dia."
+    ],
+    "Admin, Gestor e Coordenador podem usar o modulo conforme o escopo de acesso do perfil."
+  );
+}
+
 function tecnicoGuide(){
   return {
     key: "tecnico",
@@ -284,6 +301,7 @@ function gestaoGuide(profileRole){
         ],
         "Gestor ve despesas dos proprios projetos e despesas tecnicas. Coordenador ve despesas vinculadas a projetos coordenados e despesas tecnicas permitidas."
       ),
+      agendaTimeSheetSection(),
       section(
         "Feedbacks da equipe",
         "Consulte recebidos e aplicados; gestores e coordenadores podem acompanhar feedbacks registrados.",
@@ -431,6 +449,7 @@ function adminGuide(){
           "Use filtros para encontrar registros por projeto, usuario, tipo ou periodo."
         ]
       ),
+      agendaTimeSheetSection(),
       section(
         "Relatorios do Admin",
         "Admin pode acessar todos os indicadores habilitados e configurar permissoes dos demais perfis.",
