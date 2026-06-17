@@ -2778,11 +2778,29 @@ async function openBillingMenuAction(){
   const plan = normalizeCompanyPlan(state.company || {});
   const dueDate = formatDatePtBr(getCompanyNextPaymentDate(state.company || {}));
   await showDialogAlert(
-    `Plano atual: ${plan.label}\nValor: ${getCompanyBillingValueLabel(state.company || {})}\nProxima data de pagamento: ${dueDate}`,
+    "",
     {
       title: "Assinatura empresarial",
       confirmLabel: "Fechar",
-      type: "info"
+      type: "info",
+      html: `
+        <div class="billing-summary-dialog">
+          <div class="billing-summary-hero">
+            <span>Plano atual</span>
+            <strong>${escapeHtml(plan.label)}</strong>
+          </div>
+          <div class="billing-summary-grid">
+            <div>
+              <span>Valor</span>
+              <strong>${escapeHtml(getCompanyBillingValueLabel(state.company || {}))}</strong>
+            </div>
+            <div>
+              <span>Proxima data de pagamento</span>
+              <strong>${escapeHtml(dueDate)}</strong>
+            </div>
+          </div>
+        </div>
+      `
     }
   );
 }

@@ -2047,6 +2047,57 @@ a{ color: inherit; }
   color: rgba(12,18,32,.84);
 }
 
+.billing-summary-dialog{
+  display:grid;
+  gap:12px;
+}
+
+.billing-summary-hero,
+.billing-summary-grid > div{
+  border:1px solid rgba(37,99,235,.16);
+  background:linear-gradient(180deg, rgba(239,246,255,.9), rgba(255,255,255,.96));
+  border-radius:14px;
+  padding:14px 16px;
+}
+
+.billing-summary-hero span,
+.billing-summary-grid span{
+  display:block;
+  color:#64748b;
+  font-size:12px;
+  font-weight:800;
+  letter-spacing:.04em;
+  text-transform:uppercase;
+}
+
+.billing-summary-hero strong{
+  display:block;
+  margin-top:5px;
+  color:#0f2f6b;
+  font-size:20px;
+  line-height:1.25;
+}
+
+.billing-summary-grid{
+  display:grid;
+  grid-template-columns:1fr 1fr;
+  gap:10px;
+}
+
+.billing-summary-grid strong{
+  display:block;
+  margin-top:6px;
+  color:#111827;
+  font-size:15px;
+  line-height:1.35;
+}
+
+@media (max-width: 560px){
+  .billing-summary-grid{
+    grid-template-columns:1fr;
+  }
+}
+
 .app-message-dialog[data-tone="error"] .app-message-dialog-card{
   border-color: rgba(239,68,68,.22);
   box-shadow: 0 24px 80px rgba(127,29,29,.18);

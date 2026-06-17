@@ -144,7 +144,8 @@ export function showDialogAlert(msg, options = {}){
   if (!dialog) return Promise.resolve();
 
   dialog.title.textContent = options.title || "Aviso";
-  dialog.text.textContent = msg || "";
+  if (options.html) dialog.text.innerHTML = options.html;
+  else dialog.text.textContent = msg || "";
   dialog.confirm.textContent = options.confirmLabel || "OK";
   dialog.root.dataset.tone = options.type || "info";
   dialog.root.hidden = false;
