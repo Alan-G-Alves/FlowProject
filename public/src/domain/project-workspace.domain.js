@@ -1,4 +1,4 @@
-import {
+﻿import {
   collection,
   deleteDoc,
   doc,
@@ -28,10 +28,14 @@ let _activeProject = null;
 let _tabs = [];
 let _tasks = [];
 let _activities = [];
+let _resourceAbsences = [];
 let _expenseSummary = null;
 let _activityModalBound = false;
 let _activityModalMode = "view";
 let _activityModalActivityId = "";
+let _newActivityTaskId = "";
+let _workspaceScheduleCursor = new Date();
+let _workspaceSelectedDates = new Set();
 let _approvalConfirmBound = false;
 let _approvalConfirmActivityId = "";
 let _approvalConfirmNextStatus = "";
@@ -281,6 +285,22 @@ function weekdayName(idx){
   return ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sab"][idx] || "";
 }
 
+function dateKey(date){
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
+}
+
+function firstDay(date){
+  return new Date(date.getFullYear(), date.getMonth(), 1);
+}
+
+function monthEnd(date){
+  return new Date(date.getFullYear(), date.getMonth() + 1, 0);
+}
+
+function monthLabel(date){
+  return date.toLocaleDateString("pt-BR", { month: "long", year: "numeric" });
+}
+
 function datesForRangeByWeekdays(start, end, weekdaysSet){
   const out = [];
   const s = parseDateOnly(start);
@@ -407,6 +427,356 @@ function syncActivityWeekdaysVisibility(taskId){
 
   const isSingleDay = !!start && !!end && start === end;
   wrap.hidden = isSingleDay;
+}
+
+function selectedWorkspaceResourceIds(taskId){
+  return getActivitySelectionValues(taskId, "Techs").map((item) => item?.value).filter(Boolean);
+}
+
+function workspaceDailyResourceHours(resourceId, date){
+  return _activities.reduce((sum, activity) => {
+    if (String(activity.workDate || "").slice(0, 10) !== date) return sum;
+    if (!Array.isArray(activity.techUids) || !activity.techUids.includes(resourceId)) return sum;
+    return sum + asNumber(activity.hoursWorked);
+  }, 0);
+}
+
+function workspaceAbsenceOverlaps(resourceId, startDate, endDate){
+  return _resourceAbsences.some((absence) => {
+    if (absence.active === false || String(absence.resourceId || "") !== String(resourceId || "")) return false;
+    const aStart = String(absence.startDate || "").slice(0, 10);
+    const aEnd = String(absence.endDate || absence.startDate || "").slice(0, 10);
+    return aStart <= endDate && startDate <= aEnd;
+  });
+}
+
+function isWorkspaceScheduleDateDisabled(key, task, allowWeekend, resourceIds = []){
+  const parsed = parseDateOnly(key);
+  const weekend = parsed && (parsed.getDay() === 0 || parsed.getDay() === 6);
+  const outsideTask = task && !overlap(key, key, task.startDate, task.endDate);
+  const absent = resourceIds.length && resourceIds.some((resourceId) => workspaceAbsenceOverlaps(resourceId, key, key));
+  return outsideTask || absent || (weekend && !allowWeekend);
+}
+
+function updateWorkspaceScheduleSummary(taskId){
+  const selectedEl = document.getElementById("workspaceScheduleSelectedSummary");
+  const summaryEl = document.getElementById("workspaceScheduleTaskSummary");
+  const task = _tasks.find((item) => item.id === taskId);
+  const hours = asNumber(document.getElementById(`actHours-${taskId}`)?.value || 0);
+  const resourceCount = selectedWorkspaceResourceIds(taskId).length;
+  const total = _workspaceSelectedDates.size * resourceCount * hours;
+  if (selectedEl) selectedEl.textContent = `${_workspaceSelectedDates.size} dias selecionados - ${formatHoursDisplay(total)} total`;
+  if (!summaryEl || !task) return;
+  const plannedHours = asNumber(task.plannedHours);
+  const usedHours = _activities
+    .filter((activity) => activity.taskId === taskId)
+    .reduce((sum, activity) => sum + asNumber(activity.hoursWorked), 0);
+  if (plannedHours > 0) {
+    const available = Math.max(0, plannedHours - usedHours);
+    summaryEl.innerHTML = `Tarefa: <strong>${escapeHtml(formatHoursDisplay(plannedHours))}</strong> planejadas - <strong>${escapeHtml(formatHoursDisplay(usedHours))}</strong> usadas - saldo <strong>${escapeHtml(formatHoursDisplay(available))}</strong>`;
+  } else {
+    summaryEl.innerHTML = `Tarefa sem limite de horas definido - selecionado <strong>${escapeHtml(formatHoursDisplay(total))}</strong>`;
+  }
+}
+
+function clearWorkspaceScheduleAlert(){
+  clearAlert(document.getElementById("workspaceScheduleAlert"));
+}
+
+function renderWorkspaceScheduleCalendar(taskId){
+  const grid = document.getElementById("workspaceScheduleCalendar");
+  const label = document.getElementById("workspaceScheduleMonth");
+  const task = _tasks.find((item) => item.id === taskId);
+  if (label) label.textContent = monthLabel(_workspaceScheduleCursor);
+  if (!grid || !task) return;
+  const allowWeekend = !!document.getElementById("workspaceScheduleAllowWeekend")?.checked;
+  const resourceIds = selectedWorkspaceResourceIds(taskId);
+  _workspaceSelectedDates = new Set(Array.from(_workspaceSelectedDates).filter((key) => !isWorkspaceScheduleDateDisabled(key, task, allowWeekend, resourceIds)));
+  const first = firstDay(_workspaceScheduleCursor);
+  const end = monthEnd(_workspaceScheduleCursor);
+  const cells = [];
+  for (let i = 0; i < first.getDay(); i++) cells.push({ muted: true });
+  for (let day = 1; day <= end.getDate(); day++) cells.push({ date: new Date(_workspaceScheduleCursor.getFullYear(), _workspaceScheduleCursor.getMonth(), day) });
+  while (cells.length % 7) cells.push({ muted: true });
+  grid.innerHTML = cells.map((cell) => {
+    if (cell.muted) return `<button class="agenda-ts-pick-day is-muted" type="button" disabled></button>`;
+    const key = dateKey(cell.date);
+    const weekend = cell.date.getDay() === 0 || cell.date.getDay() === 6;
+    const outsideTask = !overlap(key, key, task.startDate, task.endDate);
+    const occupied = resourceIds.length && resourceIds.some((resourceId) => workspaceDailyResourceHours(resourceId, key) > 0);
+    const absent = resourceIds.length && resourceIds.some((resourceId) => workspaceAbsenceOverlaps(resourceId, key, key));
+    const disabled = outsideTask || absent || (weekend && !allowWeekend);
+    const selected = _workspaceSelectedDates.has(key);
+    const cls = [
+      "agenda-ts-pick-day",
+      selected ? "is-selected" : "",
+      disabled ? "is-disabled" : "",
+      weekend ? "is-weekend" : "",
+      occupied ? "is-occupied" : "",
+      absent ? "is-absence" : ""
+    ].filter(Boolean).join(" ");
+    const title = absent
+      ? "Recurso selecionado com ausencia cadastrada"
+      : occupied
+        ? "Ja existe agenda para um recurso selecionado neste dia"
+        : outsideTask
+        ? "Fora do periodo da tarefa"
+        : weekend && !allowWeekend
+          ? "Fim de semana bloqueado"
+          : "Selecionar dia";
+    return `<button class="${cls}" data-workspace-schedule-date="${escapeHtml(key)}" type="button" ${disabled ? "disabled" : ""} title="${escapeHtml(title)}">${cell.date.getDate()}</button>`;
+  }).join("");
+  grid.querySelectorAll("[data-workspace-schedule-date]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const key = btn.getAttribute("data-workspace-schedule-date") || "";
+      if (_workspaceSelectedDates.has(key)) _workspaceSelectedDates.delete(key);
+      else _workspaceSelectedDates.add(key);
+      clearWorkspaceScheduleAlert();
+      renderWorkspaceScheduleCalendar(taskId);
+      updateWorkspaceScheduleSummary(taskId);
+    });
+  });
+  updateWorkspaceScheduleSummary(taskId);
+}
+
+function applyWorkspaceScheduleQuick(kind, taskId){
+  if (kind === "clear") {
+    _workspaceSelectedDates = new Set();
+    clearWorkspaceScheduleAlert();
+    renderWorkspaceScheduleCalendar(taskId);
+    updateWorkspaceScheduleSummary(taskId);
+    return;
+  }
+  const allowWeekendInput = document.getElementById("workspaceScheduleAllowWeekend");
+  if (kind === "month" && allowWeekendInput) allowWeekendInput.checked = true;
+  const allowWeekend = kind === "month" || !!allowWeekendInput?.checked;
+  const task = _tasks.find((item) => item.id === taskId);
+  const first = firstDay(_workspaceScheduleCursor);
+  const end = monthEnd(_workspaceScheduleCursor);
+  _workspaceSelectedDates = new Set();
+  const cur = new Date(first);
+  while (cur <= end){
+    const key = dateKey(cur);
+    const weekend = cur.getDay() === 0 || cur.getDay() === 6;
+    if ((allowWeekend || !weekend) && !isWorkspaceScheduleDateDisabled(key, task, allowWeekend, selectedWorkspaceResourceIds(taskId))) {
+      _workspaceSelectedDates.add(key);
+    }
+    cur.setDate(cur.getDate() + 1);
+  }
+  renderWorkspaceScheduleCalendar(taskId);
+  updateWorkspaceScheduleSummary(taskId);
+  clearWorkspaceScheduleAlert();
+}
+
+function ensureWorkspaceNewActivityModal(){
+  let modal = document.getElementById("modalWorkspaceNewActivity");
+  if (modal) return modal;
+  document.body.insertAdjacentHTML("beforeend", `
+    <div class="modal" hidden id="modalWorkspaceNewActivity">
+      <div class="modal-backdrop" data-close-new-activity-modal="true"></div>
+      <div class="modal-card workspace-new-activity-card">
+        <div class="modal-header">
+          <div>
+            <h2>Agendar Atividade</h2>
+            <p class="muted">Selecione dias e recursos para esta tarefa.</p>
+          </div>
+          <button class="btn ghost" data-close-new-activity-modal="true" type="button">X</button>
+        </div>
+        <div class="modal-body" id="workspaceNewActivityBody"></div>
+        <div class="modal-footer">
+          <button class="btn ghost" data-close-new-activity-modal="true" type="button">Cancelar</button>
+          <button class="btn primary" id="btnWorkspaceSaveNewActivity" type="button">Salvar atividade</button>
+        </div>
+      </div>
+    </div>
+  `);
+  modal = document.getElementById("modalWorkspaceNewActivity");
+  modal?.addEventListener("click", (ev) => {
+    if (ev.target?.closest?.("[data-close-new-activity-modal]")) closeWorkspaceNewActivityModal();
+    const removeTechBtn = ev.target?.closest?.("[data-remove-activity-techs]");
+    if (removeTechBtn){
+      removeActivitySelection(
+        removeTechBtn.getAttribute("data-remove-activity-techs"),
+        "Techs",
+        removeTechBtn.getAttribute("data-remove-value")
+      );
+      clearWorkspaceScheduleAlert();
+      if (_newActivityTaskId) renderWorkspaceScheduleCalendar(_newActivityTaskId);
+      return;
+    }
+    const removeKeyUserBtn = ev.target?.closest?.("[data-remove-activity-keyusers]");
+    if (removeKeyUserBtn){
+      removeActivitySelection(
+        removeKeyUserBtn.getAttribute("data-remove-activity-keyusers"),
+        "KeyUsers",
+        removeKeyUserBtn.getAttribute("data-remove-value")
+      );
+      clearWorkspaceScheduleAlert();
+      if (_newActivityTaskId) updateWorkspaceScheduleSummary(_newActivityTaskId);
+      return;
+    }
+    const quickBtn = ev.target?.closest?.("[data-workspace-schedule-quick]");
+    if (quickBtn && _newActivityTaskId){
+      applyWorkspaceScheduleQuick(quickBtn.getAttribute("data-workspace-schedule-quick"), _newActivityTaskId);
+      return;
+    }
+    if (ev.target?.closest?.("#btnWorkspaceSchedulePrev") && _newActivityTaskId){
+      _workspaceScheduleCursor = new Date(_workspaceScheduleCursor.getFullYear(), _workspaceScheduleCursor.getMonth() - 1, 1);
+      renderWorkspaceScheduleCalendar(_newActivityTaskId);
+      return;
+    }
+    if (ev.target?.closest?.("#btnWorkspaceScheduleNext") && _newActivityTaskId){
+      _workspaceScheduleCursor = new Date(_workspaceScheduleCursor.getFullYear(), _workspaceScheduleCursor.getMonth() + 1, 1);
+      renderWorkspaceScheduleCalendar(_newActivityTaskId);
+    }
+  });
+  modal?.addEventListener("change", (ev) => {
+    const rangeStartInput = ev.target?.closest?.("[id^='actRangeStart-']");
+    if (rangeStartInput){
+      syncActivityWeekdaysVisibility(String(rangeStartInput.id || "").replace("actRangeStart-", ""));
+      return;
+    }
+    const rangeEndInput = ev.target?.closest?.("[id^='actRangeEnd-']");
+    if (rangeEndInput){
+      syncActivityWeekdaysVisibility(String(rangeEndInput.id || "").replace("actRangeEnd-", ""));
+      return;
+    }
+    const techSelect = ev.target?.closest?.("[data-activity-tech-select]");
+    if (techSelect){
+      const taskId = techSelect.getAttribute("data-activity-tech-select");
+      const value = techSelect.value || "";
+      const label = techSelect.options?.[techSelect.selectedIndex]?.textContent?.trim() || value;
+      if (value) addActivitySelection(taskId, "Techs", value, label);
+      techSelect.value = "";
+      clearWorkspaceScheduleAlert();
+      renderWorkspaceScheduleCalendar(taskId);
+      return;
+    }
+    const keyUserSelect = ev.target?.closest?.("[data-activity-keyuser-select]");
+    if (keyUserSelect){
+      const taskId = keyUserSelect.getAttribute("data-activity-keyuser-select");
+      const value = keyUserSelect.value || "";
+      const label = keyUserSelect.options?.[keyUserSelect.selectedIndex]?.textContent?.trim() || value;
+      if (value) addActivitySelection(taskId, "KeyUsers", value, label);
+      keyUserSelect.value = "";
+      clearWorkspaceScheduleAlert();
+      updateWorkspaceScheduleSummary(taskId);
+    }
+  });
+  modal?.addEventListener("input", (ev) => {
+    const hoursInput = ev.target?.closest?.("[id^='actHours-']");
+    if (!hoursInput) return;
+    clearWorkspaceScheduleAlert();
+    updateWorkspaceScheduleSummary(String(hoursInput.id || "").replace("actHours-", ""));
+  });
+  return modal;
+}
+
+function closeWorkspaceNewActivityModal(){
+  const modal = document.getElementById("modalWorkspaceNewActivity");
+  if (modal) modal.hidden = true;
+  const body = document.getElementById("workspaceNewActivityBody");
+  if (body) body.innerHTML = "";
+  _newActivityTaskId = "";
+  _workspaceSelectedDates = new Set();
+}
+
+function openWorkspaceNewActivityModal(taskId, deps){
+  const task = _tasks.find((item) => item.id === taskId);
+  if (!task || !_activeProject) return;
+  const state = deps?.state || {};
+  const modal = ensureWorkspaceNewActivityModal();
+  const body = document.getElementById("workspaceNewActivityBody");
+  const keyUsers = keyUsersFromProjectClient(state, _activeProject);
+  const projectTechs = techsFromProject(state, _activeProject);
+  const keyUserOptions = keyUsers.map((ku, idx) => {
+    const label = ku.name || ku.email || ku.phone || `Key user ${idx + 1}`;
+    return `<option value="${escapeHtml(label)}">${escapeHtml(label)}</option>`;
+  }).join("");
+  const techOptions = projectTechs.map((tech) => `<option value="${escapeHtml(tech.uid)}">${escapeHtml(tech.name)}</option>`).join("");
+
+  _newActivityTaskId = taskId;
+  if (body) body.innerHTML = `
+    <div class="alert" hidden id="workspaceNewActivityAlert"></div>
+    <div class="workspace-new-activity-context">
+      <label class="field">
+        <span>Projeto</span>
+        <input value="${escapeHtml(_activeProject.name || "Projeto")}" disabled />
+      </label>
+      <label class="field">
+        <span>Tarefa</span>
+        <input value="${escapeHtml(task.name || "Tarefa")}" disabled />
+      </label>
+    </div>
+    <div class="project-form-grid activity-form-grid workspace-new-activity-grid">
+      <label class="field activity-field-name">
+        <span>Nome da atividade *</span>
+        <input id="actName-${escapeHtml(taskId)}" maxlength="100" placeholder="Ex.: Reuniao com cliente" />
+      </label>
+      <label class="field activity-field-hours">
+        <span>Horas por dia *</span>
+        <input type="number" id="actHours-${escapeHtml(taskId)}" min="1" max="12" step="0.5" value="8" />
+      </label>
+      <div class="field activity-field-keyusers">
+        <span>Key users *</span>
+        <select id="actKeyUsers-${escapeHtml(taskId)}" data-activity-keyuser-select="${escapeHtml(taskId)}">
+          <option value="">Selecione um key user</option>
+          ${keyUserOptions || `<option value="" disabled>Nenhum key user vinculado ao cliente do projeto</option>`}
+        </select>
+        <input type="hidden" id="actSelectedKeyUsers-${escapeHtml(taskId)}" value="[]" />
+        <div id="actKeyUsersChips-${escapeHtml(taskId)}" class="chips project-tech-chips activity-selection-chips"><span class="muted">Nenhum selecionado.</span></div>
+      </div>
+      <div class="field activity-field-techs">
+        <span>Recursos do projeto *</span>
+        <select id="actTechs-${escapeHtml(taskId)}" data-activity-tech-select="${escapeHtml(taskId)}">
+          <option value="">Selecione um recurso</option>
+          ${techOptions || `<option value="" disabled>Nenhum recurso vinculado ao projeto</option>`}
+        </select>
+        <input type="hidden" id="actSelectedTechs-${escapeHtml(taskId)}" value="[]" />
+        <div id="actTechsChips-${escapeHtml(taskId)}" class="chips project-tech-chips activity-selection-chips"><span class="muted">Nenhum selecionado.</span></div>
+      </div>
+      <label class="field span-2">
+        <span>Observacao</span>
+        <textarea id="actObsInput-${escapeHtml(taskId)}" rows="2" placeholder="Observacao da atividade"></textarea>
+      </label>
+    </div>
+    <div class="agenda-ts-task-summary" id="workspaceScheduleTaskSummary">Selecione recursos e dias para consultar horas e saldo.</div>
+    <div class="alert workspace-schedule-alert" hidden id="workspaceScheduleAlert"></div>
+    <section class="agenda-ts-picker workspace-schedule-picker">
+      <div class="agenda-ts-picker-head">
+        <button class="btn ghost sm" id="btnWorkspaceSchedulePrev" type="button" aria-label="Mes anterior">&lsaquo;</button>
+        <strong id="workspaceScheduleMonth"></strong>
+        <button class="btn ghost sm" id="btnWorkspaceScheduleNext" type="button" aria-label="Proximo mes">&rsaquo;</button>
+      </div>
+      <div class="agenda-ts-quick">
+        <button class="btn ghost sm" data-workspace-schedule-quick="month" type="button">Este mes</button>
+        <button class="btn ghost sm" data-workspace-schedule-quick="workdays" type="button">Dias uteis</button>
+        <button class="btn ghost sm" data-workspace-schedule-quick="clear" type="button">Limpar</button>
+      </div>
+      <div class="agenda-ts-picker-weekdays">${["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sab"].map((d) => `<span>${d}</span>`).join("")}</div>
+      <div class="agenda-ts-picker-grid" id="workspaceScheduleCalendar"></div>
+      <div class="agenda-ts-picker-legend">
+        <span><i class="available"></i>Disponivel</span>
+        <span><i class="selected"></i>Selecionado</span>
+        <span><i class="occupied"></i>Ocupado</span>
+        <span><i class="absence"></i>Ausencia</span>
+        <span><i class="weekend"></i>Fim de semana</span>
+      </div>
+    </section>
+    <label class="agenda-ts-weekend-toggle workspace-schedule-weekend"><input id="workspaceScheduleAllowWeekend" type="checkbox" /> Permitir sabado/domingo/feriado</label>
+    <div class="agenda-ts-schedule-footer-note" id="workspaceScheduleSelectedSummary">0 dias selecionados - 0h total</div>
+  `;
+  _workspaceScheduleCursor = firstDay(parseDateOnly(task.startDate) || new Date());
+  _workspaceSelectedDates = new Set();
+  const saveBtn = document.getElementById("btnWorkspaceSaveNewActivity");
+  if (saveBtn) saveBtn.onclick = () => saveActivity(taskId, deps);
+  document.getElementById("workspaceScheduleAllowWeekend")?.addEventListener("change", () => {
+    clearWorkspaceScheduleAlert();
+    renderWorkspaceScheduleCalendar(taskId);
+  });
+  renderWorkspaceScheduleCalendar(taskId);
+  if (modal) modal.hidden = false;
+  document.getElementById(`actName-${taskId}`)?.focus();
 }
 
 function ensureActivityActionModal(){
@@ -1175,13 +1545,9 @@ function bindOnce(deps){
     if (addActivityBtn){
       ev.preventDefault();
       const taskId = addActivityBtn.getAttribute("data-open-activity-form");
-      const wrap = document.getElementById(`activityFormWrap-${taskId}`);
       const taskCard = addActivityBtn.closest(".task-card");
-      if (wrap) {
-        wrap.hidden = !wrap.hidden;
-        syncActivityWeekdaysVisibility(taskId);
-      }
-      if (taskCard && wrap && !wrap.hidden) taskCard.open = true;
+      if (taskCard) taskCard.open = true;
+      openWorkspaceNewActivityModal(taskId, deps);
       return;
     }
 
@@ -1343,12 +1709,12 @@ function clearTaskForm(refs){
 }
 
 function setTaskFormMode(refs, isEdit){
-  if (refs.btnSaveTask) refs.btnSaveTask.textContent = isEdit ? "Salvar alterações" : "Salvar tarefa";
+  if (refs.btnSaveTask) refs.btnSaveTask.textContent = isEdit ? "Salvar alteraÃ§Ãµes" : "Salvar tarefa";
   if (refs.projectTaskFormWrap) {
     const title = refs.projectTaskFormWrap.querySelector(".activity-form-eyebrow");
     const subtitle = refs.projectTaskFormWrap.querySelector(".activity-form-subtitle");
     if (title) title.textContent = isEdit ? "Editar tarefa" : "Nova tarefa";
-    if (subtitle) subtitle.textContent = isEdit ? "Altere o nome e o período da tarefa." : "Programe a nova tarefa.";
+    if (subtitle) subtitle.textContent = isEdit ? "Altere o nome e o perÃ­odo da tarefa." : "Programe a nova tarefa.";
   }
 }
 
@@ -1935,7 +2301,7 @@ function renderTasks(deps){
                 </button>
               ` : ""}
               ${canManageTasks(state) ? `
-                <button class="icon-btn xs btn-block" data-delete-task="${escapeHtml(t.id)}" type="button" ${hasTaskActivities ? "disabled" : ""} title="${hasTaskActivities ? "Não é possível excluir tarefa com atividades relacionadas" : "Excluir tarefa"}" aria-label="Excluir tarefa">
+                <button class="icon-btn xs btn-block" data-delete-task="${escapeHtml(t.id)}" type="button" ${hasTaskActivities ? "disabled" : ""} title="${hasTaskActivities ? "NÃ£o Ã© possÃ­vel excluir tarefa com atividades relacionadas" : "Excluir tarefa"}" aria-label="Excluir tarefa">
                   <svg viewBox="0 0 24 24" aria-hidden="true">
                     <path d="M4 7h16" stroke-width="2" stroke-linecap="round"></path>
                     <path d="M9 7V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v3" stroke-width="2" stroke-linejoin="round"></path>
@@ -1950,70 +2316,13 @@ function renderTasks(deps){
           </div>
         </summary>
         <div class="task-body">
-          <div class="panel subtle" id="activityFormWrap-${escapeHtml(t.id)}" hidden>
-          <div class="activity-form-head">
-            <div class="activity-form-eyebrow">Nova atividade</div>
-            <div class="activity-form-subtitle">Preencha os dados para vincular uma nova atividade a esta tarefa.</div>
-          </div>
-          <div class="project-form-grid activity-form-grid">
-            <label class="field activity-field-name">
-              <span>Nome da atividade</span>
-              <input id="actName-${escapeHtml(t.id)}" maxlength="100" placeholder="Ex.: Reuniao com cliente" />
-            </label>
-            <label class="field activity-field-range-start">
-              <span>Range inicio</span>
-              <input type="date" id="actRangeStart-${escapeHtml(t.id)}" />
-            </label>
-            <label class="field activity-field-range-end">
-              <span>Range fim</span>
-              <input type="date" id="actRangeEnd-${escapeHtml(t.id)}" />
-            </label>
-            <label class="field activity-field-hours">
-              <span>Horas (1 a 12)</span>
-              <input type="number" id="actHours-${escapeHtml(t.id)}" min="1" max="12" step="0.5" placeholder="8" />
-            </label>
-            <div class="field activity-field-weekdays">
-              <span>Dias</span>
-              <div class="weekdays-pills" id="actWeekdays-${escapeHtml(t.id)}">
-                ${[1,2,3,4,5,6,0].map(d => `<label class="weekday-pill"><input type="checkbox" value="${d}" />${weekdayName(d)}</label>`).join("")}
-              </div>
-            </div>
-            <div class="field activity-field-keyusers">
-              <span>Key users</span>
-              <select id="actKeyUsers-${escapeHtml(t.id)}" data-activity-keyuser-select="${escapeHtml(t.id)}">
-                <option value="">Selecione um key user</option>
-                ${keyUserOptions || `<option value="" disabled>Nenhum key user vinculado ao cliente do projeto</option>`}
-              </select>
-              <div class="help">Selecao multipla em chips coloridos.</div>
-              <input type="hidden" id="actSelectedKeyUsers-${escapeHtml(t.id)}" value="[]" />
-              <div id="actKeyUsersChips-${escapeHtml(t.id)}" class="chips project-tech-chips activity-selection-chips"><span class="muted">Nenhum selecionado.</span></div>
-            </div>
-            <div class="field activity-field-techs">
-              <span>Recursos do projeto</span>
-              <select id="actTechs-${escapeHtml(t.id)}" data-activity-tech-select="${escapeHtml(t.id)}">
-                <option value="">Selecione um recurso</option>
-                ${techOptions || `<option value="" disabled>Nenhum recurso vinculado ao projeto</option>`}
-              </select>
-              <div class="help">Selecao multipla em chips coloridos.</div>
-              <input type="hidden" id="actSelectedTechs-${escapeHtml(t.id)}" value="[]" />
-              <div id="actTechsChips-${escapeHtml(t.id)}" class="chips project-tech-chips activity-selection-chips"><span class="muted">Nenhum selecionado.</span></div>
-            </div>
-            <label class="field span-2">
-              <span>Observacao</span>
-              <textarea id="actObsInput-${escapeHtml(t.id)}" rows="2" placeholder="Observacao da atividade"></textarea>
-            </label>
-          </div>
-          <div class="project-form-actions">
-            <button class="btn ghost sm" data-cancel-activity-form="${escapeHtml(t.id)}" type="button">Cancelar</button>
-            <button class="btn primary sm" data-save-activity="${escapeHtml(t.id)}" type="button">Salvar atividade</button>
-          </div>
-          </div>
+          <div id="activityFormWrap-${escapeHtml(t.id)}" hidden></div>
 
           <div class="activity-tree">
             <div class="activity-tree-head">
               <div>
                 <div class="task-step">Atividades</div>
-                <div class="muted">Agrupadas por nome da atividade e expandidas por recursos${activeStatusFilter !== "all" ? ` • Filtro ativo: ${escapeHtml(activeStatusFilter === "pending" ? "Sem OS" : activeStatusFilter === "generated" ? "OS Enviada" : activeStatusFilter === "approved" ? "OS Aprovada" : "Atrasadas")}` : ""}.</div>
+                <div class="muted">Agrupadas por nome da atividade e expandidas por recursos${activeStatusFilter !== "all" ? ` â€¢ Filtro ativo: ${escapeHtml(activeStatusFilter === "pending" ? "Sem OS" : activeStatusFilter === "generated" ? "OS Enviada" : activeStatusFilter === "approved" ? "OS Aprovada" : "Atrasadas")}` : ""}.</div>
               </div>
               <span class="activity-tree-hint">Clique nos grupos para expandir</span>
             </div>
@@ -2058,7 +2367,7 @@ async function deleteTask(taskId, deps){
 
   if (!actsSnap.empty){
     const refs = _wsRefs(deps);
-    setAlert(refs.projectTaskAlert, "Não é permitido excluir uma tarefa com atividades relacionadas.", "error");
+    setAlert(refs.projectTaskAlert, "NÃ£o Ã© permitido excluir uma tarefa com atividades relacionadas.", "error");
     return;
   }
 
@@ -2071,13 +2380,13 @@ async function deleteTask(taskId, deps){
 async function loadProjectData(deps, projectId){
   const { db, state, auth } = deps;
   const companyId = state.companyId;
-  if (!companyId) throw new Error("Empresa não identificada.");
+  if (!companyId) throw new Error("Empresa nÃ£o identificada.");
 
   await ensureWorkspaceContext(deps);
   try { await ensureClientsCache(deps); } catch (_) {}
 
   const pSnap = await getDoc(doc(db, `companies/${companyId}/projects`, projectId));
-  if (!pSnap.exists()) throw new Error("Projeto não encontrado.");
+  if (!pSnap.exists()) throw new Error("Projeto nÃ£o encontrado.");
   _activeProject = { id: pSnap.id, ...pSnap.data() };
 
   const tSnap = await getDocs(query(collection(db, `companies/${companyId}/tasks`), where("projectId", "==", projectId)));
@@ -2091,6 +2400,8 @@ async function loadProjectData(deps, projectId){
   _activities = onlyOwnActivitiesForTech(state, auth, aSnap.docs.map(d => ({ id: d.id, ...d.data() }))
     .filter((activity) => activity.projectId === projectId))
     .sort((a,b) => String(a.workDate || "").localeCompare(String(b.workDate || "")));
+  const absencesSnap = await getDocs(collection(db, `companies/${companyId}/resourceAbsences`)).catch(() => ({ docs: [] }));
+  _resourceAbsences = absencesSnap.docs.map((d) => ({ id: d.id, ...d.data() }));
   if (isTech(state)){
     const visibleTaskIds = new Set(_activities.map((activity) => activity.taskId).filter(Boolean));
     _tasks = _tasks.filter((task) => visibleTaskIds.has(task.id));
@@ -2131,11 +2442,11 @@ async function saveTask(deps){
   const endDate = refs.taskEndDateInput?.value || "";
   const plannedHours = asNumber(refs.taskPlannedHoursInput?.value || 0);
   if (!name || !startDate || !endDate){
-    setAlert(refs.projectTaskAlert, "Preencha nome e período da tarefa.", "error");
+    setAlert(refs.projectTaskAlert, "Preencha nome e perÃ­odo da tarefa.", "error");
     return;
   }
   if (parseDateOnly(endDate) < parseDateOnly(startDate)){
-    setAlert(refs.projectTaskAlert, "A data final da tarefa não pode ser menor que a inicial.", "error");
+    setAlert(refs.projectTaskAlert, "A data final da tarefa nÃ£o pode ser menor que a inicial.", "error");
     return;
   }
 
@@ -2144,14 +2455,14 @@ async function saveTask(deps){
   const totalPlanned = _tasks.reduce((acc, t) => acc + asNumber(t.plannedHours), 0) - (currentTask ? asNumber(currentTask.plannedHours) : 0);
   if (projectHours > 0 && (totalPlanned + plannedHours) > projectHours){
     const saldo = Math.max(0, projectHours - totalPlanned);
-    setAlert(refs.projectTaskAlert, `Horas orçadas excedem o projeto. Saldo disponível: ${saldo}h`, "error");
+    setAlert(refs.projectTaskAlert, `Horas orÃ§adas excedem o projeto. Saldo disponÃ­vel: ${saldo}h`, "error");
     return;
   }
 
   const overlaps = _tasks.filter((t) => t.id !== _editingTaskId && overlap(startDate, endDate, t.startDate, t.endDate));
   if (overlaps.length){
     const names = overlaps.map((t) => t.name).join(", ");
-    setAlert(refs.projectTaskAlert, `Aviso: já existem tarefas neste período (${names}).`, "info");
+    setAlert(refs.projectTaskAlert, `Aviso: jÃ¡ existem tarefas neste perÃ­odo (${names}).`, "info");
   }
 
   const companyId = state.companyId;
@@ -2199,50 +2510,36 @@ async function saveActivity(taskId, deps){
   const { refs, state, db, auth } = deps;
   const task = _tasks.find(t => t.id === taskId);
   if (!task) return;
+  const alertEl = document.getElementById("workspaceNewActivityAlert") || refs.projectTaskAlert;
+  const scheduleAlertEl = document.getElementById("workspaceScheduleAlert") || alertEl;
+  clearAlert(alertEl);
+  clearAlert(scheduleAlertEl);
   const projectKeyUsers = keyUsersFromProjectClient(state, _activeProject);
 
   const name = (document.getElementById(`actName-${taskId}`)?.value || "").trim();
-  const rangeStart = document.getElementById(`actRangeStart-${taskId}`)?.value || "";
-  const rangeEnd = document.getElementById(`actRangeEnd-${taskId}`)?.value || "";
-  const mode = (rangeStart && rangeEnd && rangeStart !== rangeEnd) ? "range" : "single";
-  const singleDate = rangeStart;
   const hoursWorked = asNumber(document.getElementById(`actHours-${taskId}`)?.value || 0);
   const note = (document.getElementById(`actObsInput-${taskId}`)?.value || "").trim();
   const keyUsers = getActivitySelectionValues(taskId, "KeyUsers").map(item => item?.value).filter(Boolean);
   const techUids = getActivitySelectionValues(taskId, "Techs").map(item => item?.value).filter(Boolean);
 
   if (!name || hoursWorked <= 0){
-    setAlert(refs.projectTaskAlert, "Preencha nome e horas da atividade.", "error");
+    setAlert(scheduleAlertEl, "Preencha nome e horas da atividade.", "error");
     return;
   }
   if (!projectKeyUsers.length){
-    setAlert(refs.projectTaskAlert, "Nao ha key user vinculado ao cliente deste projeto. Cadastre key user no cliente para incluir atividades.", "error");
+    setAlert(scheduleAlertEl, "Nao ha key user vinculado ao cliente deste projeto. Cadastre key user no cliente para incluir atividades.", "error");
     return;
   }
   if (!keyUsers.length){
-    setAlert(refs.projectTaskAlert, "Selecione ao menos um key user para a atividade.", "error");
+    setAlert(scheduleAlertEl, "Selecione ao menos um key user para a atividade.", "error");
     return;
   }
   if (hoursWorked > 12){
-    setAlert(refs.projectTaskAlert, "A atividade aceita no máximo 12 horas por dia.", "error");
+    setAlert(scheduleAlertEl, "A atividade aceita no maximo 12 horas por dia.", "error");
     return;
   }
   if (!techUids.length){
-    setAlert(refs.projectTaskAlert, "Selecione ao menos um recurso do projeto para a atividade.", "error");
-    return;
-  }
-
-  if (!rangeStart || !rangeEnd){
-    setAlert(refs.projectTaskAlert, "Informe o periodo da atividade.", "error");
-    return;
-  }
-  if (parseDateOnly(rangeEnd) < parseDateOnly(rangeStart)){
-    setAlert(refs.projectTaskAlert, "A data final da atividade nao pode ser menor que a inicial.", "error");
-    return;
-  }
-
-  if (mode === "range" && !canUseRangeForActivities(state)){
-    setAlert(refs.projectTaskAlert, "Recurso so pode incluir atividade em dia unico.", "error");
+    setAlert(scheduleAlertEl, "Selecione ao menos um recurso do projeto para a atividade.", "error");
     return;
   }
 
@@ -2251,39 +2548,37 @@ async function saveActivity(taskId, deps){
   const creatorRole = roleOf(state);
   const selectedTechs = techsFromProject(state, _activeProject)
     .filter(t => techUids.includes(t.uid));
-  let dates = [];
-  if (mode === "single"){
-    if (!singleDate){
-      setAlert(refs.projectTaskAlert, "Informe o dia da atividade.", "error");
-      return;
-    }
-    dates = [singleDate];
-  } else {
-    if (!rangeStart || !rangeEnd){
-      setAlert(refs.projectTaskAlert, "Informe o range de dias.", "error");
-      return;
-    }
-    const weekdayChecks = Array.from(document.querySelectorAll(`#actWeekdays-${taskId} input[type=checkbox]:checked`));
-    if (!weekdayChecks.length){
-      setAlert(refs.projectTaskAlert, "Selecione ao menos um dia da semana para o range.", "error");
-      return;
-    }
-    const setDays = new Set(weekdayChecks.map(x => Number(x.value)));
-    dates = datesForRangeByWeekdays(rangeStart, rangeEnd, setDays);
-    if (!dates.length){
-      setAlert(refs.projectTaskAlert, "Nenhum dia útil gerado para o range selecionado.", "error");
-      return;
-    }
+  const dates = Array.from(_workspaceSelectedDates).sort();
+  if (!dates.length){
+    setAlert(scheduleAlertEl, "Selecione ao menos um dia no calendario.", "error");
+    return;
   }
 
-  // datas dentro da validade da tarefa
+  const allowWeekend = !!document.getElementById("workspaceScheduleAllowWeekend")?.checked;
   for (const d of dates){
     if (!overlap(d, d, task.startDate, task.endDate)){
-      setAlert(refs.projectTaskAlert, `A data ${fmtDate(d)} está fora do período da tarefa.`, "error");
+      setAlert(scheduleAlertEl, `A data ${fmtDate(d)} esta fora do periodo da tarefa.`, "error");
+      return;
+    }
+    const parsedDate = parseDateOnly(d);
+    if (!allowWeekend && parsedDate && (parsedDate.getDay() === 0 || parsedDate.getDay() === 6)){
+      setAlert(scheduleAlertEl, "Sabado/domingo/feriado so pode ser agendado com permissao marcada.", "error");
+      return;
+    }
+    if (techUids.some((resourceId) => workspaceAbsenceOverlaps(resourceId, d, d))){
+      setAlert(scheduleAlertEl, "Um dos recursos selecionados possui ausencia cadastrada para o periodo informado.", "error");
       return;
     }
   }
-
+  const overlappingDates = dates
+    .filter((date) => techUids.some((resourceId) => workspaceDailyResourceHours(resourceId, date) > 0))
+    .map((date) => fmtDate(date));
+  if (overlappingDates.length) {
+    const preview = overlappingDates.slice(0, 5).join(", ");
+    const suffix = overlappingDates.length > 5 ? ` e mais ${overlappingDates.length - 5}` : "";
+    const ok = confirm(`Um ou mais recursos ja possuem agenda em ${preview}${suffix}. O sistema permite mais de uma atividade no mesmo dia. Deseja confirmar mesmo assim?`);
+    if (!ok) return;
+  }
   const plannedHours = asNumber(task.plannedHours);
   const currentWorked = _activities
     .filter(a => a.taskId === taskId)
@@ -2294,41 +2589,58 @@ async function saveActivity(taskId, deps){
 
   if (plannedHours > 0 && newActivitiesHours > availableHours){
     setAlert(
-      refs.projectTaskAlert,
+      scheduleAlertEl,
       `Horas insuficientes nesta tarefa. Disponiveis: ${availableHours}h. As novas atividades somam ${newActivitiesHours}h.`,
       "error"
     );
     return;
   }
 
-  for (const d of dates){
-    for (const tech of selectedTechs){
-      const actId = `act-${Date.now()}-${Math.random().toString(36).slice(2,7)}`;
-      await setDoc(doc(db, `companies/${companyId}/activities`, actId), {
-        projectId: _activeProject.id,
-        projectName: _activeProject.name || "",
-        managerUid: _activeProject.managerUid || "",
-        managerName: activeManagerName,
-        taskId,
-        taskName: task.name || "",
-        name,
-        workDate: d,
-        hoursWorked,
-        techUids: [tech.uid],
-        techNames: [tech.name],
-        keyUsers,
-        note,
-        status: "sem_os",
-        createdBy: uid,
-        createdByName: state.profile?.name || "",
-        createdByRole: creatorRole,
-        createdAt: serverTimestamp(),
-        updatedAt: serverTimestamp(),
-        updatedBy: uid
-      });
+  const saveButton = document.getElementById("btnWorkspaceSaveNewActivity");
+  const originalLabel = saveButton?.textContent || "Salvar atividade";
+  if (saveButton) {
+    saveButton.disabled = true;
+    saveButton.textContent = "Salvando...";
+  }
+  try {
+    for (const d of dates){
+      for (const tech of selectedTechs){
+        const actId = `act-${Date.now()}-${Math.random().toString(36).slice(2,7)}`;
+        await setDoc(doc(db, `companies/${companyId}/activities`, actId), {
+          projectId: _activeProject.id,
+          projectName: _activeProject.name || "",
+          managerUid: _activeProject.managerUid || "",
+          managerName: activeManagerName,
+          taskId,
+          taskName: task.name || "",
+          name,
+          workDate: d,
+          hoursWorked,
+          techUids: [tech.uid],
+          techNames: [tech.name],
+          keyUsers,
+          note,
+          status: "sem_os",
+          createdBy: uid,
+          createdByName: state.profile?.name || "",
+          createdByRole: creatorRole,
+          createdAt: serverTimestamp(),
+          updatedAt: serverTimestamp(),
+          updatedBy: uid
+        });
+      }
+    }
+  } catch (err) {
+    setAlert(alertEl, err?.message || "Nao foi possivel salvar a atividade.", "error");
+    return;
+  } finally {
+    if (saveButton) {
+      saveButton.disabled = false;
+      saveButton.textContent = originalLabel;
     }
   }
 
+  closeWorkspaceNewActivityModal();
   await refreshWorkspace(deps);
 }
 
@@ -2351,15 +2663,15 @@ async function saveTechFill(activityId, deps){
   const minChars = getActivityNoteMinChars(state);
 
   if (hoursDiff <= 0){
-    setAlert(refs.projectTaskAlert, "Informe hora início e fim válidas.", "error");
+    setAlert(refs.projectTaskAlert, "Informe hora inÃ­cio e fim vÃ¡lidas.", "error");
     return;
   }
   if (hoursDiff > maxHours){
-    setAlert(refs.projectTaskAlert, `A soma início/fim não pode ultrapassar ${maxHours}h.`, "error");
+    setAlert(refs.projectTaskAlert, `A soma inÃ­cio/fim nÃ£o pode ultrapassar ${maxHours}h.`, "error");
     return;
   }
   if (note.length < minChars){
-    setAlert(refs.projectTaskAlert, `A observação precisa ter no mínimo ${minChars} caracteres.`, "error");
+    setAlert(refs.projectTaskAlert, `A observaÃ§Ã£o precisa ter no mÃ­nimo ${minChars} caracteres.`, "error");
     return;
   }
 
@@ -2464,9 +2776,9 @@ export async function openProjectWorkspace(projectId, deps){
     renderTasks(deps);
   }catch(err){
     console.error("[workspace] open error:", err);
-    if (refs.projectTaskAlert) setAlert(refs.projectTaskAlert, err?.message || "Não foi possível abrir o workspace do projeto.", "error");
+    if (refs.projectTaskAlert) setAlert(refs.projectTaskAlert, err?.message || "NÃ£o foi possÃ­vel abrir o workspace do projeto.", "error");
     if (refs.projectWorkspaceCover) {
-      refs.projectWorkspaceCover.innerHTML = `<p class="muted">Não foi possível carregar os dados do projeto.</p>`;
+      refs.projectWorkspaceCover.innerHTML = `<p class="muted">NÃ£o foi possÃ­vel carregar os dados do projeto.</p>`;
     }
   }
 }
@@ -2481,3 +2793,6 @@ export function closeProjectWorkspace(deps){
   if (refs.projectWorkspaceBreadcrumb) refs.projectWorkspaceBreadcrumb.innerHTML = "";
   renderTabs(refs);
 }
+
+
+

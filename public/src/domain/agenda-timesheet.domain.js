@@ -1,4 +1,4 @@
-import {
+﻿import {
   deleteAgendaActivity,
   findActivitiesByFilters,
   getCompanySettings,
@@ -19,6 +19,8 @@ let _selectedClearIds = new Set();
 let _scheduleCursor = firstDay(new Date());
 let _scheduleSelectedDates = new Set();
 let _scheduleKeyUsers = [];
+let _scheduleResources = [];
+let _agendaMoreAnchor = null;
 
 const ALLOWED_ROLES = new Set(["admin", "gestor", "coordenador"]);
 const ABSENCE_TYPES = [
@@ -91,6 +93,42 @@ function projectStatusLabel(status){
   };
   return map[String(status || "").toLowerCase()] || status || "-";
 }
+function projectStatusTone(status){
+  const raw = String(status || "a-fazer").toLowerCase();
+  return ["a-fazer", "em-andamento", "go-live", "concluido", "parado", "backlog"].includes(raw) ? raw : "a-fazer";
+}
+function activityStatusTone(activity){
+  const raw = String(activity?.status || "").toLowerCase();
+  const workDate = parseDate(String(activity?.workDate || "").slice(0, 10));
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const overdue = workDate && workDate < today && raw !== "os_gerada" && raw !== "os_aprovada";
+  if (overdue) return "overdue";
+  if (raw === "os_aprovada") return "done";
+  if (raw === "os_gerada") return "sent";
+  return "pending";
+}
+function statusIcon(kind){
+  if (kind === "done" || kind === "sent") {
+    return `<svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M5 12l4 4L19 6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
+  }
+  if (kind === "overdue") {
+    return `<svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 8v5m0 4h.01M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0Z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
+  }
+  return `<svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 8v5l3 3" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="2"/></svg>`;
+}
+function projectStatusBadge(status){
+  const tone = projectStatusTone(status);
+  return `<span class="agenda-ts-status-badge agenda-ts-project-status agenda-ts-project-status--${escapeHtml(tone)}">${escapeHtml(projectStatusLabel(status))}</span>`;
+}
+function activityStatusBadge(activity){
+  const tone = activityStatusTone(activity);
+  const label = tone === "overdue" ? "Atrasada" : statusLabel(activity?.status);
+  return `<span class="agenda-ts-status-badge agenda-ts-activity-status agenda-ts-activity-status--${escapeHtml(tone)}">${statusIcon(tone)}${escapeHtml(label)}</span>`;
+}
+function conflictIcon(){
+  return `<svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 8v5m0 4h.01M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0Z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
+}
 function activeResources(){
   return _ctx.users
     .filter((u) => String(u.role || "").toLowerCase() === "tecnico" && u.active !== false)
@@ -129,6 +167,29 @@ function resourceOptionsHtml(resources, selectedId = ""){
 function clientForProject(project){
   return _ctx.clients.find((c) => c.id === project?.clientId) || null;
 }
+function initials(value){
+  const text = String(value || "").trim();
+  if (!text) return "?";
+  const parts = text.split(/\s+/).filter(Boolean);
+  return parts.slice(0, 2).map((part) => part[0]).join("").toUpperCase();
+}
+function clientAvatarHtml(projectId){
+  const project = _ctx.projects.find((item) => item.id === projectId) || null;
+  const client = clientForProject(project) || null;
+  const name = client?.name || project?.clientName || "Cliente";
+  const photo = String(client?.photoURL || "").trim();
+  return `<span class="agenda-ts-client-avatar" title="${escapeHtml(name)}">${photo ? `<img src="${escapeHtml(photo)}" alt="" />` : `<span>${escapeHtml(initials(name))}</span>`}</span>`;
+}
+function projectClientName(projectId, activities = []){
+  const project = _ctx.projects.find((item) => item.id === projectId) || null;
+  const client = clientForProject(project) || null;
+  return client?.name || project?.clientName || activities.find((activity) => activity.clientName)?.clientName || "";
+}
+function projectChipTitle(projectId, activities = []){
+  const project = projectName(projectId);
+  const client = projectClientName(projectId, activities);
+  return client ? `${client} - ${project}` : project;
+}
 function tasksForProject(projectId){
   return _ctx.tasks.filter((task) => task.projectId === projectId).sort((a, b) => String(a.name || "").localeCompare(String(b.name || "")));
 }
@@ -142,6 +203,23 @@ function keyUsersForProject(project){
 }
 function setScheduleKeyUsers(items){
   _scheduleKeyUsers = (Array.isArray(items) ? items : []).filter(Boolean);
+}
+function setScheduleResources(items){
+  _scheduleResources = (Array.isArray(items) ? items : []).filter((item) => item?.id);
+}
+function addScheduleResource(id, label){
+  const item = String(id || "").trim();
+  if (!item || _scheduleResources.some((resource) => resource.id === item)) return;
+  _scheduleResources = [..._scheduleResources, { id: item, label: label || resourceName(item) }];
+  renderScheduleResourceChips();
+  renderScheduleCalendar();
+  updateScheduleTaskSummary();
+}
+function removeScheduleResource(id){
+  _scheduleResources = _scheduleResources.filter((item) => item.id !== id);
+  renderScheduleResourceChips();
+  renderScheduleCalendar();
+  updateScheduleTaskSummary();
 }
 function addScheduleKeyUser(value){
   const item = String(value || "").trim();
@@ -166,6 +244,23 @@ function renderScheduleKeyUserChips(){
       <button class="project-tech-chip-remove" data-remove-schedule-keyuser="${escapeHtml(item)}" type="button" aria-label="Remover key user">x</button>
     </span>
   `).join("");
+}
+function renderScheduleResourceChips(){
+  const wrap = byId("agendaScheduleResourceChips");
+  if (!wrap) return;
+  if (!_scheduleResources.length) {
+    wrap.innerHTML = `<span class="muted">Nenhum recurso selecionado.</span>`;
+    return;
+  }
+  wrap.innerHTML = _scheduleResources.map((item, idx) => `
+    <span class="chip project-tech-chip t${(idx % 6) + 1}">
+      <span>${escapeHtml(item.label || resourceName(item.id))}</span>
+      <button class="project-tech-chip-remove" data-remove-schedule-resource="${escapeHtml(item.id)}" type="button" aria-label="Remover recurso">x</button>
+    </span>
+  `).join("");
+}
+function clearAgendaScheduleInlineAlert(){
+  clearAlert(byId("agendaScheduleInlineAlert"));
 }
 function resourceName(uid){
   const user = _ctx.users.find((item) => String(item.uid || item.id) === String(uid));
@@ -276,9 +371,9 @@ function renderShell(){
           <p class="muted">Calendario de atividades planejadas por recurso e projeto.</p>
         </div>
         <div class="agenda-ts-actions">
-          <button class="btn ghost sm" id="btnAgendaTsPrev" type="button">‹</button>
+          <button class="btn ghost sm" id="btnAgendaTsPrev" type="button" aria-label="Mes anterior">&lsaquo;</button>
           <strong id="agendaTsMonth">${escapeHtml(monthLabel(_cursor))}</strong>
-          <button class="btn ghost sm" id="btnAgendaTsNext" type="button">›</button>
+          <button class="btn ghost sm" id="btnAgendaTsNext" type="button" aria-label="Proximo mes">&rsaquo;</button>
           <button class="btn primary sm agenda-ts-action-btn" id="btnAgendaTsSchedule" type="button">
             <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><rect x="4" y="5" width="16" height="15" rx="2.5" stroke="currentColor" stroke-width="2"/><path d="M8 3v4M16 3v4M4 10h16" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><path d="M8 15h3M13.5 15H16" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
             Agendar
@@ -367,9 +462,9 @@ function renderConflicts(){
       <div class="agenda-ts-conflicts-list">
         ${conflicts.map(({ resourceId, workDate, activity, conflictCount }) => `
           <button class="agenda-ts-conflict-item" data-agenda-detail="${escapeHtml(activity.id)}" type="button" title="Abrir detalhes da agenda">
-            <strong>⚠ ${escapeHtml(resourceName(resourceId))}</strong>
-            <small>${escapeHtml(fmtDate(workDate))} · ${escapeHtml(projectName(activity.projectId))}</small>
-            <em>${escapeHtml(activity.name || "Atividade")} · ${escapeHtml(String(conflictCount))} agendas no dia</em>
+            <strong>${conflictIcon()} ${escapeHtml(resourceName(resourceId))}</strong>
+            <small>${escapeHtml(fmtDate(workDate))} - ${escapeHtml(projectName(activity.projectId))}</small>
+            <em>${escapeHtml(activity.name || "Atividade")} - ${escapeHtml(String(conflictCount))} agendas no dia</em>
           </button>
         `).join("")}
       </div>
@@ -377,11 +472,26 @@ function renderConflicts(){
   `;
   box.querySelectorAll("[data-agenda-detail]").forEach((btn) => btn.addEventListener("click", () => openDetailsModal(btn.dataset.agendaDetail || "")));
 }
+function calendarEntriesForDay(items, workDate){
+  if (_mode !== "projects") return (items || []).map((activity) => ({ type: "activity", activity }));
+  const byProject = new Map();
+  (items || []).forEach((activity) => {
+    const projectId = activity.projectId || "";
+    if (!projectId) return;
+    const list = byProject.get(projectId) || [];
+    list.push(activity);
+    byProject.set(projectId, list);
+  });
+  return Array.from(byProject.entries())
+    .map(([projectId, activities]) => ({ type: "project", projectId, workDate, activities }))
+    .sort((a, b) => projectName(a.projectId).localeCompare(projectName(b.projectId)));
+}
 function renderCalendar(){
   const cal = byId("agendaTsCalendar");
   const label = byId("agendaTsMonth");
   if (label) label.textContent = monthLabel(_cursor);
   if (!cal) return;
+  closeAgendaMorePopover();
   const start = firstDay(_cursor);
   const end = monthEnd(_cursor);
   const cells = [];
@@ -408,29 +518,136 @@ function renderCalendar(){
     if (cell.muted) return `<div class="agenda-ts-day is-muted"></div>`;
     const key = dateKey(cell.date);
     const items = grouped.get(key) || [];
-    const visible = items.slice(0, 5);
+    const dayEntries = calendarEntriesForDay(items, key);
+    const visible = dayEntries.slice(0, 5);
     const absences = absenceByDay.get(key) || [];
     const absence = absences[0] || null;
     return `<div class="agenda-ts-day">
       <div class="agenda-ts-day-head"><strong>${escapeHtml(cell.day)}</strong>${absence ? `<button class="agenda-ts-absence-chip" data-agenda-absence="${escapeHtml(absence.id)}" type="button" title="Ver ausencia">${escapeHtml(absences.length > 1 ? `Ausencia +${absences.length - 1}` : "Ausencia")}</button>` : ""}</div>
       <div class="agenda-ts-chips">
-        ${visible.map((activity) => {
-          const chipText = _mode === "projects"
-            ? `${projectName(activity.projectId)} / ${activity.clientName || ""}`.trim()
-            : (activity.techNames?.[0] || resourceName(activity.techUids?.[0]));
+        ${visible.map((entry) => {
+          if (entry.type === "project") {
+            const chipText = projectName(entry.projectId);
+            return `<button class="agenda-ts-chip agenda-ts-chip--project" data-agenda-project-summary="${escapeHtml(entry.projectId)}" data-agenda-summary-date="${escapeHtml(key)}" type="button" title="${escapeHtml(projectChipTitle(entry.projectId, entry.activities))}">${clientAvatarHtml(entry.projectId)}<span class="agenda-ts-chip-label">${escapeHtml(chipText)}</span></button>`;
+          }
+          const activity = entry.activity;
+          const chipText = activity.techNames?.[0] || resourceName(activity.techUids?.[0]);
           return `<button class="agenda-ts-chip" data-agenda-detail="${escapeHtml(activity.id)}" type="button" title="${escapeHtml(chipText)}">${escapeHtml(chipText)}</button>`;
         }).join("")}
-        ${items.length > 5 ? `<span class="agenda-ts-more">+${items.length - 5}</span>` : ""}
+        ${dayEntries.length > 5 ? `<button class="agenda-ts-more" data-agenda-more="${escapeHtml(key)}" type="button" aria-haspopup="dialog" aria-expanded="false" title="Ver ${escapeHtml(String(dayEntries.length - 5))} itens ocultos">+${escapeHtml(String(dayEntries.length - 5))}</button>` : ""}
       </div>
     </div>`;
   }).join("");
   cal.querySelectorAll("[data-agenda-detail]").forEach((btn) => btn.addEventListener("click", () => openDetailsModal(btn.dataset.agendaDetail || "")));
+  cal.querySelectorAll("[data-agenda-project-summary]").forEach((btn) => btn.addEventListener("click", () => openProjectDaySummaryModal(btn.getAttribute("data-agenda-project-summary") || "", btn.getAttribute("data-agenda-summary-date") || "")));
   cal.querySelectorAll("[data-agenda-absence]").forEach((btn) => btn.addEventListener("click", () => openAbsenceDetailsModal(btn.dataset.agendaAbsence || "")));
+  cal.querySelectorAll("[data-agenda-more]").forEach((btn) => btn.addEventListener("click", (ev) => {
+    ev.stopPropagation();
+    const key = btn.getAttribute("data-agenda-more") || "";
+    openAgendaMorePopover(btn, key);
+  }));
 }
 function renderAll(){
   renderShell();
   renderSidebar();
   renderCalendar();
+}
+function activityDisplayName(activity){
+  if (_mode === "projects") return `${projectName(activity.projectId)} / ${activity.clientName || ""}`.trim();
+  return (activity.techNames?.[0] || resourceName(activity.techUids?.[0]));
+}
+function activityResourcesText(activity){
+  return (activity.techNames || []).join(", ") || (activity.techUids || []).map(resourceName).join(", ") || "-";
+}
+function activityTimeText(activity){
+  const start = activity.startTime || "";
+  const end = activity.endTime || "";
+  if (start && end) return `${start} - ${end}`;
+  return formatHours(activity.hoursWorked);
+}
+function closeAgendaMorePopover(){
+  byId("agendaTsMorePopover")?.remove();
+  if (_agendaMoreAnchor) _agendaMoreAnchor.setAttribute("aria-expanded", "false");
+  _agendaMoreAnchor = null;
+}
+function positionAgendaMorePopover(anchor, popover){
+  const margin = 12;
+  const gap = 8;
+  const rect = anchor.getBoundingClientRect();
+  const popRect = popover.getBoundingClientRect();
+  const vw = document.documentElement.clientWidth || window.innerWidth;
+  const vh = document.documentElement.clientHeight || window.innerHeight;
+  let left = rect.left;
+  let top = rect.bottom + gap;
+  if (left + popRect.width + margin > vw) left = vw - popRect.width - margin;
+  if (left < margin) left = margin;
+  if (top + popRect.height + margin > vh) top = rect.top - popRect.height - gap;
+  if (top < margin) top = margin;
+  popover.style.left = `${Math.round(left)}px`;
+  popover.style.top = `${Math.round(top)}px`;
+}
+function openAgendaMorePopover(anchor, workDate){
+  const dayActivities = monthActivities()
+    .filter((activity) => String(activity.workDate || "").slice(0, 10) === workDate);
+  const grouped = calendarEntriesForDay(dayActivities, workDate).slice(5);
+  if (!grouped.length) return;
+  if (_agendaMoreAnchor === anchor && byId("agendaTsMorePopover")) {
+    closeAgendaMorePopover();
+    return;
+  }
+  closeAgendaMorePopover();
+  _agendaMoreAnchor = anchor;
+  anchor.setAttribute("aria-expanded", "true");
+  document.body.insertAdjacentHTML("beforeend", `
+    <div class="agenda-ts-more-popover" id="agendaTsMorePopover" role="dialog" aria-label="Agendas ocultas de ${escapeHtml(fmtDate(workDate))}">
+      <div class="agenda-ts-more-head">
+        <div>
+          <strong>${escapeHtml(fmtDate(workDate))}</strong>
+          <span>${escapeHtml(String(grouped.length))} agendas ocultas</span>
+        </div>
+        <button class="agenda-ts-more-close" data-close-agenda-more="true" type="button" aria-label="Fechar agendas ocultas">x</button>
+      </div>
+      <div class="agenda-ts-more-list">
+        ${grouped.map((entry) => {
+          if (entry.type === "project") {
+            const hours = entry.activities.reduce((sum, activity) => sum + asNumber(activity.hoursWorked), 0);
+            const resources = new Set(entry.activities.flatMap((activity) => activity.techUids || []));
+            return `
+              <button class="agenda-ts-more-item" data-agenda-project-summary="${escapeHtml(entry.projectId)}" data-agenda-summary-date="${escapeHtml(workDate)}" type="button">
+                <strong>${escapeHtml(projectChipTitle(entry.projectId, entry.activities))}</strong>
+                <span>${escapeHtml(String(entry.activities.length))} atividades - ${escapeHtml(String(resources.size))} consultores</span>
+                <small>${escapeHtml(formatHours(hours))} no dia</small>
+              </button>
+            `;
+          }
+          const activity = entry.activity;
+          return `
+            <button class="agenda-ts-more-item" data-agenda-detail="${escapeHtml(activity.id)}" type="button">
+              <strong>${escapeHtml(activityDisplayName(activity))}</strong>
+              <span>${escapeHtml(projectName(activity.projectId))} - ${escapeHtml(activity.name || taskName(activity.taskId))}</span>
+              <small>${escapeHtml(activityResourcesText(activity))} - ${escapeHtml(activityTimeText(activity))}</small>
+            </button>
+          `;
+        }).join("")}
+      </div>
+    </div>
+  `);
+  const popover = byId("agendaTsMorePopover");
+  if (!popover) return;
+  positionAgendaMorePopover(anchor, popover);
+  popover.querySelector("[data-close-agenda-more]")?.addEventListener("click", closeAgendaMorePopover);
+  popover.querySelectorAll("[data-agenda-detail]").forEach((btn) => btn.addEventListener("click", () => {
+    const id = btn.getAttribute("data-agenda-detail") || "";
+    closeAgendaMorePopover();
+    openDetailsModal(id);
+  }));
+  popover.querySelectorAll("[data-agenda-project-summary]").forEach((btn) => btn.addEventListener("click", () => {
+    const projectId = btn.getAttribute("data-agenda-project-summary") || "";
+    const date = btn.getAttribute("data-agenda-summary-date") || "";
+    closeAgendaMorePopover();
+    openProjectDaySummaryModal(projectId, date);
+  }));
+  requestAnimationFrame(() => popover.querySelector(".agenda-ts-more-item")?.focus({ preventScroll: true }));
 }
 async function reload(){
   _ctx = await loadAgendaContext(_deps.db, _deps.state.companyId);
@@ -455,8 +672,12 @@ function bindGlobalOnce(){
   if (_bound) return;
   _bound = true;
   document.addEventListener("click", (ev) => {
+    if (!ev.target?.closest?.("#agendaTsMorePopover, [data-agenda-more]")) closeAgendaMorePopover();
     const close = ev.target?.closest?.("[data-close-agenda-modal]");
     if (close) closeAgendaModal();
+  });
+  document.addEventListener("keydown", (ev) => {
+    if (ev.key === "Escape") closeAgendaMorePopover();
   });
 }
 function ensureModal(){
@@ -496,6 +717,85 @@ function openAbsenceDetailsModal(absenceId){
   `;
   modal.hidden = false;
 }
+function projectDayConsultantsHtml(activities){
+  const byResource = new Map();
+  const addToResource = (key, label, activity) => {
+    const current = byResource.get(key) || { label, hours: 0, count: 0, taskNames: new Set(), statusCounts: new Map() };
+    const task = _ctx.tasks.find((item) => item.id === activity.taskId);
+    current.hours += asNumber(activity.hoursWorked);
+    current.count += 1;
+    current.taskNames.add(task?.name || activity.taskName || "Tarefa");
+    const tone = activityStatusTone(activity);
+    current.statusCounts.set(tone, (current.statusCounts.get(tone) || 0) + 1);
+    byResource.set(key, current);
+  };
+  activities.forEach((activity) => {
+    const techUids = Array.isArray(activity.techUids) ? activity.techUids : [];
+    const techNames = Array.isArray(activity.techNames) ? activity.techNames : [];
+    if (!techUids.length && techNames.length) {
+      techNames.forEach((name) => {
+        const key = name || "Sem recurso";
+        addToResource(key, key, activity);
+      });
+      return;
+    }
+    techUids.forEach((uid, idx) => {
+      const label = techNames[idx] || resourceName(uid);
+      addToResource(uid, label, activity);
+    });
+  });
+  const statusLabels = {
+    pending: "Sem OS",
+    sent: "OS Env.",
+    done: "OS Apr.",
+    overdue: "Atr."
+  };
+  const metaHtml = (item) => {
+    const taskChips = Array.from(item.taskNames)
+      .sort()
+      .map((name) => `<span class="agenda-ts-summary-mini agenda-ts-summary-mini--task">${escapeHtml(name)}</span>`)
+      .join("");
+    const statusChips = ["pending", "sent", "done", "overdue"]
+      .filter((tone) => item.statusCounts.has(tone))
+      .map((tone) => `<span class="agenda-ts-summary-mini agenda-ts-summary-mini--status agenda-ts-activity-status--${escapeHtml(tone)}">${statusIcon(tone)}${escapeHtml(statusLabels[tone])}: ${escapeHtml(String(item.statusCounts.get(tone)))}</span>`)
+      .join("");
+    return `${taskChips}${statusChips}`;
+  };
+  return Array.from(byResource.values())
+    .sort((a, b) => a.label.localeCompare(b.label))
+    .map((item) => `
+      <div class="agenda-ts-summary-row">
+        <div class="agenda-ts-summary-consultant">
+          <strong>${escapeHtml(item.label)}</strong>
+          <div class="agenda-ts-summary-meta">${metaHtml(item)}</div>
+        </div>
+        <span>${escapeHtml(formatHours(item.hours))} - ${escapeHtml(String(item.count))} atividade(s)</span>
+      </div>
+    `).join("") || `<p class="muted">Nenhum consultor alocado.</p>`;
+}
+function openProjectDaySummaryModal(projectId, workDate){
+  const activities = monthActivities()
+    .filter((activity) => activity.projectId === projectId && String(activity.workDate || "").slice(0, 10) === workDate);
+  if (!activities.length) return;
+  const project = _ctx.projects.find((item) => item.id === projectId) || {};
+  const totalHours = activities.reduce((sum, activity) => sum + asNumber(activity.hoursWorked), 0);
+  const modal = ensureModal();
+  const card = byId("agendaTsModalCard");
+  card.innerHTML = `
+    <div class="modal-header"><div><h2>Resumo da Agenda</h2><p class="muted">${escapeHtml(fmtDate(workDate))}</p></div><button class="btn ghost" data-close-agenda-modal="true" type="button">X</button></div>
+    <div class="modal-body">
+      <div class="agenda-ts-detail-hero"><span>Projeto - Dia</span><strong>${escapeHtml(project.name || projectName(projectId))}</strong><small>Cliente: ${escapeHtml(project.clientName || activities[0]?.clientName || "-")}</small></div>
+      <div class="agenda-ts-detail-grid agenda-ts-summary-grid">
+        ${detail("Atividades no dia", String(activities.length))}
+        ${detail("Horas planejadas", formatHours(totalHours))}
+        ${detailHtml("Status Projeto", projectStatusBadge(project.status))}
+        ${detailBlockHtml("Consultores e horas", `<div class="agenda-ts-summary-list">${projectDayConsultantsHtml(activities)}</div>`)}
+      </div>
+    </div>
+    <div class="modal-footer"><button class="btn primary" data-close-agenda-modal="true" type="button">Fechar</button></div>
+  `;
+  modal.hidden = false;
+}
 function openDetailsModal(activityId){
   const activity = _ctx.activities.find((item) => item.id === activityId);
   if (!activity) return;
@@ -511,10 +811,10 @@ function openDetailsModal(activityId){
       <div class="agenda-ts-detail-grid">
         ${detail("Cliente", project.clientName || activity.clientName)}
         ${detail("Projeto", project.name || activity.projectName)}
-        ${detail("Status Projeto", projectStatusLabel(project.status))}
+        ${detailHtml("Status Projeto", projectStatusBadge(project.status))}
         ${detail("Tarefa", task.name || activity.taskName)}
         ${detail("Atividade", activity.name)}
-        ${detail("Status Atividade", statusLabel(activity.status))}
+        ${detailHtml("Status Atividade", activityStatusBadge(activity))}
         ${detail("Horas", formatHours(activity.hoursWorked))}
         ${detail("Recurso", (activity.techNames || []).join(", ") || (activity.techUids || []).map(resourceName).join(", "))}
         ${detail("Hora inicio", activity.startTime || "-")}
@@ -547,10 +847,13 @@ function openDetailsModal(activityId){
   modal.hidden = false;
 }
 function detail(label, value){ return `<div class="agenda-ts-detail-item"><span>${escapeHtml(label)}</span><strong>${escapeHtml(value || "-")}</strong></div>`; }
+function detailHtml(label, html){ return `<div class="agenda-ts-detail-item"><span>${escapeHtml(label)}</span><strong>${html || "-"}</strong></div>`; }
+function detailBlockHtml(label, html){ return `<div class="agenda-ts-detail-item"><span>${escapeHtml(label)}</span><div class="agenda-ts-detail-block">${html || "-"}</div></div>`; }
 function openScheduleModal(){
   _scheduleCursor = firstDay(_cursor);
   _scheduleSelectedDates = new Set();
   setScheduleKeyUsers([]);
+  setScheduleResources([]);
   const modal = ensureModal();
   const card = byId("agendaTsModalCard");
   card.innerHTML = `
@@ -560,9 +863,14 @@ function openScheduleModal(){
       <div class="agenda-ts-form-grid">
         <label class="field"><span>Projeto *</span><select id="agendaScheduleProject">${projectOptionsHtml(_ctx.projects)}</select></label>
         <label class="field"><span>Tarefa *</span><select id="agendaScheduleTask"><option value="">Escolha o projeto primeiro</option></select></label>
-        <label class="field"><span>Recurso *</span><select id="agendaScheduleResource">${resourceOptionsHtml(activeResources())}</select></label>
         <label class="field span-2"><span>Nome da Atividade *</span><input id="agendaScheduleName" maxlength="100" /></label>
         <label class="field"><span>Horas por dia *</span><input id="agendaScheduleHours" type="number" min="0.5" max="12" step="0.5" value="8" /></label>
+        <div class="field agenda-ts-keyuser-field span-2">
+          <span>Recursos *</span>
+          <select id="agendaScheduleResource">${resourceOptionsHtml(activeResources())}</select>
+          <div class="help">Selecao multipla em chips coloridos.</div>
+          <div id="agendaScheduleResourceChips" class="chips project-tech-chips activity-selection-chips agenda-ts-keyuser-chips"><span class="muted">Nenhum recurso selecionado.</span></div>
+        </div>
         <div class="field agenda-ts-keyuser-field span-2">
           <span>Key users *</span>
           <select id="agendaScheduleKeyUser"><option value="">Escolha o projeto primeiro</option></select>
@@ -571,11 +879,12 @@ function openScheduleModal(){
         </div>
       </div>
       <div class="agenda-ts-task-summary" id="agendaScheduleTaskSummary">Selecione projeto e tarefa para consultar horas e saldo.</div>
+      <div class="alert workspace-schedule-alert" hidden id="agendaScheduleInlineAlert"></div>
       <section class="agenda-ts-picker">
         <div class="agenda-ts-picker-head">
-          <button class="btn ghost sm" id="btnAgendaSchedulePrevMonth" type="button">‹</button>
+          <button class="btn ghost sm" id="btnAgendaSchedulePrevMonth" type="button" aria-label="Mes anterior">&lsaquo;</button>
           <strong id="agendaScheduleMonth"></strong>
-          <button class="btn ghost sm" id="btnAgendaScheduleNextMonth" type="button">›</button>
+          <button class="btn ghost sm" id="btnAgendaScheduleNextMonth" type="button" aria-label="Proximo mes">&rsaquo;</button>
         </div>
         <div class="agenda-ts-quick">
           <button class="btn ghost sm" data-schedule-quick="month" type="button">Este mes</button>
@@ -601,58 +910,74 @@ function openScheduleModal(){
   const resourceSelect = byId("agendaScheduleResource");
   const syncProject = ({ preserveResource = false } = {}) => {
     const selectedProjectId = projectSelect?.value || "";
-    const currentResourceId = resourceSelect?.value || "";
     const allowedResources = resourcesForProject(selectedProjectId);
-    const nextResourceId = preserveResource && allowedResources.some((user) => resourceIdOf(user) === currentResourceId)
-      ? currentResourceId
-      : "";
-    if (resourceSelect) resourceSelect.innerHTML = resourceOptionsHtml(allowedResources, nextResourceId);
+    const allowedIds = new Set(allowedResources.map(resourceIdOf));
+    if (resourceSelect) resourceSelect.innerHTML = resourceOptionsHtml(allowedResources);
+    if (preserveResource) setScheduleResources(_scheduleResources.filter((item) => allowedIds.has(item.id)));
+    else setScheduleResources([]);
     const project = _ctx.projects.find((p) => p.id === selectedProjectId) || null;
     byId("agendaScheduleTask").innerHTML = `<option value="">Selecione</option>${tasksForProject(project?.id || "").map((t) => `<option value="${escapeHtml(t.id)}">${escapeHtml(t.name || "Tarefa")}</option>`).join("")}`;
     byId("agendaScheduleKeyUser").innerHTML = `<option value="">Selecione</option>${keyUsersForProject(project).map((item) => `<option value="${escapeHtml(item)}">${escapeHtml(item)}</option>`).join("")}`;
     setScheduleKeyUsers([]);
     renderScheduleKeyUserChips();
+    renderScheduleResourceChips();
     _scheduleSelectedDates = new Set();
     renderScheduleCalendar();
     updateScheduleTaskSummary();
   };
-  const syncResource = () => {
-    const selectedResourceId = resourceSelect?.value || "";
-    const currentProjectId = projectSelect?.value || "";
-    const allowedProjects = projectsForResource(selectedResourceId);
-    const nextProjectId = allowedProjects.some((project) => project.id === currentProjectId) ? currentProjectId : "";
-    if (projectSelect) projectSelect.innerHTML = projectOptionsHtml(allowedProjects, nextProjectId);
+  projectSelect.addEventListener("change", () => {
+    clearAgendaScheduleInlineAlert();
     syncProject({ preserveResource: true });
-  };
-  projectSelect.addEventListener("change", () => syncProject({ preserveResource: true }));
+  });
+  resourceSelect?.addEventListener("change", () => {
+    const value = resourceSelect.value || "";
+    const label = resourceSelect.options?.[resourceSelect.selectedIndex]?.textContent?.trim() || value;
+    if (value) addScheduleResource(value, label);
+    resourceSelect.value = "";
+    clearAgendaScheduleInlineAlert();
+  });
+  byId("agendaScheduleResourceChips")?.addEventListener("click", (ev) => {
+    const btn = ev.target?.closest?.("[data-remove-schedule-resource]");
+    if (!btn) return;
+    removeScheduleResource(btn.getAttribute("data-remove-schedule-resource") || "");
+    clearAgendaScheduleInlineAlert();
+  });
   byId("agendaScheduleKeyUser")?.addEventListener("change", () => {
     const select = byId("agendaScheduleKeyUser");
     const value = select?.value || "";
     if (value) addScheduleKeyUser(value);
     if (select) select.value = "";
+    clearAgendaScheduleInlineAlert();
   });
   byId("agendaScheduleKeyUserChips")?.addEventListener("click", (ev) => {
     const btn = ev.target?.closest?.("[data-remove-schedule-keyuser]");
     if (!btn) return;
     removeScheduleKeyUser(btn.getAttribute("data-remove-schedule-keyuser") || "");
+    clearAgendaScheduleInlineAlert();
   });
   byId("agendaScheduleTask")?.addEventListener("change", () => {
     _scheduleSelectedDates = new Set();
+    clearAgendaScheduleInlineAlert();
     renderScheduleCalendar();
     updateScheduleTaskSummary();
   });
-  resourceSelect?.addEventListener("change", syncResource);
   byId("agendaScheduleHours")?.addEventListener("input", () => {
+    clearAgendaScheduleInlineAlert();
     renderScheduleCalendar();
     updateScheduleTaskSummary();
   });
-  byId("agendaScheduleAllowWeekend")?.addEventListener("change", renderScheduleCalendar);
+  byId("agendaScheduleAllowWeekend")?.addEventListener("change", () => {
+    clearAgendaScheduleInlineAlert();
+    renderScheduleCalendar();
+  });
   byId("btnAgendaSchedulePrevMonth")?.addEventListener("click", () => {
     _scheduleCursor = new Date(_scheduleCursor.getFullYear(), _scheduleCursor.getMonth() - 1, 1);
+    clearAgendaScheduleInlineAlert();
     renderScheduleCalendar();
   });
   byId("btnAgendaScheduleNextMonth")?.addEventListener("click", () => {
     _scheduleCursor = new Date(_scheduleCursor.getFullYear(), _scheduleCursor.getMonth() + 1, 1);
+    clearAgendaScheduleInlineAlert();
     renderScheduleCalendar();
   });
   document.querySelectorAll("[data-schedule-quick]").forEach((btn) => {
@@ -661,6 +986,7 @@ function openScheduleModal(){
   byId("btnAgendaScheduleSave")?.addEventListener("click", saveSchedule);
   renderScheduleCalendar();
   renderScheduleKeyUserChips();
+  renderScheduleResourceChips();
   updateScheduleTaskSummary();
   modal.hidden = false;
 }
@@ -669,7 +995,7 @@ function updateScheduleTaskSummary(){
   const selectedEl = byId("agendaScheduleSelectedSummary");
   const taskId = byId("agendaScheduleTask")?.value || "";
   const hours = asNumber(byId("agendaScheduleHours")?.value || 0);
-  const total = _scheduleSelectedDates.size * hours;
+  const total = _scheduleSelectedDates.size * _scheduleResources.length * hours;
   if (selectedEl) selectedEl.textContent = `${_scheduleSelectedDates.size} dias selecionados - ${formatHours(total)} total`;
   if (!el) return;
   if (!taskId) {
@@ -678,8 +1004,8 @@ function updateScheduleTaskSummary(){
   }
   const info = taskHoursInfo(taskId);
   el.innerHTML = info.hasLimit
-    ? `Tarefa: <strong>${escapeHtml(formatHours(info.plannedHours))}</strong> planejadas · <strong>${escapeHtml(formatHours(info.usedHours))}</strong> usadas · saldo <strong>${escapeHtml(formatHours(info.availableHours))}</strong>`
-    : `Tarefa sem limite de horas definido · selecionado <strong>${escapeHtml(formatHours(total))}</strong>`;
+    ? `Tarefa: <strong>${escapeHtml(formatHours(info.plannedHours))}</strong> planejadas - <strong>${escapeHtml(formatHours(info.usedHours))}</strong> usadas - saldo <strong>${escapeHtml(formatHours(info.availableHours))}</strong>`
+    : `Tarefa sem limite de horas definido - selecionado <strong>${escapeHtml(formatHours(total))}</strong>`;
 }
 function renderScheduleCalendar(){
   const grid = byId("agendaScheduleCalendar");
@@ -687,7 +1013,7 @@ function renderScheduleCalendar(){
   if (label) label.textContent = monthLabel(_scheduleCursor);
   if (!grid) return;
   const taskId = byId("agendaScheduleTask")?.value || "";
-  const resourceId = byId("agendaScheduleResource")?.value || "";
+  const resourceIds = _scheduleResources.map((item) => item.id);
   const allowWeekend = !!byId("agendaScheduleAllowWeekend")?.checked;
   const task = _ctx.tasks.find((item) => item.id === taskId) || null;
   const first = firstDay(_scheduleCursor);
@@ -701,8 +1027,8 @@ function renderScheduleCalendar(){
     const key = dateKey(cell.date);
     const weekend = cell.date.getDay() === 0 || cell.date.getDay() === 6;
     const outsideTask = task && (key < String(task.startDate || "").slice(0, 10) || key > String(task.endDate || "").slice(0, 10));
-    const absent = resourceId && absenceOverlaps(resourceId, key, key);
-    const occupied = resourceId && dailyResourceHours(resourceId, key) > 0;
+    const absent = resourceIds.length && resourceIds.some((resourceId) => absenceOverlaps(resourceId, key, key));
+    const occupied = resourceIds.length && resourceIds.some((resourceId) => dailyResourceHours(resourceId, key) > 0);
     const disabled = outsideTask || absent || (weekend && !allowWeekend);
     const selected = _scheduleSelectedDates.has(key);
     const cls = [
@@ -714,9 +1040,9 @@ function renderScheduleCalendar(){
       absent ? "is-absence" : ""
     ].filter(Boolean).join(" ");
     const title = absent
-      ? "Recurso com ausencia cadastrada"
+      ? "Recurso selecionado com ausencia cadastrada"
       : occupied
-        ? "Ja existe agenda para este recurso neste dia"
+        ? "Ja existe agenda para um recurso selecionado neste dia"
         : outsideTask
           ? "Fora do periodo da tarefa"
           : weekend && !allowWeekend
@@ -729,6 +1055,7 @@ function renderScheduleCalendar(){
       const key = btn.getAttribute("data-schedule-date") || "";
       if (_scheduleSelectedDates.has(key)) _scheduleSelectedDates.delete(key);
       else _scheduleSelectedDates.add(key);
+      clearAgendaScheduleInlineAlert();
       renderScheduleCalendar();
       updateScheduleTaskSummary();
     });
@@ -738,6 +1065,7 @@ function renderScheduleCalendar(){
 function applyScheduleQuick(kind){
   if (kind === "clear") {
     _scheduleSelectedDates = new Set();
+    clearAgendaScheduleInlineAlert();
     renderScheduleCalendar();
     updateScheduleTaskSummary();
     return;
@@ -757,43 +1085,45 @@ function applyScheduleQuick(kind){
   });
   renderScheduleCalendar();
   updateScheduleTaskSummary();
+  clearAgendaScheduleInlineAlert();
 }
 async function saveSchedule(){
   const alertEl = byId("agendaScheduleAlert");
+  const scheduleAlertEl = byId("agendaScheduleInlineAlert") || alertEl;
   clearAlert(alertEl);
+  clearAlert(scheduleAlertEl);
   const projectId = byId("agendaScheduleProject")?.value || "";
   const taskId = byId("agendaScheduleTask")?.value || "";
-  const resourceId = byId("agendaScheduleResource")?.value || "";
+  const resourceIds = _scheduleResources.map((item) => item.id);
   const keyUsers = _scheduleKeyUsers.slice();
   const name = String(byId("agendaScheduleName")?.value || "").trim();
   const hoursWorked = asNumber(byId("agendaScheduleHours")?.value || 0);
   const project = _ctx.projects.find((item) => item.id === projectId);
   const task = _ctx.tasks.find((item) => item.id === taskId);
-  const resource = _ctx.users.find((item) => (item.uid || item.id) === resourceId);
-  if (!projectId || !taskId || !resourceId || !keyUsers.length || !name) return setAlert(alertEl, "Preencha projeto, tarefa, recurso, key user e nome da atividade.", "error");
-  if (!isResourceLinkedToProject(projectId, resourceId)) return setAlert(alertEl, "Selecione um recurso vinculado ao projeto informado.", "error");
+  if (!projectId || !taskId || !resourceIds.length || !keyUsers.length || !name) return setAlert(scheduleAlertEl, "Preencha projeto, tarefa, recurso, key user e nome da atividade.", "error");
+  if (resourceIds.some((resourceId) => !isResourceLinkedToProject(projectId, resourceId))) return setAlert(scheduleAlertEl, "Selecione apenas recursos vinculados ao projeto informado.", "error");
   const dates = Array.from(_scheduleSelectedDates).sort();
-  if (!dates.length || hoursWorked <= 0) return setAlert(alertEl, "Selecione ao menos um dia e informe horas validas.", "error");
-  if (hoursWorked > 12) return setAlert(alertEl, "A atividade aceita no maximo 12 horas por dia.", "error");
-  if (project?.active === false || String(project?.status || "").toLowerCase() === "concluido") return setAlert(alertEl, "Projeto inativo ou concluido nao permite nova agenda.", "error");
-  if (String(task?.status || "").toLowerCase() === "concluido") return setAlert(alertEl, "Tarefa encerrada nao permite nova agenda.", "error");
+  if (!dates.length || hoursWorked <= 0) return setAlert(scheduleAlertEl, "Selecione ao menos um dia e informe horas validas.", "error");
+  if (hoursWorked > 12) return setAlert(scheduleAlertEl, "A atividade aceita no maximo 12 horas por dia.", "error");
+  if (project?.active === false || String(project?.status || "").toLowerCase() === "concluido") return setAlert(scheduleAlertEl, "Projeto inativo ou concluido nao permite nova agenda.", "error");
+  if (String(task?.status || "").toLowerCase() === "concluido") return setAlert(scheduleAlertEl, "Tarefa encerrada nao permite nova agenda.", "error");
   const taskInfo = taskHoursInfo(taskId);
-  const newHours = dates.length * hoursWorked;
-  if (taskInfo.hasLimit && newHours > taskInfo.availableHours) return setAlert(alertEl, `Horas insuficientes nesta tarefa. Saldo disponivel: ${formatHours(taskInfo.availableHours)}.`, "error");
+  const newHours = dates.length * resourceIds.length * hoursWorked;
+  if (taskInfo.hasLimit && newHours > taskInfo.availableHours) return setAlert(scheduleAlertEl, `Horas insuficientes nesta tarefa. Saldo disponivel: ${formatHours(taskInfo.availableHours)}.`, "error");
   const allowWeekend = !!byId("agendaScheduleAllowWeekend")?.checked;
   for (const date of dates){
     const parsedDate = parseDate(date);
-    if (!allowWeekend && parsedDate && (parsedDate.getDay() === 0 || parsedDate.getDay() === 6)) return setAlert(alertEl, "Sabado/domingo/feriado so pode ser agendado com permissao marcada.", "error");
-    if (task && (date < String(task.startDate || "").slice(0, 10) || date > String(task.endDate || "").slice(0, 10))) return setAlert(alertEl, `A data ${fmtDate(date)} esta fora do periodo da tarefa.`, "error");
-    if (absenceOverlaps(resourceId, date, date)) return setAlert(alertEl, "Este recurso possui ausencia cadastrada para o periodo informado.", "error");
+    if (!allowWeekend && parsedDate && (parsedDate.getDay() === 0 || parsedDate.getDay() === 6)) return setAlert(scheduleAlertEl, "Sabado/domingo/feriado so pode ser agendado com permissao marcada.", "error");
+    if (task && (date < String(task.startDate || "").slice(0, 10) || date > String(task.endDate || "").slice(0, 10))) return setAlert(scheduleAlertEl, `A data ${fmtDate(date)} esta fora do periodo da tarefa.`, "error");
+    if (resourceIds.some((resourceId) => absenceOverlaps(resourceId, date, date))) return setAlert(scheduleAlertEl, "Um dos recursos selecionados possui ausencia cadastrada para o periodo informado.", "error");
   }
   const overlappingDates = dates
-    .filter((date) => dailyResourceHours(resourceId, date) > 0)
+    .filter((date) => resourceIds.some((resourceId) => dailyResourceHours(resourceId, date) > 0))
     .map((date) => fmtDate(date));
   if (overlappingDates.length) {
     const preview = overlappingDates.slice(0, 5).join(", ");
     const suffix = overlappingDates.length > 5 ? ` e mais ${overlappingDates.length - 5}` : "";
-    const ok = confirm(`Este recurso ja possui agenda em ${preview}${suffix}. O sistema permite mais de uma atividade no mesmo dia, seguindo o comportamento atual do projeto. Deseja confirmar mesmo assim?`);
+    const ok = confirm(`Um ou mais recursos ja possuem agenda em ${preview}${suffix}. O sistema permite mais de uma atividade no mesmo dia, seguindo o comportamento atual do projeto. Deseja confirmar mesmo assim?`);
     if (!ok) return;
   }
   try {
@@ -801,38 +1131,41 @@ async function saveSchedule(){
     if (company) _deps.state.company = company;
     const uid = _deps.auth?.currentUser?.uid || "";
     for (const date of dates){
-      const actId = `act-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
-      await createAgendaActivity(_deps.db, _deps.state.companyId, actId, {
-        projectId,
-        projectName: project?.name || "",
-        clientId: project?.clientId || "",
-        clientName: project?.clientName || clientForProject(project)?.name || "",
-        managerUid: project?.managerUid || "",
-        managerName: project?.managerName || "",
-        coordinatorUid: project?.coordinatorUid || "",
-        coordinatorName: project?.coordinatorName || "",
-        taskId,
-        taskName: task?.name || "",
-        name,
-        workDate: date,
-        hoursWorked,
-        techUids: [resourceId],
-        techNames: [resource?.name || resource?.email || ""],
-        keyUsers,
-        note: "",
-        status: "sem_os",
-        source: "agenda-timesheet",
-        createdBy: uid,
-        createdByName: _deps.state.profile?.name || "",
-        createdByRole: roleOf(_deps.state),
-        updatedBy: uid
-      });
+      for (const resourceId of resourceIds){
+        const resource = _ctx.users.find((item) => (item.uid || item.id) === resourceId);
+        const actId = `act-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+        await createAgendaActivity(_deps.db, _deps.state.companyId, actId, {
+          projectId,
+          projectName: project?.name || "",
+          clientId: project?.clientId || "",
+          clientName: project?.clientName || clientForProject(project)?.name || "",
+          managerUid: project?.managerUid || "",
+          managerName: project?.managerName || "",
+          coordinatorUid: project?.coordinatorUid || "",
+          coordinatorName: project?.coordinatorName || "",
+          taskId,
+          taskName: task?.name || "",
+          name,
+          workDate: date,
+          hoursWorked,
+          techUids: [resourceId],
+          techNames: [resource?.name || resource?.email || ""],
+          keyUsers,
+          note: "",
+          status: "sem_os",
+          source: "agenda-timesheet",
+          createdBy: uid,
+          createdByName: _deps.state.profile?.name || "",
+          createdByRole: roleOf(_deps.state),
+          updatedBy: uid
+        });
+      }
     }
     closeAgendaModal();
     await reload();
     renderAll();
   } catch (err) {
-    setAlert(alertEl, err?.message || "Nao foi possivel criar a agenda.", "error");
+    setAlert(scheduleAlertEl, err?.message || "Nao foi possivel criar a agenda.", "error");
   }
 }
 function openClearModal(){
@@ -953,3 +1286,4 @@ async function saveAbsence(){
     );
   }
 }
+
