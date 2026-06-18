@@ -142,7 +142,7 @@ function _buildProjectSearchHaystack(p){
   parts.push(p?.description || "");
   // prioridade (inclui alias com acento)
   const pri = String(p?.priority || "");
-  if (pri) parts.push(pri, pri === "media" ? "mÃ©dia" : "", pri === "alta" ? "alta" : "", pri === "baixa" ? "baixa" : "");
+  if (pri) parts.push(pri, pri === "media" ? "média" : "", pri === "alta" ? "alta" : "", pri === "baixa" ? "baixa" : "");
   // datas
   parts.push(_dateAliases(p?.startDate));
   parts.push(_dateAliases(p?.endDate));
@@ -287,8 +287,8 @@ async function _uploadProjectContract(deps, companyId, projectId, file){
   if (!storage || !file) return null;
 
   const isPdf = (file.type || "").toLowerCase() === "application/pdf" || /\.pdf$/i.test(file.name || "");
-  if (!isPdf) throw new Error("Anexo invÃ¡lido. Envie um arquivo PDF.");
-  if (file.size > 10 * 1024 * 1024) throw new Error("O contrato deve ter no mÃ¡ximo 10MB.");
+  if (!isPdf) throw new Error("Anexo inválido. Envie um arquivo PDF.");
+  if (file.size > 10 * 1024 * 1024) throw new Error("O contrato deve ter no máximo 10MB.");
 
   const safeName = (file.name || "contrato.pdf").replace(/[^\w.\-]+/g, "_");
   const path = `projectContracts/${companyId}/${projectId}/${Date.now()}_${safeName}`;
@@ -799,10 +799,10 @@ function getStatusBadge(status) {
 function getPriorityBadge(priority) {
   const map = {
     "baixa": '<span class="badge small" style="background:rgba(148,163,184,.10); border-color:rgba(148,163,184,.25);">Baixa</span>',
-    "media": '<span class="badge small" style="background:rgba(249,115,22,.10); border-color:rgba(249,115,22,.25);">MÃ©dia</span>',
+    "media": '<span class="badge small" style="background:rgba(249,115,22,.10); border-color:rgba(249,115,22,.25);">Média</span>',
     "alta": '<span class="badge small" style="background:rgba(239,68,68,.10); border-color:rgba(239,68,68,.25); color:#b91c1c;">Alta</span>'
   };
-  return map[priority] || '<span class="badge small">â€”</span>';
+  return map[priority] || '<span class="badge small">-</span>';
 }
 
 /**
@@ -1799,9 +1799,9 @@ function renderKanbanCards(container, projects, deps) {
 
     const priorityText = {
       baixa: "Baixa",
-      media: "MÃ©dia",
+      media: "Média",
       alta: "Alta"
-    }[project.priority] || "MÃ©dia";
+    }[project.priority] || "Média";
 
     const displayId = _projectDisplayId(project);
     const endRaw = (project.endDate || project.endAt || project.dateEnd);
