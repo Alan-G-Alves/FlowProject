@@ -51,6 +51,64 @@ function getActivityNoteMinChars(state) {
   return Math.max(0, Math.min(1000, Math.round(num)));
 }
 
+function canTechRescheduleActivity(state) {
+  return state?.company?.allowTechActivityReschedule === true;
+}
+
+function activityTechUid(activity, fallbackUid = "") {
+  const techUids = Array.isArray(activity?.techUids) ? activity.techUids.filter(Boolean) : [];
+  return techUids.includes(fallbackUid) ? fallbackUid : (techUids[0] || fallbackUid || "");
+}
+
+function activityGroupKey(activity, fallbackUid = "") {
+  const scheduleGroupId = String(activity?.scheduleGroupId || "").trim();
+  if (scheduleGroupId) return `group:${scheduleGroupId}`;
+  return [
+    String(activity?.projectId || "").trim(),
+    String(activity?.taskId || "").trim(),
+    normalizeText(activity?.name || ""),
+    activityTechUid(activity, fallbackUid)
+  ].join("::");
+}
+
+function sameActivityGroup(activity, targetActivity, fallbackUid = "") {
+  if (!activity || !targetActivity) return false;
+  if (!Array.isArray(activity.techUids) || !activity.techUids.includes(fallbackUid)) return false;
+  return activityGroupKey(activity, fallbackUid) === activityGroupKey(targetActivity, fallbackUid);
+}
+
+function effectiveActivityCapacityHours(activity) {
+  const planned = asNumber(activity?.hoursWorked);
+  const pointed = asNumber(activity?.workedHours);
+  return Math.max(planned, pointed);
+}
+
+function summarizeActivityGroup(activities, targetActivity, currentUid, excludeActivityId = "") {
+  const groupActivities = (Array.isArray(activities) ? activities : [])
+    .filter((activity) => sameActivityGroup(activity, targetActivity, currentUid));
+  const plannedHours = groupActivities.reduce((sum, activity) => sum + effectiveActivityCapacityHours(activity), 0);
+  const pointedHours = groupActivities
+    .filter((activity) => activity.id !== excludeActivityId)
+    .reduce((sum, activity) => sum + asNumber(activity.workedHours), 0);
+  return { plannedHours, pointedHours, remainingHours: Math.max(0, plannedHours - pointedHours) };
+}
+
+async function loadActivityGroupActivities(deps, currentUid) {
+  const { db, state } = deps;
+  const companyId = state.companyId;
+  if (!companyId || !currentUid) return [];
+  try {
+    const snap = await getDocs(query(
+      collection(db, `companies/${companyId}/activities`),
+      where("techUids", "array-contains", currentUid)
+    ));
+    return snap.docs.map((docSnap) => ({ id: docSnap.id, ...docSnap.data() }));
+  } catch (err) {
+    console.warn("[my-activities:group-hours]", err);
+    return _myActivitiesAllCache.map((item) => item.activity).filter(Boolean);
+  }
+}
+
 function updateMyActivityNoteCounter(refs) {
   if (!refs?.myActivityNoteCounter) return;
   const minChars = getActivityNoteMinChars(_currentState);
@@ -83,9 +141,17 @@ function updateMyActivityComputedHours(refs) {
   const end = refs.myActivityEndTime?.value || "";
   const breakTime = refs.myActivityBreakTime?.value || "01:00";
   const total = diffHours(start, end, breakTime);
+  const allowReschedule = canTechRescheduleActivity(_currentState);
+  const currentUid = _currentState?.authUid || "";
+  const cacheSummary = allowReschedule && _currentActivity
+    ? summarizeActivityGroup(_myActivitiesAllCache.map((item) => item.activity).filter(Boolean), _currentActivity.activity, currentUid, _currentActivity.activity.id)
+    : null;
+  const maxAllowed = allowReschedule && cacheSummary?.plannedHours > 0
+    ? cacheSummary.remainingHours
+    : asNumber(_currentActivity?.activity?.hoursWorked);
 
   refs.myActivityComputedHours.textContent = formatHours(total);
-  refs.myActivityComputedHours.classList.toggle("is-over", total > 0 && asNumber(_currentActivity?.activity?.hoursWorked) > 0 && total > asNumber(_currentActivity?.activity?.hoursWorked));
+  refs.myActivityComputedHours.classList.toggle("is-over", total > 0 && maxAllowed > 0 && total > maxAllowed);
 }
 
 function setMyActivityModalError(refs, message) {
@@ -125,6 +191,35 @@ function diffHours(startTime, endTime, breakTime = "00:00") {
   const workedMinutes = endMinutes - startMinutes - breakMinutes;
   if (workedMinutes <= 0) return 0;
   return workedMinutes / 60;
+}
+
+function activityScheduleInfo(activity) {
+  const initialDate = String(activity?.originalWorkDate || activity?.plannedWorkDate || activity?.workDate || "").slice(0, 10);
+  const initialHours = asNumber(activity?.originalHoursWorked ?? activity?.hoursWorked);
+  const pointedDate = String(activity?.workDate || "").slice(0, 10);
+  const pointedHours = asNumber(activity?.workedHours) || diffHours(activity?.startTime || "", activity?.endTime || "", activity?.breakTime || "01:00");
+  const hasPointing = pointedHours > 0 || Boolean(activity?.startTime && activity?.endTime);
+  const hasRemanage = Boolean(
+    hasPointing
+    && (
+      (initialDate && pointedDate && initialDate !== pointedDate)
+      || (initialHours > 0 && pointedHours > 0 && Math.abs(initialHours - pointedHours) > 0.0001)
+    )
+  );
+  return { initialDate, initialHours, pointedDate, pointedHours, hasPointing, hasRemanage };
+}
+
+function activityScheduleMetaHtml(activity) {
+  const info = activityScheduleInfo(activity);
+  if (!info.hasPointing) {
+    return `<div class="activity-meta-line"><span class="activity-meta-label">Previsto inicial:</span> <span class="activity-date">${escapeHtml(fmtDate(info.initialDate))}</span> | <span class="activity-hours">${escapeHtml(formatHours(info.initialHours))}</span></div>`;
+  }
+  return `
+    <div class="activity-meta-stack">
+      <div class="activity-meta-line"><span class="activity-meta-label">Previsto inicial:</span> <span class="activity-date">${escapeHtml(fmtDate(info.initialDate))}</span> | <span class="activity-hours">${escapeHtml(formatHours(info.initialHours))}</span></div>
+      <div class="activity-meta-line ${info.hasRemanage ? "is-remanaged" : ""}"><span class="activity-meta-label">Apontado:</span> <span class="activity-date">${escapeHtml(fmtDate(info.pointedDate))}</span> | <span class="activity-hours">${escapeHtml(formatHours(info.pointedHours))}</span></div>
+    </div>
+  `;
 }
 
 function isOverdue(activity) {
@@ -734,7 +829,7 @@ function renderMyActivitiesList(refs, items) {
               <div class="activity-main">
                 <div>
                   <b>${escapeHtml(item.activity.name || "Atividade")}</b>
-                  <div class="activity-meta-line"><span class="activity-date">${escapeHtml(fmtDate(item.activity.workDate))}</span> | <span class="activity-hours">${escapeHtml(String(item.activity.hoursWorked || 0))}h previstas</span></div>
+                  ${activityScheduleMetaHtml(item.activity)}
                 </div>
                 <div class="activity-head-actions">
                   <span class="activity-status ${meta.cls}">${escapeHtml(meta.label)}</span>
@@ -1025,7 +1120,7 @@ function closeMyActivityModal() {
 function openMyActivityModalItem(item, mode, deps, options = {}) {
   const { refs, state } = deps;
   if (!item || !refs.modalMyActivity) return;
-  _currentState = state;
+  _currentState = { ...(state || {}), authUid: deps.auth?.currentUser?.uid || "" };
 
   _currentActivity = item;
   _currentModalMode = mode === "edit" ? "edit" : "view";
@@ -1033,18 +1128,36 @@ function openMyActivityModalItem(item, mode, deps, options = {}) {
   clearAlert(refs.myActivityModalAlert);
 
   const readOnly = _currentModalMode !== "edit" || isApproved(item.activity);
+  const allowReschedule = canTechRescheduleActivity(state);
   const statusMeta = getStatusMeta(item.activity);
   if (refs.myActivityModalTitle) refs.myActivityModalTitle.textContent = readOnly ? "Visualizar atividade" : "Apontar atividade";
   if (refs.myActivityModalSubtitle) refs.myActivityModalSubtitle.textContent = readOnly
     ? "Confira os detalhes completos da atividade."
-    : "Preencha seu apontamento. Ao salvar, a atividade vai para OS Enviada e segue para aprovacao do gestor.";
+    : (allowReschedule
+      ? "Ajuste data e horas sem ultrapassar o total programado para esta atividade."
+      : "Preencha seu apontamento. Ao salvar, a atividade vai para OS Enviada e segue para aprovacao do gestor.");
 
   if (refs.myActivityProject) refs.myActivityProject.textContent = item.projectName || "-";
   if (refs.myActivityClient) refs.myActivityClient.textContent = item.clientName || "-";
   if (refs.myActivityTask) refs.myActivityTask.textContent = item.taskName || "-";
   if (refs.myActivityName) refs.myActivityName.textContent = item.activity.name || "Atividade";
-  if (refs.myActivityDate) refs.myActivityDate.textContent = fmtDate(item.activity.workDate);
-  if (refs.myActivityHours) refs.myActivityHours.textContent = `${item.activity.hoursWorked || 0}h`;
+  const scheduleInfo = activityScheduleInfo(item.activity);
+  if (refs.myActivityDate) {
+    refs.myActivityDate.textContent = scheduleInfo.hasPointing
+      ? `Prevista: ${fmtDate(scheduleInfo.initialDate)} | Apontada: ${fmtDate(scheduleInfo.pointedDate)}`
+      : fmtDate(scheduleInfo.initialDate);
+  }
+  if (refs.myActivityDateInput) {
+    refs.myActivityDateInput.value = String(item.activity.workDate || "").slice(0, 10);
+    refs.myActivityDateInput.hidden = readOnly || !allowReschedule;
+    refs.myActivityDateInput.disabled = readOnly || !allowReschedule;
+  }
+  if (refs.myActivityDate) refs.myActivityDate.hidden = !readOnly && allowReschedule;
+  if (refs.myActivityHours) {
+    refs.myActivityHours.textContent = scheduleInfo.hasPointing
+      ? `${formatHours(scheduleInfo.initialHours)} / ${formatHours(scheduleInfo.pointedHours)}`
+      : formatHours(scheduleInfo.initialHours);
+  }
   if (refs.myActivityStatusBadge) {
     refs.myActivityStatusBadge.textContent = statusMeta.label;
     refs.myActivityStatusBadge.className = `my-activity-status-badge my-activity-status-badge--${statusMeta.itemCls}`;
@@ -1121,6 +1234,10 @@ async function saveMyActivityModal(deps) {
   const breakTime = refs.myActivityBreakTime?.value || "01:00";
   const note = (refs.myActivityNote?.value || "").trim();
   const minChars = getActivityNoteMinChars(state);
+  const allowReschedule = canTechRescheduleActivity(state);
+  const selectedDate = allowReschedule
+    ? String(refs.myActivityDateInput?.value || _currentActivity.activity.workDate || "").slice(0, 10)
+    : String(_currentActivity.activity.workDate || "").slice(0, 10);
   const hoursDiff = diffHours(start, end, breakTime);
   const maxHours = asNumber(_currentActivity.activity.hoursWorked);
   const currentUid = auth?.currentUser?.uid || "";
@@ -1134,9 +1251,27 @@ async function saveMyActivityModal(deps) {
     setMyActivityModalError(refs, "Informe hora inicio e fim validas.");
     return;
   }
-  if (hoursDiff > maxHours) {
+  if (allowReschedule && !/^\d{4}-\d{2}-\d{2}$/.test(selectedDate)) {
+    setMyActivityModalError(refs, "Informe uma data valida para o apontamento.");
+    return;
+  }
+  if (!allowReschedule && hoursDiff > maxHours) {
     setMyActivityModalError(refs, `O apontamento nao pode ultrapassar ${maxHours}h previstas para a atividade.`);
     return;
+  }
+  if (allowReschedule) {
+    const groupActivities = await loadActivityGroupActivities(deps, currentUid);
+    const summary = summarizeActivityGroup(groupActivities, _currentActivity.activity, currentUid, _currentActivity.activity.id);
+    const plannedHours = summary.plannedHours || maxHours;
+    const totalAfterSave = summary.pointedHours + hoursDiff;
+    if (plannedHours > 0 && totalAfterSave > plannedHours + 0.0001) {
+      const available = Math.max(0, plannedHours - summary.pointedHours);
+      setMyActivityModalError(
+        refs,
+        `Para esta atividade foi programado o maximo de ${formatHours(plannedHours)}. Restam ${formatHours(available)} para este consultor. Diminua horas de agendas futuras desta atividade ou solicite ao gestor programar mais dias/horas para a atividade.`
+      );
+      return;
+    }
   }
   if (note.length < minChars) {
     setMyActivityModalError(refs, `A observacao precisa ter no minimo ${minChars} caracteres.`);
@@ -1159,10 +1294,11 @@ async function saveMyActivityModal(deps) {
   }
 
   try {
-    await updateDoc(doc(db, `companies/${state.companyId}/activities`, _currentActivity.activity.id), {
+    const updatePayload = {
       startTime: start,
       endTime: end,
       breakTime,
+      workDate: selectedDate,
       workedHours: hoursDiff,
       note,
       status: "os_gerada",
@@ -1170,7 +1306,14 @@ async function saveMyActivityModal(deps) {
       techFilledBy: currentUid,
       updatedAt: serverTimestamp(),
       updatedBy: currentUid
-    });
+    };
+    if (!_currentActivity.activity.originalWorkDate) {
+      updatePayload.originalWorkDate = String(_currentActivity.activity.workDate || "").slice(0, 10);
+    }
+    if (_currentActivity.activity.originalHoursWorked == null) {
+      updatePayload.originalHoursWorked = asNumber(_currentActivity.activity.hoursWorked);
+    }
+    await updateDoc(doc(db, `companies/${state.companyId}/activities`, _currentActivity.activity.id), updatePayload);
 
     if (expenseDrafts.length) {
       await expensesDomain.saveActivityExpenseDrafts(_currentActivity, deps, expenseDrafts);

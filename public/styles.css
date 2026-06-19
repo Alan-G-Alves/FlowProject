@@ -2787,6 +2787,18 @@ a{ color: inherit; }
 .report-permission-check span{
   display:none;
 }
+
+#modalTechActivityRescheduleSettings .report-permission-check{
+  justify-content:flex-start;
+  align-items:flex-start;
+  gap:8px;
+  line-height:1.45;
+}
+
+#modalTechActivityRescheduleSettings .report-permission-check span{
+  display:inline;
+}
+
 @media (max-width: 980px){
   .settings-card{ grid-column: span 6; }
 }
@@ -10408,6 +10420,26 @@ body.reports-card-maximized{
   color: rgba(12,18,32,.56);
 }
 
+.activity-meta-stack{
+  display:flex;
+  flex-direction:column;
+  gap:2px;
+  margin-top:2px;
+}
+
+.activity-meta-stack .activity-meta-line{
+  margin-top:0;
+}
+
+.activity-meta-label{
+  font-weight:700;
+  color: rgba(12,18,32,.48);
+}
+
+.activity-meta-line.is-remanaged{
+  color:#0f766e;
+}
+
 .activity-tags{
   margin-top: 6px;
   display:flex;
@@ -11452,6 +11484,15 @@ body.reports-card-maximized{
   font-size:11px;
   line-height:1.25;
   color: rgba(12,18,32,.9);
+}
+
+.my-activity-context-chip input[type="date"]{
+  width:100%;
+  margin-top:5px;
+  min-height:32px;
+  padding:5px 7px;
+  border-radius:10px;
+  font-size:11px;
 }
 
 .my-activity-hours-focus{

@@ -224,6 +224,18 @@ service cloud.firestore {
     // platformUsers
     match /platformUsers/{uid} {
       allow read: if isSuperAdmin() || (isSignedIn() && uid == myUid());
+      allow update: if isSignedIn()
+        && uid == myUid()
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(["name","phone","photoURL"]);
+      allow update: if isSignedIn()
+        && uid == myUid()
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(["name","phone","photoURL"])
+        && request.resource.data.name is string
+        && request.resource.data.name.size() > 0
+        && request.resource.data.phone is string
+        && request.resource.data.photoURL is string
+        && request.resource.data.role == resource.data.role
+        && request.resource.data.active == resource.data.active;
       allow write: if false;
     }
 
@@ -313,7 +325,7 @@ service cloud.firestore {
         && request.resource.data.active is bool;
 
       allow update: if isSuperAdmin()
-        && request.resource.data.keys().hasOnly(["name", "displayName", "cnpj", "cpf", "cpfHash", "accountType", "documentType", "active", "ownerUid", "ownerEmail", "planId", "planName", "planUserLimit", "planParticipantLimit", "planProjectLimit", "planPrice", "planAnnualPrice", "planBillingCycle", "planBillingPrice", "planInstallments", "planInstallmentValue", "planInstallmentPayments", "planUpdatedAt", "billing", "billingStartDate", "billingEndDate", "financialContactName", "financialContactEmail", "financialContactPhone", "billingDueDate", "financialUpdatedAt", "stripeCustomerId", "stripeSubscriptionId", "stripeCheckoutSessionId", "stripeStatus", "createdAt", "createdBy", "number", "logoURL", "logoPath", "logoReportDataUrl", "reportPermissions", "projectTechPermissions", "activityNoteMinChars", "expenseObservationMinChars", "expenseReceiptRequired", "updatedAt"])
+        && request.resource.data.keys().hasOnly(["name", "displayName", "cnpj", "cpf", "cpfHash", "accountType", "documentType", "active", "ownerUid", "ownerEmail", "planId", "planName", "planUserLimit", "planParticipantLimit", "planProjectLimit", "planPrice", "planAnnualPrice", "planBillingCycle", "planBillingPrice", "planInstallments", "planInstallmentValue", "planInstallmentPayments", "planUpdatedAt", "billing", "billingStartDate", "billingEndDate", "financialContactName", "financialContactEmail", "financialContactPhone", "billingDueDate", "financialUpdatedAt", "stripeCustomerId", "stripeSubscriptionId", "stripeCheckoutSessionId", "stripeStatus", "createdAt", "createdBy", "number", "logoURL", "logoPath", "logoReportDataUrl", "reportPermissions", "projectTechPermissions", "activityNoteMinChars", "allowTechActivityReschedule", "expenseObservationMinChars", "expenseReceiptRequired", "updatedAt"])
         && request.resource.data.name is string
         && request.resource.data.name.size() > 0
         && request.resource.data.cnpj is string
@@ -360,11 +372,12 @@ service cloud.firestore {
         && (!("stripeStatus" in request.resource.data) || request.resource.data.stripeStatus is string)
         && (!("number" in request.resource.data) || request.resource.data.number is int)
         && (!("activityNoteMinChars" in request.resource.data) || (request.resource.data.activityNoteMinChars is int && request.resource.data.activityNoteMinChars >= 0 && request.resource.data.activityNoteMinChars <= 1000))
+        && (!("allowTechActivityReschedule" in request.resource.data) || request.resource.data.allowTechActivityReschedule is bool)
         && (!("expenseObservationMinChars" in request.resource.data) || (request.resource.data.expenseObservationMinChars is int && request.resource.data.expenseObservationMinChars >= 0 && request.resource.data.expenseObservationMinChars <= 1000))
         && (!("expenseReceiptRequired" in request.resource.data) || request.resource.data.expenseReceiptRequired is bool);
 
       allow update: if isCompanyAdmin(companyId)
-        && request.resource.data.diff(resource.data).changedKeys().hasOnly(["displayName", "logoURL", "logoPath", "logoReportDataUrl", "reportPermissions", "projectTechPermissions", "activityNoteMinChars", "expenseObservationMinChars", "expenseReceiptRequired", "updatedAt"])
+        && request.resource.data.diff(resource.data).changedKeys().hasOnly(["displayName", "logoURL", "logoPath", "logoReportDataUrl", "reportPermissions", "projectTechPermissions", "activityNoteMinChars", "allowTechActivityReschedule", "expenseObservationMinChars", "expenseReceiptRequired", "updatedAt"])
         && (!("displayName" in request.resource.data) || request.resource.data.displayName is string)
         && (!("logoURL" in request.resource.data) || request.resource.data.logoURL is string)
         && (!("logoPath" in request.resource.data) || request.resource.data.logoPath is string)
@@ -372,6 +385,7 @@ service cloud.firestore {
         && (!("reportPermissions" in request.resource.data) || request.resource.data.reportPermissions is map)
         && (!("projectTechPermissions" in request.resource.data) || request.resource.data.projectTechPermissions is map)
         && (!("activityNoteMinChars" in request.resource.data) || (request.resource.data.activityNoteMinChars is int && request.resource.data.activityNoteMinChars >= 0 && request.resource.data.activityNoteMinChars <= 1000))
+        && (!("allowTechActivityReschedule" in request.resource.data) || request.resource.data.allowTechActivityReschedule is bool)
         && (!("expenseObservationMinChars" in request.resource.data) || (request.resource.data.expenseObservationMinChars is int && request.resource.data.expenseObservationMinChars >= 0 && request.resource.data.expenseObservationMinChars <= 1000))
         && (!("expenseReceiptRequired" in request.resource.data) || request.resource.data.expenseReceiptRequired is bool)
         && (!("updatedAt" in request.resource.data) || request.resource.data.updatedAt is timestamp);
@@ -383,8 +397,9 @@ service cloud.firestore {
         && (!("updatedAt" in request.resource.data) || request.resource.data.updatedAt is timestamp);
 
       allow update: if (isManager(companyId) || isCoordinator(companyId) || isCoordenador(companyId))
-        && request.resource.data.diff(resource.data).changedKeys().hasOnly(["projectTechPermissions", "updatedAt"])
+        && request.resource.data.diff(resource.data).changedKeys().hasOnly(["projectTechPermissions", "allowTechActivityReschedule", "updatedAt"])
         && (!("projectTechPermissions" in request.resource.data) || request.resource.data.projectTechPermissions is map)
+        && (!("allowTechActivityReschedule" in request.resource.data) || request.resource.data.allowTechActivityReschedule is bool)
         && (!("updatedAt" in request.resource.data) || request.resource.data.updatedAt is timestamp);
 
       allow delete: if false;
@@ -540,6 +555,44 @@ match /counters/{counterId} {
         allow update: if isSuperAdmin()
           && request.resource.data.diff(resource.data).changedKeys().hasOnly(["active"])
           && request.resource.data.active is bool;
+
+        // Perfil proprio: atualizacao minima permitida para foto/nome/telefone.
+        allow update: if isSignedIn()
+          && uid == myUid()
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(["name","phone","photoURL"]);
+
+        // Self-update (perfil): qualquer usuario pode atualizar apenas os proprios campos de perfil.
+        allow update: if isSignedIn()
+          && uid == myUid()
+          && companyId == myCompanyId()
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(["name","phone","photoURL"])
+          && (!userUpdateTouches(["name"]) || nameValid())
+          && (!userUpdateTouches(["phone"]) || phoneValid())
+          && (!userUpdateTouches(["photoURL"]) || request.resource.data.photoURL is string)
+          && userFieldsAllowedOnUpdate();
+
+        // Fallback seguro para o proprio perfil quando o vinculo userCompanies ainda nao estiver sincronizado.
+        allow update: if isSignedIn()
+          && uid == myUid()
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(["name","phone","photoURL"])
+          && (!userUpdateTouches(["name"]) || nameValid())
+          && (!userUpdateTouches(["phone"]) || phoneValid())
+          && (!userUpdateTouches(["photoURL"]) || request.resource.data.photoURL is string)
+          && userFieldsAllowedOnUpdate();
+
+        // Perfil proprio: permite salvar nome, telefone e foto mesmo em documentos legados.
+        allow update: if isSignedIn()
+          && uid == myUid()
+          && request.resource.data.name is string
+          && request.resource.data.name.size() > 0
+          && request.resource.data.phone is string
+          && request.resource.data.photoURL is string
+          && request.resource.data.role == resource.data.role
+          && request.resource.data.email == resource.data.email
+          && request.resource.data.active == resource.data.active
+          && (!("teamId" in resource.data) || request.resource.data.teamId == resource.data.teamId)
+          && (!("teamIds" in resource.data) || request.resource.data.teamIds == resource.data.teamIds)
+          && (!("managedTeamIds" in resource.data) || request.resource.data.managedTeamIds == resource.data.managedTeamIds);
 
 
         // ✅ self-update (perfil): qualquer usuário pode atualizar APENAS seus próprios campos de perfil

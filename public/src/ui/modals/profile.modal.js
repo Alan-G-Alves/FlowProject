@@ -108,7 +108,7 @@ export async function saveProfile(deps) {
     setTimeout(() => closeProfileModal(refs), 400);
   } catch (err){
     console.error("saveProfile error", err);
-    setAlert(refs.profileAlert, "Não foi possível salvar. Verifique permissões no Firestore rules.");
+    setAlert(refs.profileAlert, "Não foi possível salvar o perfil. Tente novamente.");
   }
 }
 

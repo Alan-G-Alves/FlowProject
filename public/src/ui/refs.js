@@ -77,6 +77,15 @@ export const btnCancelActivityNoteSettings = byId("btnCancelActivityNoteSettings
 export const btnSaveActivityNoteSettings = byId("btnSaveActivityNoteSettings");
 export const btnResetActivityNoteSettings = byId("btnResetActivityNoteSettings");
 
+// Tech activity reschedule settings
+export const modalTechActivityRescheduleSettings = byId("modalTechActivityRescheduleSettings");
+export const techActivityRescheduleSettingsAlert = byId("techActivityRescheduleSettingsAlert");
+export const allowTechActivityRescheduleInput = byId("allowTechActivityRescheduleInput");
+export const btnCloseTechActivityRescheduleSettings = byId("btnCloseTechActivityRescheduleSettings");
+export const btnCancelTechActivityRescheduleSettings = byId("btnCancelTechActivityRescheduleSettings");
+export const btnSaveTechActivityRescheduleSettings = byId("btnSaveTechActivityRescheduleSettings");
+export const btnResetTechActivityRescheduleSettings = byId("btnResetTechActivityRescheduleSettings");
+
 // Expense observation settings
 export const modalExpenseObservationSettings = byId("modalExpenseObservationSettings");
 export const expenseObservationSettingsAlert = byId("expenseObservationSettingsAlert");
@@ -568,6 +577,7 @@ export const myActivityClient = byId("myActivityClient");
 export const myActivityTask = byId("myActivityTask");
 export const myActivityName = byId("myActivityName");
 export const myActivityDate = byId("myActivityDate");
+export const myActivityDateInput = byId("myActivityDateInput");
 export const myActivityHours = byId("myActivityHours");
 export const myActivityStatusBadge = byId("myActivityStatusBadge");
 export const myActivityStartTime = byId("myActivityStartTime");

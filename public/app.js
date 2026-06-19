@@ -1,4 +1,4 @@
-console.log("APP.JS CARREGADO: vONBOARDING-USER-START-01");
+console.log("APP.JS CARREGADO: vPROFILE-SELF-UPDATE-02");
 
 import {
   initializeApp } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-app.js";
@@ -9,7 +9,8 @@ import {
   signInWithEmailAndPassword,
   sendPasswordResetEmail,
   signOut,
-  createUserWithEmailAndPassword
+  createUserWithEmailAndPassword,
+  updateProfile
 } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-auth.js";
 
 import {
@@ -53,20 +54,20 @@ import { normalizePhone, normalizeCnpj, slugify } from "./src/utils/format.js";
 import { setAlert, clearAlert, clearInlineAlert, showInlineAlert, showDialogAlert } from "./src/ui/alerts.js";
 import { getCompanyDoc, listCompaniesDocs } from "./src/services/companies.service.js";
 import { createNotification } from "./src/services/notifications.service.js?v=1776052722";
-import * as refs from "./src/ui/refs.js?v=1781582000";
+import * as refs from "./src/ui/refs.js?v=1781830000";
 import * as companiesDomain from "./src/domain/companies.domain.js?v=1778794100";
 import * as teamsDomain from "./src/domain/teams.domain.js?v=1772614200";
 import * as usersDomain from "./src/domain/users.domain.js?v=1781580700";
 import * as managerUsersDomain from "./src/domain/manager-users.domain.js?v=1781580700";
 import * as clientsDomain from "./src/domain/clients.domain.js?v=1778628200";
 import * as projectsDomain from "./src/domain/projects.domain.js?v=1781573900";
-import * as myActivitiesDomain from "./src/domain/my-activities.domain.js?v=1778795202";
+import * as myActivitiesDomain from "./src/domain/my-activities.domain.js?v=1781833200";
 import * as myFeedbacksDomain from "./src/domain/my-feedbacks.domain.js?v=1778629800";
 import * as osApprovalsDomain from "./src/domain/os-approvals.domain.js?v=1776052722";
 import * as expensesDomain from "./src/domain/expenses.domain.js?v=1779741200";
-import * as projectWorkspaceDomain from "./src/domain/project-workspace.domain.js?v=1779485200";
+import * as projectWorkspaceDomain from "./src/domain/project-workspace.domain.js?v=1781833200";
 import * as reportsDomain from "./src/domain/reports.domain.js?v=1779834300";
-import * as agendaTimeSheetDomain from "./src/domain/agenda-timesheet.domain.js?v=1781582000";
+import * as agendaTimeSheetDomain from "./src/domain/agenda-timesheet.domain.js?v=1781832000";
 import * as lgpdDomain from "./src/domain/lgpd.domain.js?v=1777475100";
 import * as profileModal from "./src/ui/modals/profile.modal.js?v=1770332251";
 import * as topbar from "./src/ui/topbar.js?v=1770332251";
@@ -283,6 +284,10 @@ function normalizeActivityNoteMinChars(value){
   const num = Number(value);
   if (!Number.isFinite(num)) return 50;
   return Math.max(0, Math.min(1000, Math.round(num)));
+}
+
+function normalizeTechActivityReschedule(value){
+  return value === true;
 }
 
 function normalizeExpenseObservationMinChars(value){
@@ -770,20 +775,6 @@ function renderSettingsView(){
       </div>
     `);
     cards.push(settingsCard({
-      scope: "Relatorios",
-      title: "Relatorios e indicadores",
-      desc: "Acesse os filtros e paineis de acompanhamento da operacao.",
-      action: "reports",
-      actionLabel: "Abrir relatorios"
-    }));
-    cards.push(settingsCard({
-      scope: "OS",
-      title: "OS para aprovar",
-      desc: "Revise apontamentos enviados e acompanhe aprovacoes.",
-      action: "osApprovals",
-      actionLabel: "Abrir OS"
-    }));
-    cards.push(settingsCard({
       scope: "Projetos",
       title: "Permissoes do tecnico no projeto",
       desc: "Controle quais dados financeiros, horas e status report o tecnico pode ver no card e na capa do projeto.",
@@ -791,11 +782,11 @@ function renderSettingsView(){
       actionLabel: "Configurar"
     }));
     cards.push(settingsCard({
-      scope: "Despesas",
-      title: "Despesas para aprovar",
-      desc: "Centralize comprovantes, aprovacoes e impacto financeiro por projeto.",
-      action: "expenses",
-      actionLabel: "Abrir despesas"
+      scope: "Apontamentos",
+      title: "Remanejamento de atividades",
+      desc: "Permita que o tecnico ajuste data e horas do apontamento sem ultrapassar o total programado.",
+      action: "techActivityReschedule",
+      actionLabel: "Configurar"
     }));
   }
 
@@ -1488,19 +1479,18 @@ async function saveProfile(){
   setAlert(refs.profileAlert, "Salvando...", "info");
 
   try {
-    if (state.isSuperAdmin){
-      await updateDoc(doc(db, "platformUsers", user.uid), {
-        name,
-        phone,
-        photoURL
-      });
-    } else {
-      await updateDoc(doc(db, "companies", state.companyId, "users", user.uid), {
-        name,
-        phone,
-        photoURL
-      });
-    }
+    const profilePath = state.isSuperAdmin
+      ? ["platformUsers", user.uid]
+      : ["companies", state.companyId, "users", user.uid];
+    console.info("[saveProfile] tentando salvar perfil", {
+      path: profilePath.join("/"),
+      uid: user.uid,
+      companyId: state.companyId || "",
+      isSuperAdmin: Boolean(state.isSuperAdmin),
+      changed: { name, phone, hasPhotoURL: Boolean(photoURL) }
+    });
+
+    await updateDoc(doc(db, ...profilePath), { name, phone, photoURL });
 
     // Atualiza estado local e UI
     state.profile = { ...(state.profile || {}), name, phone, photoURL };
@@ -1510,8 +1500,22 @@ async function saveProfile(){
     setAlert(refs.profileAlert, "Perfil atualizado!", "success");
     setTimeout(closeProfileModal, 400);
   } catch (err){
-    console.error("saveProfile error", err);
-    setAlert(refs.profileAlert, "Não foi possível salvar. Verifique permissões no Firestore rules.");
+    console.error("saveProfile error", err, {
+      uid: user.uid,
+      companyId: state.companyId || "",
+      isSuperAdmin: Boolean(state.isSuperAdmin)
+    });
+    try {
+      await updateProfile(user, { displayName: name, photoURL });
+      state.profile = { ...(state.profile || {}), name, phone, photoURL };
+      renderTopbar(state.profile, user);
+      setAlert(refs.profileAlert, "Foto atualizada no avatar. Alguns dados do perfil não foram salvos no cadastro.", "success");
+      setTimeout(closeProfileModal, 700);
+      return;
+    } catch (authErr) {
+      console.error("saveProfile auth fallback error", authErr);
+    }
+    setAlert(refs.profileAlert, "Não foi possível salvar o perfil. Tente novamente.");
   }
 }
 
@@ -3554,6 +3558,11 @@ function canConfigureProjectTechPermissions(){
   return !state.isSuperAdmin && ["admin", "gestor", "coordenador"].includes(role);
 }
 
+function canConfigureOperationRules(){
+  const role = String(state.profile?.role || "").toLowerCase();
+  return !state.isSuperAdmin && ["admin", "gestor", "coordenador"].includes(role);
+}
+
 function canConfigureExpenseRules(){
   const role = String(state.profile?.role || "").toLowerCase();
   return !state.isSuperAdmin && ["admin", "gestor"].includes(role);
@@ -3759,6 +3768,46 @@ async function saveActivityNoteSettings(){
 
 function resetActivityNoteSettingsForm(){
   if (refs.activityNoteMinCharsInput) refs.activityNoteMinCharsInput.value = "50";
+}
+
+function closeTechActivityRescheduleSettingsModal(){
+  hide(refs.modalTechActivityRescheduleSettings);
+  clearAlert(refs.techActivityRescheduleSettingsAlert);
+}
+
+async function openTechActivityRescheduleSettingsModal(){
+  clearAlert(refs.techActivityRescheduleSettingsAlert);
+  if (!canConfigureOperationRules()){
+    alert("Acesso restrito: somente admin, gestor ou coordenador pode configurar esta regra.");
+    return;
+  }
+  if (!state.company && state.companyId) await loadCurrentCompanyBrand();
+  if (refs.allowTechActivityRescheduleInput) {
+    refs.allowTechActivityRescheduleInput.checked = normalizeTechActivityReschedule(state.company?.allowTechActivityReschedule);
+  }
+  show(refs.modalTechActivityRescheduleSettings);
+}
+
+async function saveTechActivityRescheduleSettings(){
+  clearAlert(refs.techActivityRescheduleSettingsAlert);
+  if (!canConfigureOperationRules()) return setAlert(refs.techActivityRescheduleSettingsAlert, "Acesso restrito.");
+  if (!state.companyId) return setAlert(refs.techActivityRescheduleSettingsAlert, "Empresa nao identificada.");
+  const enabled = refs.allowTechActivityRescheduleInput?.checked === true;
+  try{
+    await updateDoc(doc(db, "companies", state.companyId), {
+      allowTechActivityReschedule: enabled,
+      updatedAt: serverTimestamp()
+    });
+    state.company = { ...(state.company || {}), allowTechActivityReschedule: enabled };
+    setAlert(refs.techActivityRescheduleSettingsAlert, "Regra de remanejamento salva com sucesso.", "success");
+  }catch(err){
+    console.error("[tech-activity-reschedule-settings:save]", err);
+    setAlert(refs.techActivityRescheduleSettingsAlert, err?.message || "Nao foi possivel salvar a regra.");
+  }
+}
+
+function resetTechActivityRescheduleSettingsForm(){
+  if (refs.allowTechActivityRescheduleInput) refs.allowTechActivityRescheduleInput.checked = false;
 }
 
 function closeExpenseObservationSettingsModal(){
@@ -4565,6 +4614,11 @@ refs.btnCancelActivityNoteSettings?.addEventListener("click", closeActivityNoteS
 refs.modalActivityNoteSettings?.addEventListener("click", (event) => {
   if (event.target?.matches?.("[data-close-activity-note-settings='true']")) closeActivityNoteSettingsModal();
 });
+refs.btnCloseTechActivityRescheduleSettings?.addEventListener("click", closeTechActivityRescheduleSettingsModal);
+refs.btnCancelTechActivityRescheduleSettings?.addEventListener("click", closeTechActivityRescheduleSettingsModal);
+refs.modalTechActivityRescheduleSettings?.addEventListener("click", (event) => {
+  if (event.target?.matches?.("[data-close-tech-activity-reschedule-settings='true']")) closeTechActivityRescheduleSettingsModal();
+});
 refs.btnCloseExpenseObservationSettings?.addEventListener("click", closeExpenseObservationSettingsModal);
 refs.btnCancelExpenseObservationSettings?.addEventListener("click", closeExpenseObservationSettingsModal);
 refs.modalExpenseObservationSettings?.addEventListener("click", (event) => {
@@ -4585,6 +4639,8 @@ refs.btnSaveProjectTechPermissions?.addEventListener("click", saveProjectTechPer
 refs.btnResetProjectTechPermissions?.addEventListener("click", resetProjectTechPermissionsForm);
 refs.btnSaveActivityNoteSettings?.addEventListener("click", saveActivityNoteSettings);
 refs.btnResetActivityNoteSettings?.addEventListener("click", resetActivityNoteSettingsForm);
+refs.btnSaveTechActivityRescheduleSettings?.addEventListener("click", saveTechActivityRescheduleSettings);
+refs.btnResetTechActivityRescheduleSettings?.addEventListener("click", resetTechActivityRescheduleSettingsForm);
 refs.btnSaveExpenseObservationSettings?.addEventListener("click", saveExpenseObservationSettings);
 refs.btnResetExpenseObservationSettings?.addEventListener("click", resetExpenseObservationSettingsForm);
 refs.btnSaveLowMarginSettings?.addEventListener("click", saveLowMarginSettings);
@@ -4599,6 +4655,7 @@ refs.settingsGrid?.addEventListener("click", async (event) => {
   if (action === "reportPermissions") return openReportPermissionsModal();
   if (action === "projectTechPermissions") return openProjectTechPermissionsModal();
   if (action === "activityNoteSettings") return openActivityNoteSettingsModal();
+  if (action === "techActivityReschedule") return openTechActivityRescheduleSettingsModal();
   if (action === "expenseObservationSettings") return openExpenseObservationSettingsModal();
   if (action === "lowMarginSettings") return openLowMarginSettingsModal();
   if (action === "lgpd") return openLgpdCenter();

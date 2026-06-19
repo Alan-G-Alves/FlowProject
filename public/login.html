@@ -1509,6 +1509,7 @@
                 <div class="my-activity-context-chip">
                   <span>Data</span>
                   <strong id="myActivityDate">-</strong>
+                  <input id="myActivityDateInput" type="date" hidden />
                 </div>
               </div>
             </div>
@@ -3237,6 +3238,35 @@
 </div>
 
 
+<!-- MODAL: Remanejamento de Atividades -->
+<div class="modal" hidden id="modalTechActivityRescheduleSettings">
+  <div class="modal-backdrop" data-close-tech-activity-reschedule-settings="true"></div>
+  <div class="modal-card">
+    <div class="modal-header">
+      <div>
+        <h2>Remanejamento de atividades</h2>
+        <p class="muted">Defina se o recurso pode ajustar data e horas ao apontar atividades programadas.</p>
+      </div>
+      <button class="btn ghost" id="btnCloseTechActivityRescheduleSettings" type="button">X</button>
+    </div>
+
+    <div class="modal-body">
+      <div class="alert" hidden id="techActivityRescheduleSettingsAlert"></div>
+      <label class="report-permission-check">
+        <input id="allowTechActivityRescheduleInput" type="checkbox" />
+        <span>O tecnico pode trocar o dia e apontar horas diferentes, mas nao consegue ultrapassar o total planejado pelo gestor para a mesma atividade.</span>
+      </label>
+    </div>
+
+    <div class="modal-footer">
+      <button class="btn ghost" id="btnResetTechActivityRescheduleSettings" type="button">Desativar</button>
+      <button class="btn ghost" id="btnCancelTechActivityRescheduleSettings" type="button">Cancelar</button>
+      <button class="btn primary" id="btnSaveTechActivityRescheduleSettings" type="button">Salvar</button>
+    </div>
+  </div>
+</div>
+
+
 <!-- MODAL: Configuracao de Margem Baixa -->
 <div class="modal" hidden id="modalLowMarginSettings">
   <div class="modal-backdrop" data-close-low-margin-settings="true"></div>
@@ -3358,7 +3388,7 @@
   </div>
 </div>
 
-<script src="./app.js?v=1781582000" type="module"></script>
+<script src="./app.js?v=1781833200" type="module"></script>
 <script>
   // Toggle senha (somente UI)
   document.addEventListener("click", function(e){

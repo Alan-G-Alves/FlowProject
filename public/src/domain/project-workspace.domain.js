@@ -20,7 +20,7 @@ import { downloadProjectStatusReportExcel, downloadProjectStatusReportPdf } from
 import { downloadProjectExecutiveStatusReportPdf } from "./project-executive-status-report.domain.js?v=1778783000";
 import { downloadProjectClientStatusReportPdf } from "./project-client-status-report.domain.js?v=1778784200";
 import { openProjectGanttView } from "./project-gantt-view.domain.js?v=1778794000";
-import { openMyActivityModalForItem } from "./my-activities.domain.js?v=1778795200";
+import { openMyActivityModalForItem } from "./my-activities.domain.js?v=1781833200";
 
 let _bound = false;
 let _activeProjectId = "";
@@ -49,6 +49,52 @@ function formatHoursDisplay(value) {
   if (!Number.isFinite(value) || value <= 0) return "0h";
   const rounded = Math.round(value * 100) / 100;
   return Number.isInteger(rounded) ? `${rounded}h` : `${String(rounded).replace(".", ",")}h`;
+}
+
+function normalizeText(value) {
+  return String(value || "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .trim();
+}
+
+function canTechRescheduleActivity(state) {
+  return state?.company?.allowTechActivityReschedule === true;
+}
+
+function activityTechUid(activity, fallbackUid = "") {
+  const techUids = Array.isArray(activity?.techUids) ? activity.techUids.filter(Boolean) : [];
+  return techUids.includes(fallbackUid) ? fallbackUid : (techUids[0] || fallbackUid || "");
+}
+
+function activityGroupKey(activity, fallbackUid = "") {
+  const scheduleGroupId = String(activity?.scheduleGroupId || "").trim();
+  if (scheduleGroupId) return `group:${scheduleGroupId}`;
+  return [
+    String(activity?.projectId || "").trim(),
+    String(activity?.taskId || "").trim(),
+    normalizeText(activity?.name || ""),
+    activityTechUid(activity, fallbackUid)
+  ].join("::");
+}
+
+function effectiveActivityCapacityHours(activity) {
+  const planned = asNumber(activity?.hoursWorked);
+  const pointed = asNumber(activity?.workedHours);
+  return Math.max(planned, pointed);
+}
+
+function summarizeActivityGroup(activities, targetActivity, currentUid, excludeActivityId = "") {
+  const targetKey = activityGroupKey(targetActivity, currentUid);
+  return (Array.isArray(activities) ? activities : [])
+    .filter((activity) => Array.isArray(activity.techUids) && activity.techUids.includes(currentUid))
+    .filter((activity) => activityGroupKey(activity, currentUid) === targetKey)
+    .reduce((summary, activity) => {
+      summary.plannedHours += effectiveActivityCapacityHours(activity);
+      if (activity.id !== excludeActivityId) summary.pointedHours += asNumber(activity.workedHours);
+      return summary;
+    }, { plannedHours: 0, pointedHours: 0 });
 }
 
 function getActivityStatusValue(activity) {
@@ -172,6 +218,35 @@ function diffHours(startTime, endTime, breakTime = "00:00"){
   const workedMinutes = eMin - sMin - breakMin;
   if (workedMinutes <= 0) return 0;
   return workedMinutes / 60;
+}
+
+function activityScheduleInfo(activity) {
+  const initialDate = String(activity?.originalWorkDate || activity?.plannedWorkDate || activity?.workDate || "").slice(0, 10);
+  const initialHours = asNumber(activity?.originalHoursWorked ?? activity?.hoursWorked);
+  const pointedDate = String(activity?.workDate || "").slice(0, 10);
+  const pointedHours = asNumber(activity?.workedHours) || diffHours(activity?.startTime || "", activity?.endTime || "", activity?.breakTime || "01:00");
+  const hasPointing = pointedHours > 0 || Boolean(activity?.startTime && activity?.endTime);
+  const hasRemanage = Boolean(
+    hasPointing
+    && (
+      (initialDate && pointedDate && initialDate !== pointedDate)
+      || (initialHours > 0 && pointedHours > 0 && Math.abs(initialHours - pointedHours) > 0.0001)
+    )
+  );
+  return { initialDate, initialHours, pointedDate, pointedHours, hasPointing, hasRemanage };
+}
+
+function activityScheduleMetaHtml(activity) {
+  const info = activityScheduleInfo(activity);
+  if (!info.hasPointing) {
+    return `<div class="activity-meta-line"><span class="activity-meta-label">Previsto inicial:</span> <span class="activity-date">${escapeHtml(fmtDate(info.initialDate))}</span> | <span class="activity-hours">${escapeHtml(formatHoursDisplay(info.initialHours))}</span></div>`;
+  }
+  return `
+    <div class="activity-meta-stack">
+      <div class="activity-meta-line"><span class="activity-meta-label">Previsto inicial:</span> <span class="activity-date">${escapeHtml(fmtDate(info.initialDate))}</span> | <span class="activity-hours">${escapeHtml(formatHoursDisplay(info.initialHours))}</span></div>
+      <div class="activity-meta-line ${info.hasRemanage ? "is-remanaged" : ""}"><span class="activity-meta-label">Apontado:</span> <span class="activity-date">${escapeHtml(fmtDate(info.pointedDate))}</span> | <span class="activity-hours">${escapeHtml(formatHoursDisplay(info.pointedHours))}</span></div>
+    </div>
+  `;
 }
 
 function asNumber(v){
@@ -1316,7 +1391,7 @@ async function saveActivityModalChanges(deps){
       return;
     }
 
-    await updateDoc(doc(db, `companies/${state.companyId}/activities`, activity.id), {
+    const updatePayload = {
       startTime: start,
       endTime: end,
       breakTime,
@@ -1325,7 +1400,10 @@ async function saveActivityModalChanges(deps){
       status: isApprovedStatus(activity) ? "os_aprovada" : "os_gerada",
       updatedAt: serverTimestamp(),
       updatedBy: auth?.currentUser?.uid || ""
-    });
+    };
+    if (!activity.originalWorkDate) updatePayload.originalWorkDate = String(activity.workDate || "").slice(0, 10);
+    if (activity.originalHoursWorked == null) updatePayload.originalHoursWorked = asNumber(activity.hoursWorked);
+    await updateDoc(doc(db, `companies/${state.companyId}/activities`, activity.id), updatePayload);
 
     closeActivityActionModal();
     await refreshWorkspace(deps);
@@ -2090,7 +2168,7 @@ function renderTasks(deps){
       return "";
     }
     const filteredTaskActs = visibleTaskActs.filter((activity) => getTaskActivityFilterMatch(activity, activeStatusFilter, today));
-    const worked = visibleTaskActs.reduce((acc, a) => acc + asNumber(a.hoursWorked), 0);
+    const worked = visibleTaskActs.reduce((acc, a) => acc + effectiveActivityCapacityHours(a), 0);
     const planned = asNumber(t.plannedHours);
     const balance = Math.max(0, planned - worked);
     const statusCounters = visibleTaskActs.reduce((acc, a) => {
@@ -2153,7 +2231,7 @@ function renderTasks(deps){
         return a.label.localeCompare(b.label);
       })
       .map((group, groupIdx) => {
-      const groupHours = group.activities.reduce((acc, a) => acc + asNumber(a.hoursWorked), 0);
+      const groupHours = group.activities.reduce((acc, a) => acc + effectiveActivityCapacityHours(a), 0);
       const techGroupRows = Array.from(group.techGroups.values())
         .sort((a, b) => {
           if (b.overdue !== a.overdue) return b.overdue - a.overdue;
@@ -2164,7 +2242,7 @@ function renderTasks(deps){
           return a.label.localeCompare(b.label);
         })
         .map((techGroup, techIdx) => {
-        const techGroupHours = techGroup.activities.reduce((acc, a) => acc + asNumber(a.hoursWorked), 0);
+        const techGroupHours = techGroup.activities.reduce((acc, a) => acc + effectiveActivityCapacityHours(a), 0);
         const activityCards = techGroup.activities.map(a => {
       const canTechPointFromProject = isUserTech
         && Array.isArray(a.techUids)
@@ -2183,7 +2261,7 @@ function renderTasks(deps){
           <div class="activity-main">
             <div>
               <b>${escapeHtml(a.name || "Atividade")}</b>
-              <div class="activity-meta-line"><span class="activity-date">${escapeHtml(fmtDate(a.workDate))}</span> | <span class="activity-hours">${escapeHtml(String(a.hoursWorked || 0))}h</span></div>
+              ${activityScheduleMetaHtml(a)}
             </div>
             <div class="activity-head-actions">
               <span class="activity-status ${isOverdue ? "orange" : (isApproved ? "green" : (isCompletedStatus(a) ? "amber" : "red"))}">${isOverdue ? "Atrasada" : (isApproved ? "OS Aprovada" : (getActivityStatusValue(a) === "os_gerada" ? "OS Enviada" : "Sem Ordem de Servico"))}</span>
@@ -2582,7 +2660,7 @@ async function saveActivity(taskId, deps){
   const plannedHours = asNumber(task.plannedHours);
   const currentWorked = _activities
     .filter(a => a.taskId === taskId)
-    .reduce((acc, a) => acc + asNumber(a.hoursWorked), 0);
+    .reduce((acc, a) => acc + effectiveActivityCapacityHours(a), 0);
   const newActivitiesHours = dates.length * selectedTechs.length * hoursWorked;
   const availableHours = Math.max(0, plannedHours - currentWorked);
   const activeManagerName = ((state._usersCache || []).find((u) => u.uid === _activeProject?.managerUid)?.name || _activeProject?.managerName || "").trim();
@@ -2603,6 +2681,10 @@ async function saveActivity(taskId, deps){
     saveButton.textContent = "Salvando...";
   }
   try {
+    const scheduleGroupIdsByTech = new Map(selectedTechs.map((tech) => [
+      tech.uid,
+      `grp-${Date.now()}-${tech.uid}-${Math.random().toString(36).slice(2, 8)}`
+    ]));
     for (const d of dates){
       for (const tech of selectedTechs){
         const actId = `act-${Date.now()}-${Math.random().toString(36).slice(2,7)}`;
@@ -2614,8 +2696,11 @@ async function saveActivity(taskId, deps){
           taskId,
           taskName: task.name || "",
           name,
+          scheduleGroupId: scheduleGroupIdsByTech.get(tech.uid) || "",
           workDate: d,
           hoursWorked,
+          originalWorkDate: d,
+          originalHoursWorked: hoursWorked,
           techUids: [tech.uid],
           techNames: [tech.name],
           keyUsers,
@@ -2661,29 +2746,44 @@ async function saveTechFill(activityId, deps){
   const hoursDiff = diffHours(start, end);
   const maxHours = asNumber(act.hoursWorked);
   const minChars = getActivityNoteMinChars(state);
+  const allowReschedule = canTechRescheduleActivity(state);
 
   if (hoursDiff <= 0){
-    setAlert(refs.projectTaskAlert, "Informe hora inÃ­cio e fim vÃ¡lidas.", "error");
+    setAlert(refs.projectTaskAlert, "Informe hora inicio e fim validas.", "error");
     return;
   }
-  if (hoursDiff > maxHours){
-    setAlert(refs.projectTaskAlert, `A soma inÃ­cio/fim nÃ£o pode ultrapassar ${maxHours}h.`, "error");
+  if (!allowReschedule && hoursDiff > maxHours){
+    setAlert(refs.projectTaskAlert, `A soma inicio/fim nao pode ultrapassar ${maxHours}h.`, "error");
     return;
+  }
+  if (allowReschedule){
+    const summary = summarizeActivityGroup(_activities, act, uid, activityId);
+    const plannedHours = summary.plannedHours || maxHours;
+    const totalAfterSave = summary.pointedHours + hoursDiff;
+    if (plannedHours > 0 && totalAfterSave > plannedHours + 0.0001){
+      const available = Math.max(0, plannedHours - summary.pointedHours);
+      setAlert(refs.projectTaskAlert, `Para esta atividade foi programado o maximo de ${formatHoursDisplay(plannedHours)}. Restam ${formatHoursDisplay(available)} para este consultor. Diminua horas de agendas futuras desta atividade ou solicite ao gestor programar mais dias/horas para a atividade.`, "error");
+      return;
+    }
   }
   if (note.length < minChars){
-    setAlert(refs.projectTaskAlert, `A observaÃ§Ã£o precisa ter no mÃ­nimo ${minChars} caracteres.`, "error");
+    setAlert(refs.projectTaskAlert, `A observacao precisa ter no minimo ${minChars} caracteres.`, "error");
     return;
   }
 
   const companyId = state.companyId;
-  await updateDoc(doc(db, `companies/${companyId}/activities`, activityId), {
+  const updatePayload = {
     startTime: start,
     endTime: end,
+    workedHours: hoursDiff,
     note,
     status: "os_gerada",
     updatedAt: serverTimestamp(),
     updatedBy: uid
-  });
+  };
+  if (!act.originalWorkDate) updatePayload.originalWorkDate = String(act.workDate || "").slice(0, 10);
+  if (act.originalHoursWorked == null) updatePayload.originalHoursWorked = asNumber(act.hoursWorked);
+  await updateDoc(doc(db, `companies/${companyId}/activities`, activityId), updatePayload);
 
   await refreshWorkspace(deps);
 }

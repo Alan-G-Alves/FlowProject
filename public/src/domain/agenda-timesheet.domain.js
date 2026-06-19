@@ -1130,6 +1130,10 @@ async function saveSchedule(){
     const company = _deps.state.company || await getCompanySettings(_deps.db, _deps.state.companyId);
     if (company) _deps.state.company = company;
     const uid = _deps.auth?.currentUser?.uid || "";
+    const scheduleGroupIdsByResource = new Map(resourceIds.map((resourceId) => [
+      resourceId,
+      `grp-${Date.now()}-${resourceId}-${Math.random().toString(36).slice(2, 8)}`
+    ]));
     for (const date of dates){
       for (const resourceId of resourceIds){
         const resource = _ctx.users.find((item) => (item.uid || item.id) === resourceId);
@@ -1146,8 +1150,11 @@ async function saveSchedule(){
           taskId,
           taskName: task?.name || "",
           name,
+          scheduleGroupId: scheduleGroupIdsByResource.get(resourceId) || "",
           workDate: date,
           hoursWorked,
+          originalWorkDate: date,
+          originalHoursWorked: hoursWorked,
           techUids: [resourceId],
           techNames: [resource?.name || resource?.email || ""],
           keyUsers,
